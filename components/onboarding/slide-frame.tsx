@@ -40,8 +40,18 @@ export function SlideFrame({
     >
       {backdrop}
 
-      {/* Stage caps at the 852px artboard so artwork and copy never drift apart. */}
-      <div className="relative flex h-full max-h-[852px] w-full flex-col">
+      {/* The artboard is a fixed 393x852 but a phone only gives ~690px of height, so the
+          board is scaled down to fit. Every Figma proportion then holds, instead of the
+          copy reflowing up into the artwork. The widened box keeps artwork that bleeds
+          off the design clipping at the screen edge, not at the scaled board edge. */}
+      <div
+        className={cn(
+          "relative flex shrink-0 flex-col",
+          "h-[852px] [--fit:min(1,tan(atan2(100dvh,852px)))] [scale:var(--fit)] [width:calc(100%/var(--fit))]",
+          // Anything wider than a phone has the room already — leave the stage as designed.
+          "sm:h-full sm:max-h-[852px] sm:[--fit:1]",
+        )}
+      >
         {stageArt}
 
         {/* Copy shares the 393px artboard with DesignLayer, so the 33px gutter is

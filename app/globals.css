@@ -1,26 +1,121 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ==========================================================================
+   Jumpa design tokens
+   
+   Declaring a token here does two things at once:
+     1. creates the CSS variable  -> var(--color-jumpa-primary-600)
+     2. generates the utilities   -> bg-jumpa-primary-600, text-jumpa-primary-600, ...
+
+   RULE: never write a raw hex, rgb() or px font-size in a component.
+   If a value is missing, add it here first.
+   ========================================================================== */
+
+@theme static {
+  /* --- Brand base ------------------------------------------------------- */
+  --color-jumpa-black: #000000;
+  --color-jumpa-white: #ffffff;
+
+  /* --- Primary (purple) — the core brand ramp --------------------------- */
+  --color-jumpa-primary-50: #f5f0ff;
+  --color-jumpa-primary-100: #ede4ff;
+  --color-jumpa-primary-300: #c6a5ff;
+  --color-jumpa-primary-400: #ac72ff;
+  --color-jumpa-primary-500: #963aff;
+  --color-jumpa-primary-600: #8f12ff; /* primary action / brand purple */
+  --color-jumpa-primary-700: #8301ff;
+  --color-jumpa-primary-900: #5b02b0;
+  --color-jumpa-primary-950: #370078;
+
+  /* --- Alt (lime accent) ------------------------------------------------ */
+  --color-jumpa-alt-50: #fdffe4;
+  --color-jumpa-alt-100: #faffc4;
+  --color-jumpa-alt-200: #f3ff90;
+  --color-jumpa-alt-300: #e5ff50;
+  --color-jumpa-alt-400: #d5ff19; /* active pagination pill, highlights */
+  --color-jumpa-alt-500: #b6e600;
+  --color-jumpa-alt-800: #546d07;
+  --color-jumpa-alt-900: #475c0b;
+  --color-jumpa-alt-950: #243400;
+
+  /* --- Secondary (magenta-purple) --------------------------------------- */
+  --color-jumpa-secondary-50: #fbf5ff;
+  --color-jumpa-secondary-600: #a02eef;
+
+  /* --- Greys ------------------------------------------------------------ */
+  --color-jumpa-grey-500: #6b7381;
+  --color-jumpa-grey-600: #4b5563;
+
+  /* --- Semantic --------------------------------------------------------- */
+  --color-jumpa-verified: #47c2ff;
+  --color-jumpa-fill-primary: #787880;
+
+  /* --- Typography ------------------------------------------------------- */
+  /* Geist is the product font across all UI copy. */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  /* Display face for oversized numerals (e.g. the "+$251" amount card).
+     Figma specifies Gotham Ultra — a licensed Hoefler font. See README.md. */
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+
+  /* --- Radius ----------------------------------------------------------- */
+  --radius-pill: 100px; /* buttons, chat bubbles, pagination */
+  --radius-card: 18px;
+  --radius-screen: 48px; /* device-frame corner in the mockups */
+
+  /* --- Elevation -------------------------------------------------------- */
+  --shadow-jumpa-sm: 0 2px 4px 0 rgb(27 28 29 / 0.04);
+  --shadow-jumpa-card:
+    0 6px 7px rgb(0 0 0 / 0.1), 2px 25px 12.5px rgb(0 0 0 / 0.09),
+    4px 57px 17px rgb(0 0 0 / 0.05), 7px 101px 20px rgb(0 0 0 / 0.01);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Gradients that recur across screens. Kept as variables so a change lands
+   everywhere at once; Tailwind has no utility for multi-stop brand gradients. */
+@theme static {
+  --gradient-jumpa-chip: linear-gradient(
+    180deg,
+    var(--color-jumpa-alt-50) 0%,
+    var(--color-jumpa-alt-100) 100%
+  );
+  --gradient-jumpa-avatar: linear-gradient(
+    180deg,
+    var(--color-jumpa-primary-600) 0%,
+    var(--color-jumpa-primary-400) 100%
+  );
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
+@layer base {
+  html {
+    /* Prevent iOS text auto-inflation in landscape. */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-jumpa-white);
+    color: var(--color-jumpa-black);
+    font-family: var(--font-sans);
+    /* Disable the double-tap-to-zoom delay on touch targets. */
+    touch-action: manipulation;
+  }
+
+  /* The app is a full-bleed mobile surface; page-level scroll is opt-in. */
+  html,
+  body {
+    overscroll-behavior-y: none;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  /* Respects the iOS home-indicator / notch insets. */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }

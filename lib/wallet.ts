@@ -23,11 +23,11 @@ export type Asset = {
 
 export const ASSETS: Asset[] = [
   {
-    symbol: "BTC",
-    name: "Bitcoin",
+    symbol: "XLM",
+    name: "Stellar",
     icon: "/images/home/coin-generic.svg",
-    balance: "$144,760.21",
-    change: "+$2.23",
+    balance: "$0.17.3",
+    change: "+$1.23",
   },
   {
     symbol: "BTC",
@@ -37,11 +37,11 @@ export const ASSETS: Asset[] = [
     change: "+$2.23",
   },
   {
-    symbol: "BTC",
-    name: "Bitcoin",
-    icon: "/images/home/coin-bitcoin.svg",
-    balance: "$144,760.21",
-    change: "+$2.23",
+    symbol: "USDC",
+    name: "Stellar",
+    icon: "/images/home/usdcImg.png",
+    balance: "$1,760.21",
+    change: "+$0.99",
   },
 ];
 

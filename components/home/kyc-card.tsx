@@ -15,7 +15,7 @@ export function KycCard({
   return (
     <Link
       href="/kyc"
-      className="flex h-20 items-center gap-4.5 rounded-xl border-[1.5px] border-jumpa-primary-50 bg-jumpa-white pr-4 pl-3.25"
+      className="flex h-20 items-center gap-4.5 rounded-xl border-[1.5px] border-jumpa-primary-50 bg-jumpa-neutral-50 pr-4 pl-3.25"
     >
       <span className="flex items-center gap-2">
         <span className="flex size-11 shrink-0 items-center justify-center rounded-panel bg-jumpa-primary-600 text-jumpa-alt-400">

@@ -1,0 +1,14 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="126" height="94" viewBox="0 0 126 94" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Group 1321315606">
+<g id="Rectangle 3464678">
+<path d="M0 84C0 89.5228 4.47715 94 10 94H126L63 47L22.117 16.5L0 0V84Z" fill="#EEEEEE"/>
+<path d="M126 94V0L103.883 16.5L63 47L126 94Z" fill="#E3E3E3"/>
+<path d="M0 0L22.117 16.5V15.5C22.117 9.97715 26.5942 5.5 32.117 5.5H93.883C99.4058 5.5 103.883 9.97715 103.883 15.5V16.5L126 0H0Z" fill="#D9D9D9"/>
+</g>
+<g id="Frame 2147260568">
+<rect x="43" y="27" width="40" height="40" rx="20" fill="#D5FF19"/>
+<rect x="43" y="27" width="40" height="40" rx="20" stroke="#B6E600" stroke-width="4"/>
+<path id="Vector 2983" d="M52 46L59.2929 53.2929C59.6834 53.6834 60.3166 53.6834 60.7071 53.2929L74 40" stroke="#8F12FF" stroke-width="4" stroke-linecap="round"/>
+</g>
+</g>
+</svg>

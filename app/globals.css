@@ -46,9 +46,24 @@
   --color-jumpa-grey-500: #6b7381;
   --color-jumpa-grey-600: #4b5563;
 
+  /* --- Neutrals --------------------------------------------------------- */
+  /* Surfaces, borders and body copy on the light auth screens. The designer
+     used raw fills here rather than Figma variables, so these names are ours —
+     confirm them before they spread further. Distinct from the blue-tinted
+     `grey` ramp above. */
+  --color-jumpa-neutral-50: #fafafa; /* card / key / chip surface */
+  --color-jumpa-neutral-75: #f4f4f4; /* bottom-sheet grab handle */
+  --color-jumpa-neutral-100: #efefef; /* hairline border */
+  --color-jumpa-neutral-200: #e9e9e9; /* rule beside "Or Sign Up With" */
+  --color-jumpa-neutral-500: #4f4f4f; /* captions, "Or Sign Up With" */
+  --color-jumpa-neutral-600: #464646; /* social button label */
+  --color-jumpa-neutral-800: #161616; /* supporting copy under a heading */
+  --color-jumpa-neutral-900: #141414; /* "Resend Code" */
+
   /* --- Semantic --------------------------------------------------------- */
   --color-jumpa-verified: #47c2ff;
   --color-jumpa-fill-primary: #787880;
+  --color-jumpa-danger: #ff0004; /* self-custody warnings */
 
   /* --- Typography ------------------------------------------------------- */
   /* Geist is the product font across all UI copy. */
@@ -57,10 +72,18 @@
   /* Display face for oversized numerals (e.g. the "+$251" amount card).
      Figma specifies Gotham Ultra — a licensed Hoefler font. See README.md. */
   --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  /* PIN digits and keypad. Figma specifies Neue Montreal, which we don't have —
+     aliased to Geist pending a licence decision. See README.md. */
+  --font-numeric: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 
   /* --- Radius ----------------------------------------------------------- */
-  --radius-pill: 100px; /* buttons, chat bubbles, pagination */
+  --radius-pill: 100px; /* buttons, chat bubbles, pagination, inputs */
+  --radius-chip: 8px; /* recovery-phrase words */
+  --radius-tile: 10px; /* inner surface of an inset card */
+  --radius-panel: 16px; /* PIN box, backup option rows */
   --radius-card: 18px;
+  --radius-key: 24px; /* keypad keys */
+  --radius-sheet: 40px; /* keypad panel, bottom sheet */
   --radius-screen: 48px; /* device-frame corner in the mockups */
 
   /* --- Elevation -------------------------------------------------------- */
@@ -80,6 +103,18 @@
   );
   --gradient-jumpa-avatar: linear-gradient(
     180deg,
+    var(--color-jumpa-primary-600) 0%,
+    var(--color-jumpa-primary-400) 100%
+  );
+  /* Primary call to action on the light screens. */
+  --gradient-jumpa-cta: linear-gradient(
+    90deg,
+    var(--color-jumpa-primary-500) 0%,
+    var(--color-jumpa-primary-600) 100%
+  );
+  /* Ringed call to action — "Backup Now" on the secure-wallet screen. */
+  --gradient-jumpa-cta-ringed: linear-gradient(
+    0deg,
     var(--color-jumpa-primary-600) 0%,
     var(--color-jumpa-primary-400) 100%
   );

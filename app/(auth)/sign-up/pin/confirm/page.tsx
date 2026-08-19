@@ -15,7 +15,7 @@ export default function ConfirmPinPage() {
         6-digit code to authorize payments
       </AuthHeading>
 
-      <PinForm label="Enter pin again" nextHref="/sign-up/done" />
+      <PinForm label="Enter pin again" nextHref="/sign-up/biometrics" />
     </AuthScreen>
   );
 }

@@ -3,8 +3,10 @@ import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
 import { cn } from "@/lib/cn";
 
 const TONES = {
-  neutral: "text-jumpa-neutral-900",
-  danger: "text-jumpa-danger",
+  neutral: { text: "text-jumpa-neutral-900", icon: "text-jumpa-primary-600" },
+  brand: { text: "text-jumpa-primary-950", icon: "text-jumpa-primary-600" },
+  danger: { text: "text-jumpa-danger", icon: "text-jumpa-danger" },
+  warning: { text: "text-jumpa-warning", icon: "text-jumpa-warning" },
 } as const;
 
 /** Badge-icon note under the PIN box, the phrase and the backup options. */
@@ -21,16 +23,11 @@ export function InfoNote({
     <p
       className={cn(
         "flex items-center gap-2 text-xs leading-3.5",
-        TONES[tone],
+        TONES[tone].text,
         className,
       )}
     >
-      <SealAlertIcon
-        className={cn(
-          "size-6 shrink-0",
-          tone === "danger" ? "text-jumpa-danger" : "text-jumpa-primary-600",
-        )}
-      />
+      <SealAlertIcon className={cn("size-6 shrink-0", TONES[tone].icon)} />
       <span>{children}</span>
     </p>
   );

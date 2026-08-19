@@ -1,9 +1,16 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { ArrowBackIcon } from "@/components/ui/icons/arrow-back";
 
-/** Back link and wordmark. */
-export function AuthHeader({ backHref }: { backHref: string }) {
+/** Back link and wordmark. `action` takes the wordmark's place when given. */
+export function AuthHeader({
+  backHref,
+  action,
+}: {
+  backHref: string;
+  action?: ReactNode;
+}) {
   return (
     <header className="flex items-center justify-between">
       <Link
@@ -13,15 +20,17 @@ export function AuthHeader({ backHref }: { backHref: string }) {
         <ArrowBackIcon className="size-6" />
         <span className="text-base leading-4.5 font-medium">Back</span>
       </Link>
-      {/* Alpha-trimmed — the raw logo is half transparent padding. */}
-      <Image
-        src="/logo/wordmark/purple.png"
-        alt="Jumpa"
-        width={96}
-        height={20}
-        priority
-        className="h-5 w-24"
-      />
+      {action ?? (
+        /* Alpha-trimmed — the raw logo is half transparent padding. */
+        <Image
+          src="/logo/wordmark/purple.png"
+          alt="Jumpa"
+          width={96}
+          height={20}
+          priority
+          className="h-5 w-24"
+        />
+      )}
     </header>
   );
 }

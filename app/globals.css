@@ -64,6 +64,7 @@
   --color-jumpa-verified: #47c2ff;
   --color-jumpa-fill-primary: #787880;
   --color-jumpa-danger: #ff0004; /* self-custody warnings */
+  --color-jumpa-warning: #e69200; /* PIN-vs-password note on the import screens */
 
   /* --- Typography ------------------------------------------------------- */
   /* Geist is the product font across all UI copy. */

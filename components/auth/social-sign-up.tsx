@@ -6,13 +6,17 @@ const PROVIDERS = [
 ] as const;
 
 /** Provider buttons. Disabled until there is an OAuth client id. */
-export function SocialSignUp() {
+export function SocialSignUp({
+  label = "Or Sign Up With",
+}: {
+  label?: string;
+}) {
   return (
     <div className="flex w-full flex-col gap-8">
       <div className="flex items-center gap-2.75">
         <span className="h-px flex-1 bg-jumpa-neutral-200" />
         <span className="text-xs leading-3.5 text-jumpa-neutral-500">
-          Or Sign Up With
+          {label}
         </span>
         <span className="h-px flex-1 bg-jumpa-neutral-200" />
       </div>

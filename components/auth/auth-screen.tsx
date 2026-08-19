@@ -34,17 +34,29 @@ export function AuthScreen({
   );
 }
 
-/** Page title and its supporting line. */
+/**
+ * Page title and its supporting line. The design gives each screen its own text
+ * width, so `className` caps the block and `titleClassName` the title alone.
+ */
 export function AuthHeading({
   title,
+  className,
+  titleClassName,
   children,
 }: {
   title: ReactNode;
+  className?: string;
+  titleClassName?: string;
   children?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-2">
-      <h1 className="text-[28px] leading-8 font-semibold text-jumpa-black">
+    <div className={cn("flex flex-col gap-2", className)}>
+      <h1
+        className={cn(
+          "text-[28px] leading-8 font-semibold text-jumpa-black",
+          titleClassName,
+        )}
+      >
         {title}
       </h1>
       {children ? (

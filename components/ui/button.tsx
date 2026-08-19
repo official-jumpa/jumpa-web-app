@@ -18,6 +18,8 @@ const VARIANTS = {
     "bg-[image:var(--gradient-jumpa-cta)] text-jumpa-alt-50 font-medium",
   /** Same shape, waiting on the user. */
   soft: "bg-jumpa-primary-50 text-jumpa-primary-400 font-semibold",
+  /** Tinted secondary action that is available, e.g. "i'll do this later". */
+  softStrong: "bg-jumpa-primary-50 text-jumpa-primary-950 font-bold",
 } as const;
 
 const SIZES = {

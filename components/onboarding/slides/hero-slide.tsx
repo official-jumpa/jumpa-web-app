@@ -2,7 +2,6 @@ import Image from "next/image";
 import { DesignLayer } from "../design-layer";
 import { SlideFrame, SlideHeading } from "../slide-frame";
 
-/** Figma 682:3534 */
 export function HeroSlide() {
   return (
     <SlideFrame

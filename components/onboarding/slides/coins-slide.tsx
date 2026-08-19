@@ -3,7 +3,6 @@ import { DesignLayer, HOLDS_POSITION } from "../design-layer";
 import { GlowBackdrop } from "../glow-backdrop";
 import { SlideFrame, SlideHeading } from "../slide-frame";
 
-/** Figma 682:3513 */
 export function CoinsSlide() {
   return (
     <SlideFrame

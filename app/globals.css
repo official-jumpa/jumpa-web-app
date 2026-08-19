@@ -1,22 +1,17 @@
 @import "tailwindcss";
 
-/* ==========================================================================
-   Jumpa design tokens
-   
-   Declaring a token here does two things at once:
-     1. creates the CSS variable  -> var(--color-jumpa-primary-600)
-     2. generates the utilities   -> bg-jumpa-primary-600, text-jumpa-primary-600, ...
-
-   RULE: never write a raw hex, rgb() or px font-size in a component.
-   If a value is missing, add it here first.
-   ========================================================================== */
+/*
+ * Jumpa design tokens. Each declaration creates the variable and its utilities
+ * (`--color-jumpa-primary-600` -> `bg-jumpa-primary-600`, `text-…`, `border-…`).
+ * Never write a raw hex, rgb() or px font-size in a component — add it here.
+ */
 
 @theme static {
-  /* --- Brand base ------------------------------------------------------- */
+  /* Brand base */
   --color-jumpa-black: #000000;
   --color-jumpa-white: #ffffff;
 
-  /* --- Primary (purple) — the core brand ramp --------------------------- */
+  /* Primary (purple) — the core brand ramp */
   --color-jumpa-primary-50: #f5f0ff;
   --color-jumpa-primary-100: #ede4ff;
   --color-jumpa-primary-300: #c6a5ff;
@@ -28,7 +23,7 @@
   --color-jumpa-primary-900: #5b02b0;
   --color-jumpa-primary-950: #370078;
 
-  /* --- Alt (lime accent) ------------------------------------------------ */
+  /* Alt (lime accent) */
   --color-jumpa-alt-50: #fdffe4;
   --color-jumpa-alt-100: #faffc4;
   --color-jumpa-alt-200: #f3ff90;
@@ -39,21 +34,18 @@
   --color-jumpa-alt-900: #475c0b;
   --color-jumpa-alt-950: #243400;
 
-  /* --- Secondary (magenta-purple) --------------------------------------- */
+  /* Secondary (magenta-purple) */
   --color-jumpa-secondary-50: #fbf5ff;
   --color-jumpa-secondary-100: #e8dff1; /* "Recent" filter pill in chat */
   --color-jumpa-secondary-600: #a02eef;
 
-  /* --- Greys ------------------------------------------------------------ */
+  /* Greys */
   --color-jumpa-grey-300: #abb0ba; /* close button on the chat header */
   --color-jumpa-grey-500: #6b7381;
   --color-jumpa-grey-600: #4b5563;
 
-  /* --- Neutrals --------------------------------------------------------- */
-  /* Surfaces, borders and body copy on the light auth screens. The designer
-     used raw fills here rather than Figma variables, so these names are ours —
-     confirm them before they spread further. Distinct from the blue-tinted
-     `grey` ramp above. */
+  /* Neutrals — light-screen surfaces, borders and copy. Read off the exports,
+     not Figma variables, so the names are ours. Distinct from `grey` above. */
   --color-jumpa-neutral-25: #fbfbfb; /* label on a chat Confirm button */
   --color-jumpa-neutral-50: #fafafa; /* card / key / chip surface */
   --color-jumpa-neutral-75: #f4f4f4; /* bottom-sheet grab handle */
@@ -74,7 +66,7 @@
   --color-jumpa-neutral-800: #161616; /* supporting copy under a heading */
   --color-jumpa-neutral-900: #141414; /* "Resend Code" */
 
-  /* --- Semantic --------------------------------------------------------- */
+  /* Semantic */
   --color-jumpa-verified: #47c2ff;
   --color-jumpa-fill-primary: #787880;
   --color-jumpa-danger: #ff0004; /* self-custody warnings */
@@ -82,18 +74,14 @@
   --color-jumpa-success: #11a929; /* positive 24h change on an asset card */
   --color-jumpa-pin-rule: #193d26; /* slot underline in the chat PIN sheet */
 
-  /* --- Typography ------------------------------------------------------- */
-  /* Geist is the product font across all UI copy. */
+  /* Typography. Geist carries all UI copy; the two aliases below stand in for
+     unlicensed faces — Gotham Ultra and Neue Montreal. See README.md. */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  /* Display face for oversized numerals (e.g. the "+$251" amount card).
-     Figma specifies Gotham Ultra — a licensed Hoefler font. See README.md. */
   --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  /* PIN digits and keypad. Figma specifies Neue Montreal, which we don't have —
-     aliased to Geist pending a licence decision. See README.md. */
   --font-numeric: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 
-  /* --- Radius ----------------------------------------------------------- */
+  /* Radius */
   --radius-pill: 100px; /* buttons, chat bubbles, pagination, inputs */
   --radius-chip: 8px; /* recovery-phrase words */
   --radius-tile: 10px; /* inner surface of an inset card */
@@ -105,15 +93,14 @@
   --radius-sheet: 40px; /* keypad panel, bottom sheet */
   --radius-screen: 48px; /* device-frame corner in the mockups */
 
-  /* --- Elevation -------------------------------------------------------- */
+  /* Elevation */
   --shadow-jumpa-sm: 0 2px 4px 0 rgb(27 28 29 / 0.04);
   --shadow-jumpa-card:
     0 6px 7px rgb(0 0 0 / 0.1), 2px 25px 12.5px rgb(0 0 0 / 0.09),
     4px 57px 17px rgb(0 0 0 / 0.05), 7px 101px 20px rgb(0 0 0 / 0.01);
 }
 
-/* Gradients that recur across screens. Kept as variables so a change lands
-   everywhere at once; Tailwind has no utility for multi-stop brand gradients. */
+/* Recurring gradients. Tailwind has no utility for multi-stop brand gradients. */
 @theme static {
   --gradient-jumpa-chip: linear-gradient(
     180deg,
@@ -168,10 +155,6 @@
   );
 }
 
-/* ==========================================================================
-   Base
-   ========================================================================== */
-
 @layer base {
   html {
     /* Prevent iOS text auto-inflation in landscape. */
@@ -202,8 +185,7 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 
-  /* Divider inside the chat cards. Figma draws a 2-2 dash, which `border-dashed`
-     does not reproduce at 1px. */
+  /* Chat card divider. Figma's 2-2 dash, which `border-dashed` can't do at 1px. */
   .rule-dashed {
     background-image: repeating-linear-gradient(
       to right,

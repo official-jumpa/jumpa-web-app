@@ -1,9 +1,8 @@
 import { cn } from "@/lib/cn";
 
 /**
- * One line of conversation. Prose sits in a wider, squared-off bubble; short
- * replies are pills. Both roles share a surface — position is what tells them
- * apart, exactly as in the design.
+ * One line of conversation: prose in a squared-off bubble, short replies as pills.
+ * Both roles share a surface, so position is what tells them apart.
  */
 export function MessageBubble({
   children,

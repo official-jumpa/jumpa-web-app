@@ -2,9 +2,8 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 /**
- * Shell for every sign-up screen. `footer` sits at the bottom of the viewport until
- * the body outgrows it. Pages tune `--auth-gap` and `--auth-pb` — custom properties
- * because `cn` concatenates, so a second `pt-*`/`pb-*` would not win.
+ * Shell for every auth screen; `footer` holds the viewport bottom until the body
+ * outgrows it. `--auth-gap`/`--auth-pb` are properties because `cn` only concatenates.
  */
 export function AuthScreen({
   header,
@@ -34,10 +33,7 @@ export function AuthScreen({
   );
 }
 
-/**
- * Page title and its supporting line. The design gives each screen its own text
- * width, so `className` caps the block and `titleClassName` the title alone.
- */
+/** Page title and subtitle. Each screen caps its own width, hence the two class props. */
 export function AuthHeading({
   title,
   className,

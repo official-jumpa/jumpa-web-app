@@ -5,11 +5,8 @@ export const HOLDS_POSITION =
   "translate-y-[calc(var(--art-lift,0px)*var(--squeeze,0))]";
 
 /**
- * 393x852 coordinate space from Figma. Artwork offsets are relative to this box.
- *
- * `lift` raises the artwork by that many design px as the board tightens (`--squeeze`
- * in SlideFrame), reclaiming the gap under the wordmark on short viewports. The
- * wordmark itself opts out with `HOLDS_POSITION` — that gap is the point.
+ * 393x852 artboard space. `lift` raises artwork as the board tightens, reclaiming
+ * the gap under the wordmark — which opts out via `HOLDS_POSITION`.
  */
 export function DesignLayer({
   children,

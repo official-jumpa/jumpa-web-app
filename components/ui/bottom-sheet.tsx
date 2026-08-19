@@ -1,10 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
-/**
- * Dimmed overlay with a panel on the bottom edge. Tapping the backdrop closes
- * it; the grab handle is decorative, as the design shows no drag affordance.
- */
+/** Dimmed overlay with a bottom panel. The grab handle is decorative — no drag in the design. */
 export function BottomSheet({
   onClose,
   className,

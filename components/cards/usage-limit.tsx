@@ -1,9 +1,6 @@
 import type { UsageLimit as Limit } from "@/lib/cards";
 
-/**
- * Spend allowance for one channel. The slider is presentational — the design
- * shows no way to change a tier's limit from this screen.
- */
+/** Spend allowance for one channel. The slider is presentational — no control in the design. */
 export function UsageLimit({ limit }: { limit: Limit }) {
   const fill = `${(limit.used * 100).toFixed(2)}%`;
 

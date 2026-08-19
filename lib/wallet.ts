@@ -1,7 +1,4 @@
-/**
- * Placeholder wallet data for the home screen. Everything here is stand-in
- * content from the design and gets replaced once the wallet layer lands.
- */
+/** Placeholder home-screen data from the design, replaced once the wallet layer lands. */
 
 export const ACCOUNT = {
   firstName: "Bharry",

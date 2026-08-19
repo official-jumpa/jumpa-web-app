@@ -1,9 +1,6 @@
 import Image from "next/image";
 
-/**
- * White wash the transcript scrolls up into. Stays put while the PIN sheet is
- * open, which is why it is not part of ChatHeader.
- */
+/** White wash the transcript scrolls into. Kept out of ChatHeader so it survives the PIN sheet. */
 export function ChatTopFade() {
   return (
     <div

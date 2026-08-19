@@ -1,10 +1,8 @@
 import Image from "next/image";
 
 /**
- * Purple light rising from the bottom of the screen. Fixed, because the design
- * holds it still while the transcript scrolls. `soft` matches the conversation
- * frames, which carry the glow as a frame fill rather than as the layer the
- * intro screen exports — so the same ellipse is simply dialled back.
+ * Purple glow rising from the bottom. Fixed, since the design holds it still as
+ * the transcript scrolls; `soft` dials it back for the conversation frames.
  */
 export function ChatBackdrop({ soft }: { soft?: boolean }) {
   return (

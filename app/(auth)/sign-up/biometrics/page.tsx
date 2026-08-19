@@ -35,9 +35,8 @@ export default function BiometricsPage() {
       }
       className="relative isolate [--auth-gap:12px] [--auth-pb:26px]"
     >
-      {/* Full-bleed backdrop; the copy and buttons sit on top of it. `fill` +
-          `object-cover` bounds it to this box — `width`/`height` would size it
-          from the image's own aspect ratio and let it overflow the screen. */}
+      {/* Full-bleed backdrop. `fill` + `object-cover` bounds it to this box;
+          `width`/`height` would size it from the image and overflow the screen. */}
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <Image
           src="/images/auth/biometric-stage.webp"

@@ -2,10 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowBackIcon } from "@/components/ui/icons/arrow-back";
 
-/**
- * Back arrow with an optional centred title and trailing control. The arrow sits
- * in a 44px hit area, so the row height matches the design without extra padding.
- */
+/** Back arrow, optional centred title, trailing control. The 44px hit area sets the row height. */
 export function ScreenHeader({
   back,
   title,

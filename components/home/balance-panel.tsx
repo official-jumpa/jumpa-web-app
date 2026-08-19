@@ -19,9 +19,8 @@ const TRANSFERS = [
 ];
 
 /**
- * Total balance and the three transfer shortcuts. The amount starts hidden;
- * both the label pill and the eye reveal it, which is the only difference
- * between the two hero states in the design.
+ * Total balance and the transfer shortcuts. The amount starts hidden — the label
+ * pill and the eye both reveal it, the only difference between the hero states.
  */
 export function BalancePanel({ balance }: { balance: string }) {
   const [visible, setVisible] = useState(false);
@@ -41,8 +40,7 @@ export function BalancePanel({ balance }: { balance: string }) {
         </button>
 
         <p className="flex items-center gap-2 text-jumpa-primary-50">
-          {/* The 32px digits set the 34px line the design specifies; the
-              wrapper's strut and the smaller "$" must not extend it. */}
+          {/* The 32px digits set the design's 34px line; the strut and "$" must not extend it. */}
           <span className="text-center leading-0 font-semibold">
             <span className="text-xl leading-none">$</span>
             <span className="text-[32px] leading-8.5">

@@ -1,7 +1,4 @@
-/**
- * Placeholder conversation for the chat screen. Everything here is stand-in
- * content from the design and gets replaced once the agent backend lands.
- */
+/** Placeholder transcript from the design, replaced once the agent backend lands. */
 
 /** Muted lead-in followed by an emphasised value, e.g. "Fee **0.3 XLM**". */
 export type Stat = { lead?: string; value: string };
@@ -48,10 +45,7 @@ export type ChatItem =
   /** Cancel / Confirm pair. Confirm is what raises the PIN sheet. */
   | { kind: "actions" };
 
-/**
- * The design groups consecutive agent replies under a single avatar, so the
- * transcript is a list of groups rather than of individual messages.
- */
+/** Consecutive agent replies share one avatar, so the transcript is a list of groups. */
 export type ChatEntry =
   | { id: string; kind: "day"; label: string }
   | { id: string; kind: "group"; role: "user" | "agent"; items: ChatItem[] };

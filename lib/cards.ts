@@ -1,6 +1,6 @@
 /**
- * Placeholder virtual-card data from the design. Real card details never reach
- * the client like this — they come from the card processor behind a PIN check.
+ * Placeholder card data from the design. Real details never reach the client like
+ * this — they come from the card processor behind a PIN check.
  */
 
 export type VirtualCard = {

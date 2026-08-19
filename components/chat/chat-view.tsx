@@ -12,9 +12,8 @@ import { Transcript } from "@/components/chat/transcript";
 import type { ChatEntry } from "@/lib/chat";
 
 /**
- * The chat screen and its two states: the opening prompt before anything has
- * been said, and the running conversation. Confirming an agent proposal raises
- * the PIN sheet, which covers the controls and composer as it does in the design.
+ * The chat screen and its two states — opening prompt and running conversation.
+ * Confirming a proposal raises the PIN sheet over the controls and composer.
  */
 export function ChatView({ entries: initial }: { entries: ChatEntry[] }) {
   const [entries, setEntries] = useState(initial);
@@ -22,8 +21,7 @@ export function ChatView({ entries: initial }: { entries: ChatEntry[] }) {
 
   const closePin = useCallback(() => setPinOpen(false), []);
   const openPin = useCallback(() => setPinOpen(true), []);
-  // No backend yet, so "new conversation" simply empties the thread — which is
-  // what puts the intro state on screen.
+  // No backend yet: emptying the thread is what puts the intro state on screen.
   const startNew = useCallback(() => setEntries([]), []);
 
   const started = entries.length > 0;
@@ -51,8 +49,7 @@ export function ChatView({ entries: initial }: { entries: ChatEntry[] }) {
       )}
 
       {pinOpen ? (
-        // The design does not show what follows a correct PIN, so it only
-        // dismisses for now; the settled transaction is already in TRANSCRIPT.
+        // The design shows nothing after a correct PIN, so it just dismisses.
         <PinSheet onClose={closePin} onComplete={closePin} />
       ) : null}
     </div>

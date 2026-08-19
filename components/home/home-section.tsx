@@ -1,10 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
-/**
- * Labelled block on the home screen. The gap under the label is per-section in
- * the design — 8px for the asset and quick-action grids, 16px for the list.
- */
+/** Labelled home block. The gap under the label is per-section in the design. */
 export function HomeSection({
   title,
   action,

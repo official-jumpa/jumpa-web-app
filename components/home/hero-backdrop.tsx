@@ -1,9 +1,8 @@
 import Image from "next/image";
 
 /**
- * Decorative layers behind the balance: a fine grid and two blurred glows that
- * bleed off the band. Offsets are design coordinates inside a centred 393px
- * artboard, so they stay put as the band widens.
+ * Grid and glows behind the balance. Offsets are design coordinates in a centred
+ * 393px artboard, so they stay put as the band widens.
  */
 export function HeroBackdrop() {
   return (

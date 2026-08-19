@@ -11,10 +11,7 @@ const KEY_CLASS =
 export const KEYPAD_PANEL =
   "-mx-2 rounded-sheet border border-jumpa-black/4 bg-jumpa-white px-5.75 py-7.5";
 
-/**
- * On-screen number pad. The auth screens wrap it in a panel; the chat PIN sheet
- * is the panel, so the frame stays out here.
- */
+/** On-screen number pad. Panel chrome stays outside; the chat sheet is its own panel. */
 export function NumericKeypad({
   onDigit,
   onBackspace,

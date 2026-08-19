@@ -1,10 +1,7 @@
 import type { ReactNode } from "react";
 import { ChatComposer } from "@/components/chat/chat-composer";
 
-/**
- * Frosted panel pinned to the bottom of the chat. It holds the composer, and on
- * the intro screen the suggestion card above it.
- */
+/** Frosted panel at the foot of the chat: the composer, plus the intro suggestions. */
 export function ChatDock({ children }: { children?: ReactNode }) {
   return (
     <div className="sticky bottom-0 mt-auto px-3 pt-2 pb-[calc(env(safe-area-inset-bottom)+14px)]">

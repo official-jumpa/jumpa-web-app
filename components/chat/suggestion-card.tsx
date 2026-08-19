@@ -13,9 +13,8 @@ const SUGGESTIONS = [
 ];
 
 /**
- * Opening prompts, offered only until the conversation starts. Side padding is
- * 8, not the 10 the design draws — its first row is 3px wider than the card and
- * would otherwise wrap early.
+ * Opening prompts, shown until the conversation starts. Side padding is 8, not the
+ * design's 10 — its first chip row is 3px wider than the card and would wrap early.
  */
 export function SuggestionCard() {
   return (

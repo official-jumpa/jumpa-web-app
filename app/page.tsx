@@ -8,10 +8,8 @@ import { useEffect } from "react";
 const SPLASH_DURATION_MS = 1800;
 
 /**
- * Splash screen — Figma node 682:3475.
- *
- * Once wallet/session state exists this should branch: returning users go
- * straight to the app, first-time users continue to onboarding.
+ * Splash screen. Once session state exists this should branch — returning users
+ * into the app, first-time users on to onboarding.
  */
 export default function SplashPage() {
   const router = useRouter();

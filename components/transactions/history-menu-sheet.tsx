@@ -25,7 +25,7 @@ function Item({
   );
 }
 
-/** Menu behind the header's sliders button: filtering and exports. */
+/** Menu behind the header's funnel button: filtering and exports. */
 export function HistoryMenuSheet({
   onFilters,
   onClose,

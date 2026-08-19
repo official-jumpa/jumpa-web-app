@@ -40,47 +40,34 @@ export function SlideFrame({
     >
       {backdrop}
 
-      {/* The artboard is a fixed 393x852; the board scales to whatever height it gets —
-          every Figma proportion then holds, instead of the copy reflowing up into the
-          artwork. The browser draws Figma's 54px "Status Bar - iPhone" and 21px "Home
-          Indicator" (y=831) itself, so only the band between them has to fit. That is
-          what keeps the board wide on a ~690px phone, and what lets it grow past 393
-          on desktop, where the 430px column has width to spare.
-          The widened box keeps artwork that bleeds off the design clipping at the
-          column edge, not at the scaled board edge. */}
+      {/* The 393x852 board scales to the height it gets, so every Figma proportion
+          holds instead of the copy reflowing into the artwork. Only the band between
+          the status bar and home indicator has to fit — the browser draws those. */}
       <div
         className={cn(
           "relative flex shrink-0 origin-top flex-col self-start",
-          // Below 777px of viewport the vertical gaps tighten *before* the board scales
-          // down, so the board stays wider. 0 at 777px, fully tight at 688px. No element
-          // changes size — only the whitespace between blocks.
+          // Gaps tighten before the board scales down, keeping it wider on short
+          // viewports. 0 at 777px, fully tight at 688px; nothing changes size.
           "[--squeeze:clamp(0,tan(atan2(calc(777px-100dvh),89px)),1)]",
-          // 62px of gap comes out of the board: 38 above the heading, 14 above the dots,
-          // 10 above the buttons. 38 is only reachable because DesignLayer lifts the
-          // artwork 12px on slides 1-2, clearing slide 2's orbit ink (y=466, not its
-          // box at 482) out of the heading's way.
+          // 62px of gap comes out of the board: 38 above the heading, 14 above the
+          // dots, 10 above the buttons. DesignLayer's 12px lift is what allows the 38.
           "[--board:calc(852px-62px*var(--squeeze))] h-[var(--board)]",
-          // Figma's 54px status bar is chrome the browser draws; 11px more comes off the
-          // gap above the logo.
+          // Figma's status bar is chrome the browser draws, plus 11px off the logo gap.
           "[--chrome-top:calc(54px+11px*var(--squeeze))]",
-          // 787 = 767 (the band from the status bar to the buttons) + 20px of bottom
-          // margin; squeezing takes 84 of that off (62 board + 11 top + 11 bottom).
-          // Capped by the width the board sits in — 393 on a phone, the carousel's
-          // 430px column on desktop, where the omitted chrome leaves room to scale *up*.
+          // Fit the 787px band (status bar to buttons, +20 margin) into the viewport,
+          // capped at the width the board sits in — 393 on a phone, 430 on desktop.
           "[--fit:min(tan(atan2(100cqw,393px)),tan(atan2(100dvh,calc(787px-84px*var(--squeeze)))))]",
           // Positive slack = room to spare, negative = the board overflows.
           "[--slack:calc(100dvh-var(--board)*var(--fit))]",
-          // Centre the board while it fits; past that pull the status-bar band off the
-          // top and let the home indicator fall off the bottom.
+          // Centre while it fits; past that pull the status-bar band off the top.
           "[--lift:calc(max(0px,var(--slack))/2+max(calc(-1*var(--chrome-top)*var(--fit)),min(0px,var(--slack))))]",
           "[scale:var(--fit)] [translate:0_var(--lift)] [width:calc(100%/var(--fit))]",
         )}
       >
         {stageArt}
 
-        {/* Copy shares the 393px artboard with DesignLayer, so the 33px gutter is
-            measured from the same edge the artwork is. Without this the two drift
-            apart on any viewport wider than 393. */}
+        {/* Copy shares DesignLayer's 393px artboard so the gutter is measured from
+            the same edge as the artwork; without it the two drift apart above 393. */}
         <div className="relative mx-auto flex w-full max-w-[393px] flex-1 flex-col">
           <div
             className={cn(

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Transaction } from "@/lib/wallet";
 import { HomeSection } from "./home-section";
 
-/** Recent activity. The design leaves each merchant's logo slot empty. */
+/** Recent activity. Merchant logos need a real source, so the slot stays blank. */
 export function TransactionHistory({
   transactions,
 }: {

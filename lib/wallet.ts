@@ -54,9 +54,9 @@ export type Transaction = {
 
 export const TRANSACTIONS: Transaction[] = [
   { id: "1", merchant: "FIGMA", date: "16th Aug, 2026", amount: "-$260" },
-  { id: "2", merchant: "FIGMA", date: "16th Aug, 2026", amount: "-$260" },
-  { id: "3", merchant: "FIGMA", date: "16th Aug, 2026", amount: "-$260" },
-  { id: "4", merchant: "FIGMA", date: "16th Aug, 2026", amount: "-$260" },
+  { id: "2", merchant: "X.CORP", date: "16th Aug, 2026", amount: "-$260" },
+  { id: "3", merchant: "NETFLIX", date: "16th Aug, 2026", amount: "-$260" },
+  { id: "4", merchant: "PRIME VIDEO", date: "16th Aug, 2026", amount: "-$260" },
 ];
 
 export type Promotion = {

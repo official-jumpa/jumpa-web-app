@@ -1,0 +1,23 @@
+import Image from "next/image";
+
+/**
+ * White wash the transcript scrolls up into. Stays put while the PIN sheet is
+ * open, which is why it is not part of ChatHeader.
+ */
+export function ChatTopFade() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-x-0 top-0 z-10 mx-auto h-[calc(env(safe-area-inset-top)+170px)] max-w-[430px] overflow-hidden"
+    >
+      <div className="absolute inset-x-0 top-0 h-[calc(env(safe-area-inset-top)+90px)] bg-[image:var(--gradient-jumpa-chat-fade)] backdrop-blur-[1.3px]" />
+      <Image
+        src="/images/chat/glow-top.svg"
+        alt=""
+        width={729}
+        height={147}
+        className="absolute top-[calc(env(safe-area-inset-top)+22px)] left-1/2 max-w-none -translate-x-1/2"
+      />
+    </div>
+  );
+}

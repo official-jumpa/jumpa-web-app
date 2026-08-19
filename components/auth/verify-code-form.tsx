@@ -1,7 +1,7 @@
 "use client";
 
 import { InfoNote } from "@/components/auth/info-note";
-import { NumericKeypad } from "@/components/auth/numeric-keypad";
+import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
 import { SuccessSheet } from "@/components/auth/success-sheet";
 import { usePinInput } from "@/hooks/use-pin-input";
@@ -24,7 +24,11 @@ export function VerifyCodeForm({ nextHref }: { nextHref: string }) {
         </InfoNote>
       </div>
 
-      <NumericKeypad onDigit={code.push} onBackspace={code.backspace} />
+      <NumericKeypad
+        onDigit={code.push}
+        onBackspace={code.backspace}
+        className={KEYPAD_PANEL}
+      />
 
       {code.complete ? (
         <SuccessSheet

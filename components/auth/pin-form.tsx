@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { InfoNote } from "@/components/auth/info-note";
-import { NumericKeypad } from "@/components/auth/numeric-keypad";
+import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
 import { usePinInput } from "@/hooks/use-pin-input";
 
@@ -41,7 +41,11 @@ export function PinForm({
         </InfoNote>
       </div>
 
-      <NumericKeypad onDigit={pin.push} onBackspace={pin.backspace} />
+      <NumericKeypad
+        onDigit={pin.push}
+        onBackspace={pin.backspace}
+        className={KEYPAD_PANEL}
+      />
     </>
   );
 }

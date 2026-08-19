@@ -22,6 +22,7 @@
   --color-jumpa-primary-300: #c6a5ff;
   --color-jumpa-primary-400: #ac72ff;
   --color-jumpa-primary-500: #963aff;
+  --color-jumpa-primary-550: #9d3fff; /* currency badge on a swap receipt */
   --color-jumpa-primary-600: #8f12ff; /* primary action / brand purple */
   --color-jumpa-primary-700: #8301ff;
   --color-jumpa-primary-900: #5b02b0;
@@ -40,9 +41,11 @@
 
   /* --- Secondary (magenta-purple) --------------------------------------- */
   --color-jumpa-secondary-50: #fbf5ff;
+  --color-jumpa-secondary-100: #e8dff1; /* "Recent" filter pill in chat */
   --color-jumpa-secondary-600: #a02eef;
 
   /* --- Greys ------------------------------------------------------------ */
+  --color-jumpa-grey-300: #abb0ba; /* close button on the chat header */
   --color-jumpa-grey-500: #6b7381;
   --color-jumpa-grey-600: #4b5563;
 
@@ -51,17 +54,23 @@
      used raw fills here rather than Figma variables, so these names are ours —
      confirm them before they spread further. Distinct from the blue-tinted
      `grey` ramp above. */
+  --color-jumpa-neutral-25: #fbfbfb; /* label on a chat Confirm button */
   --color-jumpa-neutral-50: #fafafa; /* card / key / chip surface */
   --color-jumpa-neutral-75: #f4f4f4; /* bottom-sheet grab handle */
   --color-jumpa-neutral-90: #f1f1f1; /* bottom-nav hairline */
+  --color-jumpa-neutral-95: #f0f0f0; /* chat bubble, card and chip surface */
   --color-jumpa-neutral-100: #efefef; /* hairline border */
   --color-jumpa-neutral-200: #e9e9e9; /* rule beside "Or Sign Up With" */
+  --color-jumpa-neutral-250: #e1e1e1; /* "+" button inside the chat composer */
+  --color-jumpa-neutral-275: #b2b2b2; /* label on a chat Cancel button */
   --color-jumpa-neutral-300: #a1a1a1; /* KYC card supporting copy */
   --color-jumpa-neutral-350: #979797; /* asset ticker name */
   --color-jumpa-neutral-400: #818181; /* transaction date */
   --color-jumpa-neutral-500: #4f4f4f; /* captions, "Or Sign Up With" */
+  --color-jumpa-neutral-550: #555555; /* asset amount on a transfer card */
   --color-jumpa-neutral-600: #464646; /* social button label */
   --color-jumpa-neutral-700: #434343; /* transaction amount */
+  --color-jumpa-neutral-750: #2f2f2f; /* chat Cancel button, "Successful" */
   --color-jumpa-neutral-800: #161616; /* supporting copy under a heading */
   --color-jumpa-neutral-900: #141414; /* "Resend Code" */
 
@@ -71,6 +80,7 @@
   --color-jumpa-danger: #ff0004; /* self-custody warnings */
   --color-jumpa-warning: #e69200; /* PIN-vs-password note on the import screens */
   --color-jumpa-success: #11a929; /* positive 24h change on an asset card */
+  --color-jumpa-pin-rule: #193d26; /* slot underline in the chat PIN sheet */
 
   /* --- Typography ------------------------------------------------------- */
   /* Geist is the product font across all UI copy. */
@@ -89,6 +99,8 @@
   --radius-tile: 10px; /* inner surface of an inset card */
   --radius-panel: 16px; /* PIN box, backup option rows */
   --radius-card: 18px;
+  --radius-surface: 22px; /* chat cards, their rows, the composer input */
+  --radius-dock: 32px; /* chat composer dock and its suggestion card */
   --radius-key: 24px; /* keypad keys */
   --radius-sheet: 40px; /* keypad panel, bottom sheet */
   --radius-screen: 48px; /* device-frame corner in the mockups */
@@ -137,6 +149,12 @@
     var(--color-jumpa-primary-500) 0%,
     var(--color-jumpa-primary-700) 100%
   );
+  /* Fade the chat transcript scrolls under, behind the header. */
+  --gradient-jumpa-chat-fade: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-jumpa-white) 35%, transparent) 0%,
+    color-mix(in srgb, var(--color-jumpa-white) 1%, transparent) 72.57%
+  );
   /* Promotion cards under "Your Assets". */
   --gradient-jumpa-promo-lime: linear-gradient(
     90.96deg,
@@ -182,5 +200,15 @@
   }
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Divider inside the chat cards. Figma draws a 2-2 dash, which `border-dashed`
+     does not reproduce at 1px. */
+  .rule-dashed {
+    background-image: repeating-linear-gradient(
+      to right,
+      color-mix(in srgb, var(--color-jumpa-black) 5%, transparent) 0 2px,
+      transparent 2px 4px
+    );
   }
 }

@@ -1,5 +1,6 @@
 import { AssetList } from "@/components/home/asset-list";
 import { BalancePanel } from "@/components/home/balance-panel";
+import { BottomNav } from "@/components/home/bottom-nav";
 import { HeroBackdrop } from "@/components/home/hero-backdrop";
 import { KycCard } from "@/components/home/kyc-card";
 import { PromotionList } from "@/components/home/promotion-list";
@@ -33,6 +34,9 @@ export default function HomePage() {
         <QuickActions />
         <TransactionHistory transactions={TRANSACTIONS} />
       </div>
+
+      {/* Per-tab, not in the layout: chat replaces the tab bar with its composer. */}
+      <BottomNav />
     </>
   );
 }

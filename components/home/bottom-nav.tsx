@@ -29,7 +29,7 @@ export function BottomNav() {
           <Fragment key={label}>
             {index === middle ? (
               <Link
-                href="/chat"
+                href="/home/chat"
                 aria-label="Chat"
                 className="flex items-center justify-center rounded-pill bg-[image:var(--gradient-jumpa-nav-chat)] p-2.5 text-jumpa-alt-400"
               >

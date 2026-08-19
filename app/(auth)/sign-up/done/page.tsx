@@ -18,7 +18,7 @@ export default function SignUpDonePage() {
       header={<AuthHeader backHref="/sign-up/pin/confirm" />}
       className="[--auth-pb:67px]"
       footer={
-        <Button href="/" variant="gradient" size="lg" className="mt-8">
+        <Button href="/home" variant="gradient" size="lg" className="mt-8">
           Go to Home
         </Button>
       }

@@ -34,19 +34,20 @@ export function SlideFrame({
   return (
     <article
       className={cn(
-        "relative isolate flex h-dvh w-full shrink-0 snap-center items-center justify-center overflow-hidden",
+        "@container relative isolate flex h-dvh w-full shrink-0 snap-center items-center justify-center overflow-hidden",
         className,
       )}
     >
       {backdrop}
 
-      {/* The artboard is a fixed 393x852 but a phone only gives ~690px of height, so the
-          board is scaled down to fit — every Figma proportion then holds, instead of the
-          copy reflowing up into the artwork. The browser already draws Figma's 54px
-          "Status Bar - iPhone" and 21px "Home Indicator" (y=831), so only the band
-          between them has to fit; dropping the two is what keeps the board wide.
+      {/* The artboard is a fixed 393x852; the board scales to whatever height it gets —
+          every Figma proportion then holds, instead of the copy reflowing up into the
+          artwork. The browser draws Figma's 54px "Status Bar - iPhone" and 21px "Home
+          Indicator" (y=831) itself, so only the band between them has to fit. That is
+          what keeps the board wide on a ~690px phone, and what lets it grow past 393
+          on desktop, where the 430px column has width to spare.
           The widened box keeps artwork that bleeds off the design clipping at the
-          screen edge, not at the scaled board edge. */}
+          column edge, not at the scaled board edge. */}
       <div
         className={cn(
           "relative flex shrink-0 origin-top flex-col self-start",
@@ -64,15 +65,15 @@ export function SlideFrame({
           "[--chrome-top:calc(54px+11px*var(--squeeze))]",
           // 787 = 767 (the band from the status bar to the buttons) + 20px of bottom
           // margin; squeezing takes 84 of that off (62 board + 11 top + 11 bottom).
-          "[--fit:min(1,tan(atan2(100dvh,calc(787px-84px*var(--squeeze)))))]",
+          // Capped by the width the board sits in — 393 on a phone, the carousel's
+          // 430px column on desktop, where the omitted chrome leaves room to scale *up*.
+          "[--fit:min(tan(atan2(100cqw,393px)),tan(atan2(100dvh,calc(787px-84px*var(--squeeze)))))]",
           // Positive slack = room to spare, negative = the board overflows.
           "[--slack:calc(100dvh-var(--board)*var(--fit))]",
           // Centre the board while it fits; past that pull the status-bar band off the
           // top and let the home indicator fall off the bottom.
           "[--lift:calc(max(0px,var(--slack))/2+max(calc(-1*var(--chrome-top)*var(--fit)),min(0px,var(--slack))))]",
           "[scale:var(--fit)] [translate:0_var(--lift)] [width:calc(100%/var(--fit))]",
-          // Anything wider than a phone has the room already — leave the stage as designed.
-          "sm:h-full sm:max-h-[852px] sm:self-auto sm:[--squeeze:0] sm:[--fit:1] sm:[--lift:0px]",
         )}
       >
         {stageArt}

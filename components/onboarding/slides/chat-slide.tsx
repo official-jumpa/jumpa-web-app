@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { DesignLayer } from "../design-layer";
+import { DesignLayer, HOLDS_POSITION } from "../design-layer";
 import { GlowBackdrop } from "../glow-backdrop";
 import { SlideFrame, SlideHeading } from "../slide-frame";
 
@@ -11,8 +11,10 @@ export function ChatSlide() {
       gutter={42}
       backdrop={<GlowBackdrop />}
       stageArt={
-        <DesignLayer>
-          <div className="absolute top-[-53px] left-[54px] size-[286px]">
+        <DesignLayer lift={12}>
+          <div
+            className={`absolute top-[-53px] left-[54px] size-[286px] ${HOLDS_POSITION}`}
+          >
             <Image
               src="/logo/white-logo-text.png"
               alt=""

@@ -56,10 +56,7 @@ export async function POST(req: NextRequest) {
     if (wallet?.pinHash) {
       const pinValid = await bcrypt.compare(pin, wallet.pinHash);
       if (!pinValid) {
-        return NextResponse.json(
-          { error: "Incorrect PIN" },
-          { status: 401 },
-        );
+        return NextResponse.json({ error: "Incorrect PIN" }, { status: 401 });
       }
     }
 

@@ -10,7 +10,6 @@ import {
 } from "@/components/chat/chat-card";
 import type { QuoteCard as Quote } from "@/lib/chat";
 
-
 //mock data for now
 
 const BASE_RATES: Record<string, number> = {

@@ -45,7 +45,7 @@ const ChatLogSchema = new Schema<IChatLog>(
       {
         id: { type: String, default: () => generateId("MSG") },
         role: { type: String, enum: ["user", "assistant"], required: true },
-        content: { type: String, required: true },
+        content: { type: String, default: "" },
         timestamp: { type: Date, default: Date.now },
         isTransaction: { type: Boolean, default: false },
         cardType: {

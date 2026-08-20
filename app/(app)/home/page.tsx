@@ -56,13 +56,22 @@ export default function HomePage() {
               Array.isArray(data.tokens) &&
               data.tokens.length > 0
             ) {
-              const mappedAssets: Asset[] = data.tokens.map((t: any) => ({
-                symbol: t.symbol,
-                name: t.name || t.symbol,
-                icon: t.icon || "/images/home/coin-generic.svg",
-                balance: `$${t.balance}`,
-                change: "+$0.00",
-              }));
+              const mappedAssets: Asset[] = data.tokens.map((t: any) => {
+                const amount = parseFloat(t.balance) || 0;
+                const price = parseFloat(t.priceUsd) || 0;
+                const usdValue = (amount * price).toFixed(2);
+                const formattedAmount = amount.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 4,
+                });
+                return {
+                  symbol: t.symbol,
+                  name: t.name || t.symbol,
+                  icon: t.icon || "/images/home/coin-generic.svg",
+                  balance: `$${usdValue}`,
+                  change: `${formattedAmount} ${t.symbol}`,
+                };
+              });
               setAssets(mappedAssets);
             }
           });

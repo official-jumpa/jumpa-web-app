@@ -65,9 +65,7 @@ export async function sendTransferConfirmedEmail(
     environment.RESEND_FROM_EMAIL.trim() || "Jumpa <onboarding@resend.dev>";
 
   if (!key) {
-    console.warn(
-      "[email-notifications] RESEND_API_KEY missing",
-    );
+    console.warn("[email-notifications] API_KEY missing");
     return;
   }
 

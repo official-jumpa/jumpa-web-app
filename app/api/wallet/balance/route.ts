@@ -26,48 +26,73 @@ const stellarTestnet = new StellarSdk.Horizon.Server(
 const balanceCache: Record<string, { timestamp: number; data: any }> = {};
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
 
-//Fallback if onchain price fails
-const NATIVE_PRICES: Record<string, string> = {
-  BTC: "65000.00",
-  ETH: "3540.21",
-  BNB: "580.00",
-  POL: "0.55",
-  CELO: "0.65",
-  SOL: "150.00",
-  XLM: "0.12",
+interface CoinGeckoInfo {
+  priceUsd: string;
+  icon: string;
+}
+
+// Fallback values if CoinGecko request fails
+const coinGeckoCache: Record<string, CoinGeckoInfo> = {
+  BTC: { priceUsd: "65000.00", icon: "/images/home/coin-bitcoin.svg" },
+  SOL: { priceUsd: "150.00", icon: "/images/home/coin-generic.svg" },
+  XLM: { priceUsd: "0.12", icon: "/images/home/coin-generic.svg" },
+  ETH: { priceUsd: "3540.21", icon: "/images/home/coin-generic.svg" },
+  BNB: { priceUsd: "580.00", icon: "/images/home/coin-generic.svg" },
+  POL: { priceUsd: "0.55", icon: "/images/home/coin-generic.svg" },
+  CELO: { priceUsd: "0.65", icon: "/images/home/coin-generic.svg" },
+  USDC: { priceUsd: "1.00", icon: "/images/home/usdcImg.png" },
+  USDT: { priceUsd: "1.00", icon: "/images/home/coin-generic.svg" },
 };
 
-let cachedPrices: Record<string, string> = { ...NATIVE_PRICES };
 let pricesLastFetched = 0;
 const PRICES_CACHE_TTL = 5 * 60 * 1000;
 
-async function fetchRealPrices(): Promise<Record<string, string>> {
+async function updateCoinGeckoData() {
   const now = Date.now();
   if (now - pricesLastFetched < PRICES_CACHE_TTL) {
-    return cachedPrices;
+    return;
   }
 
   try {
+    const ids =
+      "bitcoin,ethereum,binancecoin,polygon-ecosystem,celo,solana,stellar,usd-coin,tether";
     const res = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,polygon-ecosystem,celo,solana,stellar&vs_currencies=usd",
+      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}`,
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const data = await res.json();
-    cachedPrices = {
-      BTC: data["bitcoin"]?.usd?.toString() || NATIVE_PRICES.BTC,
-      ETH: data["ethereum"]?.usd?.toString() || NATIVE_PRICES.ETH,
-      BNB: data["binancecoin"]?.usd?.toString() || NATIVE_PRICES.BNB,
-      POL: data["polygon-ecosystem"]?.usd?.toString() || NATIVE_PRICES.POL,
-      CELO: data["celo"]?.usd?.toString() || NATIVE_PRICES.CELO,
-      SOL: data["solana"]?.usd?.toString() || NATIVE_PRICES.SOL,
-      XLM: data["stellar"]?.usd?.toString() || NATIVE_PRICES.XLM,
-    };
-    pricesLastFetched = now;
+    if (Array.isArray(data)) {
+      const map: Record<string, string> = {
+        bitcoin: "BTC",
+        ethereum: "ETH",
+        binancecoin: "BNB",
+        "polygon-ecosystem": "POL",
+        celo: "CELO",
+        solana: "SOL",
+        stellar: "XLM",
+        "usd-coin": "USDC",
+        tether: "USDT",
+      };
+
+      for (const coin of data) {
+        const symbol = map[coin.id];
+        if (symbol) {
+          coinGeckoCache[symbol] = {
+            priceUsd:
+              coin.current_price?.toString() || coinGeckoCache[symbol].priceUsd,
+            icon: coin.image || coinGeckoCache[symbol].icon,
+          };
+        }
+      }
+      pricesLastFetched = now;
+    }
   } catch (err) {
-    console.warn("[Balance API] CoinGecko fallback:", err);
+    console.warn(
+      "[Balance API] CoinGecko Markets API failed, using fallback values:",
+      err,
+    );
   }
-  return cachedPrices;
 }
 
 async function safeFetchBalance<T>(
@@ -101,7 +126,7 @@ async function fetchWalletBalances(addresses: {
   btc: string;
 }) {
   const { eth: ethAddr, sol: solAddr, xlm: xlmAddr, btc: btcAddr } = addresses;
-  const prices = await fetchRealPrices();
+  await updateCoinGeckoData();
 
   // 1. Query EVM Chains
   const evmQueries = EVM_CHAINS.filter((c) => !c.isTestnet).map(
@@ -115,17 +140,17 @@ async function fetchWalletBalances(addresses: {
             client.getBalance({ address: evmAddress }),
             chain.tokens.length > 0
               ? client.multicall({
-                allowFailure: true,
-                contracts: chain.tokens.map((token) => ({
-                  address: token.address as `0x${string}`,
-                  abi: erc20Abi,
-                  functionName: "balanceOf" as const,
-                  args: [evmAddress] as [`0x${string}`],
-                })),
-              })
+                  allowFailure: true,
+                  contracts: chain.tokens.map((token) => ({
+                    address: token.address as `0x${string}`,
+                    abi: erc20Abi,
+                    functionName: "balanceOf" as const,
+                    args: [evmAddress] as [`0x${string}`],
+                  })),
+                })
               : Promise.resolve(
-                [] as { status: "success" | "failure"; result?: unknown }[],
-              ),
+                  [] as { status: "success" | "failure"; result?: unknown }[],
+                ),
           ]);
 
           const nativeBal = formatEther(nativeWei);
@@ -160,62 +185,62 @@ async function fetchWalletBalances(addresses: {
   // 2. Solana Balances
   const solPromise = solAddr
     ? safeFetchBalance(
-      () =>
-        solMainnetConnection
-          .getBalance(new PublicKey(solAddr))
-          .then((b) => (b / LAMPORTS_PER_SOL).toFixed(4)),
-      "Solana Mainnet",
-      "0.00",
-    )
+        () =>
+          solMainnetConnection
+            .getBalance(new PublicKey(solAddr))
+            .then((b) => (b / LAMPORTS_PER_SOL).toFixed(4)),
+        "Solana Mainnet",
+        "0.00",
+      )
     : Promise.resolve("0.00");
 
   // 3. Stellar Balances
   const stellarAccountPromise = xlmAddr
     ? safeFetchBalance(
-      () =>
-        stellarPublic
-          .loadAccount(xlmAddr)
-          .then((acc) => {
-            const native =
-              acc.balances.find((b: any) => b.asset_type === "native")
-                ?.balance || "0.00";
-            return { native };
-          })
-          .catch((err) => {
-            if (err?.response?.status === 404) return { native: "0.00" };
-            throw err;
-          }),
-      "Stellar Mainnet",
-      { native: "0.00" },
-    )
+        () =>
+          stellarPublic
+            .loadAccount(xlmAddr)
+            .then((acc) => {
+              const native =
+                acc.balances.find((b: any) => b.asset_type === "native")
+                  ?.balance || "0.00";
+              return { native };
+            })
+            .catch((err) => {
+              if (err?.response?.status === 404) return { native: "0.00" };
+              throw err;
+            }),
+        "Stellar Mainnet",
+        { native: "0.00" },
+      )
     : Promise.resolve({ native: "0.00" });
 
   // 4. Bitcoin Balances
   const btcPromise = btcAddr
     ? safeFetchBalance(
-      async () => {
-        const ALCHEMY_KEY = environment.ALCHEMY_API_KEY || "demo";
-        const res = await fetch(
-          `https://bitcoin-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              jsonrpc: "2.0",
-              id: 1,
-              method: "bb_getaddress",
-              params: [btcAddr, { details: "basic" }],
-            }),
-          },
-        );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        const satoshis = parseInt(json.result?.balance || "0", 10);
-        return (satoshis / 100000000).toFixed(8);
-      },
-      "Bitcoin Mainnet",
-      "0.00000000",
-    )
+        async () => {
+          const ALCHEMY_KEY = environment.ALCHEMY_API_KEY || "demo";
+          const res = await fetch(
+            `https://bitcoin-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id: 1,
+                method: "bb_getaddress",
+                params: [btcAddr, { details: "basic" }],
+              }),
+            },
+          );
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const json = await res.json();
+          const satoshis = parseInt(json.result?.balance || "0", 10);
+          return (satoshis / 100000000).toFixed(8);
+        },
+        "Bitcoin Mainnet",
+        "0.00000000",
+      )
     : Promise.resolve("0.0000");
 
   const [solBal, xlmInfo, btcBal] = await Promise.all([
@@ -224,39 +249,107 @@ async function fetchWalletBalances(addresses: {
     btcPromise,
   ]);
 
-  const tokens: any[] = [
-    {
-      symbol: "BTC",
-      name: "Bitcoin",
-      icon: "/images/home/coin-bitcoin.svg",
-      balance: btcBal,
-      priceUsd: prices.BTC,
-    },
-    {
-      symbol: "SOL",
-      name: "Solana",
-      icon: "/images/home/coin-generic.svg",
-      balance: solBal,
-      priceUsd: prices.SOL,
-    },
-    {
-      symbol: "XLM",
-      name: "Stellar",
-      icon: "/images/home/coin-generic.svg",
-      balance: xlmInfo.native,
-      priceUsd: prices.XLM,
-    },
-  ];
+  const btcCached = coinGeckoCache.BTC;
+  const solCached = coinGeckoCache.SOL;
+  const xlmCached = coinGeckoCache.XLM;
 
+  const standardNames: Record<string, string> = {
+    BTC: "Bitcoin",
+    SOL: "Solana",
+    XLM: "Stellar",
+    ETH: "Ethereum",
+    BNB: "BNB",
+    POL: "Polygon",
+    CELO: "Celo",
+    USDC: "USD Coin",
+    USDT: "Tether USD",
+  };
+
+  const aggregated: Record<
+    string,
+    {
+      symbol: string;
+      name: string;
+      icon: string;
+      balance: number;
+      priceUsd: string;
+    }
+  > = {};
+
+  function addBalance(
+    symbol: string,
+    fallbackName: string,
+    icon: string,
+    rawBalance: string,
+    priceUsd: string,
+  ) {
+    const val = parseFloat(rawBalance) || 0;
+    const name = standardNames[symbol] || fallbackName;
+    if (!aggregated[symbol]) {
+      aggregated[symbol] = {
+        symbol,
+        name,
+        icon,
+        balance: 0,
+        priceUsd,
+      };
+    }
+    aggregated[symbol].balance += val;
+  }
+
+  // 1. Add non-EVM native balances
+  addBalance("BTC", "Bitcoin", btcCached.icon, btcBal, btcCached.priceUsd);
+  addBalance("SOL", "Solana", solCached.icon, solBal, solCached.priceUsd);
+  addBalance(
+    "XLM",
+    "Stellar",
+    xlmCached.icon,
+    xlmInfo.native,
+    xlmCached.priceUsd,
+  );
+
+  // 2. Add EVM balances
   evmResults.forEach((res) => {
-    const price = prices[res.chain.nativeSymbol] || "0.00";
-    tokens.push({
-      symbol: res.chain.nativeSymbol,
-      name: res.chain.label,
+    const nativeInfo = coinGeckoCache[res.chain.nativeSymbol] || {
+      priceUsd: "0.00",
       icon: "/images/home/coin-generic.svg",
-      balance: res.nativeBal,
-      priceUsd: price,
+    };
+    addBalance(
+      res.chain.nativeSymbol,
+      res.chain.label,
+      nativeInfo.icon,
+      res.nativeBal,
+      nativeInfo.priceUsd,
+    );
+
+    res.tokens.forEach((t) => {
+      const tokenInfo = coinGeckoCache[t.symbol] || {
+        priceUsd: "1.00",
+        icon: "/images/home/coin-generic.svg",
+      };
+      addBalance(
+        t.symbol,
+        t.name,
+        tokenInfo.icon,
+        t.balance,
+        tokenInfo.priceUsd,
+      );
     });
+  });
+
+  const tokens = Object.values(aggregated).map((item) => {
+    let decimals = 2;
+    if (item.symbol === "BTC") decimals = 8;
+    else if (item.symbol === "SOL") decimals = 4;
+    else if (item.symbol === "ETH") decimals = 6;
+
+    return {
+      symbol: item.symbol,
+      name: item.name,
+      icon: item.icon,
+      balance: item.balance.toFixed(decimals),
+      priceUsd: item.priceUsd,
+    };
   });
 
   const totalUsd = tokens

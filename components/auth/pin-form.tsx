@@ -1,11 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 import { InfoNote } from "@/components/auth/info-note";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
 import { usePinInput } from "@/hooks/use-pin-input";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 const PIN_LENGTH = 6;
 
@@ -21,8 +21,13 @@ export function PinForm({
   const router = useRouter();
 
   useEffect(() => {
-    if (pin.complete) router.push(nextHref);
-  }, [pin.complete, nextHref, router]);
+    if (pin.complete) {
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("setupPin", pin.value);
+      }
+      router.push(nextHref);
+    }
+  }, [pin.complete, nextHref, router, pin.value]);
 
   return (
     <>
@@ -31,11 +36,11 @@ export function PinForm({
         <InfoNote>
           <span className="flex flex-col gap-2">
             <span className="font-medium">
-              PIN is different from your password.
+              Passcode for your self-custodial wallet.
             </span>
             <span>
-              A PIN is used to sign transactions on your device. It's never sent
-              to Jumpa servers.
+              A PIN is used to sign transactions and unlock your wallet on your
+              device. It's never sent unencrypted to Jumpa servers.
             </span>
           </span>
         </InfoNote>

@@ -10,9 +10,24 @@
     "format": "biome format --write"
   },
   "dependencies": {
+    "@noble/hashes": "^2.3.0",
+    "@scure/bip32": "^2.3.0",
+    "@scure/bip39": "^2.3.0",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.98.4",
+    "@stellar/stellar-sdk": "^16.2.0",
+    "bcryptjs": "^3.0.3",
+    "better-auth": "^1.7.1",
+    "bip39": "^3.1.0",
+    "ed25519-hd-key": "^2.0.0",
+    "mongodb": "^7.5.0",
+    "mongoose": "^9.9.3",
     "next": "16.3.1",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "resend": "^6.20.0",
+    "viem": "^2.55.19",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.2",

@@ -1,17 +1,29 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import { BellIcon } from "@/components/ui/icons/bell";
 import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
+import { useSession } from "@/lib/auth-client";
 import { ACCOUNT } from "@/lib/wallet";
 
-/** Greeting and notifications, sitting on the purple hero band. */
 export function WalletHeader() {
+  const { data: session } = useSession();
+
+  let displayName = ACCOUNT.firstName;
+  if (session?.user?.name) {
+    displayName = session.user.name.split(" ")[0];
+  } else if (session?.user?.email) {
+    const rawName = session.user.email.split("@")[0];
+    displayName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+  }
+
   return (
     <header className="flex items-center justify-between">
       <div className="flex items-center gap-2">
         <span className="relative block size-10 shrink-0">
           <Image
-            src={ACCOUNT.avatar}
+            src={session?.user?.image || ACCOUNT.avatar}
             alt=""
             width={40}
             height={40}
@@ -26,7 +38,7 @@ export function WalletHeader() {
           <span className="font-medium">
             <span className="text-jumpa-white/68">Good Morning</span>👋,
           </span>
-          <span className="font-bold">{ACCOUNT.firstName}</span>
+          <span className="font-bold">{displayName}</span>
         </p>
       </div>
 

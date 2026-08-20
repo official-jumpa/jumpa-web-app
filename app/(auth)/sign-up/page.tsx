@@ -3,17 +3,13 @@ import Link from "next/link";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { InsetCard } from "@/components/auth/cards";
+import { EmailAuthForm } from "@/components/auth/email-auth-form";
 import { SocialSignUp } from "@/components/auth/social-sign-up";
-import { Button } from "@/components/ui/button";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
-import { MailIcon } from "@/components/ui/icons/mail";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
-import { PasswordField } from "@/components/ui/password-field";
-import { TextField } from "@/components/ui/text-field";
 
 export const metadata: Metadata = { title: "Create account" };
 
-/** The one screen taller than a viewport, so nothing is pinned to the bottom. */
 export default function SignUpPage() {
   return (
     <AuthScreen
@@ -26,26 +22,7 @@ export default function SignUpPage() {
             Get started with Jumpa in minutes
           </AuthHeading>
 
-          <div className="flex flex-col gap-4">
-            <TextField
-              label="Enter your Email"
-              type="email"
-              name="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              icon={<MailIcon />}
-            />
-            <PasswordField
-              label="Enter your Password"
-              name="password"
-              autoComplete="new-password"
-              placeholder="••••••••"
-            />
-          </div>
-
-          <Button href="/sign-up/password" variant="gradient" size="lg">
-            Continue
-          </Button>
+          <EmailAuthForm nextHref="/sign-up/verify-code" />
         </div>
 
         <SocialSignUp />

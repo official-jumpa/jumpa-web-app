@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { validateMnemonic } from "@scure/bip39";
+import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { InfoNote } from "@/components/auth/info-note";
 import { SegmentedToggle } from "@/components/auth/segmented-toggle";
 import { WordGrid } from "@/components/auth/word-chip";
@@ -8,30 +11,58 @@ import { Button } from "@/components/ui/button";
 import { PHRASE_LENGTHS, type PhraseLength } from "@/lib/recovery-phrase";
 
 const ACTION_CLASS =
-  "flex h-12 flex-1 items-center justify-center rounded-pill text-sm leading-4 font-medium";
+  "flex h-12 flex-1 items-center justify-center rounded-pill text-sm leading-4 font-medium cursor-pointer";
 
-/** Recovery phrase entry. Nothing validates the words yet. */
 export function PhraseImport({ nextHref }: { nextHref: string }) {
+  const router = useRouter();
   const [length, setLength] = useState<PhraseLength>("12");
   const [words, setWords] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   const count = Number(length);
   const wordAt = (slot: number) => words[slot - 1] ?? "";
 
-  const setWord = (slot: number, value: string) =>
+  const setWord = (slot: number, value: string) => {
+    setError(null);
     setWords((current) => {
       const next = [...current];
-      next[slot - 1] = value.trim();
+      next[slot - 1] = value.trim().toLowerCase();
       return next;
     });
+  };
 
   const pasteAll = async () => {
     try {
       const text = await navigator.clipboard.readText();
-      setWords(text.trim().split(/\s+/).slice(0, count));
+      const split = text.trim().toLowerCase().split(/\s+/).slice(0, count);
+      setWords(split);
+      setError(null);
     } catch {
-      // Clipboard reads need permission; leave the grid as it is.
+      // Permission denied
     }
+  };
+
+  const handleContinue = () => {
+    const filledWords = Array.from(
+      { length: count },
+      (_, i) => words[i] ?? "",
+    ).filter(Boolean);
+    if (filledWords.length !== count) {
+      setError(`Please enter all ${count} words of your seed phrase`);
+      return;
+    }
+
+    const fullPhrase = filledWords.join(" ");
+    if (!validateMnemonic(fullPhrase, wordlist)) {
+      setError("Invalid seed phrase. Please check word spelling and order.");
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("setupPhrase", fullPhrase);
+    }
+
+    router.push(nextHref);
   };
 
   return (
@@ -58,7 +89,6 @@ export function PhraseImport({ nextHref }: { nextHref: string }) {
                   autoComplete="off"
                   autoCapitalize="none"
                   spellCheck={false}
-                  // Sized from its own value so the pair stays centred when empty.
                   style={{ width: `${Math.max(wordAt(slot).length, 1)}ch` }}
                   className="bg-transparent outline-none"
                 />
@@ -66,6 +96,10 @@ export function PhraseImport({ nextHref }: { nextHref: string }) {
             ),
           )}
         </WordGrid>
+
+        {error && (
+          <p className="text-center text-xs text-jumpa-danger px-2">{error}</p>
+        )}
 
         <div className="flex w-full gap-2">
           <button
@@ -77,7 +111,10 @@ export function PhraseImport({ nextHref }: { nextHref: string }) {
           </button>
           <button
             type="button"
-            onClick={() => setWords([])}
+            onClick={() => {
+              setWords([]);
+              setError(null);
+            }}
             className={`${ACTION_CLASS} border border-jumpa-primary-100 text-jumpa-primary-950`}
           >
             Clear All
@@ -90,7 +127,13 @@ export function PhraseImport({ nextHref }: { nextHref: string }) {
         </InfoNote>
       </div>
 
-      <Button href={nextHref} variant="gradient" size="lg" className="mt-8">
+      <Button
+        type="button"
+        onClick={handleContinue}
+        variant="gradient"
+        size="lg"
+        className="mt-8 cursor-pointer"
+      >
         Continue
       </Button>
     </>

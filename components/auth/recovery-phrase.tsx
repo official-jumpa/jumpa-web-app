@@ -1,46 +1,65 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/auth/copy-button";
 import { InfoNote } from "@/components/auth/info-note";
-import { SegmentedToggle } from "@/components/auth/segmented-toggle";
 import { WordChip, WordGrid } from "@/components/auth/word-chip";
 import { Button } from "@/components/ui/button";
-import {
-  DEMO_RECOVERY_PHRASE,
-  PHRASE_LENGTHS,
-  type PhraseLength,
-} from "@/lib/recovery-phrase";
 
-/** Revealed phrase. "Hide Phrase" blanks the words back to their slot numbers. */
+/** Revealed phrase for wallet. Always displays 12 words without length toggle. */
 export function RecoveryPhrase({ nextHref }: { nextHref: string }) {
-  const [length, setLength] = useState<PhraseLength>("12");
   const [revealed, setRevealed] = useState(true);
+  const [generatedPhrase, setGeneratedPhrase] = useState<string>("");
 
-  const words = DEMO_RECOVERY_PHRASE.slice(0, Number(length));
+  useEffect(() => {
+    const existing =
+      typeof window !== "undefined"
+        ? sessionStorage.getItem("setupPhrase")
+        : null;
+
+    if (existing) {
+      setGeneratedPhrase(existing);
+    } else {
+      fetch("/api/wallet/generate-phrase")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.phrase) {
+            setGeneratedPhrase(data.phrase);
+            if (typeof window !== "undefined") {
+              sessionStorage.setItem("setupPhrase", data.phrase);
+            }
+          }
+        })
+        .catch((err) =>
+          console.error("[RecoveryPhrase] Error generating phrase:", err),
+        );
+    }
+  }, []);
+
+  const words = generatedPhrase ? generatedPhrase.split(" ") : [];
 
   return (
     <>
       <div className="mt-6 flex flex-1 flex-col items-center gap-8">
-        <SegmentedToggle
-          options={PHRASE_LENGTHS}
-          value={length}
-          onChange={setLength}
-        />
-
         <WordGrid>
-          {words.map((word, index) => (
-            <WordChip key={`${index + 1}-${word}`}>
-              {index + 1}
-              {revealed ? ` ${word}` : ""}
-            </WordChip>
-          ))}
+          {words.length > 0
+            ? words.map((word, index) => (
+                <WordChip key={`${index + 1}-${word}`}>
+                  {index + 1}
+                  {revealed ? ` ${word}` : ""}
+                </WordChip>
+              ))
+            : Array.from({ length: 12 }).map((_, index) => (
+                <WordChip key={index + 1}>
+                  {index + 1} {revealed ? "..." : ""}
+                </WordChip>
+              ))}
         </WordGrid>
 
         <CopyButton
           value={words.join(" ")}
           label="Copy to Clipboard"
-          className={revealed ? undefined : "invisible"}
+          className={revealed && words.length > 0 ? undefined : "invisible"}
         />
 
         <InfoNote tone="danger" className="mt-auto max-w-74.75">
@@ -56,7 +75,7 @@ export function RecoveryPhrase({ nextHref }: { nextHref: string }) {
         <button
           type="button"
           onClick={() => setRevealed((on) => !on)}
-          className="text-base leading-4 font-semibold text-jumpa-primary-950"
+          className="text-base leading-4 font-semibold text-jumpa-primary-950 cursor-pointer"
         >
           {revealed ? "Hide Phrase" : "Reveal Phrase"}
         </button>

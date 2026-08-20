@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Enter verification code" };
 export default function VerifyCodePage() {
   return (
     <AuthScreen
-      header={<AuthHeader backHref="/sign-up/verify-email" />}
+      header={<AuthHeader backHref="/sign-up" />}
       className="[--auth-pb:11px]"
     >
       <AuthHeading title="Enter verification code">

@@ -3,12 +3,10 @@ import Link from "next/link";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { InsetCard } from "@/components/auth/cards";
+import { EmailAuthForm } from "@/components/auth/email-auth-form";
 import { SocialSignUp } from "@/components/auth/social-sign-up";
-import { Button } from "@/components/ui/button";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
-import { MailIcon } from "@/components/ui/icons/mail";
 import { WalletArrowRightIcon } from "@/components/ui/icons/wallet-arrow-right";
-import { TextField } from "@/components/ui/text-field";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -44,29 +42,15 @@ export default function SignInPage() {
     >
       <div className="flex flex-col items-center gap-6">
         <div className="flex w-full flex-col gap-6">
-          <div className="flex flex-col gap-8">
-            <AuthHeading
-              title="Great seeing you again! 👋"
-              className="max-w-84"
-              titleClassName="max-w-58.5"
-            >
-              Sign in with your email and password to continue where you left
-              off.
-            </AuthHeading>
+          <AuthHeading
+            title="Great seeing you again! 👋"
+            className="max-w-84"
+            titleClassName="max-w-58.5"
+          >
+            Sign in with your email to continue from where you left off.
+          </AuthHeading>
 
-            <TextField
-              label="Enter your Email"
-              type="email"
-              name="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              icon={<MailIcon />}
-            />
-          </div>
-
-          <Button variant="gradient" size="lg">
-            Continue
-          </Button>
+          <EmailAuthForm nextHref="/sign-up/verify-code" />
         </div>
 
         <SocialSignUp label="Or Sign in With" />

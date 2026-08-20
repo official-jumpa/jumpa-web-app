@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
-import { PinForm } from "@/components/auth/pin-form";
+import { ConfirmPinForm } from "@/components/auth/confirm-pin-form";
 
 export const metadata: Metadata = { title: "Confirm PIN" };
 
@@ -15,7 +15,7 @@ export default function ConfirmPinPage() {
         6-digit code to authorize payments
       </AuthHeading>
 
-      <PinForm label="Enter pin again" nextHref="/sign-up/biometrics" />
+      <ConfirmPinForm nextHref="/sign-up/done" />
     </AuthScreen>
   );
 }

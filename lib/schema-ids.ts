@@ -14,6 +14,7 @@ function generateNanoid(size = 8): string {
 export type IdPrefix =
   | "USER"
   | "CHAT"
+  | "MSG"
   | "TRAN"
   | "WALL"
   | "RAMP"

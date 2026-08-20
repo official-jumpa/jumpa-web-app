@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
+import { TbCurrencyNaira } from "react-icons/tb";
 import type { CardRow, Stat } from "@/lib/chat";
 import { cn } from "@/lib/cn";
+import { getAssetLogo } from "@/lib/assets";
 
 /** Rounded panel behind a structured agent reply — quote, receipt or transfer. */
 export function ChatCard({
@@ -13,7 +16,7 @@ export function ChatCard({
   return (
     <div
       className={cn(
-        "flex w-full flex-col gap-2 rounded-surface px-2.5 pt-4 pb-2.5",
+        "flex w-full flex-col gap-2 rounded-surface px-2.5 pt-4 pb-2.5 shadow-xs",
         className ?? "bg-jumpa-neutral-95",
       )}
     >
@@ -64,40 +67,72 @@ export function StatText({
 export function CardStats({ stats }: { stats: [Stat, Stat] }) {
   return (
     <div className="flex items-center justify-between px-2.5 whitespace-nowrap">
-      {stats.map((stat) => (
-        <StatText key={stat.value} stat={stat} />
+      {stats.map((stat, idx) => (
+        <StatText key={`${stat.value}-${idx}`} stat={stat} />
       ))}
     </div>
   );
 }
 
-/** White row inside a card: caption above a value, with an optional badge. */
+/** White row inside a card: caption above a value, with an optional asset badge and input support. */
 export function CardAmount({
   row,
   badgeClassName = "bg-jumpa-neutral-95 text-jumpa-black",
+  isInput = false,
+  inputValue,
+  onInputChange,
 }: {
   row: CardRow;
   badgeClassName?: string;
+  isInput?: boolean;
+  inputValue?: string;
+  onInputChange?: (val: string) => void;
 }) {
+  const isNaira =
+    row.badge?.toUpperCase() === "NGN" || row.badge?.toUpperCase() === "NAIRA";
+  const logo = row.badge && !isNaira ? getAssetLogo(row.badge) : null;
+
   return (
     <div className="flex h-11.5 w-full items-center gap-2.5 rounded-surface bg-jumpa-white p-2.5">
       <span className="flex min-w-0 flex-1 flex-col px-2.5">
-        <span className="text-[6px] leading-2.5 text-jumpa-black/50">
+        <span className="text-[7px] leading-2.5 font-bold uppercase tracking-wider text-jumpa-black/50">
           {row.caption}
         </span>
-        <span className="truncate text-base leading-4 font-medium text-jumpa-black">
-          {row.value}
-        </span>
+        {isInput ? (
+          <input
+            type="number"
+            step="any"
+            min="0"
+            value={inputValue !== undefined ? inputValue : row.value}
+            onChange={(e) => onInputChange?.(e.target.value)}
+            className="w-full truncate text-base leading-4 font-medium text-jumpa-black outline-none bg-transparent"
+          />
+        ) : (
+          <span className="truncate text-base leading-4 font-medium text-jumpa-black flex items-center gap-0.5">
+            {row.value}
+          </span>
+        )}
       </span>
 
       {row.badge ? (
         <span
           className={cn(
-            "flex h-full w-11.5 shrink-0 items-center justify-center rounded-pill text-xs",
+            "flex h-full min-w-14 items-center justify-center gap-1 rounded-pill px-2.5 text-xs font-semibold shrink-0 shadow-2xs",
             badgeClassName,
           )}
         >
-          {row.badge}
+          {isNaira ? (
+            <TbCurrencyNaira className="size-4 shrink-0 font-bold text-jumpa-black" />
+          ) : logo ? (
+            <Image
+              src={logo}
+              alt={row.badge}
+              width={16}
+              height={16}
+              className="size-4 shrink-0 rounded-full object-contain"
+            />
+          ) : null}
+          <span>{row.badge}</span>
         </span>
       ) : null}
     </div>

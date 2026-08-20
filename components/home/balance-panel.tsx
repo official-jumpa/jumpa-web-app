@@ -35,7 +35,7 @@ export function BalancePanel({ balance }: { balance: string }) {
           aria-expanded={visible}
           className="flex items-center rounded-pill bg-jumpa-primary-950 px-4.5 py-2 text-xs leading-2.5 font-medium text-jumpa-white"
         >
-          {visible ? "Balance Details" : "Your Balance"}
+          Your Balance
           <ChevronDownIcon className="size-4" />
         </button>
 

@@ -36,12 +36,39 @@ export type TransferCard = {
   options: AssetOption[];
 };
 
+export type OnrampCard = {
+  title: string;
+  fiatAmount: string;
+  fiatCurrency: string;
+  cryptoAmount: string;
+  cryptoToken: string;
+  accountName: string;
+  accountNumber: string;
+  bankName: string;
+  reference: string;
+  status: string;
+};
+
+export type OfframpCard = {
+  title: string;
+  cryptoAmount: string;
+  cryptoToken: string;
+  fiatAmount: string;
+  fiatCurrency: string;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  status: string;
+};
+
 export type ChatItem =
   /** `paragraph` renders the wider, squared-off bubble the design uses for prose. */
   | { kind: "text"; text: string; paragraph?: boolean }
-  | { kind: "quote"; card: QuoteCard }
+  | { kind: "quote"; card: QuoteCard; isEditable?: boolean }
   | { kind: "receipt"; card: ReceiptCard }
   | { kind: "transfer"; card: TransferCard }
+  | { kind: "onramp"; card: OnrampCard }
+  | { kind: "offramp"; card: OfframpCard }
   /** Cancel / Confirm pair. Confirm is what raises the PIN sheet. */
   | { kind: "actions" };
 

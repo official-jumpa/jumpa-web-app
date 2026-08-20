@@ -4,9 +4,15 @@ import { MessageBubble } from "@/components/chat/message-bubble";
 import { QuoteCard } from "@/components/chat/quote-card";
 import { ReceiptCard } from "@/components/chat/receipt-card";
 import { TransferCard } from "@/components/chat/transfer-card";
-import type { ChatEntry, ChatItem } from "@/lib/chat";
+import { OnrampCheckoutCard } from "@/components/chat/onramp-checkout-card";
+import { OfframpCheckoutCard } from "@/components/chat/offramp-checkout-card";
+import type { ChatEntry, ChatItem, QuoteCard as Quote } from "@/lib/chat";
 
-type Handlers = { onConfirm: () => void; onCancel: () => void };
+type Handlers = {
+  onConfirm: () => void;
+  onCancel: () => void;
+  onUpdateQuote?: (card: Quote) => void;
+};
 
 /** The conversation so far. Groups sit 20px apart, items within a group 8px. */
 export function Transcript({
@@ -60,7 +66,6 @@ function Group({
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
       {items.map((item, index) => (
-        // Static placeholder transcript; nothing reorders.
         <Item
           key={`${item.kind}-${index}`}
           item={item}
@@ -77,6 +82,7 @@ function Item({
   from,
   onConfirm,
   onCancel,
+  onUpdateQuote,
 }: { item: ChatItem; from: "user" | "agent" } & Handlers) {
   switch (item.kind) {
     case "text":
@@ -86,11 +92,21 @@ function Item({
         </MessageBubble>
       );
     case "quote":
-      return <QuoteCard card={item.card} />;
+      return (
+        <QuoteCard
+          card={item.card}
+          isEditable={item.isEditable !== false}
+          onUpdateQuote={onUpdateQuote}
+        />
+      );
     case "receipt":
       return <ReceiptCard card={item.card} />;
     case "transfer":
       return <TransferCard card={item.card} />;
+    case "onramp":
+      return <OnrampCheckoutCard card={item.card} />;
+    case "offramp":
+      return <OfframpCheckoutCard card={item.card} />;
     case "actions":
       return <ActionRow onConfirm={onConfirm} onCancel={onCancel} />;
   }

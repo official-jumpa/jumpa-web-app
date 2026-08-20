@@ -1,8 +1,8 @@
 import { cn } from "@/lib/cn";
+import { MarkdownText } from "@/components/chat/markdown-text";
 
 /**
- * One line of conversation: prose in a squared-off bubble, short replies as pills.
- * Both roles share a surface, so position is what tells them apart.
+ * One line or block of conversation: renders markdown, prose in a squared-off bubble, and short replies as pills.
  */
 export function MessageBubble({
   children,
@@ -13,19 +13,27 @@ export function MessageBubble({
   from: "user" | "agent";
   paragraph?: boolean;
 }) {
+  const isMultiLineOrLong =
+    paragraph ||
+    children.includes("\n") ||
+    children.includes("**") ||
+    children.includes("[") ||
+    children.includes("`") ||
+    children.length > 45;
+
   return (
-    <p
+    <div
       className={cn(
-        "bg-jumpa-neutral-95 text-[13px] leading-4 text-jumpa-black",
-        paragraph
-          ? "w-65 rounded-surface px-4 py-3.25"
+        "bg-jumpa-neutral-95 text-[13px] text-jumpa-black",
+        isMultiLineOrLong
+          ? "w-full max-w-72 rounded-surface px-4 py-3 shadow-xs"
           : cn(
-              "flex h-9.75 items-center rounded-pill whitespace-nowrap",
-              from === "user" ? "px-6.5" : "px-2.5",
+              "flex min-h-9.75 items-center rounded-pill py-2",
+              from === "user" ? "px-6.5 text-right" : "px-4",
             ),
       )}
     >
-      {children}
-    </p>
+      <MarkdownText content={children} />
+    </div>
   );
 }

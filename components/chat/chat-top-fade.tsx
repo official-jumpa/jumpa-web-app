@@ -13,6 +13,7 @@ export function ChatTopFade() {
         alt=""
         width={729}
         height={147}
+        priority
         className="absolute top-[calc(env(safe-area-inset-top)+22px)] left-1/2 max-w-none -translate-x-1/2"
       />
     </div>

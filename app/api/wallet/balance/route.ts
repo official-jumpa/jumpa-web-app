@@ -36,12 +36,15 @@ const coinGeckoCache: Record<string, CoinGeckoInfo> = {
   BTC: { priceUsd: "65000.00", icon: "/images/home/coin-bitcoin.svg" },
   SOL: { priceUsd: "150.00", icon: "/images/home/coin-generic.svg" },
   XLM: { priceUsd: "0.12", icon: "/images/home/coin-generic.svg" },
+  XLM_TEST: { priceUsd: "0.00", icon: "/images/home/coin-generic.svg" },
   ETH: { priceUsd: "3540.21", icon: "/images/home/coin-generic.svg" },
   BNB: { priceUsd: "580.00", icon: "/images/home/coin-generic.svg" },
   POL: { priceUsd: "0.55", icon: "/images/home/coin-generic.svg" },
   CELO: { priceUsd: "0.65", icon: "/images/home/coin-generic.svg" },
   USDC: { priceUsd: "1.00", icon: "/images/home/usdcImg.png" },
+  USDC_TEST: { priceUsd: "0.00", icon: "/images/home/usdcImg.png" },
   USDT: { priceUsd: "1.00", icon: "/images/home/coin-generic.svg" },
+  USDT_TEST: { priceUsd: "0.00", icon: "/images/home/coin-generic.svg" },
 };
 
 let pricesLastFetched = 0;
@@ -194,7 +197,7 @@ async function fetchWalletBalances(addresses: {
       )
     : Promise.resolve("0.00");
 
-  // 3. Stellar Balances
+  // 3. Stellar Mainnet Balances
   const stellarAccountPromise = xlmAddr
     ? safeFetchBalance(
         () =>
@@ -204,16 +207,53 @@ async function fetchWalletBalances(addresses: {
               const native =
                 acc.balances.find((b: any) => b.asset_type === "native")
                   ?.balance || "0.00";
-              return { native };
+              const usdc =
+                acc.balances.find((b: any) => b.asset_code === "USDC")
+                  ?.balance || "0.00";
+              const usdt =
+                acc.balances.find((b: any) => b.asset_code === "USDT")
+                  ?.balance || "0.00";
+              return { native, usdc, usdt };
             })
             .catch((err) => {
-              if (err?.response?.status === 404) return { native: "0.00" };
+              if (err?.response?.status === 404) {
+                return { native: "0.00", usdc: "0.00", usdt: "0.00" };
+              }
               throw err;
             }),
         "Stellar Mainnet",
-        { native: "0.00" },
+        { native: "0.00", usdc: "0.00", usdt: "0.00" },
       )
-    : Promise.resolve({ native: "0.00" });
+    : Promise.resolve({ native: "0.00", usdc: "0.00", usdt: "0.00" });
+
+  // 3b. Stellar Testnet Balances
+  const stellarTestnetAccountPromise = xlmAddr
+    ? safeFetchBalance(
+        () =>
+          stellarTestnet
+            .loadAccount(xlmAddr)
+            .then((acc) => {
+              const native =
+                acc.balances.find((b: any) => b.asset_type === "native")
+                  ?.balance || "0.00";
+              const usdc =
+                acc.balances.find((b: any) => b.asset_code === "USDC")
+                  ?.balance || "0.00";
+              const usdt =
+                acc.balances.find((b: any) => b.asset_code === "USDT")
+                  ?.balance || "0.00";
+              return { native, usdc, usdt };
+            })
+            .catch((err) => {
+              if (err?.response?.status === 404) {
+                return { native: "0.00", usdc: "0.00", usdt: "0.00" };
+              }
+              throw err;
+            }),
+        "Stellar Testnet",
+        { native: "0.00", usdc: "0.00", usdt: "0.00" },
+      )
+    : Promise.resolve({ native: "0.00", usdc: "0.00", usdt: "0.00" });
 
   // 4. Bitcoin Balances
   const btcPromise = btcAddr
@@ -243,26 +283,45 @@ async function fetchWalletBalances(addresses: {
       )
     : Promise.resolve("0.0000");
 
-  const [solBal, xlmInfo, btcBal] = await Promise.all([
+  const [solBal, xlmInfo, xlmTestnetInfo, btcBal] = await Promise.all([
     solPromise,
     stellarAccountPromise,
+    stellarTestnetAccountPromise,
     btcPromise,
   ]);
 
   const btcCached = coinGeckoCache.BTC;
   const solCached = coinGeckoCache.SOL;
   const xlmCached = coinGeckoCache.XLM;
+  const xlmTestnetCached = {
+    priceUsd: xlmCached.priceUsd,
+    icon: xlmCached.icon,
+  };
+
+  const usdcCached = coinGeckoCache.USDC;
+  const usdcTestnetCached = {
+    priceUsd: usdcCached.priceUsd,
+    icon: usdcCached.icon,
+  };
+  const usdtCached = coinGeckoCache.USDT;
+  const usdtTestnetCached = {
+    priceUsd: usdtCached.priceUsd,
+    icon: usdtCached.icon,
+  };
 
   const standardNames: Record<string, string> = {
     BTC: "Bitcoin",
     SOL: "Solana",
     XLM: "Stellar",
+    XLM_TEST: "Stellar Testnet",
     ETH: "Ethereum",
     BNB: "BNB",
     POL: "Polygon",
     CELO: "Celo",
     USDC: "USD Coin",
+    USDC_TEST: "USD Coin (Testnet)",
     USDT: "Tether USD",
+    USDT_TEST: "Tether USD (Testnet)",
   };
 
   const aggregated: Record<
@@ -306,6 +365,43 @@ async function fetchWalletBalances(addresses: {
     xlmCached.icon,
     xlmInfo.native,
     xlmCached.priceUsd,
+  );
+  addBalance(
+    "XLM_TEST",
+    "Stellar Testnet",
+    xlmTestnetCached.icon,
+    xlmTestnetInfo.native,
+    xlmTestnetCached.priceUsd,
+  );
+
+  // 1b. Add Stellar non-native assets
+  addBalance(
+    "USDC",
+    "USD Coin",
+    usdcCached.icon,
+    xlmInfo.usdc,
+    usdcCached.priceUsd,
+  );
+  addBalance(
+    "USDT",
+    "Tether USD",
+    usdtCached.icon,
+    xlmInfo.usdt,
+    usdtCached.priceUsd,
+  );
+  addBalance(
+    "USDC_TEST",
+    "USD Coin (Testnet)",
+    usdcTestnetCached.icon,
+    xlmTestnetInfo.usdc,
+    usdcTestnetCached.priceUsd,
+  );
+  addBalance(
+    "USDT_TEST",
+    "Tether USD (Testnet)",
+    usdtTestnetCached.icon,
+    xlmTestnetInfo.usdt,
+    usdtTestnetCached.priceUsd,
   );
 
   // 2. Add EVM balances

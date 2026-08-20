@@ -64,12 +64,14 @@ export default function HomePage() {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 4,
                 });
+                const displaySymbol =
+                  t.symbol === "XLM_TEST" ? "XLM" : t.symbol;
                 return {
-                  symbol: t.symbol,
+                  symbol: displaySymbol,
                   name: t.name || t.symbol,
                   icon: t.icon || "/images/home/coin-generic.svg",
                   balance: `$${usdValue}`,
-                  change: `${formattedAmount} ${t.symbol}`,
+                  change: `${formattedAmount} ${displaySymbol}`,
                 };
               });
               setAssets(mappedAssets);

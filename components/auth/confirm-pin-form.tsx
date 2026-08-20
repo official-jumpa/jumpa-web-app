@@ -17,13 +17,15 @@ export function ConfirmPinForm({
   const pin = usePinInput(PIN_LENGTH);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [status, setStatus] = useState<
+    "idle" | "submitting" | "success" | "error"
+  >("idle");
 
   useEffect(() => {
-    if (pin.complete && !creating) {
+    if (pin.complete && status === "idle") {
       handleConfirmPin(pin.value);
     }
-  }, [pin.complete, creating, pin.value]);
+  }, [pin.complete, status, pin.value]);
 
   const handleConfirmPin = async (confirmValue: string) => {
     const initialPin =
@@ -34,7 +36,7 @@ export function ConfirmPinForm({
       return;
     }
 
-    setCreating(true);
+    setStatus("submitting");
     setError(null);
 
     try {
@@ -53,22 +55,31 @@ export function ConfirmPinForm({
 
       if (!res.ok) {
         setError(data.error || "Wallet setup failed. Please try again.");
-        setCreating(false);
+        setStatus("error");
+        // Reset to idle after error to allow user to re-enter
+        setTimeout(() => setStatus("idle"), 1000);
         return;
       }
 
-      if (typeof window !== "undefined" && data.address) {
-        sessionStorage.setItem("userWalletAddress", data.address);
+      if (typeof window !== "undefined") {
+        if (data.address) {
+          sessionStorage.setItem("userWalletAddress", data.address);
+        }
+        sessionStorage.removeItem("setupPhrase");
+        sessionStorage.removeItem("setupPin");
       }
 
-      setCreating(false);
+      setStatus("success");
       router.push(nextHref);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Wallet setup failed";
       setError(msg);
-      setCreating(false);
+      setStatus("error");
+      setTimeout(() => setStatus("idle"), 1000);
     }
   };
+
+  const creating = status === "submitting";
 
   return (
     <>

@@ -76,7 +76,7 @@ export function RecoveryPhraseQuiz({ nextHref }: { nextHref: string }) {
 
         {done ? (
           <div className="flex flex-col items-center gap-2 text-center text-jumpa-primary-950 font-medium text-sm">
-            🎉 Seed phrase verified successfully!
+            Seed phrase verified!
           </div>
         ) : (
           <div className="flex flex-col gap-4">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BoardFitScript, observeFit } from "./board-fit";
+import { observeFit } from "./board-fit";
 import { CarouselProgressContext } from "./carousel-progress";
 import { ONBOARDING_SLIDES } from "./slides";
 import { ChatSlide } from "./slides/chat-slide";
@@ -78,12 +78,8 @@ export function OnboardingCarousel() {
   return (
     <div
       ref={attach}
-      // BoardFitScript writes the measurements onto this element's style before
-      // React hydrates, which is a mismatch by definition.
-      suppressHydrationWarning
       className="mx-auto flex h-dvh max-w-[430px] snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
-      <BoardFitScript />
       <CarouselProgressContext.Provider value={progress}>
         <ChatSlide />
         <CoinsSlide />

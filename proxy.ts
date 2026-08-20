@@ -15,11 +15,20 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Fetch session and wallet tokens from Cookies
-  const sessionToken =
-    request.cookies.get("better-auth.session_token")?.value ||
-    request.cookies.get("__secure-better-auth.session_token")?.value;
-  const hasWallet = request.cookies.get("selected_wallet_address")?.value;
+  // 2. Fetch session and wallet tokens from Cookies (handling HTTPS __Secure- prefixes case-insensitively)
+  const allCookies = request.cookies.getAll();
+  const sessionToken = allCookies.find((c) => {
+    const name = c.name.toLowerCase();
+    return (
+      name.includes("better-auth.session_token") ||
+      name.includes("better_auth.session_token") ||
+      name.endsWith("session_token")
+    );
+  })?.value;
+
+  const hasWallet = allCookies.find((c) =>
+    c.name.toLowerCase().includes("selected_wallet_address"),
+  )?.value;
 
   const isAuthenticated = !!sessionToken;
   const hasSelectedWallet = !!hasWallet;

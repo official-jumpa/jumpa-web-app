@@ -5,6 +5,7 @@ import { EVM_CHAINS, EVM_CLIENTS } from "@/lib/evm-chains";
 import { environment } from "@/lib/environment";
 import { Wallet } from "@/models/Wallet";
 import { connectDB } from "@/lib/db";
+import { getAssetLogo } from "@/lib/assets";
 
 // Solana Mainnet Connection (Mainnet only)
 const solMainnetConnection = new Connection(
@@ -431,7 +432,7 @@ export async function fetchWalletBalances(
       res.tokens.forEach((t: any) => {
         const tokenInfo = coinGeckoCache[t.symbol] || {
           priceUsd: "1.00",
-          icon: "/images/home/coin-generic.svg",
+          icon: getAssetLogo(t.symbol),
         };
         tokens.push({
           symbol: t.symbol,

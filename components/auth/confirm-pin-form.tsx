@@ -33,6 +33,7 @@ export function ConfirmPinForm({
 
     if (initialPin && initialPin !== confirmValue) {
       setError("PIN does not match. Please try again.");
+      pin.clear();
       return;
     }
 
@@ -40,15 +41,38 @@ export function ConfirmPinForm({
     setError(null);
 
     try {
-      const phrase =
+      const setupType =
         typeof window !== "undefined"
-          ? sessionStorage.getItem("setupPhrase") || undefined
-          : undefined;
+          ? sessionStorage.getItem("setupType")
+          : null;
+
+      let phrase: string | undefined;
+      let privateKey: string | undefined;
+      let chain: string | undefined;
+
+      if (typeof window !== "undefined") {
+        if (setupType === "phrase") {
+          phrase = sessionStorage.getItem("setupPhrase") || undefined;
+        } else if (setupType === "privateKey") {
+          privateKey = sessionStorage.getItem("setupPrivateKey") || undefined;
+          chain = sessionStorage.getItem("setupChain") || undefined;
+        } else {
+          phrase = sessionStorage.getItem("setupPhrase") || undefined;
+          privateKey = sessionStorage.getItem("setupPrivateKey") || undefined;
+          chain = sessionStorage.getItem("setupChain") || undefined;
+        }
+      }
 
       const res = await fetch("/api/auth/wallet-setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin: confirmValue, phrase }),
+        body: JSON.stringify({
+          pin: confirmValue,
+          phrase,
+          privateKey,
+          chain,
+          action: phrase || privateKey ? "import" : "create",
+        }),
       });
 
       const data = await res.json();
@@ -56,7 +80,7 @@ export function ConfirmPinForm({
       if (!res.ok) {
         setError(data.error || "Wallet setup failed. Please try again.");
         setStatus("error");
-        // Reset to idle after error to allow user to re-enter
+        pin.clear();
         setTimeout(() => setStatus("idle"), 1000);
         return;
       }
@@ -66,15 +90,19 @@ export function ConfirmPinForm({
           sessionStorage.setItem("userWalletAddress", data.address);
         }
         sessionStorage.removeItem("setupPhrase");
+        sessionStorage.removeItem("setupPrivateKey");
+        sessionStorage.removeItem("setupChain");
+        sessionStorage.removeItem("setupType");
         sessionStorage.removeItem("setupPin");
       }
 
       setStatus("success");
-      router.push(nextHref);
+      router.replace(nextHref);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Wallet setup failed";
       setError(msg);
       setStatus("error");
+      pin.clear();
       setTimeout(() => setStatus("idle"), 1000);
     }
   };

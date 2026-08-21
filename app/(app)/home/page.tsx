@@ -18,6 +18,7 @@ import {
   type Asset,
   type Transaction,
 } from "@/lib/wallet";
+import { unifyTokens } from "@/lib/assets";
 
 export default function HomePage() {
   const router = useRouter();
@@ -36,7 +37,7 @@ export default function HomePage() {
           return;
         }
         if (!status.hasWallet) {
-          router.replace("/sign-up/secure-wallet");
+          router.replace("/sign-up/pin");
           return;
         }
         setCheckingAuth(false);
@@ -56,25 +57,8 @@ export default function HomePage() {
               Array.isArray(data.tokens) &&
               data.tokens.length > 0
             ) {
-              const mappedAssets: Asset[] = data.tokens.map((t: any) => {
-                const amount = parseFloat(t.balance) || 0;
-                const price = parseFloat(t.priceUsd) || 0;
-                const usdValue = (amount * price).toFixed(2);
-                const formattedAmount = amount.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 4,
-                });
-                const displaySymbol =
-                  t.symbol === "XLM_TEST" ? "XLM" : t.symbol;
-                return {
-                  symbol: displaySymbol,
-                  name: t.name || t.symbol,
-                  icon: t.icon || "/images/home/coin-generic.svg",
-                  balance: `$${usdValue}`,
-                  change: `${formattedAmount} ${displaySymbol}`,
-                };
-              });
-              setAssets(mappedAssets);
+              const unified = unifyTokens(data.tokens);
+              setAssets(unified);
             }
           });
       })

@@ -7,14 +7,18 @@ import { cn } from "@/lib/cn";
 export function InsetCard({
   className,
   children,
+  href,
 }: {
   className?: string;
   children: ReactNode;
+  href?: string;
 }) {
-  return (
+  const content = (
     <div
       className={cn(
-        "w-full rounded-card border border-jumpa-neutral-100 p-2.25",
+        "w-full rounded-card border border-jumpa-neutral-100 p-2.25 transition-all",
+        href &&
+          "hover:border-jumpa-primary-200 hover:shadow-xs cursor-pointer block",
         className,
       )}
     >
@@ -23,6 +27,16 @@ export function InsetCard({
       </div>
     </div>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="block w-full">
+        {content}
+      </Link>
+    );
+  }
+
+  return content;
 }
 
 /** Backup option — icon, two lines of copy, chevron. */
@@ -40,7 +54,7 @@ export function OptionRow({
   return (
     <Link
       href={href}
-      className="flex items-center gap-2.5 rounded-panel border border-jumpa-primary-100 bg-jumpa-white py-4.75 pr-4.5 pl-5.5"
+      className="flex items-center gap-2.5 rounded-panel border border-jumpa-primary-100 bg-jumpa-white py-4.75 pr-4.5 pl-5.5 transition-all hover:border-jumpa-primary-300"
     >
       <span className="shrink-0 text-jumpa-primary-900 [&>svg]:size-6">
         {icon}

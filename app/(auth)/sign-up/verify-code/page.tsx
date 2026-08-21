@@ -15,7 +15,7 @@ export default function VerifyCodePage() {
         We've sent a 6-digit code to your email. Enter it below to continue.
       </AuthHeading>
 
-      <VerifyCodeForm nextHref="/sign-up/secure-wallet" />
+      <VerifyCodeForm nextHref="/sign-up/pin" />
     </AuthScreen>
   );
 }

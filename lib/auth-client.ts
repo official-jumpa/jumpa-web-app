@@ -1,7 +1,7 @@
 "use client";
 
 import { createAuthClient } from "better-auth/react";
-import { emailOTPClient } from "better-auth/client/plugins";
+import { emailOTPClient, anonymousClient } from "better-auth/client/plugins";
 import { environment } from "./environment";
 
 export const authClient = createAuthClient({
@@ -9,7 +9,7 @@ export const authClient = createAuthClient({
     typeof window !== "undefined"
       ? window.location.origin
       : environment.BETTER_AUTH_URL,
-  plugins: [emailOTPClient()],
+  plugins: [emailOTPClient(), anonymousClient()],
 });
 
 export const { signIn, signOut, useSession, emailOtp } = authClient;

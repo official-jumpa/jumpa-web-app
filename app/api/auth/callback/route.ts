@@ -3,10 +3,13 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { Wallet } from "@/models/Wallet";
+import { environment } from "@/lib/environment";
 
 /**
  * GET /api/auth/callback
- * OAuth callback handler that checks wallet existence and redirects to /home or /sign-up/secure-wallet.
+ * OAuth callback handler:
+ * - Returning user with existing wallet -> /home
+ * - New user without wallet -> /sign-up/pin (Set Transaction PIN)
  */
 export async function GET(req: NextRequest) {
   const origin = req.nextUrl.origin;
@@ -21,13 +24,21 @@ export async function GET(req: NextRequest) {
     }
 
     await connectDB();
-    const wallet = await Wallet.findOne({ userId: session.user.id });
+    const existingWallet = await Wallet.findOne({ userId: session.user.id });
 
-    if (wallet) {
-      return NextResponse.redirect(`${origin}/home`);
-    } else {
-      return NextResponse.redirect(`${origin}/sign-up/secure-wallet`);
+    if (existingWallet) {
+      const res = NextResponse.redirect(`${origin}/home`);
+      res.cookies.set("selected_wallet_address", existingWallet.address, {
+        path: "/",
+        httpOnly: true,
+        secure: environment.IS_PRODUCTION,
+        sameSite: "lax",
+      });
+      return res;
     }
+
+    // New user: Redirect to set their 6-digit transaction PIN
+    return NextResponse.redirect(`${origin}/sign-up/pin`);
   } catch (err) {
     console.error("[Auth Callback] Error handling callback:", err);
     return NextResponse.redirect(`${origin}/onboarding`);

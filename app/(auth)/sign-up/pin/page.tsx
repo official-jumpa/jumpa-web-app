@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Set transaction PIN" };
 export default function SetPinPage() {
   return (
     <AuthScreen
-      header={<AuthHeader backHref="/sign-up/recovery-phrase" />}
+      header={<AuthHeader backHref="/import-wallet" />}
       className="[--auth-pb:11px]"
     >
       <AuthHeading title="Set transaction PIN">

@@ -30,13 +30,13 @@ export default function ImportWalletPage() {
             href="/import-wallet/recovery-phrase"
             icon={<UserLockIcon />}
             title="Recovery Phrase"
-            description="Reveal and save your 12 Word Phrase"
+            description="Enter your 12 or 24 Word Seed Phrase"
           />
           <OptionRow
             href="/import-wallet/private-key"
             icon={<CloudIcon />}
             title="Private Key"
-            description="Encrypted with your PIN, Stored in your account"
+            description="Enter your Hex or Base64 Private key"
           />
         </div>
 

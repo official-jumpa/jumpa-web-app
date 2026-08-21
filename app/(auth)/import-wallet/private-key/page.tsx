@@ -12,8 +12,7 @@ export default function ImportPrivateKeyPage() {
       className="[--auth-pb:45px]"
     >
       <AuthHeading title="Import Private Key 🗝️" className="max-w-84">
-        Enter your 12 or 24-word recovery phrase to securely regain access to
-        your wallet.
+        Enter your private key to securely access to your wallet
       </AuthHeading>
 
       <PrivateKeyForm nextHref="/sign-up/pin" />

@@ -6,11 +6,20 @@ import { connectDB } from "@/lib/db";
 import { Wallet } from "@/models/Wallet";
 
 const WALLET_PIN_REGEX = /^\d{6}$/;
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+
+interface AttemptRecord {
+  count: number;
+  lockedUntil?: number;
+}
+
+const pinAttempts = new Map<string, AttemptRecord>();
 
 /**
  * POST /api/wallet/verify-pin
  * Body: { pin: string, address?: string }
- * Verifies PIN against pinHash for the selected wallet.
+ * Verifies PIN against pinHash for the selected wallet with rate limiting & lockout.
  */
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({
@@ -27,9 +36,24 @@ export async function POST(req: NextRequest) {
     address?: string;
   };
 
+  const lockKey = `${session.user.id}:${targetAddress || "default"}`;
+  const now = Date.now();
+  const attempt = pinAttempts.get(lockKey);
+
+  if (attempt?.lockedUntil && attempt.lockedUntil > now) {
+    const remainingMinutes = Math.ceil((attempt.lockedUntil - now) / 60000);
+    return NextResponse.json(
+      {
+        valid: false,
+        error: `Too many failed attempts. Try again in ${remainingMinutes} minute(s).`,
+      },
+      { status: 429 },
+    );
+  }
+
   if (!pin || !WALLET_PIN_REGEX.test(pin)) {
     return NextResponse.json(
-      { error: "Valid 6-digit PIN required" },
+      { error: "Valid PIN required" },
       { status: 400 },
     );
   }
@@ -68,11 +92,35 @@ export async function POST(req: NextRequest) {
   const isValid = await bcrypt.compare(pin, wallet.pinHash);
 
   if (!isValid) {
+    const currentCount = (attempt?.count || 0) + 1;
+    if (currentCount >= MAX_ATTEMPTS) {
+      pinAttempts.set(lockKey, {
+        count: currentCount,
+        lockedUntil: now + LOCKOUT_MS,
+      });
+      return NextResponse.json(
+        {
+          valid: false,
+          error:
+            "Too many failed attempts. Try again in 15 minutes.",
+        },
+        { status: 429 },
+      );
+    }
+
+    pinAttempts.set(lockKey, { count: currentCount });
+    const remaining = MAX_ATTEMPTS - currentCount;
     return NextResponse.json(
-      { valid: false, error: "Incorrect PIN" },
+      {
+        valid: false,
+        error: `Incorrect PIN`,
+      },
       { status: 401 },
     );
   }
+
+  // Clear attempts on success
+  pinAttempts.delete(lockKey);
 
   return NextResponse.json({
     valid: true,

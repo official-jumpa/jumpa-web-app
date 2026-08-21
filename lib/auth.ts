@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
-import { emailOTP } from "better-auth/plugins";
+import { emailOTP, anonymous } from "better-auth/plugins";
 import { connectDB, getDb } from "./db";
 import { sendOtpEmail } from "./email-otp-mail";
 import { environment } from "./environment";
@@ -37,6 +37,7 @@ export const auth = betterAuth({
         await sendOtpEmail(email, otp);
       },
     }),
+    anonymous(),
   ],
   session: {
     cookieCache: {

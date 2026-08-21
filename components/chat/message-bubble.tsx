@@ -19,16 +19,17 @@ export function MessageBubble({
     children.includes("**") ||
     children.includes("[") ||
     children.includes("`") ||
+    children.includes("|") ||
     children.length > 45;
 
   return (
     <div
       className={cn(
-        "bg-jumpa-neutral-95 text-[13px] text-jumpa-black",
+        "bg-jumpa-neutral-95 text-[13px] text-jumpa-black break-words [overflow-wrap:anywhere] max-w-full overflow-hidden",
         isMultiLineOrLong
-          ? "w-full max-w-72 rounded-surface px-4 py-3 shadow-xs"
+          ? "w-full max-w-[340px] sm:max-w-[420px] rounded-surface px-4 py-3 shadow-xs"
           : cn(
-              "flex min-h-9.75 items-center rounded-pill py-2",
+              "flex min-h-9.75 items-center rounded-pill py-2 max-w-full",
               from === "user" ? "px-6.5 text-right" : "px-4",
             ),
       )}

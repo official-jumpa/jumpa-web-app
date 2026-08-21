@@ -40,10 +40,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/sign-up") ||
     pathname.startsWith("/import-wallet");
 
-  // Keep wallet setup routes open if they don't have a wallet yet
+  // Keep wallet setup and import routes open
   const isWalletSetupRoute =
-    pathname.startsWith("/sign-up/secure-wallet") ||
-    pathname.startsWith("/sign-up/recovery-phrase") ||
     pathname.startsWith("/sign-up/pin") ||
     pathname.startsWith("/import-wallet");
 
@@ -53,9 +51,9 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/transactions") ||
     pathname === "/";
 
-  // Case 1: Unauthenticated Users
+  // Case 1: Unauthenticated Users (only protect dashboard/home routes)
   if (!isAuthenticated) {
-    if (isProtectedRoute || isWalletSetupRoute) {
+    if (isProtectedRoute) {
       console.log(
         `[Proxy] Redirecting unauthenticated user from ${pathname} to /onboarding`,
       );
@@ -74,21 +72,23 @@ export async function proxy(request: NextRequest) {
     // Redirect away from home/dashboard pages back to setup
     if (isProtectedRoute) {
       console.log(
-        `[Proxy] Authenticated user without wallet. Redirecting from ${pathname} to /sign-up/secure-wallet`,
+        `[Proxy] Authenticated user without wallet. Redirecting from ${pathname} to /sign-up/pin`,
       );
-      return NextResponse.redirect(
-        new URL("/sign-up/secure-wallet", request.url),
-      );
+      return NextResponse.redirect(new URL("/sign-up/pin", request.url));
     }
     return NextResponse.next();
   }
 
   // Case 3: Authenticated Users WITH a wallet
   if (isAuthenticated && hasSelectedWallet) {
-    // Exclude /sign-up/done to allow viewing completion
-    if (isAuthRoute && pathname !== "/sign-up/done") {
+    if (
+      pathname === "/onboarding" ||
+      pathname === "/sign-in" ||
+      pathname === "/sign-up" ||
+      pathname === "/"
+    ) {
       console.log(
-        `[Proxy] Authenticated user with wallet. Redirecting from auth route ${pathname} to /home`,
+        `[Proxy] Authenticated user with wallet. Redirecting from ${pathname} to /home`,
       );
       return NextResponse.redirect(new URL("/home", request.url));
     }

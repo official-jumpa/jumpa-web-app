@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       selectedWallet = await Wallet.findOne({ userId: session.user.id });
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       authenticated: true,
       hasWallet: !!selectedWallet,
       selectedAddress: selectedWallet?.address || null,
@@ -48,6 +48,12 @@ export async function GET(req: NextRequest) {
         name: session.user.name,
       },
     });
+
+    if (!selectedWallet && selectedCookie) {
+      response.cookies.delete("selected_wallet_address");
+    }
+
+    return response;
   } catch (err) {
     console.error("[Auth] Error checking status:", err);
     return NextResponse.json(

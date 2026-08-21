@@ -68,10 +68,11 @@ export function VerifyCodeForm({
           if (statusData.hasWallet) {
             setTargetActionHref("/home");
           } else {
-            setTargetActionHref(nextHref);
+            // New user without wallet: Route to set transaction PIN
+            setTargetActionHref("/sign-up/pin");
           }
         } catch {
-          setTargetActionHref(nextHref);
+          setTargetActionHref(nextHref || "/sign-up/pin");
         }
 
         setVerifying(false);

@@ -83,6 +83,7 @@ You MUST respond with a single, valid JSON object matching this schema:
 ### RULES:
 - The "message" field is **STRICTLY MANDATORY** and must NEVER be empty or null.
 - Always use standard Markdown (**bold**, *italics*, \`code\`, bullet lists).
+- When listing addresses, tokens, or balances, ALWAYS use clean bullet points (e.g. "- **Stellar**: \`GAB...\`") rather than markdown tables so it formats beautifully on mobile screens.
 - If the user uses emojis or casual slang, respond warmly and conversationally while staying helpful.
 - For Naira amounts, format using '₦' (e.g. ₦50,000).
 `;
@@ -221,7 +222,7 @@ export async function queryDeepSeekAI({
     return {
       intent: "CHAT",
       message:
-        "Sorry, I had trouble reaching the AI network. Please check your connection.",
+        "Sorry, an error occured. Please check your connection and try again",
       params: {},
     };
   }

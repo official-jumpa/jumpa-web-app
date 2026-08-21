@@ -6,7 +6,11 @@ import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { encryptMnemonic } from "@/lib/crypto";
-import { deriveAddresses } from "@/lib/derive-addresses";
+import {
+  deriveAddresses,
+  deriveFromPrivateKey,
+  type DerivedWallet,
+} from "@/lib/derive-addresses";
 import { environment } from "@/lib/environment";
 import { Wallet } from "@/models/Wallet";
 
@@ -15,8 +19,8 @@ const WALLET_PIN_REGEX = /^\d{6}$/;
 /**
  * POST /api/auth/wallet-setup
  *
- * Unified wallet creation for any authenticated user
- * (email OTP or Google social login).
+ * Sets the user's transaction PIN and creates their multi-chain wallet
+ * via new seed phrase generation, seed phrase import, or private key import.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -29,6 +33,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    console.log("[WalletSetup] Session verified:", {
+      userId: session.user.id,
+      isAnonymous: (session.user as any).isAnonymous,
+    });
+
     const body = await req.json().catch((err) => {
       console.error("[WalletSetup] Failed to parse JSON body:", err);
       return {};
@@ -37,14 +46,33 @@ export async function POST(req: NextRequest) {
     const {
       pin,
       phrase: providedPhrase,
+      privateKey,
+      chain,
       action,
     } = body as {
       pin?: string;
       phrase?: string;
+      privateKey?: string;
+      chain?: string;
       action?: "create" | "import";
     };
 
+    console.log("[WalletSetup] Request payload summary:", {
+      action,
+      hasPin: Boolean(pin),
+      pinValidFormat: pin ? WALLET_PIN_REGEX.test(pin) : false,
+      hasPhrase: Boolean(providedPhrase),
+      phraseWordCount: providedPhrase
+        ? providedPhrase.trim().split(/\s+/).length
+        : 0,
+      hasPrivateKey: Boolean(privateKey),
+      chain,
+    });
+
     if (!pin || !WALLET_PIN_REGEX.test(pin)) {
+      console.warn("[WalletSetup] ❌ PIN validation failed:", {
+        pin: pin ? `len(${pin.length})` : "empty",
+      });
       return NextResponse.json(
         { error: "Valid 6-digit PIN required" },
         { status: 400 },
@@ -55,7 +83,11 @@ export async function POST(req: NextRequest) {
 
     // Enforce 5 wallet limit per user
     const existingWallets = await Wallet.find({ userId: session.user.id });
+    console.log(
+      `[WalletSetup] User currently has ${existingWallets.length} existing wallets`,
+    );
     if (existingWallets.length >= 5) {
+      console.warn("[WalletSetup] ❌ User reached 5-wallet limit");
       return NextResponse.json(
         { error: "Maximum limit of 5 wallets reached" },
         { status: 400 },
@@ -70,49 +102,115 @@ export async function POST(req: NextRequest) {
     }
     const walletName = `Wallet ${walletIndex}`;
 
-    let phrase: string;
-    if (providedPhrase) {
-      if (!validateMnemonic(providedPhrase, wordlist)) {
+    let derived: DerivedWallet;
+    let secretToEncrypt: string;
+
+    if (privateKey) {
+      // 1. Private Key Import
+      console.log(
+        `[WalletSetup] Deriving addresses from private key for chain: ${chain || "base"}`,
+      );
+      try {
+        derived = deriveFromPrivateKey(privateKey, chain || "base");
+        secretToEncrypt = privateKey.trim();
+        console.log(
+          "[WalletSetup] ✅ Private key derivation successful:",
+          derived.addresses,
+        );
+      } catch (err: any) {
+        console.error("[WalletSetup] ❌ Private key derivation failed:", err);
+        return NextResponse.json(
+          { error: err.message || "Invalid private key" },
+          { status: 400 },
+        );
+      }
+    } else if (providedPhrase) {
+      // 2. Recovery Phrase Import
+      console.log(
+        "[WalletSetup] Validating and deriving addresses from recovery phrase",
+      );
+      const isValid = validateMnemonic(providedPhrase, wordlist);
+      if (!isValid) {
+        console.warn(
+          "[WalletSetup] ❌ Provided phrase failed BIP-39 validation",
+        );
         return NextResponse.json(
           { error: "Invalid seed phrase" },
           { status: 400 },
         );
       }
-      phrase = providedPhrase;
+      try {
+        derived = deriveAddresses(providedPhrase);
+        secretToEncrypt = providedPhrase;
+        console.log(
+          "[WalletSetup] ✅ Recovery phrase derivation successful:",
+          derived.addresses,
+        );
+      } catch (err: any) {
+        console.error(
+          "[WalletSetup] ❌ Recovery phrase deriveAddresses thrown:",
+          err,
+        );
+        return NextResponse.json(
+          { error: err?.message || "Failed to derive addresses from phrase" },
+          { status: 400 },
+        );
+      }
     } else {
-      phrase = generateMnemonic(wordlist);
+      // 3. New Wallet Generation
+      console.log(
+        "[WalletSetup] Generating new seed phrase for wallet creation",
+      );
+      const newPhrase = generateMnemonic(wordlist);
+      derived = deriveAddresses(newPhrase);
+      secretToEncrypt = newPhrase;
+      console.log(
+        "[WalletSetup] ✅ New phrase generated and derived:",
+        derived.addresses,
+      );
     }
 
-    const { addresses, publicKeys } = deriveAddresses(phrase);
-    const ethAddress = addresses.eth;
+    const primaryAddress =
+      derived.addresses.eth ||
+      derived.addresses.sol ||
+      derived.addresses.xlm ||
+      derived.addresses.btc;
+
+    console.log(`[WalletSetup] Primary address determined: ${primaryAddress}`);
 
     const duplicateWallet = await Wallet.findOne({
-      address: ethAddress.toLowerCase(),
+      address: primaryAddress.toLowerCase(),
     });
 
     if (duplicateWallet) {
+      console.warn(`[WalletSetup] ⚠️ Duplicate wallet detected: ${primaryAddress}`);
       return NextResponse.json(
-        { error: "A wallet with this seed phrase already exists" },
+        { error: "This wallet is already in use by another user" },
         { status: 409 },
       );
     }
 
-    const { encryptedMnemonic, iv, salt } = encryptMnemonic(phrase, pin);
+    // Encrypt secret with the user's chosen transaction PIN
+    console.log("[WalletSetup] Encrypting secret and hashing PIN");
+    const { encryptedMnemonic, iv, salt } = encryptMnemonic(
+      secretToEncrypt,
+      pin,
+    );
     const pinHash = await bcrypt.hash(pin, 10);
 
     const wallet = await Wallet.create({
       userId: session.user.id,
       name: walletName,
-      address: ethAddress,
-      addresses,
-      publicKeys,
+      address: primaryAddress,
+      addresses: derived.addresses,
+      publicKeys: derived.publicKeys,
       encryptedMnemonic,
       iv,
       salt,
       pinHash,
     });
 
-    console.log(`[WalletSetup] Wallet created: ${wallet._id}`);
+    console.log(`[WalletSetup] Wallet created for user "${session.user.id}": ${wallet.address}`);
 
     const response = NextResponse.json(
       {

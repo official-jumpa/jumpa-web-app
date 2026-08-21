@@ -1,15 +1,13 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthScreen } from "@/components/auth/auth-screen";
-import { InsetCard } from "@/components/auth/cards";
-import { CopyButton } from "@/components/auth/copy-button";
 import { Button } from "@/components/ui/button";
-import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
 
 export default function SignUpDonePage() {
+  const router = useRouter();
   const [walletAddress, setWalletAddress] = useState<string>("");
 
   useEffect(() => {
@@ -25,10 +23,16 @@ export default function SignUpDonePage() {
 
   return (
     <AuthScreen
-      header={<AuthHeader backHref="/sign-up/pin/confirm" />}
+      header={null}
       className="[--auth-pb:67px]"
       footer={
-        <Button href="/home" variant="gradient" size="lg" className="mt-8">
+        <Button
+          type="button"
+          onClick={() => router.replace("/home")}
+          variant="gradient"
+          size="lg"
+          className="mt-8 cursor-pointer"
+        >
           Go to Home
         </Button>
       }
@@ -53,21 +57,6 @@ export default function SignUpDonePage() {
             portfolio and explore the market
           </p>
         </div>
-
-        <InsetCard className="mt-9">
-          <span className="flex items-center gap-2">
-            <ShieldCheckIcon className="size-6 shrink-0 text-jumpa-primary-600" />
-            <span className="flex flex-col gap-1 text-jumpa-black">
-              <span className="text-sm leading-4 font-medium">
-                Your Wallet Address
-              </span>
-              <span className="text-xs leading-4 text-jumpa-neutral-600 font-mono">
-                {displayAddress}
-              </span>
-            </span>
-          </span>
-          {walletAddress ? <CopyButton value={walletAddress} /> : null}
-        </InsetCard>
       </div>
     </AuthScreen>
   );

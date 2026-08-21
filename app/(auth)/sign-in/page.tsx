@@ -32,10 +32,6 @@ export default function SignInPage() {
               <ChevronRightIcon className="size-5 shrink-0 text-jumpa-black" />
             </InsetCard>
           </Link>
-
-          <p className="mx-auto max-w-58 text-center text-xs leading-3 text-jumpa-danger">
-            Every method is self custodial, Jumpa never hold your keys
-          </p>
         </div>
       }
       className="[--auth-gap:24px] [--auth-pb:42px]"

@@ -1,6 +1,6 @@
-/** Placeholder list until chain config comes from the wallet layer. */
 export const NETWORKS = [
-  { id: "ethereum", label: "Ethereum" },
-  { id: "solana", label: "Solana" },
+  { id: "stellar", label: "Stellar" },
   { id: "base", label: "Base" },
+  { id: "solana", label: "Solana" },
+  { id: "ethereum", label: "Ethereum" },
 ] as const;

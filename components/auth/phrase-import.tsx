@@ -10,6 +10,8 @@ import { WordGrid } from "@/components/auth/word-chip";
 import { Button } from "@/components/ui/button";
 import { PHRASE_LENGTHS, type PhraseLength } from "@/lib/recovery-phrase";
 
+import { authClient } from "@/lib/auth-client";
+
 const ACTION_CLASS =
   "flex h-12 flex-1 items-center justify-center rounded-pill text-sm leading-4 font-medium cursor-pointer";
 
@@ -18,6 +20,7 @@ export function PhraseImport({ nextHref }: { nextHref: string }) {
   const [length, setLength] = useState<PhraseLength>("12");
   const [words, setWords] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const count = Number(length);
   const wordAt = (slot: number) => words[slot - 1] ?? "";
@@ -42,7 +45,7 @@ export function PhraseImport({ nextHref }: { nextHref: string }) {
     }
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     const filledWords = Array.from(
       { length: count },
       (_, i) => words[i] ?? "",
@@ -58,11 +61,33 @@ export function PhraseImport({ nextHref }: { nextHref: string }) {
       return;
     }
 
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("setupPhrase", fullPhrase);
-    }
+    setLoading(true);
+    try {
+      const session = await authClient.getSession();
+      if (!session?.data?.user) {
+        const anonRes = await authClient.signIn.anonymous();
+        if (anonRes?.error) {
+          setError(
+            anonRes.error.message || "Failed to initialize session",
+          );
+          setLoading(false);
+          return;
+        }
+      }
 
-    router.push(nextHref);
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("setupPrivateKey");
+        sessionStorage.removeItem("setupChain");
+        sessionStorage.setItem("setupPhrase", fullPhrase);
+        sessionStorage.setItem("setupType", "phrase");
+      }
+
+      router.push(nextHref);
+    } catch (err: any) {
+      setError(err?.message || "Failed to proceed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

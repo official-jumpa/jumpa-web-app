@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CheckIcon } from "@/components/ui/icons/check";
 import { CopyIcon } from "@/components/ui/icons/copy";
 import { cn } from "@/lib/cn";
 
@@ -29,28 +30,51 @@ export function CopyButton({
     try {
       await navigator.clipboard.writeText(value);
       setCopied(true);
+      return;
     } catch {
-      // Access can be denied; leave the label untouched.
+      // navigator.clipboard needs a secure context — absent when the app is
+      // opened over plain http on a phone, which is how this gets tested.
     }
+
+    const scratch = document.createElement("textarea");
+    scratch.value = value;
+    scratch.setAttribute("readonly", "");
+    scratch.style.position = "fixed";
+    scratch.style.opacity = "0";
+    document.body.append(scratch);
+    scratch.select();
+    try {
+      setCopied(document.execCommand("copy"));
+    } catch {
+      // Nothing else to try; leave the button untouched.
+    }
+    scratch.remove();
   };
+
+  const Icon = copied ? CheckIcon : CopyIcon;
 
   return (
     <button
       type="button"
       onClick={copy}
-      aria-label={label ? undefined : "Copy"}
+      aria-label={label ? undefined : copied ? "Copied" : "Copy"}
       className={cn(
-        "flex items-center justify-center gap-2 text-jumpa-primary-950",
+        "flex items-center justify-center gap-2 transition-colors",
+        copied ? "text-jumpa-success" : "text-jumpa-primary-950",
         label && "rounded-pill bg-jumpa-primary-50 px-5.5 py-2.5",
         className,
       )}
     >
-      <CopyIcon className="size-6 shrink-0" />
+      <Icon className="size-6 shrink-0" />
       {label ? (
         <span className="text-sm leading-4 font-medium">
           {copied ? "Copied" : label}
         </span>
       ) : null}
+      {/* Announces the change for the icon-only form, which has no visible text. */}
+      <span aria-live="polite" className="sr-only">
+        {copied ? "Copied to clipboard" : ""}
+      </span>
     </button>
   );
 }

@@ -1,9 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AuthScreen } from "@/components/auth/auth-screen";
+import { CopyButton } from "@/components/auth/copy-button";
 import { Button } from "@/components/ui/button";
 
 export default function SignUpDonePage() {
@@ -19,7 +20,7 @@ export default function SignUpDonePage() {
 
   const displayAddress = walletAddress
     ? `${walletAddress.slice(0, 10)}...${walletAddress.slice(-8)}`
-    : "Wallet Created";
+    : "";
 
   return (
     <AuthScreen
@@ -56,6 +57,21 @@ export default function SignUpDonePage() {
             Your account has been securely verified. You're ready to manage your
             portfolio and explore the market
           </p>
+
+          {displayAddress ? (
+            <div className="flex w-full max-w-73.5 items-center justify-between gap-3 rounded-card border border-jumpa-neutral-100 bg-jumpa-neutral-50 py-2.5 pr-2.5 pl-4">
+              <span className="flex min-w-0 flex-col text-left">
+                <span className="text-[11px] leading-3.5 text-jumpa-neutral-400">
+                  Wallet address
+                </span>
+                <span className="truncate text-sm leading-4.5 font-medium text-jumpa-black">
+                  {displayAddress}
+                </span>
+              </span>
+              {/* Copies the full address, not the truncated form on screen. */}
+              <CopyButton value={walletAddress} className="size-11 shrink-0" />
+            </div>
+          ) : null}
         </div>
       </div>
     </AuthScreen>

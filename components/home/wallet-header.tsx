@@ -21,14 +21,14 @@ export function WalletHeader() {
   return (
     <header className="flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <span className="relative block size-10 shrink-0">
+        <span className="relative justify-center items-center block size-10 shrink-0 bg-jumpa-primary-100 rounded-full p-1">
           <Image
             src={session?.user?.image || ACCOUNT.avatar}
             alt=""
             width={40}
             height={40}
             priority
-            className="size-10 rounded-full object-cover"
+            className="size-8 rounded-full object-cover"
           />
           {ACCOUNT.verified ? (
             <VerifiedBadgeIcon className="absolute top-0 left-7 size-4.5" />
@@ -36,7 +36,7 @@ export function WalletHeader() {
         </span>
         <p className="flex flex-col text-base leading-4 text-jumpa-white">
           <span className="font-medium">
-            <span className="text-jumpa-white/68">Good Morning</span>👋,
+            <span className="text-jumpa-white/68 font-semibold">Hello</span>👋,
           </span>
           <span className="font-bold">{displayName}</span>
         </p>

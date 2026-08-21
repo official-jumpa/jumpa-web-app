@@ -8,7 +8,7 @@ export interface UserAccountInfo {
 
 export const ACCOUNT: UserAccountInfo = {
   firstName: "User",
-  avatar: "/images/home/avatar.webp",
+  avatar: "/images/home/avatar_new.png",
   verified: true,
   balance: "0.00",
   kyc: { completed: 4, total: 5 },

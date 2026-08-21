@@ -142,6 +142,14 @@
     color-mix(in srgb, var(--color-jumpa-white) 35%, transparent) 0%,
     color-mix(in srgb, var(--color-jumpa-white) 1%, transparent) 72.57%
   );
+  /* Ramps the fade's blur out with it — a uniform blur cuts a hard line across
+     whatever text sits on the band's bottom edge. */
+  --gradient-jumpa-chat-fade-mask: linear-gradient(
+    180deg,
+    rgb(0 0 0) 0%,
+    rgb(0 0 0) 45%,
+    transparent 100%
+  );
   /* Promotion cards under "Your Assets". */
   --gradient-jumpa-promo-lime: linear-gradient(
     90.96deg,

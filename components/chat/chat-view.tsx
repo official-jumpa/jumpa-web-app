@@ -438,7 +438,9 @@ export function ChatView() {
       ) : started ? (
         <>
           <ChatTopFade />
-          <div className="flex-1 overflow-y-auto pt-4 pb-2">
+          {/* pt clears ChatTopFade's 90px wash, which starts at the viewport top
+              while the scroller starts below the 51px header. */}
+          <div className="flex-1 overflow-y-auto pt-8 pb-2">
             {/* Load Earlier Messages Button */}
             {hasMoreMessages && (
               <div className="flex justify-center mb-3">

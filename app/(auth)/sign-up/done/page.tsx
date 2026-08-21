@@ -2,29 +2,33 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthScreen } from "@/components/auth/auth-screen";
-import { CopyButton } from "@/components/auth/copy-button";
 import { Button } from "@/components/ui/button";
+
+/* Wallet address panel — parked, not deleted. Uncomment together with the block
+   in the body, `CopyButton` and `useEffect`/`useState`.
+
+const [walletAddress, setWalletAddress] = useState<string>("");
+
+useEffect(() => {
+  if (typeof window !== "undefined") {
+    const stored = sessionStorage.getItem("userWalletAddress");
+    if (stored) setWalletAddress(stored);
+  }
+}, []);
+
+const displayAddress = walletAddress
+  ? `${walletAddress.slice(0, 10)}...${walletAddress.slice(-8)}`
+  : "";
+*/
 
 export default function SignUpDonePage() {
   const router = useRouter();
-  const [walletAddress, setWalletAddress] = useState<string>("");
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = sessionStorage.getItem("userWalletAddress");
-      if (stored) setWalletAddress(stored);
-    }
-  }, []);
-
-  const displayAddress = walletAddress
-    ? `${walletAddress.slice(0, 10)}...${walletAddress.slice(-8)}`
-    : "";
 
   return (
     <AuthScreen
-      header={null}
+      header={<AuthHeader backHref="/sign-up/pin/confirm" />}
       className="[--auth-pb:67px]"
       footer={
         <Button
@@ -58,6 +62,7 @@ export default function SignUpDonePage() {
             portfolio and explore the market
           </p>
 
+          {/*
           {displayAddress ? (
             <div className="flex w-full max-w-73.5 items-center justify-between gap-3 rounded-card border border-jumpa-neutral-100 bg-jumpa-neutral-50 py-2.5 pr-2.5 pl-4">
               <span className="flex min-w-0 flex-col text-left">
@@ -68,10 +73,11 @@ export default function SignUpDonePage() {
                   {displayAddress}
                 </span>
               </span>
-              {/* Copies the full address, not the truncated form on screen. */}
+              // Copies the full address, not the truncated form on screen.
               <CopyButton value={walletAddress} className="size-11 shrink-0" />
             </div>
           ) : null}
+          */}
         </div>
       </div>
     </AuthScreen>

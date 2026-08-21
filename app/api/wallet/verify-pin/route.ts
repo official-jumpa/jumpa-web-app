@@ -52,10 +52,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (!pin || !WALLET_PIN_REGEX.test(pin)) {
-    return NextResponse.json(
-      { error: "Valid PIN required" },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: "Valid PIN required" }, { status: 400 });
   }
 
   await connectDB();
@@ -101,8 +98,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           valid: false,
-          error:
-            "Too many failed attempts. Try again in 15 minutes.",
+          error: "Too many failed attempts. Try again in 15 minutes.",
         },
         { status: 429 },
       );

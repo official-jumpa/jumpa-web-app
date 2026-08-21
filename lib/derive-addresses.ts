@@ -2,8 +2,11 @@ import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 import * as bip39 from "bip39";
 import { derivePath } from "ed25519-hd-key";
 import { Keypair as SolanaKeypair } from "@solana/web3.js";
-import { Keypair as StellarKeypair } from "@stellar/stellar-sdk";
 import { HDKey } from "@scure/bip32";
+import {
+  deriveStellarKeypairFromMnemonic,
+  deriveStellarKeypairFromPrivateKey,
+} from "@/lib/chains/stellar";
 
 export interface DerivedWallet {
   addresses: {
@@ -38,11 +41,8 @@ export function deriveAddresses(phrase: string): DerivedWallet {
   const solAddress = solKeypair.publicKey.toBase58();
 
   // Stellar Derivation m/44'/148'/0'
-  const stellarDerived = derivePath("m/44'/148'/0'", seed.toString("hex")).key;
-  const stellarKeypair = StellarKeypair.fromRawEd25519Seed(
-    Buffer.from(stellarDerived),
-  );
-  const xlmAddress = stellarKeypair.publicKey();
+  const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
+  const xlmAddress = stellarKeys.publicKey;
 
   // Bitcoin Derivation m/84'/0'/0'/0/0
   const btcRoot = HDKey.fromMasterSeed(seed);
@@ -92,23 +92,8 @@ export function deriveFromPrivateKey(
     trimmed.startsWith("s")
   ) {
     try {
-      const upper = trimmed.toUpperCase();
-      if (upper.startsWith("S") && upper.length === 56) {
-        const stellarKeypair = StellarKeypair.fromSecret(upper);
-        xlmAddress = stellarKeypair.publicKey();
-      } else {
-        // Handle raw 32-byte hex (64 hex characters)
-        const hex = trimmed.startsWith("0x") ? trimmed.slice(2) : trimmed;
-        if (hex.length === 64 && /^[0-9a-fA-F]{64}$/.test(hex)) {
-          const stellarKeypair = StellarKeypair.fromRawEd25519Seed(
-            Buffer.from(hex, "hex"),
-          );
-          xlmAddress = stellarKeypair.publicKey();
-        } else {
-          const stellarKeypair = StellarKeypair.fromSecret(upper);
-          xlmAddress = stellarKeypair.publicKey();
-        }
-      }
+      const stellarKeys = deriveStellarKeypairFromPrivateKey(trimmed);
+      xlmAddress = stellarKeys.publicKey;
     } catch (err: any) {
       console.error("[DeriveAddresses] Stellar key derivation error:", err);
       throw new Error(

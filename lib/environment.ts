@@ -48,8 +48,11 @@ export const environment = {
   // Switch
   SWITCH_LIVE_KEY: process.env.SWITCH_LIVE_KEY || "",
   SWITCH_SANDBOX_KEY: process.env.SWITCH_SANDBOX_KEY || "",
-  SWITCH_SANDBOX_URL:
-    process.env.SWITCH_SANDBOX_URL || "https://switch-3.gitbook.io/api",
+  SWITCH_SANDBOX_URL: process.env.SWITCH_SANDBOX_URL || "https://switch-3.gitbook.io/api",
+
+  // Soroswap DEX
+  SOROSWAP_API_KEY: process.env.SOROSWAP_API_KEY || "",
+  SOROSWAP_API_URL: process.env.SOROSWAP_API_URL || "https://api.soroswap.finance",
 
   // Paystack & Encryption Keys
   ENCRYPTION_KEY: process.env.ENCRYPTION_KEY || "",

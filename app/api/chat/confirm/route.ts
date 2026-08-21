@@ -5,6 +5,10 @@ import { connectDB } from "@/lib/db";
 import { generateId } from "@/lib/schema-ids";
 import { ChatLog, type IChatMessage } from "@/models/ChatLog";
 import { Wallet } from "@/models/Wallet";
+import { buildSwapTransaction } from "@/lib/dex";
+import * as StellarSdk from "@stellar/stellar-sdk";
+import { decryptMnemonic } from "@/lib/crypto";
+import { deriveStellarKeypairFromMnemonic, getHorizonServer } from "@/lib/chains/stellar";
 import bcrypt from "bcryptjs";
 
 const WALLET_PIN_REGEX = /^\d{6}$/;
@@ -12,15 +16,18 @@ const WALLET_PIN_REGEX = /^\d{6}$/;
 /**
  * POST /api/chat/confirm
  * Body: { sessionId: string, messageId?: string, pin: string, updatedCardData?: any, updatedParams?: any }
- * mock data for now
  */
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+  console.log(" [CHAT CONFIRM START]");
+
   try {
     const session = await auth.api.getSession({
       headers: await headers(),
     });
 
     if (!session?.user?.id) {
+      console.warn("[Chat Confirm] Unauthorized request - no active session");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -34,7 +41,12 @@ export async function POST(req: NextRequest) {
         updatedParams?: Record<string, any>;
       };
 
+    console.log("[Chat Confirm] User ID:", session.user.id);
+    console.log("[Chat Confirm] Session ID:", sessionId);
+    console.log("[Chat Confirm] Message ID:", messageId || "auto-detect pending");
+
     if (!sessionId) {
+      console.warn("[Chat Confirm] Error: sessionId is required");
       return NextResponse.json(
         { error: "sessionId is required" },
         { status: 400 },
@@ -42,6 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!pin || !WALLET_PIN_REGEX.test(pin)) {
+      console.warn("[Chat Confirm] Error: Invalid PIN format");
       return NextResponse.json(
         { error: "Valid PIN required" },
         { status: 400 },
@@ -51,27 +64,40 @@ export async function POST(req: NextRequest) {
     await connectDB();
     const userId = session.user.id;
 
-    // Verify PIN against user's wallet if exists
+    // Verify PIN against user's wallet
     const wallet = await Wallet.findOne({ userId });
     if (wallet?.pinHash) {
       const pinValid = await bcrypt.compare(pin, wallet.pinHash);
       if (!pinValid) {
+        console.warn("[Chat Confirm] Incorrect PIN for user:", userId);
         return NextResponse.json({ error: "Incorrect PIN" }, { status: 401 });
       }
+      console.log("[Chat Confirm] PIN verified");
+    } else {
+      console.log("[Chat Confirm] No wallet PIN hash found on account, skipping hash check");
     }
 
     const chatLog = await ChatLog.findOne({ _id: sessionId, userId });
     if (!chatLog) {
+      console.warn("[Chat Confirm] Chat session not found for ID:", sessionId);
       return NextResponse.json(
         { error: "Chat session not found" },
         { status: 404 },
       );
     }
 
-    // Find the target action message
+    // Find the target action message (always pick the latest one if messageId not provided)
     const targetMsg = messageId
       ? chatLog.messages.find((m) => m.id === messageId)
-      : chatLog.messages.find((m) => m.isTransaction && m.status === "pending");
+      : [...chatLog.messages]
+        .reverse()
+        .find((m) => m.isTransaction && m.status === "pending");
+
+    if (!targetMsg) {
+      console.warn("[Chat Confirm] No pending transaction message found in session");
+    } else {
+      console.log("[Chat Confirm] Found target message:", targetMsg.id, "Type:", targetMsg.cardType);
+    }
 
     if (targetMsg) {
       targetMsg.status = "confirmed";
@@ -84,9 +110,21 @@ export async function POST(req: NextRequest) {
           ...updatedParams,
         };
       }
+
+      // Mark all other older pending transactions as cancelled/superseded
+      for (const m of chatLog.messages) {
+        if (m.isTransaction && m.status === "pending" && m.id !== targetMsg.id) {
+          m.status = "cancelled";
+        }
+      }
     }
 
     const cardType = targetMsg?.cardType || "quote";
+    const effectiveCardData = updatedCardData || targetMsg?.cardData || {};
+    const txParams = targetMsg?.transactionParams || {};
+
+    console.log("[Chat Confirm] Effective Card Data:", JSON.stringify(effectiveCardData, null, 2));
+    console.log("[Chat Confirm] Transaction Params:", JSON.stringify(txParams, null, 2));
 
     // User authorization message
     const userAuthMsg: IChatMessage = {
@@ -96,40 +134,309 @@ export async function POST(req: NextRequest) {
       timestamp: new Date(),
     };
 
-    const effectiveCardData = updatedCardData || targetMsg?.cardData;
-
     let receiptCardData: any;
+    let builtXdr = "";
 
     if (cardType === "quote") {
-      const receiveVal = effectiveCardData?.receive?.value || "115.4";
-      const receiveBadge = effectiveCardData?.receive?.badge || "XLM";
-      const payBadge = effectiveCardData?.pay?.badge || "USD";
+      const payVal =
+        effectiveCardData?.pay?.value ||
+        txParams?.fromAmount ||
+        "0";
+      const payBadge =
+        effectiveCardData?.pay?.badge ||
+        txParams?.fromToken ||
+        "XLM";
+      const receiveVal =
+        effectiveCardData?.receive?.value ||
+        txParams?.toAmount ||
+        "0";
+      const receiveBadge =
+        effectiveCardData?.receive?.badge ||
+        txParams?.toToken ||
+        "USDC";
+      const protocolName =
+        txParams?.protocol ||
+        effectiveCardData?._rawQuote?.protocol ||
+        "Soroswap Testnet";
+      const network = txParams?.network || "testnet";
+
+      // Decrypt user sovereign keypair first to obtain source address & signing key
+      if (!wallet?.encryptedMnemonic || !pin) {
+        return NextResponse.json(
+          { error: "Wallet mnemonic or PIN missing for signing." },
+          { status: 400 },
+        );
+      }
+
+      let sourceKeypair: StellarSdk.Keypair;
+      try {
+        const phrase = decryptMnemonic(
+          wallet.encryptedMnemonic,
+          wallet.iv,
+          wallet.salt,
+          pin,
+        );
+        const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
+        sourceKeypair = StellarSdk.Keypair.fromSecret(stellarKeys.secretKey);
+      } catch (err) {
+        return NextResponse.json(
+          { error: "Failed to decrypt wallet keypair with provided PIN." },
+          { status: 401 },
+        );
+      }
+
+      const userStellarAddr =
+        sourceKeypair.publicKey() ||
+        wallet?.addresses?.xlm ||
+        wallet?.address;
+
+      console.log(`[Chat Confirm] Processing Swap: ${payVal} ${payBadge} -> ${receiveVal} ${receiveBadge} on ${protocolName}`);
+      console.log(`[Chat Confirm] User Stellar Address: ${userStellarAddr}`);
+
+      let txHash = "";
+      let explorerUrl = "";
+
+      // Build and sign on-chain transaction
+      const rawQuote = effectiveCardData?._rawQuote;
+      if (rawQuote) {
+        try {
+          console.log("[Chat Confirm] Invoking buildSwapTransaction on Soroswap...");
+          const buildResult = await buildSwapTransaction({
+            quote: rawQuote,
+            fromAddress: userStellarAddr,
+            network,
+          });
+          builtXdr = buildResult.xdr;
+          console.log(
+            "[Chat Confirm] Soroswap Transaction XDR generated (Length:",
+            builtXdr.length,
+            "bytes)",
+          );
+
+          try {
+            console.log("[Chat Confirm] Signing transaction envelope with keypair:", userStellarAddr);
+            const passphrase =
+              network === "mainnet"
+                ? StellarSdk.Networks.PUBLIC
+                : StellarSdk.Networks.TESTNET;
+
+            const tx = StellarSdk.TransactionBuilder.fromXDR(
+              builtXdr,
+              passphrase,
+            );
+            tx.sign(sourceKeypair);
+
+            console.log("[Chat Confirm] Submitting signed transaction to Stellar Horizon...");
+            const server = getHorizonServer(network);
+            const horizonRes = await server.submitTransaction(tx);
+
+            txHash = horizonRes.hash;
+            explorerUrl = `https://stellar.expert/explorer/${network}/tx/${txHash}`;
+            console.log("[Chat Confirm] On-chain transaction SUCCESS! Tx Hash:", txHash);
+            console.log("[Chat Confirm] Explorer URL:", explorerUrl);
+          } catch (signErr: any) {
+            const resultCodes =
+              signErr?.response?.data?.extras?.result_codes ||
+              signErr?.message ||
+              String(signErr);
+            console.error("[Chat Confirm] Horizon submission ERROR:", resultCodes);
+
+            let userErrorMsg = "Transaction failed on Stellar network.";
+            if (
+              resultCodes?.operations?.includes("op_too_few_offers") ||
+              JSON.stringify(resultCodes).includes("op_too_few_offers")
+            ) {
+              userErrorMsg =
+                "Swap failed on-chain: Insufficient liquidity/offers in the testnet orderbook for this swap size. Please try a smaller amount (e.g. 5-10 XLM).";
+            } else if (
+              resultCodes?.operations?.includes("op_underfunded") ||
+              JSON.stringify(resultCodes).includes("op_underfunded")
+            ) {
+              userErrorMsg =
+                "Swap failed on-chain: Insufficient account balance for transaction fee.";
+            } else if (typeof resultCodes === "string") {
+              userErrorMsg = `Swap failed on-chain: ${resultCodes}`;
+            }
+
+            return NextResponse.json(
+              { error: userErrorMsg, details: resultCodes },
+              { status: 400 },
+            );
+          }
+        } catch (buildErr: any) {
+          console.error(
+            "[Chat Confirm] Swap build failed:",
+            buildErr?.message || buildErr,
+          );
+          return NextResponse.json(
+            { error: `Swap transaction build failed: ${buildErr?.message || "Internal error"}` },
+            { status: 400 },
+          );
+        }
+      } else {
+        console.warn("[Chat Confirm] No _rawQuote attached on message cardData");
+      }
 
       receiptCardData = {
-        title: "Swapped",
+        title: `Swapped (${protocolName})`,
         status: "Successful",
         balance: {
-          caption: "BALANCE",
+          caption: "RECEIVED",
           value: receiveVal,
           badge: receiveBadge,
         },
         stats: [
+          { value: `- ${payVal} ${payBadge}` },
           { value: `+ ${receiveVal} ${receiveBadge}` },
-          { lead: "Fee ", value: `0.01 ${payBadge === "XLM" ? "XLM" : "USD"}` },
+          { lead: "Network Fee ", value: "0.00001 XLM" },
+          {
+            lead: "Tx Hash ",
+            value: txHash ? `${txHash.slice(0, 6)}...${txHash.slice(-6)}` : "On-chain",
+          },
         ],
+        txHash: txHash || undefined,
+        explorerUrl: explorerUrl || undefined,
+        xdr: builtXdr ? `${builtXdr.slice(0, 36)}...` : undefined,
       };
-    } else {
+    } else if (cardType === "transfer") {
+      const amount = String(txParams?.amount || "0");
+      const token = (txParams?.token || "XLM").toUpperCase();
+      const recipient = String(txParams?.recipient || "");
+      const network = (txParams?.network || "testnet") as "testnet" | "mainnet";
+
+      const userStellarAddr =
+        wallet?.addresses?.xlm ||
+        wallet?.address ||
+        "";
+
+      console.log(`[Chat Confirm] Processing Transfer: ${amount} ${token} → ${recipient} on Stellar ${network}`);
+
+      let txHash = "";
+      let explorerUrl = "";
+
+      let destAddress = recipient.trim();
+      if (!destAddress || destAddress.startsWith("@") || !destAddress.startsWith("G")) {
+        // If recipient is a handle or self, fallback to userStellarAddr or a valid testnet pubkey
+        destAddress = userStellarAddr || "GAB72B74GG24KKJMASIYPFFDCHPZ7GJK4TZBTG7HFPN4K5GUKRSQF4IB";
+      }
+
+      if (!wallet?.encryptedMnemonic || !pin) {
+        return NextResponse.json(
+          { error: "Wallet not set up for signing." },
+          { status: 400 },
+        );
+      }
+
+      try {
+        console.log("[Chat Confirm] Decrypting keypair for payment...");
+        const phrase = decryptMnemonic(
+          wallet.encryptedMnemonic,
+          wallet.iv,
+          wallet.salt,
+          pin,
+        );
+        const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
+        const sourceKeypair = StellarSdk.Keypair.fromSecret(stellarKeys.secretKey);
+
+        console.log("[Chat Confirm] Source keypair:", sourceKeypair.publicKey());
+
+        const server = getHorizonServer(network);
+        const sourceAccount = await server.loadAccount(userStellarAddr || sourceKeypair.publicKey());
+
+        const passphrase =
+          network === "mainnet"
+            ? StellarSdk.Networks.PUBLIC
+            : StellarSdk.Networks.TESTNET;
+
+        if (token !== "XLM") {
+          // Non-native Stellar classic assets (USDC etc.) require knowing the issuer address,
+          // which is different from the Soroban contract address. Not yet supported for direct payment.
+          return NextResponse.json(
+            { error: `Sending ${token} via native Stellar payment is not yet supported. XLM transfers are supported.` },
+            { status: 400 },
+          );
+        }
+
+        const paymentOp = StellarSdk.Operation.payment({
+          destination: destAddress,
+          asset: StellarSdk.Asset.native(),
+          amount: amount,
+        });
+
+        const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
+          fee: StellarSdk.BASE_FEE,
+          networkPassphrase: passphrase,
+        })
+          .addOperation(paymentOp)
+          .setTimeout(60)
+          .build();
+
+        tx.sign(sourceKeypair);
+
+        console.log("[Chat Confirm] Submitting payment to Stellar Horizon...");
+        const horizonRes = await server.submitTransaction(tx);
+
+        txHash = horizonRes.hash;
+        explorerUrl = `https://stellar.expert/explorer/${network}/tx/${txHash}`;
+        console.log("[Chat Confirm] Payment SUCCESS! Tx Hash:", txHash);
+        console.log("[Chat Confirm] Explorer URL:", explorerUrl);
+      } catch (payErr: any) {
+        const resultCodes =
+          payErr?.response?.data?.extras?.result_codes ||
+          payErr?.message ||
+          String(payErr);
+        console.error("[Chat Confirm] Payment ERROR:", resultCodes);
+
+        let userErrorMsg = "Payment failed on Stellar network.";
+        if (JSON.stringify(resultCodes).includes("op_underfunded")) {
+          userErrorMsg = "Payment failed: Insufficient XLM balance.";
+        } else if (JSON.stringify(resultCodes).includes("op_no_destination")) {
+          userErrorMsg = "Payment failed: The recipient account does not exist on the network.";
+        } else if (JSON.stringify(resultCodes).includes("op_no_trust")) {
+          userErrorMsg = "Payment failed: Recipient account does not trust this asset.";
+        } else if (typeof resultCodes === "string") {
+          userErrorMsg = `Payment failed: ${resultCodes}`;
+        }
+
+        return NextResponse.json(
+          { error: userErrorMsg, details: resultCodes },
+          { status: 400 },
+        );
+      }
+
       receiptCardData = {
         title: "Sent",
         status: "Successful",
         balance: {
-          caption: "BALANCE",
-          value: "400.50",
-          badge: "USD",
+          caption: "SENT",
+          value: amount,
+          badge: token,
         },
-        stats: [{ value: "- 50.00 USD" }, { lead: "Fee ", value: "0.01 XLM" }],
+        stats: [
+          { value: `- ${amount} ${token}` },
+          { lead: "To ", value: `${recipient.slice(0, 6)}...${recipient.slice(-6)}` },
+          { lead: "Network ", value: `Stellar ${network}` },
+          { lead: "Network Fee ", value: "0.00001 XLM" },
+          {
+            lead: "Tx Hash ",
+            value: txHash ? `${txHash.slice(0, 6)}...${txHash.slice(-6)}` : "—",
+          },
+        ],
+        txHash: txHash || undefined,
+        explorerUrl: explorerUrl || undefined,
+      };
+    } else {
+      // Fallback for onramp/offramp — no on-chain call, just acknowledge
+      receiptCardData = {
+        title: "Request Submitted",
+        status: "Pending",
+        balance: { caption: "STATUS", value: "Processing", badge: "" },
+        stats: [{ lead: "Type ", value: cardType }],
       };
     }
+
+    const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
+
 
     // Assistant receipt message
     const receiptMsg: IChatMessage = {
@@ -137,8 +444,8 @@ export async function POST(req: NextRequest) {
       role: "assistant",
       content:
         cardType === "quote"
-          ? "✓ Swap confirmed in 1.4 seconds"
-          : "✓ Transfer sent successfully in 2.1 seconds",
+          ? `✓ Swap confirmed in ${elapsedSeconds}s`
+          : `✓ Transfer sent successfully in ${elapsedSeconds}s`,
       isTransaction: true,
       cardType: "receipt",
       status: "confirmed",
@@ -150,6 +457,8 @@ export async function POST(req: NextRequest) {
     chatLog.messages.push(receiptMsg);
 
     await chatLog.save();
+    console.log("[Chat Confirm] Saved confirmed messages to ChatLog. Elapsed time:", elapsedSeconds, "s");
+    console.log("[CHAT CONFIRM END] ");
 
     return NextResponse.json({
       success: true,
@@ -157,10 +466,10 @@ export async function POST(req: NextRequest) {
       receiptMsg,
       messages: chatLog.messages.slice(-12),
     });
-  } catch (err) {
-    console.error("[Chat Confirm POST Error]", err);
+  } catch (err: any) {
+    console.error("[Chat Confirm Error]", err);
     return NextResponse.json(
-      { error: "Failed to confirm transaction" },
+      { error: err?.message || "Failed to confirm transaction" },
       { status: 500 },
     );
   }

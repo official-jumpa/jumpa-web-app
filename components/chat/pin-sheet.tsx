@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { NumericKeypad } from "@/components/auth/numeric-keypad";
 import { usePinInput } from "@/hooks/use-pin-input";
 
@@ -19,12 +19,23 @@ export function PinSheet({
   processing?: boolean;
 }) {
   const pin = usePinInput(PIN_LENGTH);
+  const submittedPinRef = useRef<string | null>(null);
 
+  // Trigger completion once exactly 6 digits are typed
   useEffect(() => {
-    if (pin.complete && !processing) {
+    if (pin.complete && !processing && submittedPinRef.current !== pin.value) {
+      submittedPinRef.current = pin.value;
       onComplete(pin.value);
     }
   }, [pin.complete, pin.value, onComplete, processing]);
+
+  // If an error is returned from the server, clear input and reset submission tracker
+  useEffect(() => {
+    if (error) {
+      submittedPinRef.current = null;
+      pin.clear();
+    }
+  }, [error]);
 
   return (
     <div className="fixed inset-0 z-40 mx-auto max-w-[430px]">

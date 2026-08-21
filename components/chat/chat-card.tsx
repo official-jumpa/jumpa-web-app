@@ -66,11 +66,11 @@ export function StatText({
   );
 }
 
-export function CardStats({ stats }: { stats: [Stat, Stat] }) {
+export function CardStats({ stats }: { stats: Stat[] }) {
   return (
-    <div className="flex items-start justify-between gap-3 px-1">
+    <div className="grid grid-cols-2 gap-x-2.5 gap-y-1 px-2.5">
       {stats.map((stat, idx) => (
-        <StatText key={`${stat.value}-${idx}`} stat={stat} />
+        <StatText key={`${stat.lead || ""}-${stat.value}-${idx}`} stat={stat} />
       ))}
     </div>
   );

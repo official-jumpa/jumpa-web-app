@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CardAmount,
   CardRule,
@@ -10,99 +10,99 @@ import {
 } from "@/components/chat/chat-card";
 import type { QuoteCard as Quote } from "@/lib/chat";
 
-//mock data for now
-
-const BASE_RATES: Record<string, number> = {
-  "USD-XLM": 5.77,
-  "XLM-USD": 1 / 5.77,
-  "USDC-XLM": 5.77,
-  "XLM-USDC": 1 / 5.77,
-  "USD-SOL": 0.0055,
-  "SOL-USD": 181.82,
-};
-
 interface QuoteCardProps {
   card: Quote;
   isEditable?: boolean;
   onUpdateQuote?: (updatedCard: Quote) => void;
 }
 
-/** Live interactive swap quote: editable pay amount and interactive asset toggle button. */
+/** Live interactive swap quote: editable pay amount and interactive asset toggle button with real DEX refetching. */
 export function QuoteCard({
   card,
   isEditable = true,
   onUpdateQuote,
 }: QuoteCardProps) {
-  const [fromToken, setFromToken] = useState(card.pay.badge || "USD");
-  const [toToken, setToToken] = useState(card.receive.badge || "XLM");
-  const [payAmount, setPayAmount] = useState(card.pay.value || "20");
+  const [fromToken, setFromToken] = useState(card.pay.badge || "XLM");
+  const [toToken, setToToken] = useState(card.receive.badge || "USDC");
+  const [payAmount, setPayAmount] = useState(card.pay.value || "30");
+  const [receiveAmount, setReceiveAmount] = useState(card.receive.value || "5.50");
+  const [rateText, setRateText] = useState(
+    card.stats?.find((s) => s.lead?.includes("Rate"))?.value || "1 XLM = 0.1834 USDC",
+  );
+  const [feeText, setFeeText] = useState(
+    card.stats?.find((s) => s.lead?.includes("Fee"))?.value || "0.00001 XLM",
+  );
+  const [loadingQuote, setLoadingQuote] = useState(false);
   const [rotated, setRotated] = useState(false);
 
-  // Helper to compute rate
-  const getRate = useCallback((from: string, to: string) => {
-    const pairKey = `${from}-${to}`;
-    return (
-      BASE_RATES[pairKey] ||
-      (BASE_RATES[`${to}-${from}`] ? 1 / BASE_RATES[`${to}-${from}`] : 5.77)
-    );
-  }, []);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const rate = getRate(fromToken, toToken);
+  // Fetch real live quote from backend
+  const fetchLiveQuote = useCallback(
+    async (amount: string, from: string, to: string) => {
+      const num = Number.parseFloat(amount);
+      if (Number.isNaN(num) || num <= 0) {
+        setReceiveAmount("0.00");
+        return;
+      }
 
-  // Compute receive amount
-  const numericPay = parseFloat(payAmount) || 0;
-  const computedReceive =
-    numericPay > 0
-      ? (numericPay * rate).toLocaleString("en-US", {
-          maximumFractionDigits: 4,
-        })
-      : "0";
+      setLoadingQuote(true);
+      try {
+        const res = await fetch("/api/swap/quote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chain: "stellar",
+            assetIn: from,
+            assetOut: to,
+            amount: amount,
+            network: "testnet",
+          }),
+        });
 
-  const notifyChange = (
-    newPay: string,
-    newFrom: string,
-    newTo: string,
-    newReceive: string,
-    newRate: number,
-  ) => {
-    if (!onUpdateQuote) return;
-    const updatedCard: Quote = {
-      ...card,
-      pay: {
-        ...card.pay,
-        value: newPay,
-        badge: newFrom,
-      },
-      receive: {
-        ...card.receive,
-        value: newReceive,
-        badge: newTo,
-      },
-      stats: [
-        {
-          lead: "Rate ",
-          value: `1 ${newFrom} = ${newRate < 0.1 ? newRate.toFixed(4) : newRate.toFixed(2)} ${newTo}`,
-        },
-        {
-          lead: "Fee ",
-          value: `0.01 ${newFrom === "XLM" ? "XLM" : "USD"}`,
-        },
-      ],
-    };
-    onUpdateQuote(updatedCard);
-  };
+        if (res.ok) {
+          const data = await res.json();
+          if (data.quote) {
+            const q = data.quote;
+            setReceiveAmount(q.amountOut);
+            setRateText(q.rate);
+            setFeeText(q.estimatedFee || "0.00001 XLM");
 
-  // Handle pay amount changes directly
+            if (onUpdateQuote) {
+              const updatedCard: Quote = {
+                ...card,
+                pay: { ...card.pay, value: q.amountIn, badge: from },
+                receive: { ...card.receive, value: q.amountOut, badge: to },
+                stats: [
+                  { lead: "Rate ", value: q.rate },
+                  { lead: "Est. Fee ", value: q.estimatedFee || "0.00001 XLM" },
+                ],
+                _rawQuote: q,
+              } as any;
+              onUpdateQuote(updatedCard);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[QuoteCard] Error fetching live quote:", err);
+      } finally {
+        setLoadingQuote(false);
+      }
+    },
+    [card, onUpdateQuote],
+  );
+
+  // Handle pay amount input changes with debounce
   const handlePayChange = (newVal: string) => {
     setPayAmount(newVal);
-    const num = parseFloat(newVal) || 0;
-    const newRec =
-      num > 0
-        ? (num * rate).toLocaleString("en-US", {
-            maximumFractionDigits: 4,
-          })
-        : "0";
-    notifyChange(newVal, fromToken, toToken, newRec, rate);
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      fetchLiveQuote(newVal, fromToken, toToken);
+    }, 450);
   };
 
   // Handle asset toggle directly
@@ -111,18 +111,13 @@ export function QuoteCard({
     setRotated((prev) => !prev);
     const newFrom = toToken;
     const newTo = fromToken;
-    const newRate = getRate(newFrom, newTo);
-    const num = parseFloat(payAmount) || 0;
-    const newRec =
-      num > 0
-        ? (num * newRate).toLocaleString("en-US", {
-            maximumFractionDigits: 4,
-          })
-        : "0";
-
     setFromToken(newFrom);
     setToToken(newTo);
-    notifyChange(payAmount, newFrom, newTo, newRec, newRate);
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    fetchLiveQuote(payAmount, newFrom, newTo);
   };
 
   return (
@@ -155,7 +150,7 @@ export function QuoteCard({
         <CardAmount
           row={{
             caption: card.receive.caption || "YOU RECEIVE",
-            value: computedReceive,
+            value: loadingQuote ? "Calculating..." : receiveAmount,
             badge: toToken,
           }}
         />
@@ -193,11 +188,11 @@ export function QuoteCard({
         stats={[
           {
             lead: "Rate ",
-            value: `1 ${fromToken} = ${rate < 0.1 ? rate.toFixed(4) : rate.toFixed(2)} ${toToken}`,
+            value: rateText,
           },
           {
             lead: "Fee ",
-            value: `0.01 ${fromToken === "XLM" ? "XLM" : "USD"}`,
+            value: feeText,
           },
         ]}
       />

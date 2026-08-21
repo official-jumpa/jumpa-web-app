@@ -1,24 +1,16 @@
 import { formatEther, formatUnits, erc20Abi } from "viem";
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import * as StellarSdk from "@stellar/stellar-sdk";
 import { EVM_CHAINS, EVM_CLIENTS } from "@/lib/evm-chains";
 import { environment } from "@/lib/environment";
 import { Wallet } from "@/models/Wallet";
 import { connectDB } from "@/lib/db";
 import { getAssetLogo } from "@/lib/assets";
+import { fetchStellarBalances } from "@/lib/chains/stellar";
 
 // Solana Mainnet Connection (Mainnet only)
 const solMainnetConnection = new Connection(
   environment.SOL_MAINNET,
   "confirmed",
-);
-
-// Stellar Servers (Mainnet & Testnet)
-const stellarPublic = new StellarSdk.Horizon.Server(
-  environment.STELLAR_MAINNET,
-);
-const stellarTestnet = new StellarSdk.Horizon.Server(
-  environment.STELLAR_TESTNET,
 );
 
 export type SupportedChain = "stellar" | "solana" | "evm" | "base" | "bitcoin";
@@ -250,60 +242,9 @@ export async function fetchWalletBalances(
   let xlmMainnet = { native: "0.00", usdc: "0.00", usdt: "0.00" };
   let xlmTestnet = { native: "0.00", usdc: "0.00", usdt: "0.00" };
   if (fetchStellar && xlmAddr) {
-    const [mainnet, testnet] = await Promise.all([
-      safeFetchBalance(
-        () =>
-          stellarPublic
-            .loadAccount(xlmAddr)
-            .then((acc) => {
-              const native =
-                acc.balances.find((b: any) => b.asset_type === "native")
-                  ?.balance || "0.00";
-              const usdc =
-                acc.balances.find((b: any) => b.asset_code === "USDC")
-                  ?.balance || "0.00";
-              const usdt =
-                acc.balances.find((b: any) => b.asset_code === "USDT")
-                  ?.balance || "0.00";
-              return { native, usdc, usdt };
-            })
-            .catch((err) => {
-              if (err?.response?.status === 404) {
-                return { native: "0.00", usdc: "0.00", usdt: "0.00" };
-              }
-              throw err;
-            }),
-        "Stellar Mainnet",
-        { native: "0.00", usdc: "0.00", usdt: "0.00" },
-      ),
-      safeFetchBalance(
-        () =>
-          stellarTestnet
-            .loadAccount(xlmAddr)
-            .then((acc) => {
-              const native =
-                acc.balances.find((b: any) => b.asset_type === "native")
-                  ?.balance || "0.00";
-              const usdc =
-                acc.balances.find((b: any) => b.asset_code === "USDC")
-                  ?.balance || "0.00";
-              const usdt =
-                acc.balances.find((b: any) => b.asset_code === "USDT")
-                  ?.balance || "0.00";
-              return { native, usdc, usdt };
-            })
-            .catch((err) => {
-              if (err?.response?.status === 404) {
-                return { native: "0.00", usdc: "0.00", usdt: "0.00" };
-              }
-              throw err;
-            }),
-        "Stellar Testnet",
-        { native: "0.00", usdc: "0.00", usdt: "0.00" },
-      ),
-    ]);
-    xlmMainnet = mainnet;
-    xlmTestnet = testnet;
+    const stellarBals = await fetchStellarBalances(xlmAddr);
+    xlmMainnet = stellarBals.mainnet;
+    xlmTestnet = stellarBals.testnet;
   }
 
   // 4. Bitcoin (Mainnet only)

@@ -55,8 +55,7 @@ export async function proxy(request: NextRequest) {
   // Case 1: Unauthenticated Users (only protect dashboard/home routes)
   if (!isAuthenticated) {
     if (isProtectedRoute) {
-      console.log(
-        `[Proxy] Redirecting unauthenticated user from ${pathname} to /onboarding`,
+      console.log(`[Proxy] Redirecting unauthenticated user from ${pathname} to /onboarding`,
       );
       return NextResponse.redirect(new URL("/onboarding", request.url));
     }
@@ -72,8 +71,7 @@ export async function proxy(request: NextRequest) {
 
     // Redirect away from home/dashboard pages back to setup
     if (isProtectedRoute) {
-      console.log(
-        `[Proxy] Authenticated user without wallet. Redirecting from ${pathname} to /sign-up/pin`,
+      console.log(`[Proxy] Authenticated user without wallet. Redirecting from ${pathname} to /sign-up/pin`,
       );
       return NextResponse.redirect(new URL("/sign-up/pin", request.url));
     }
@@ -87,8 +85,7 @@ export async function proxy(request: NextRequest) {
       pathname === "/sign-in" ||
       pathname === "/sign-up"
     ) {
-      console.log(
-        `[Proxy] Authenticated user with wallet. Redirecting from ${pathname} to /home`,
+      console.log(`[Proxy] Authenticated user with wallet. Redirecting from ${pathname} to /home`,
       );
       return NextResponse.redirect(new URL("/home", request.url));
     }

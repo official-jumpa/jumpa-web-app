@@ -4,6 +4,22 @@ import { cn } from "@/lib/cn";
 /**
  * One line or block of conversation: renders markdown, prose in a squared-off bubble, and short replies as pills.
  */
+function sanitizeBubbleContent(content: string): string {
+  if (!content) return "";
+  const trimmed = content.trim();
+  if (trimmed.startsWith("{") && trimmed.includes('"intent"')) {
+    const msgMatch = trimmed.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (msgMatch) {
+      try {
+        return JSON.parse(`"${msgMatch[1]}"`);
+      } catch {
+        return msgMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"');
+      }
+    }
+  }
+  return content;
+}
+
 export function MessageBubble({
   children,
   from,
@@ -13,14 +29,15 @@ export function MessageBubble({
   from: "user" | "agent";
   paragraph?: boolean;
 }) {
+  const cleanContent = sanitizeBubbleContent(children);
   const isMultiLineOrLong =
     paragraph ||
-    children.includes("\n") ||
-    children.includes("**") ||
-    children.includes("[") ||
-    children.includes("`") ||
-    children.includes("|") ||
-    children.length > 45;
+    cleanContent.includes("\n") ||
+    cleanContent.includes("**") ||
+    cleanContent.includes("[") ||
+    cleanContent.includes("`") ||
+    cleanContent.includes("|") ||
+    cleanContent.length > 45;
 
   return (
     <div

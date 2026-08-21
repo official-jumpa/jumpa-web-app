@@ -3,8 +3,8 @@ import { headers } from "next/headers";
 import { derivePath } from "ed25519-hd-key";
 import * as bip39 from "bip39";
 import { Keypair as SolanaKeypair } from "@solana/web3.js";
-import { Keypair as StellarKeypair } from "@stellar/stellar-sdk";
 import { HDKey } from "@scure/bip32";
+import { deriveStellarKeypairFromMnemonic } from "@/lib/chains/stellar";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { decryptMnemonic } from "@/lib/crypto";
@@ -96,14 +96,8 @@ export async function POST(req: NextRequest) {
     const solKeypair = SolanaKeypair.fromSeed(solDerived);
     privateKey = Buffer.from(solKeypair.secretKey).toString("hex");
   } else if (selectedChain === "xlm") {
-    const stellarDerived = derivePath(
-      "m/44'/148'/0'",
-      seed.toString("hex"),
-    ).key;
-    const stellarKeypair = StellarKeypair.fromRawEd25519Seed(
-      Buffer.from(stellarDerived),
-    );
-    privateKey = stellarKeypair.secret();
+    const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
+    privateKey = stellarKeys.secretKey;
   } else if (selectedChain === "btc") {
     const btcChild = masterKey.derive("m/84'/0'/0'/0/0");
     privateKey = Buffer.from(btcChild.privateKey!).toString("hex");

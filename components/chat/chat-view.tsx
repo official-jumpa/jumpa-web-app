@@ -53,11 +53,6 @@ function messagesToChatEntries(messages: IChatMessage[]): ChatEntry[] {
       });
 
       if (isPending) {
-        items.push({
-          kind: "text",
-          text: "Ready to proceed? I'll need your PIN to confirm the swap.",
-          paragraph: true,
-        });
         items.push({ kind: "actions" });
       }
     } else if (msg.cardType === "transfer" && msg.cardData) {
@@ -68,11 +63,6 @@ function messagesToChatEntries(messages: IChatMessage[]): ChatEntry[] {
       });
 
       if (isPending) {
-        items.push({
-          kind: "text",
-          text: "Ready to proceed? I'll need your PIN to confirm the transfer.",
-          paragraph: true,
-        });
         items.push({ kind: "actions" });
       }
     } else if (msg.cardType === "onramp" && msg.cardData) {
@@ -348,7 +338,7 @@ export function ChatView() {
 
   // Raising PIN sheet on transaction card confirmation
   const handleOpenPin = useCallback(() => {
-    const pendingMsg = messages.find(
+    const pendingMsg = [...messages].reverse().find(
       (m) => m.isTransaction && m.status === "pending",
     );
     setPendingActionMsgId(pendingMsg?.id || null);
@@ -370,13 +360,18 @@ export function ChatView() {
       setPinProcessing(true);
       setPinError(null);
 
+      const latestPendingMsg = [...messages].reverse().find(
+        (m) => m.isTransaction && m.status === "pending",
+      );
+      const targetId = pendingActionMsgId || latestPendingMsg?.id;
+
       try {
         const res = await fetch("/api/chat/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             sessionId: activeSessionId,
-            messageId: pendingActionMsgId || undefined,
+            messageId: targetId || undefined,
             pin,
             updatedCardData: pendingQuoteCard || undefined,
           }),

@@ -1,18 +1,23 @@
-export interface AIIntentResult {
-  intent:
-    | "CHAT"
-    | "SWAP_TOKEN"
-    | "SEND_FUNDS"
-    | "ONRAMP_CRYPTO"
-    | "OFFRAMP_CRYPTO"
-    | "CHECK_BALANCE";
-  message: string;
-  params: Record<string, any>;
+/**
+ * Jumpa AI — DeepSeek Client with Function Calling
+ *
+ * The AI decides which tool to call. The server executes it.
+ * No hardcoded intent patterns. No regex fallbacks. No guesswork.
+ * If the AI cannot determine intent, it returns a chat message asking the user to clarify.
+ */
+
+import { JUMPA_TOOLS, type ToolCall } from "./tools";
+
+export interface ChatHistoryMessage {
+  role: "user" | "assistant" | "tool";
+  content: string;
+  tool_call_id?: string;
+  name?: string;
 }
 
-interface QueryDeepSeekOptions {
+export interface QueryDeepSeekOptions {
   prompt: string;
-  history?: Array<{ role: "user" | "assistant"; content: string }>;
+  history?: ChatHistoryMessage[];
   context?: {
     walletAddress?: string;
     stellarAddress?: string;
@@ -21,108 +26,245 @@ interface QueryDeepSeekOptions {
     balances?: Record<string, string>;
     testnetBalances?: Record<string, string>;
   };
+  /** Pass a tool result back to get a natural follow-up message from the AI */
+  toolResultMessage?: ChatHistoryMessage;
 }
 
-export const buildSystemPrompt = (
+export type AIResponse =
+  | { mode: "chat"; message: string }
+  | {
+      mode: "tool_call";
+      toolCallId: string;
+      toolName: string;
+      toolArgs: Record<string, any>;
+    };
+
+function buildSystemPrompt(
   context?: QueryDeepSeekOptions["context"],
-) => `
-You are Jumpa AI, the intelligent, friendly financial assistant for Jumpa — a modern multi-chain Web3 and fiat neo-banking platform.
-Your mission is to understand user intents, answer questions accurately, engage in helpful conversation, and draft financial actions (swaps, transfers, onramps, offramps, balance checks).
+): string {
+  return `You are Jumpa AI — a friendly, knowledgeable personal finance assistant inside the Jumpa app.
+Jumpa is a multi-chain Web3 + fiat neo-banking platform for users in Nigeria and beyond.
 
-### SUPPORTED NETWORKS & ASSETS:
-- Stellar: Mainnet (XLM, USDC, USDT) and Testnet (XLM, USDC, USDT)
-- Solana: Mainnet only (SOL, USDC, USDT)
-- Base / Ethereum / EVM: Mainnet only (ETH, USDC, USDT, BNB, POL, CELO)
-- Bitcoin: Mainnet only (BTC)
-- Fiat: Nigerian Naira (₦ / NGN), US Dollar ($ / USD)
+### YOUR ROLE:
+You help users swap crypto, check balances, send funds, onramp NGN and offramp crypto to NGN.
+You speak naturally and conversationally — like a helpful friend who knows finance.
+You ask clarifying questions when details are missing. You never assume or guess.
 
-### CURRENT USER CONTEXT:
+### USER CONTEXT:
 - Stellar Address: ${context?.stellarAddress || context?.walletAddress || "Not connected"}
 - Solana Address: ${context?.solanaAddress || "Not connected"}
 - Base / EVM Address: ${context?.baseAddress || "Not connected"}
-- Live Mainnet Balances: ${JSON.stringify(context?.balances || {}, null, 2)}
-- Live Testnet Balances (Stellar Testnet): ${JSON.stringify(context?.testnetBalances || {}, null, 2)}
+- Mainnet Balances: ${JSON.stringify(context?.balances || {}, null, 2)}
+- Stellar Testnet Balances: ${JSON.stringify(context?.testnetBalances || {}, null, 2)}
 - Current Time: ${new Date().toISOString()}
 
-### INTENT RECOGNITION RULES:
-1. "CHECK_BALANCE": User asks about their balance, funds, portfolio, or how much crypto/fiat they have on any chain (e.g. "how much do i have on base", "and solana? 😭", "you said i have funds on stellar testnet?", "check my stellar balance", "what's my net worth").
-2. "SWAP_TOKEN": User wants to trade, exchange, or convert tokens (e.g. "swap 20 USD to XLM", "convert 5 SOL to USDC").
-3. "SEND_FUNDS": User wants to send, pay, or transfer crypto to someone (e.g. "send 50 USDC to @alice", "transfer 10 SOL to <address>").
-4. "ONRAMP_CRYPTO": User wants to add funds, deposit Naira, or buy crypto with bank transfer (e.g. "deposit 50k naira", "buy 100 USDC with NGN", "how do I add money").
-5. "OFFRAMP_CRYPTO": User wants to withdraw, cash out, or sell crypto for Naira to a bank account (e.g. "withdraw 50 USDC to GTBank", "cash out 20k naira").
-6. "CHAT": Casual conversation, follow-up questions, explanations, greetings, jokes, small talk, emojis, questions about Jumpa features, advice, or general inquiries (e.g. "I'm broke 😔", "what can I do here", "hello", "tell me about Jumpa").
+### SUPPORTED NETWORKS & ASSETS:
+- Stellar Testnet: XLM, USDC only (USDT does NOT exist on Stellar Testnet)
+- Stellar Mainnet: XLM, USDC
+- Solana Mainnet: SOL, USDC, USDT
+- Base / EVM Mainnet: ETH, USDC, USDT, BNB, POL, CELO
+- Bitcoin Mainnet: BTC
+- Fiat: Nigerian Naira (NGN / ₦)
 
-### RESPONSE FORMAT SCHEMA:
-You MUST respond with a single, valid JSON object matching this schema:
+### TOOL CALLING RULES:
+1. You have access to tools for swaps, balances, transfers, onramps and offramps.
+2. CRITICAL: Whenever the user asks to send funds, transfer crypto, or initiate a swap (including follow-ups like "send it", "send it again", "send 53 XLM to my wallet"), YOU MUST CALL THE APPROPRIATE TOOL ('send_funds', 'stellar_testnet_swap_quote', etc.).
+3. NEVER generate text saying "a confirmation card appears" or "confirm it on screen" unless you are executing a tool call! If you reply in text mode without calling a tool, NO CARD WILL RENDER.
+4. For transfers, if recipient is "my wallet" or "myself", call 'send_funds' with recipient set to the user's Stellar address. Default network to "testnet" if testing.
+5. If a user requests USDT on Stellar, explain that USDT is not available on Stellar networks and offer the available alternatives (XLM ↔ USDC).
+6. When you get a tool result back (Turn 2), compose a warm, natural follow-up message telling the user to confirm the details in the card shown below.
 
-{
-  "intent": "CHAT" | "SWAP_TOKEN" | "SEND_FUNDS" | "ONRAMP_CRYPTO" | "OFFRAMP_CRYPTO" | "CHECK_BALANCE",
-  "message": "MANDATORY: A clear, helpful, markdown-formatted response to the user.",
-  "params": {}
+### FORMATTING:
+- Use **bold** for amounts, token names, and key figures.
+- Use bullet points (not tables) for lists of balances on mobile.
+- For NGN amounts use ₦ (e.g. ₦50,000).
+- Keep responses concise and warm — this is a mobile app chat, not a document.
+- Never render raw JSON or code blocks in your responses.`;
 }
 
-### EXAMPLES:
-- User: "I'm broke 😔"
-  {"intent": "CHAT", "message": "We've all been there! Whenever you're ready, you can top up your Jumpa wallet with **Nigerian Naira (NGN)** via instant bank transfer or receive crypto to your multi-chain addresses.", "params": {}}
+export async function callDeepSeekAI(
+  options: QueryDeepSeekOptions,
+): Promise<AIResponse> {
+  const { prompt, history = [], context, toolResultMessage } = options;
 
-- User: "you said i have funds on stellar testnet?"
-  {"intent": "CHECK_BALANCE", "message": "Yes! On **Stellar Testnet**, your wallet has **10,000.00 XLM** available for testing. On **Stellar Mainnet**, your balance is **0.00 XLM**.", "params": {}}
-
-- User: "and solana? 😭"
-  {"intent": "CHECK_BALANCE", "message": "On **Solana Mainnet**, your current balance is **0.0000 SOL** ($0.00).", "params": {}}
-
-- User: "what can i do here"
-  {"intent": "CHAT", "message": "With **Jumpa**, you can seamlessly:\n\n- **Swap Tokens**: Instant cross-chain swaps between XLM, SOL, ETH, and USDC.\n- **Deposit Fiat**: Fund your wallet in Naira (NGN) with dedicated bank accounts.\n- **Cash Out**: Withdraw crypto directly into any Nigerian bank account in seconds.\n- **Send Money**: Pay anyone using their Jumpa handle (@name) or wallet address.", "params": {}}
-
-- User: "swap 20 USD to XLM"
-  {"intent": "SWAP_TOKEN", "message": "Finding you the best rate for swapping 20 USD to XLM...", "params": {"fromToken": "USD", "toToken": "XLM", "fromAmount": "20", "toAmount": "115.4"}}
-
-- User: "send 50 USDC to @alice"
-  {"intent": "SEND_FUNDS", "message": "I've drafted the transfer details to send 50 USDC to @alice:", "params": {"amount": "50", "token": "USDC", "recipient": "@alice", "recipientName": "Alice"}}
-
-### RULES:
-- The "message" field is **STRICTLY MANDATORY** and must NEVER be empty or null.
-- Always use standard Markdown (**bold**, *italics*, \`code\`, bullet lists).
-- When listing addresses, tokens, or balances, ALWAYS use clean bullet points (e.g. "- **Stellar**: \`GAB...\`") rather than markdown tables so it formats beautifully on mobile screens.
-- If the user uses emojis or casual slang, respond warmly and conversationally while staying helpful.
-- For Naira amounts, format using '₦' (e.g. ₦50,000).
-`;
-
-export async function queryDeepSeekAI({
-  prompt,
-  history = [],
-  context,
-}: QueryDeepSeekOptions): Promise<AIIntentResult> {
   const apiKey = process.env.DEEPSEEK_API;
   const model = process.env.DEEPSEEK_MODEL || "deepseek-chat";
 
   if (!apiKey) {
-    console.warn("[DeepSeek] API Key missing");
+    console.warn("[DeepSeek] API key missing");
     return {
-      intent: "CHAT",
-      message: "DeepSeek API key is not configured. Running in preview mode.",
-      params: {},
+      mode: "chat",
+      message:
+        "An error occured. Please try again in a moment.",
     };
   }
 
   const systemMessage = {
-    role: "system",
+    role: "system" as const,
     content: buildSystemPrompt(context),
   };
 
-  // Build message chain: Ensure previous assistant turns in history are JSON so DeepSeek doesn't suffer format mismatch
-  const messages = [
+  // Build message chain
+  const messages: any[] = [systemMessage, ...history.slice(-10)];
+
+  // If we're doing turn 2 (feeding tool result back), don't add the user message again
+  if (toolResultMessage) {
+    messages.push(toolResultMessage);
+  } else {
+    messages.push({ role: "user", content: prompt });
+  }
+
+  try {
+    const response = await fetch("https://api.deepseek.com/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        tools: JUMPA_TOOLS,
+        tool_choice: "auto",
+        temperature: 0.3,
+        max_tokens: 1024,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("[DeepSeek API Error]", response.status, errText);
+      return {
+        mode: "chat",
+        message:
+          "An error occured. Please try again.",
+      };
+    }
+
+    const data = await response.json();
+    const choice = data.choices?.[0];
+
+    if (!choice) {
+      return {
+        mode: "chat",
+        message: "I didn't get a response. Could you try rephrasing that?",
+      };
+    }
+
+    const message = choice.message;
+
+    // Function/tool call mode
+    if (
+      choice.finish_reason === "tool_calls" &&
+      message?.tool_calls?.length > 0
+    ) {
+      const toolCall: ToolCall = message.tool_calls[0];
+      let toolArgs: Record<string, any> = {};
+
+      try {
+        toolArgs = JSON.parse(toolCall.function.arguments);
+      } catch {
+        console.error(
+          "[DeepSeek] Failed to parse tool args:",
+          toolCall.function.arguments,
+        );
+        return {
+          mode: "chat",
+          message:
+            "I had trouble processing that request. Could you try rephrasing?",
+        };
+      }
+
+      console.log(
+        `[DeepSeek] Tool call: ${toolCall.function.name}`,
+        toolArgs,
+      );
+
+      return {
+        mode: "tool_call",
+        toolCallId: toolCall.id,
+        toolName: toolCall.function.name,
+        toolArgs,
+      };
+    }
+
+    // Chat mode
+    const rawContent = message?.content?.trim() || "";
+    if (!rawContent) {
+      return {
+        mode: "chat",
+        message: "I'm not sure how to help with that. Could you rephrase it?",
+      };
+    }
+
+    return { mode: "chat", message: rawContent };
+  } catch (err) {
+    console.error("[DeepSeek Fetch Error]", err);
+    return {
+      mode: "chat",
+      message:
+        "Sorry, I ran into a connection error. Please check your internet and try again.",
+    };
+  }
+}
+
+/**
+ * Turn 2: Feed a tool result back to the AI to get a natural-language response.
+ * The AI receives the tool result and composes a helpful reply.
+ */
+export async function getAIFollowUpAfterTool(options: {
+  prompt: string;
+  history: ChatHistoryMessage[];
+  context?: QueryDeepSeekOptions["context"];
+  toolCallId: string;
+  toolName: string;
+  toolArgs: Record<string, any>;
+  toolResultSummary: string;
+}): Promise<string> {
+  const {
+    prompt,
+    history,
+    context,
+    toolCallId,
+    toolName,
+    toolArgs,
+    toolResultSummary,
+  } = options;
+
+  const apiKey = process.env.DEEPSEEK_API;
+  const model = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+
+  if (!apiKey) {
+    return toolResultSummary; // fall back to raw tool summary
+  }
+
+  const systemMessage = {
+    role: "system" as const,
+    content: buildSystemPrompt(context),
+  };
+
+  const messages: any[] = [
     systemMessage,
-    ...history.slice(-8).map((h) => ({
-      role: h.role,
-      content:
-        h.role === "assistant"
-          ? JSON.stringify({ intent: "CHAT", message: h.content, params: {} })
-          : h.content,
-    })),
+    ...history.slice(-8),
+    { role: "user", content: prompt },
+    // Simulate the assistant's tool call
     {
-      role: "user",
-      content: prompt,
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        {
+          id: toolCallId,
+          type: "function",
+          function: { name: toolName, arguments: JSON.stringify(toolArgs) },
+        },
+      ],
+    },
+    // Tool result message
+    {
+      role: "tool",
+      tool_call_id: toolCallId,
+      name: toolName,
+      content: toolResultSummary,
     },
   ];
 
@@ -136,94 +278,19 @@ export async function queryDeepSeekAI({
       body: JSON.stringify({
         model,
         messages,
-        temperature: 0.4,
-        max_tokens: 1024,
+        temperature: 0.5,
+        max_tokens: 512,
       }),
     });
 
     if (!response.ok) {
-      const errText = await response.text();
-      console.error("[DeepSeek API Error]", response.status, errText);
-      return {
-        intent: "CHAT",
-        message: `I encountered an error communicating with the AI service (${response.status}). Please try again in a moment.`,
-        params: {},
-      };
+      return toolResultSummary;
     }
 
     const data = await response.json();
-    const rawContent = data.choices?.[0]?.message?.content?.trim() || "";
-    console.log("[DeepSeek Raw AI Output]:", rawContent);
-
-    // Parse JSON safely
-    try {
-      const parsed = JSON.parse(rawContent);
-      const parsedMessage =
-        (typeof parsed.message === "string" && parsed.message.trim()) ||
-        (typeof parsed.content === "string" && parsed.content.trim()) ||
-        (typeof parsed.response === "string" && parsed.response.trim()) ||
-        (typeof parsed.text === "string" && parsed.text.trim()) ||
-        "";
-
-      let finalMessage = parsedMessage;
-      if (!finalMessage) {
-        if (parsed.intent === "CHECK_BALANCE") {
-          finalMessage = "Here are your balance details:";
-        } else if (parsed.intent === "SWAP_TOKEN") {
-          finalMessage = "Finding you the best rate for your swap...";
-        } else if (parsed.intent === "SEND_FUNDS") {
-          finalMessage = "I've drafted the transfer details for you:";
-        } else {
-          finalMessage =
-            "I'm here to help with your balances, swaps, transfers, or any questions about Jumpa!";
-        }
-      }
-
-      return {
-        intent: parsed.intent || "CHAT",
-        message: finalMessage,
-        params: parsed.params || {},
-      };
-    } catch {
-      // If JSON is wrapped in markdown code block or embedded in text
-      const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          const parsed = JSON.parse(jsonMatch[0]);
-          const parsedMessage =
-            (typeof parsed.message === "string" && parsed.message.trim()) ||
-            (typeof parsed.content === "string" && parsed.content.trim()) ||
-            (typeof parsed.response === "string" && parsed.response.trim()) ||
-            (typeof parsed.text === "string" && parsed.text.trim()) ||
-            "";
-
-          return {
-            intent: parsed.intent || "CHAT",
-            message:
-              parsedMessage ||
-              rawContent ||
-              "I'm here to help with your balances, swaps, transfers, or any questions about Jumpa!",
-            params: parsed.params || {},
-          };
-        } catch {
-          // fall through
-        }
-      }
-      return {
-        intent: "CHAT",
-        message:
-          rawContent ||
-          "I'm here to help with your balances, swaps, transfers, or any questions about Jumpa!",
-        params: {},
-      };
-    }
-  } catch (err) {
-    console.error("[DeepSeek Fetch Error]", err);
-    return {
-      intent: "CHAT",
-      message:
-        "Sorry, an error occured. Please check your connection and try again",
-      params: {},
-    };
+    const content = data.choices?.[0]?.message?.content?.trim();
+    return content || toolResultSummary;
+  } catch {
+    return toolResultSummary;
   }
 }

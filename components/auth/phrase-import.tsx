@@ -67,9 +67,7 @@ export function PhraseImport({ nextHref }: { nextHref: string }) {
       if (!session?.data?.user) {
         const anonRes = await authClient.signIn.anonymous();
         if (anonRes?.error) {
-          setError(
-            anonRes.error.message || "Failed to initialize session",
-          );
+          setError(anonRes.error.message || "Failed to initialize session");
           setLoading(false);
           return;
         }

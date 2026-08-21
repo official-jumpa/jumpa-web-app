@@ -32,10 +32,10 @@ export function TransferCard({
           <Image src={contact.avatar} alt="" width={46} height={46} />
         </span>
         <span className="flex min-w-0 flex-1 flex-col whitespace-nowrap">
-          <span className="text-xs leading-5 font-medium text-jumpa-black">
+          <span className="text-[13px] leading-5 font-medium text-jumpa-black">
             {contact.name}
           </span>
-          <span className="text-[10px] leading-4 text-jumpa-black/50">
+          <span className="text-xs leading-4 text-jumpa-black/50">
             {contact.handle}
           </span>
         </span>
@@ -45,7 +45,7 @@ export function TransferCard({
       <CardAmount row={card.amount} />
       <CardRule />
 
-      <p className="px-2.5 text-[8px] leading-4 text-jumpa-black/50">
+      <p className="px-1 text-[13px] leading-5 text-jumpa-black/50">
         {card.prompt}
       </p>
 
@@ -97,15 +97,15 @@ function AssetRow({
       </div>
 
       <span className="flex min-w-0 flex-1 flex-col px-1">
-        <span className="truncate text-base leading-4 font-medium text-jumpa-black">
+        <span className="truncate text-lg leading-5.5 font-medium text-jumpa-black">
           {option.symbol}
         </span>
-        <span className="text-[6px] leading-2.5 text-jumpa-black/50">
+        <span className="text-[11px] leading-3.5 text-jumpa-black/50">
           BALANCE - <span className="font-bold">{option.balance}</span>
         </span>
       </span>
 
-      <span className="px-2.5 text-base leading-4 font-medium whitespace-nowrap text-jumpa-neutral-550">
+      <span className="px-2 text-lg leading-5.5 font-medium whitespace-nowrap text-jumpa-neutral-550">
         {option.amount}
       </span>
     </button>

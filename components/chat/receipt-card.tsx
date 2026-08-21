@@ -12,7 +12,7 @@ export function ReceiptCard({ card }: { card: Receipt }) {
   return (
     <ChatCard className="bg-jumpa-alt-400">
       <CardTitle title={card.title}>
-        <p className="text-[10px] leading-4 text-jumpa-neutral-750">
+        <p className="text-xs leading-4 text-jumpa-neutral-750">
           {card.status}
         </p>
       </CardTitle>

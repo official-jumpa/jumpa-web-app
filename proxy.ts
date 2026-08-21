@@ -45,11 +45,12 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/sign-up/pin") ||
     pathname.startsWith("/import-wallet");
 
+  // "/" is deliberately absent: it is the splash, which resolves its own
+  // destination. Redirecting it here meant the splash never rendered.
   const isProtectedRoute =
     pathname.startsWith("/home") ||
     pathname.startsWith("/cards") ||
-    pathname.startsWith("/transactions") ||
-    pathname === "/";
+    pathname.startsWith("/transactions");
 
   // Case 1: Unauthenticated Users (only protect dashboard/home routes)
   if (!isAuthenticated) {
@@ -84,8 +85,7 @@ export async function proxy(request: NextRequest) {
     if (
       pathname === "/onboarding" ||
       pathname === "/sign-in" ||
-      pathname === "/sign-up" ||
-      pathname === "/"
+      pathname === "/sign-up"
     ) {
       console.log(
         `[Proxy] Authenticated user with wallet. Redirecting from ${pathname} to /home`,

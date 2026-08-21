@@ -128,7 +128,7 @@ export function QuoteCard({
   return (
     <ChatCard>
       <CardTitle title={card.title}>
-        <p className="text-[10px] leading-4 text-jumpa-black/50">
+        <p className="text-xs leading-4 text-jumpa-black/50">
           {card.status.lead}
           <span className="font-bold text-jumpa-black">
             {card.status.value}

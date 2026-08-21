@@ -1,5 +1,5 @@
-import { cn } from "@/lib/cn";
 import { MarkdownText } from "@/components/chat/markdown-text";
+import { cn } from "@/lib/cn";
 
 /**
  * One line or block of conversation: renders markdown, prose in a squared-off bubble, and short replies as pills.
@@ -25,12 +25,12 @@ export function MessageBubble({
   return (
     <div
       className={cn(
-        "bg-jumpa-neutral-95 text-[13px] text-jumpa-black break-words [overflow-wrap:anywhere] max-w-full overflow-hidden",
+        "bg-jumpa-neutral-95 text-[15px] leading-5.5 text-jumpa-black break-words [overflow-wrap:anywhere] max-w-full overflow-hidden",
         isMultiLineOrLong
-          ? "w-full max-w-[340px] sm:max-w-[420px] rounded-surface px-4 py-3 shadow-xs"
+          ? "w-full max-w-[340px] sm:max-w-[420px] rounded-surface px-4.5 py-3.5 shadow-xs"
           : cn(
-              "flex min-h-9.75 items-center rounded-pill py-2 max-w-full",
-              from === "user" ? "px-6.5 text-right" : "px-4",
+              "flex min-h-11 items-center rounded-pill py-2.5 max-w-full",
+              from === "user" ? "px-6.5 text-right" : "px-4.5",
             ),
       )}
     >

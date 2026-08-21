@@ -12,7 +12,7 @@ export function WordChip({
   return (
     <span
       className={cn(
-        "flex h-11 items-center justify-center rounded-chip bg-jumpa-neutral-50 text-sm leading-4 font-medium text-jumpa-black",
+        "flex h-11 min-w-0 items-center justify-center overflow-hidden rounded-chip bg-jumpa-neutral-50 px-1.5 text-sm leading-4 font-medium text-jumpa-black",
         className,
       )}
     >

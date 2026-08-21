@@ -13,11 +13,12 @@ export function TransactionHistory({
       title="Transaction History"
       className="mt-4 gap-4"
       action={
-        transactions.length > 0 ? (
-          <Link href="/transactions" className="text-jumpa-black">
-            See All
-          </Link>
-        ) : undefined
+        <Link
+          href="/transactions"
+          className="text-xs leading-4 font-medium text-jumpa-primary-600"
+        >
+          See All
+        </Link>
       }
     >
       {transactions.length === 0 ? (

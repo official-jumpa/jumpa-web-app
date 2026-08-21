@@ -76,7 +76,7 @@ export function MarkdownText({ content, className = "" }: MarkdownTextProps) {
         return (
           <code
             key={index}
-            className="rounded bg-black/[0.06] px-1 py-0.5 font-mono text-[11px] text-jumpa-black break-all [overflow-wrap:anywhere] inline max-w-full"
+            className="rounded bg-black/[0.06] px-1 py-0.5 font-mono text-xs text-jumpa-black break-all [overflow-wrap:anywhere] inline max-w-full"
           >
             {codeMatch[1]}
           </code>
@@ -169,13 +169,13 @@ export function MarkdownText({ content, className = "" }: MarkdownTextProps) {
             key={`table-${i}`}
             className="my-2 max-w-full overflow-x-auto rounded-lg border border-black/10 bg-white/80 p-1 shadow-xs"
           >
-            <table className="w-full text-left text-xs border-collapse">
+            <table className="w-full text-left text-[13px] border-collapse">
               <thead>
                 <tr className="border-b border-black/10 bg-black/[0.04]">
                   {headerCells.map((h, hIdx) => (
                     <th
                       key={hIdx}
-                      className="px-2.5 py-1.5 font-bold text-jumpa-black"
+                      className="px-2.5 py-2 font-bold text-jumpa-black"
                     >
                       {renderInline(h)}
                     </th>
@@ -191,7 +191,7 @@ export function MarkdownText({ content, className = "" }: MarkdownTextProps) {
                     {row.map((cell, cIdx) => (
                       <td
                         key={cIdx}
-                        className="px-2.5 py-1.5 font-mono text-[11px] text-jumpa-grey-800 break-all [overflow-wrap:anywhere]"
+                        className="px-2.5 py-2 font-mono text-xs text-jumpa-grey-800 break-all [overflow-wrap:anywhere]"
                       >
                         {renderInline(cell)}
                       </td>
@@ -214,7 +214,7 @@ export function MarkdownText({ content, className = "" }: MarkdownTextProps) {
           className="flex items-start gap-1.5 pl-1 my-0.5 max-w-full"
         >
           <span className="text-jumpa-primary-600 font-bold shrink-0">•</span>
-          <div className="flex-1 leading-4.5 break-words [overflow-wrap:anywhere] min-w-0">
+          <div className="flex-1 leading-5.5 break-words [overflow-wrap:anywhere] min-w-0">
             {renderInline(trimmed.slice(2))}
           </div>
         </div>,
@@ -231,10 +231,10 @@ export function MarkdownText({ content, className = "" }: MarkdownTextProps) {
           key={`num-${i}`}
           className="flex items-start gap-1.5 pl-1 my-0.5 max-w-full"
         >
-          <span className="font-semibold text-jumpa-primary-600 text-xs shrink-0">
+          <span className="font-semibold text-jumpa-primary-600 text-sm shrink-0">
             {numMatch[1]}.
           </span>
-          <div className="flex-1 leading-4.5 break-words [overflow-wrap:anywhere] min-w-0">
+          <div className="flex-1 leading-5.5 break-words [overflow-wrap:anywhere] min-w-0">
             {renderInline(numMatch[2])}
           </div>
         </div>,
@@ -247,7 +247,7 @@ export function MarkdownText({ content, className = "" }: MarkdownTextProps) {
     elements.push(
       <div
         key={`line-${i}`}
-        className="leading-4.5 break-words [overflow-wrap:anywhere]"
+        className="leading-5.5 break-words [overflow-wrap:anywhere]"
       >
         {renderInline(line)}
       </div>,

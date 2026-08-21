@@ -8,6 +8,8 @@ import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { EyeIcon } from "@/components/ui/icons/eye";
 import { EyeOffIcon } from "@/components/ui/icons/eye-off";
 import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
+import type { Asset } from "@/lib/wallet";
+import { BalanceSheet } from "./balance-sheet";
 
 /** Stands in for the digits while the balance is hidden. */
 const MASK = "*".repeat(9);
@@ -19,11 +21,18 @@ const TRANSFERS = [
 ];
 
 /**
- * Total balance and the transfer shortcuts. The amount starts hidden — the label
- * pill and the eye both reveal it, the only difference between the hero states.
+ * Total balance and the transfer shortcuts. The eye reveals the amount; the pill
+ * opens the breakdown of where that total sits.
  */
-export function BalancePanel({ balance }: { balance: string }) {
+export function BalancePanel({
+  balance,
+  assets,
+}: {
+  balance: string;
+  assets: Asset[];
+}) {
   const [visible, setVisible] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const ToggleIcon = visible ? EyeOffIcon : EyeIcon;
 
   return (
@@ -31,11 +40,12 @@ export function BalancePanel({ balance }: { balance: string }) {
       <div className="flex flex-col items-center gap-2">
         <button
           type="button"
-          onClick={() => setVisible((on) => !on)}
-          aria-expanded={visible}
+          onClick={() => setDetailsOpen(true)}
+          aria-haspopup="dialog"
+          aria-expanded={detailsOpen}
           className="flex items-center rounded-pill bg-jumpa-primary-950 px-4.5 py-2 text-xs leading-2.5 font-medium text-jumpa-white"
         >
-          Your Balance
+          Balance Details
           <ChevronDownIcon className="size-4" />
         </button>
 
@@ -71,6 +81,14 @@ export function BalancePanel({ balance }: { balance: string }) {
           </Link>
         ))}
       </nav>
+
+      {detailsOpen ? (
+        <BalanceSheet
+          balance={balance}
+          assets={assets}
+          onClose={() => setDetailsOpen(false)}
+        />
+      ) : null}
     </section>
   );
 }

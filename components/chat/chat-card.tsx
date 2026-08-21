@@ -1,9 +1,9 @@
-import type { ReactNode } from "react";
 import Image from "next/image";
+import type { ReactNode } from "react";
 import { TbCurrencyNaira } from "react-icons/tb";
+import { getAssetLogo } from "@/lib/assets";
 import type { CardRow, Stat } from "@/lib/chat";
 import { cn } from "@/lib/cn";
-import { getAssetLogo } from "@/lib/assets";
 
 /** Rounded panel behind a structured agent reply — quote, receipt or transfer. */
 export function ChatCard({
@@ -16,7 +16,7 @@ export function ChatCard({
   return (
     <div
       className={cn(
-        "flex w-full flex-col gap-2 rounded-surface px-2.5 pt-4 pb-2.5 shadow-xs",
+        "flex w-full flex-col gap-2.5 rounded-surface px-3.5 pt-4.5 pb-3.5 shadow-xs",
         className ?? "bg-jumpa-neutral-95",
       )}
     >
@@ -34,11 +34,13 @@ export function CardTitle({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between px-2.5 whitespace-nowrap">
-      <h3 className="text-xs leading-5 font-medium text-jumpa-black">
+    // gap-3 and the truncate keep a long provider name off the status word —
+    // they ran together as "(sdex))Successful" when both were nowrap.
+    <div className="flex items-center justify-between gap-3 px-1">
+      <h3 className="min-w-0 truncate text-sm leading-5 font-medium text-jumpa-black">
         {title}
       </h3>
-      {children}
+      <span className="shrink-0 whitespace-nowrap">{children}</span>
     </div>
   );
 }
@@ -57,7 +59,7 @@ export function StatText({
   className?: string;
 }) {
   return (
-    <p className={cn("text-[8px] leading-4 text-jumpa-black/50", className)}>
+    <p className={cn("text-[11px] leading-4 text-jumpa-black/50", className)}>
       {stat.lead}
       <span className="font-bold text-jumpa-black">{stat.value}</span>
     </p>
@@ -66,7 +68,7 @@ export function StatText({
 
 export function CardStats({ stats }: { stats: [Stat, Stat] }) {
   return (
-    <div className="flex items-center justify-between px-2.5 whitespace-nowrap">
+    <div className="flex items-start justify-between gap-3 px-1">
       {stats.map((stat, idx) => (
         <StatText key={`${stat.value}-${idx}`} stat={stat} />
       ))}
@@ -93,9 +95,9 @@ export function CardAmount({
   const logo = row.badge && !isNaira ? getAssetLogo(row.badge) : null;
 
   return (
-    <div className="flex h-11.5 w-full items-center gap-2.5 rounded-surface bg-jumpa-white p-2.5">
-      <span className="flex min-w-0 flex-1 flex-col px-2.5">
-        <span className="text-[7px] leading-2.5 font-bold uppercase tracking-wider text-jumpa-black/50">
+    <div className="flex h-16 w-full items-center gap-2.5 rounded-surface bg-jumpa-white p-3">
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5 px-2">
+        <span className="text-[10px] leading-3 font-bold uppercase tracking-wider text-jumpa-black/50">
           {row.caption}
         </span>
         {isInput ? (
@@ -105,10 +107,10 @@ export function CardAmount({
             min="0"
             value={inputValue !== undefined ? inputValue : row.value}
             onChange={(e) => onInputChange?.(e.target.value)}
-            className="w-full truncate text-base leading-4 font-medium text-jumpa-black outline-none bg-transparent"
+            className="w-full truncate text-lg leading-5.5 font-medium text-jumpa-black outline-none bg-transparent"
           />
         ) : (
-          <span className="truncate text-base leading-4 font-medium text-jumpa-black flex items-center gap-0.5">
+          <span className="truncate text-lg leading-5.5 font-medium text-jumpa-black flex items-center gap-0.5">
             {row.value}
           </span>
         )}
@@ -117,7 +119,7 @@ export function CardAmount({
       {row.badge ? (
         <span
           className={cn(
-            "flex h-full min-w-14 items-center justify-center gap-1 rounded-pill px-2.5 text-xs font-semibold shrink-0 shadow-2xs",
+            "flex h-full min-w-17 items-center justify-center gap-1.5 rounded-pill px-3 text-[13px] font-semibold shrink-0 shadow-2xs",
             badgeClassName,
           )}
         >
@@ -127,9 +129,9 @@ export function CardAmount({
             <Image
               src={logo}
               alt={row.badge}
-              width={16}
-              height={16}
-              className="size-4 shrink-0 rounded-full object-contain"
+              width={20}
+              height={20}
+              className="size-5 shrink-0 rounded-full object-contain"
             />
           ) : null}
           <span>{row.badge}</span>

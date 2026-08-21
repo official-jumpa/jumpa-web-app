@@ -104,9 +104,9 @@ export function PhraseImport({ nextHref }: { nextHref: string }) {
             (slot) => (
               <label
                 key={slot}
-                className="flex h-11 items-center justify-center gap-1 rounded-chip border border-transparent bg-jumpa-neutral-50 text-sm leading-4 font-medium text-jumpa-black focus-within:border-jumpa-primary-300 focus-within:bg-jumpa-primary-50"
+                className="flex h-11 min-w-0 items-center justify-center gap-1 overflow-hidden rounded-chip border border-transparent bg-jumpa-neutral-50 px-1.5 text-sm leading-4 font-medium text-jumpa-black focus-within:border-jumpa-primary-300 focus-within:bg-jumpa-primary-50"
               >
-                <span className="text-jumpa-primary-950">{slot}</span>
+                <span className="shrink-0 text-jumpa-primary-950">{slot}</span>
                 <input
                   value={wordAt(slot)}
                   onChange={(event) => setWord(slot, event.target.value)}
@@ -114,8 +114,12 @@ export function PhraseImport({ nextHref }: { nextHref: string }) {
                   autoComplete="off"
                   autoCapitalize="none"
                   spellCheck={false}
-                  style={{ width: `${Math.max(wordAt(slot).length, 1)}ch` }}
-                  className="bg-transparent outline-none"
+                  // Sizing to the word keeps it centred with the slot number, but it
+                  // has to stay inside the cell — an overlong word widened the grid.
+                  style={{
+                    width: `min(${Math.max(wordAt(slot).length, 1)}ch, 100%)`,
+                  }}
+                  className="min-w-0 bg-transparent outline-none"
                 />
               </label>
             ),

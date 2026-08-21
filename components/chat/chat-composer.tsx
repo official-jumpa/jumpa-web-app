@@ -49,7 +49,7 @@ export function ChatComposer({
   return (
     <div className="flex items-center gap-2.5">
       <div
-        className={`flex h-11.5 flex-1 items-center gap-2.5 rounded-surface bg-jumpa-white p-1 transition-all ${
+        className={`flex h-13 flex-1 items-center gap-2.5 rounded-surface bg-jumpa-white p-1 transition-all ${
           isListening ? "ring-2 ring-jumpa-primary-600/50 shadow-md" : ""
         }`}
       >
@@ -73,7 +73,7 @@ export function ChatComposer({
               ? "Listening... You can start taking now..."
               : "Tap to start typing..."
           }
-          className={`min-w-0 flex-1 pr-2.5 text-[11px] leading-5 font-medium outline-none placeholder:text-jumpa-black/30 disabled:opacity-50 ${
+          className={`min-w-0 flex-1 pr-2.5 text-[13px] leading-5 font-medium outline-none placeholder:text-jumpa-black/30 disabled:opacity-50 ${
             isListening
               ? "text-jumpa-primary-600 animate-pulse placeholder:text-jumpa-primary-600"
               : "text-jumpa-black"

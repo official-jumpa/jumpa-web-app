@@ -157,32 +157,32 @@ const sendFunds: DeepSeekTool = {
     name: "send_funds",
     description:
       "Draft a crypto transfer to a recipient address or Jumpa handle. " +
-      "Call this whenever the user requests a send or transfer (e.g. 'send 50 XLM to GAB...', 'send it again', 'send 53 XLM to my wallet'). " +
-      "If recipient is 'my wallet' or 'myself', use the user's Stellar address from context. Default network to 'testnet' if user is testing.",
+      "Call this IMMEDIATELY whenever the user asks to send or transfer crypto (e.g. 'send 100 XLM to GB25H...', 'send 50 XLM to GAB...', 'send 53 XLM to my wallet'). " +
+      "If recipient is 'my wallet' or 'myself', use the user's Stellar address from context. Always set chain to 'stellar' for XLM.",
     parameters: {
       type: "object",
       properties: {
         amount: {
           type: "string",
-          description: "Amount to send as a decimal string (e.g. '50').",
+          description: "Amount to send as a decimal string (e.g. '50', '100').",
         },
         token: {
           type: "string",
-          description: "Token symbol to send (e.g. 'XLM', 'USDC', 'SOL'). Default to 'XLM' if unspecified.",
+          description: "Token symbol to send (e.g. 'XLM', 'USDC', 'SOL'). Default to 'XLM'.",
         },
         chain: {
           type: "string",
-          description: "Chain to send on ('stellar', 'solana', 'base'). Default to 'stellar' for XLM.",
+          description: "Chain to send on ('stellar', 'solana', 'base'). Default to 'stellar'.",
         },
         network: {
           type: "string",
           enum: ["testnet", "mainnet"],
-          description: "Network to use ('testnet' or 'mainnet'). Default to 'testnet' if testing.",
+          description: "Network to use ('testnet' or 'mainnet'). Default to 'testnet'.",
         },
         recipient: {
           type: "string",
           description:
-            "Recipient address or @handle (e.g. '@alice', 'GAB...'). Use the user's Stellar address if sending to self.",
+            "Recipient address or @handle (e.g. '@alice', 'GB25H...').",
         },
       },
       required: ["amount", "token", "recipient"],

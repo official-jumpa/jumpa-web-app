@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
       // Decrypt user sovereign keypair first to obtain source address & signing key
       if (!wallet?.encryptedMnemonic || !pin) {
         return NextResponse.json(
-          { error: "Wallet mnemonic or PIN missing for signing." },
+          { error: "Wallet mnemonic or PIN missing" },
           { status: 400 },
         );
       }
@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
         sourceKeypair = StellarSdk.Keypair.fromSecret(stellarKeys.secretKey);
       } catch (err) {
         return NextResponse.json(
-          { error: "Failed to decrypt wallet keypair with provided PIN." },
+          { error: "Failed to decrypt wallet with provided PIN." },
           { status: 401 },
         );
       }
@@ -214,7 +214,7 @@ export async function POST(req: NextRequest) {
           );
 
           try {
-            console.log("[Chat Confirm] Signing transaction envelope with keypair:", userStellarAddr);
+            console.log("[Chat Confirm] Signing transaction with keypair:", userStellarAddr);
             const passphrase =
               network === "mainnet"
                 ? StellarSdk.Networks.PUBLIC
@@ -226,13 +226,13 @@ export async function POST(req: NextRequest) {
             );
             tx.sign(sourceKeypair);
 
-            console.log("[Chat Confirm] Submitting signed transaction to Stellar Horizon...");
+            console.log("[Chat Confirm] Submitting signed transaction to Stellar...");
             const server = getHorizonServer(network);
             const horizonRes = await server.submitTransaction(tx);
 
             txHash = horizonRes.hash;
             explorerUrl = `https://stellar.expert/explorer/${network}/tx/${txHash}`;
-            console.log("[Chat Confirm] On-chain transaction SUCCESS! Tx Hash:", txHash);
+            console.log("[Chat Confirm] SUCCESS! Hash:", txHash);
             console.log("[Chat Confirm] Explorer URL:", explorerUrl);
           } catch (signErr: any) {
             const resultCodes =
@@ -444,8 +444,8 @@ export async function POST(req: NextRequest) {
       role: "assistant",
       content:
         cardType === "quote"
-          ? `✓ Swap confirmed in ${elapsedSeconds}s`
-          : `✓ Transfer sent successfully in ${elapsedSeconds}s`,
+          ? `✓ Swap confirmed`
+          : `✓ Transfer successful`,
       isTransaction: true,
       cardType: "receipt",
       status: "confirmed",
@@ -458,7 +458,6 @@ export async function POST(req: NextRequest) {
 
     await chatLog.save();
     console.log("[Chat Confirm] Saved confirmed messages to ChatLog. Elapsed time:", elapsedSeconds, "s");
-    console.log("[CHAT CONFIRM END] ");
 
     return NextResponse.json({
       success: true,

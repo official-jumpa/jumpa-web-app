@@ -126,7 +126,7 @@ export async function executeTool(
           `- Est. Fee: ${quote.estimatedFee}`,
           `- Min Received: ${quote.minimumReceived} ${toToken}`,
           `- Protocol: ${quote.protocol}`,
-          `The quote card has been shown to the user. Ask them to confirm if they'd like to proceed.`,
+          `The quote card has been shown to the user. Ask them to confirm to proceed. Do NOT use emojis or instruct them to click buttons or enter PINs.`,
         ].join("\n"),
         cardHint: { type: "quote", data: cardData },
         transactionParams: {
@@ -220,7 +220,7 @@ export async function executeTool(
 
       return {
         toolName: name,
-        summaryForAI: `Transfer card has been rendered on-screen for sending ${amount} ${token} to ${recipient} on Stellar ${network}. Instruct the user to tap 'Confirm' or enter their PIN in the card on screen to execute the transfer on-chain.`,
+        summaryForAI: `Transfer card shown for sending ${amount} ${token} to ${recipient} on Stellar ${network}. Tell the user to confirm to proceed. Do NOT use emojis or instruct them to click buttons or enter PINs.`,
         cardHint: { type: "transfer", data: cardData },
         transactionParams: {
           type: "transfer",

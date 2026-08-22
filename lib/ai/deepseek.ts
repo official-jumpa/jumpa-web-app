@@ -67,18 +67,19 @@ You ask clarifying questions when details are missing. You never assume or guess
 - Fiat: Nigerian Naira (NGN / ₦)
 
 ### TOOL CALLING RULES:
-1. You have access to tools for swaps, balances, transfers, onramps and offramps.
-2. CRITICAL: Whenever the user asks to send funds, transfer crypto, or initiate a swap (including follow-ups like "send it", "send it again", "send 53 XLM to my wallet"), YOU MUST CALL THE APPROPRIATE TOOL ('send_funds', 'stellar_testnet_swap_quote', etc.).
-3. NEVER generate text saying "a confirmation card appears" or "confirm it on screen" unless you are executing a tool call! If you reply in text mode without calling a tool, NO CARD WILL RENDER.
-4. For transfers, if recipient is "my wallet" or "myself", call 'send_funds' with recipient set to the user's Stellar address. Default network to "testnet" if testing.
-5. If a user requests USDT on Stellar, explain that USDT is not available on Stellar networks and offer the available alternatives (XLM ↔ USDC).
-6. When you get a tool result back (Turn 2), compose a warm, natural follow-up message telling the user to confirm the details in the card shown below.
-
-### FORMATTING:
-- Use **bold** for amounts, token names, and key figures.
-- Use bullet points (not tables) for lists of balances on mobile.
-- For NGN amounts use ₦ (e.g. ₦50,000).
-- Keep responses concise and warm — this is a mobile app chat, not a document.
+1. You have access to function tools ('send_funds', 'stellar_testnet_swap_quote', 'stellar_mainnet_swap_quote', 'stellar_testnet_balance', 'stellar_mainnet_balance', 'check_portfolio', 'onramp_ngn', 'offramp_ngn').
+2. MANDATORY: Whenever the user requests to send or transfer crypto (e.g., "send 100 XLM to GB25H...", "transfer 50 USDC to @alice", "send 53 XLM to my wallet"), YOU MUST IMMEDIATELY CALL THE 'send_funds' TOOL with the parameters: { amount, token, recipient, chain: "stellar", network: "testnet" | "mainnet" }.
+3. NEVER reply with text saying "I have drafted the transfer" or "Just tap Confirm on the card" without executing a tool call! Text responses DO NOT render cards or confirm buttons. You MUST output a tool call for the card to appear.
+4. For transfers to "my wallet" or "myself", set 'recipient' to the user's Stellar address from the context above.
+5. If the user mentions "testnet" or testing, set 'network': "testnet". Default 'chain' to "stellar" for XLM.
+6. If a user requests USDT on Stellar, explain that USDT is not available on Stellar networks and offer XLM ↔ USDC.
+7. Only ask clarifying questions if the user hasn't specified the amount OR recipient OR tokens at all (e.g. "I want to send money"). If amount, token, and recipient are present, CALL THE TOOL IMMEDIATELY.
+### FORMATTING & TONE:
+- NEVER use emojis in any response (no 🚀, 😄, 👍, etc.).
+- Keep responses extremely short, direct, and concise (1 sentence max for turn 2 follow-ups).
+- For turn 2 follow-ups after a tool call (send/swap), simply tell the user to confirm (e.g. " Please confirm to proceed with the transaction.").
+- DO NOT mention UI buttons, PINs, or clicking (do NOT say "tap Confirm", "click", or "enter your PIN").
+- Use **bold** for amounts and token names.
 - Never render raw JSON or code blocks in your responses.`;
 }
 
@@ -88,7 +89,7 @@ export async function callDeepSeekAI(
   const { prompt, history = [], context, toolResultMessage } = options;
 
   const apiKey = process.env.DEEPSEEK_API;
-  const model = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+  const model = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 
   if (!apiKey) {
     console.warn("[DeepSeek] API key missing");
@@ -114,6 +115,16 @@ export async function callDeepSeekAI(
     messages.push({ role: "user", content: prompt });
   }
 
+  // Detect if user prompt requests a financial action (send, transfer, swap, deposit, withdraw)
+  const isActionPrompt =
+    !toolResultMessage &&
+    /\b(send|transfer|pay|swap|convert|trade|exchange|buy|deposit|withdraw|onramp|offramp)\b/i.test(
+      prompt,
+    );
+
+  const toolChoice = isActionPrompt ? "required" : "auto";
+  console.log(`[DeepSeek] Model: ${model} | Tool Choice: ${toolChoice} | Action Prompt: ${isActionPrompt}`);
+
   try {
     const response = await fetch("https://api.deepseek.com/chat/completions", {
       method: "POST",
@@ -125,8 +136,8 @@ export async function callDeepSeekAI(
         model,
         messages,
         tools: JUMPA_TOOLS,
-        tool_choice: "auto",
-        temperature: 0.3,
+        tool_choice: toolChoice,
+        temperature: 0.2,
         max_tokens: 1024,
       }),
     });
@@ -190,6 +201,7 @@ export async function callDeepSeekAI(
 
     // Chat mode
     const rawContent = message?.content?.trim() || "";
+
     if (!rawContent) {
       return {
         mode: "chat",
@@ -232,7 +244,7 @@ export async function getAIFollowUpAfterTool(options: {
   } = options;
 
   const apiKey = process.env.DEEPSEEK_API;
-  const model = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+  const model = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
 
   if (!apiKey) {
     return toolResultSummary; // fall back to raw tool summary

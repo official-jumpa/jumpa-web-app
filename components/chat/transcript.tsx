@@ -1,11 +1,11 @@
 import { ActionRow } from "@/components/chat/action-row";
 import { AgentAvatar } from "@/components/chat/agent-avatar";
 import { MessageBubble } from "@/components/chat/message-bubble";
+import { OfframpCheckoutCard } from "@/components/chat/offramp-checkout-card";
+import { OnrampCheckoutCard } from "@/components/chat/onramp-checkout-card";
 import { QuoteCard } from "@/components/chat/quote-card";
 import { ReceiptCard } from "@/components/chat/receipt-card";
 import { TransferCard } from "@/components/chat/transfer-card";
-import { OnrampCheckoutCard } from "@/components/chat/onramp-checkout-card";
-import { OfframpCheckoutCard } from "@/components/chat/offramp-checkout-card";
 import type { ChatEntry, ChatItem, QuoteCard as Quote } from "@/lib/chat";
 
 type Handlers = {
@@ -32,10 +32,11 @@ export function Transcript({
         ) : entry.role === "agent" ? (
           <div key={entry.id} className="flex items-start gap-1">
             <AgentAvatar />
+            {/* Agent replies carry the cards, so they get the wider column. */}
             <Group
               items={entry.items}
               from="agent"
-              className="w-59.5 items-start"
+              className="w-full max-w-75 items-start"
               {...handlers}
             />
           </div>
@@ -44,7 +45,7 @@ export function Transcript({
             key={entry.id}
             items={entry.items}
             from="user"
-            className="items-end"
+            className="ml-auto w-full max-w-70 items-end"
             {...handlers}
           />
         ),

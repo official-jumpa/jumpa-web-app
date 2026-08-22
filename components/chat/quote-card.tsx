@@ -25,9 +25,12 @@ export function QuoteCard({
   const [fromToken, setFromToken] = useState(card.pay.badge || "XLM");
   const [toToken, setToToken] = useState(card.receive.badge || "USDC");
   const [payAmount, setPayAmount] = useState(card.pay.value || "30");
-  const [receiveAmount, setReceiveAmount] = useState(card.receive.value || "5.50");
+  const [receiveAmount, setReceiveAmount] = useState(
+    card.receive.value || "5.50",
+  );
   const [rateText, setRateText] = useState(
-    card.stats?.find((s) => s.lead?.includes("Rate"))?.value || "1 XLM = 0.1834 USDC",
+    card.stats?.find((s) => s.lead?.includes("Rate"))?.value ||
+      "1 XLM = 0.1834 USDC",
   );
   const [feeText, setFeeText] = useState(
     card.stats?.find((s) => s.lead?.includes("Fee"))?.value || "0.00001 XLM",

@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChatBackdrop } from "@/components/chat/chat-backdrop";
-import { ChatDock } from "@/components/chat/chat-dock";
 import { ChatComposer } from "@/components/chat/chat-composer";
+import { ChatDock } from "@/components/chat/chat-dock";
 import { ChatHeader, type SessionSummary } from "@/components/chat/chat-header";
 import { ChatIntro } from "@/components/chat/chat-intro";
 import { ChatTopFade } from "@/components/chat/chat-top-fade";
@@ -338,9 +338,9 @@ export function ChatView() {
 
   // Raising PIN sheet on transaction card confirmation
   const handleOpenPin = useCallback(() => {
-    const pendingMsg = [...messages].reverse().find(
-      (m) => m.isTransaction && m.status === "pending",
-    );
+    const pendingMsg = [...messages]
+      .reverse()
+      .find((m) => m.isTransaction && m.status === "pending");
     setPendingActionMsgId(pendingMsg?.id || null);
     setPinError(null);
     setPinOpen(true);
@@ -360,9 +360,9 @@ export function ChatView() {
       setPinProcessing(true);
       setPinError(null);
 
-      const latestPendingMsg = [...messages].reverse().find(
-        (m) => m.isTransaction && m.status === "pending",
-      );
+      const latestPendingMsg = [...messages]
+        .reverse()
+        .find((m) => m.isTransaction && m.status === "pending");
       const targetId = pendingActionMsgId || latestPendingMsg?.id;
 
       try {

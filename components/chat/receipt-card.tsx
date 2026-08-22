@@ -20,8 +20,11 @@ export function ReceiptCard({ card }: { card: Receipt }) {
   const href = explorerHref(card);
   const logo = card.balance.badge ? getAssetLogo(card.balance.badge) : null;
   // The header already states the amount, so the lead-less stat the backend
-  // sends alongside it would only repeat it.
-  const rows = card.stats.filter((stat) => stat.lead);
+  // sends alongside it would only repeat it. The network fee is dropped on the
+  // client's call — it is not something the sender acts on.
+  const rows = card.stats.filter(
+    (stat) => stat.lead && !/\bfee\b/i.test(stat.lead),
+  );
 
   return (
     <div className="w-full overflow-hidden rounded-surface bg-jumpa-white shadow-xs">

@@ -44,7 +44,8 @@ export function MessageBubble({
       className={cn(
         "bg-jumpa-neutral-95 text-[15px] leading-5.5 text-jumpa-black break-words [overflow-wrap:anywhere] max-w-full overflow-hidden",
         isMultiLineOrLong
-          ? "w-full max-w-[340px] sm:max-w-[420px] rounded-surface px-4.5 py-3.5 shadow-xs"
+          ? // The group in transcript.tsx sets the column width per role.
+            "w-full rounded-surface px-4.5 py-3.5 shadow-xs"
           : cn(
               "flex min-h-11 items-center rounded-pill py-2.5 max-w-full",
               from === "user" ? "px-6.5 text-right" : "px-4.5",

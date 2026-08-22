@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { CheckIcon } from "@/components/ui/icons/check";
 import { CopyIcon } from "@/components/ui/icons/copy";
+import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/cn";
 
 const CONFIRM_MS = 2000;
@@ -27,28 +28,7 @@ export function CopyButton({
   }, [copied]);
 
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      return;
-    } catch {
-      // navigator.clipboard needs a secure context — absent when the app is
-      // opened over plain http on a phone, which is how this gets tested.
-    }
-
-    const scratch = document.createElement("textarea");
-    scratch.value = value;
-    scratch.setAttribute("readonly", "");
-    scratch.style.position = "fixed";
-    scratch.style.opacity = "0";
-    document.body.append(scratch);
-    scratch.select();
-    try {
-      setCopied(document.execCommand("copy"));
-    } catch {
-      // Nothing else to try; leave the button untouched.
-    }
-    scratch.remove();
+    setCopied(await copyText(value));
   };
 
   const Icon = copied ? CheckIcon : CopyIcon;

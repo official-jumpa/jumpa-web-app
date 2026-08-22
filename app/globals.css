@@ -69,7 +69,15 @@
   /* Semantic */
   --color-jumpa-verified: #47c2ff;
   --color-jumpa-fill-primary: #787880;
+  /* Warm paper for the chat's money cards — the cold greys read as system UI,
+     not as something friendly to hand money to. */
+  --color-jumpa-warm-50: #fffbf4;
+  --color-jumpa-warm-100: #fdf3e6;
+  --color-jumpa-warm-200: #f4e5d2;
+  --color-jumpa-warm-700: #8a6733; /* label on a warm surface */
+
   --color-jumpa-danger: #ff0004; /* self-custody warnings */
+  --color-jumpa-danger-50: #fff0f0; /* error notice inside a card */
   --color-jumpa-warning: #e69200; /* PIN-vs-password note on the import screens */
   --color-jumpa-success: #11a929; /* positive 24h change on an asset card */
   --color-jumpa-pin-rule: #193d26; /* slot underline in the chat PIN sheet */

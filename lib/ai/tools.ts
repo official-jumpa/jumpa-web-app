@@ -43,7 +43,7 @@ const stellarTestnetSwapQuote: DeepSeekTool = {
       "Fetch a live Soroswap DEX quote for a token swap on the Stellar TESTNET network. " +
       "Only call this when the user has explicitly confirmed they want to swap on Stellar Testnet. " +
       "Available Stellar Testnet assets: XLM, USDC. " +
-      "If the user requests USDT, inform them it is not available on Stellar Testnet and offer XLM↔USDC swaps. " +
+      "If the user requests USDT, inform them it is not available on Stellar and offer XLM↔USDC swaps. " +
       "Do NOT call this if fromToken or toToken or fromAmount are not yet known — ask the user first.",
     parameters: {
       type: "object",

@@ -77,7 +77,7 @@ export async function fetchSoroswapQuote(
   if (!response.ok) {
     const errText = await response.text();
     throw new Error(
-      `Soroswap API error (${response.status}): ${errText || "Quote route not found. The testnet orderbook may have insufficient liquidity for this pair."}`,
+      `Soroswap API error (${response.status}): ${errText || "Quote route not found. Orderbook has insufficient liquidity for this pair."}`,
     );
   }
 

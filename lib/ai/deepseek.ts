@@ -59,8 +59,8 @@ You ask clarifying questions when details are missing. You never assume or guess
 - Current Time: ${new Date().toISOString()}
 
 ### SUPPORTED NETWORKS & ASSETS:
-- Stellar Testnet: XLM, USDC only (USDT does NOT exist on Stellar Testnet)
-- Stellar Mainnet: XLM, USDC
+- Stellar Testnet: XLM, USDC only (USDT does NOT exist on Stellar)
+- Stellar Mainnet: XLM, USDC only
 - Solana Mainnet: SOL, USDC, USDT
 - Base / EVM Mainnet: ETH, USDC, USDT, BNB, POL, CELO
 - Bitcoin Mainnet: BTC

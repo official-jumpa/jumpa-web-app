@@ -91,6 +91,11 @@
   --font-numeric:
     var(--font-host-grotesk), ui-sans-serif, system-ui, sans-serif;
 
+  /* Layout. The app is one centred column; this is how wide it is allowed to
+     get. Everything that pins to the column edge reads `max-w-app` from here —
+     never write the literal, or the pieces drift apart. */
+  --container-app: 450px;
+
   /* Radius */
   --radius-pill: 100px; /* buttons, chat bubbles, pagination, inputs */
   --radius-chip: 8px; /* recovery-phrase words */

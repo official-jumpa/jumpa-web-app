@@ -23,7 +23,7 @@ export function BottomNav() {
   const middle = TABS.length / 2;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-5 z-10 mx-auto max-w-[430px] px-4.5 pb-safe">
+    <div className="pointer-events-none fixed inset-x-0 bottom-5 z-10 mx-auto max-w-app px-4.5 pb-safe">
       <nav className="pointer-events-auto mx-auto flex items-center justify-center h-18.5 gap-1 rounded-pill border border-jumpa-neutral-90 bg-jumpa-white px-2.5">
         {TABS.map(({ label, href, Icon }, index) => (
           <Fragment key={label}>

@@ -78,7 +78,7 @@ export function OnboardingCarousel() {
   return (
     <div
       ref={attach}
-      className="mx-auto flex h-dvh max-w-[430px] snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="mx-auto flex h-dvh max-w-app snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       <CarouselProgressContext.Provider value={progress}>
         <ChatSlide />

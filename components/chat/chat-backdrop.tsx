@@ -8,7 +8,7 @@ export function ChatBackdrop({ soft }: { soft?: boolean }) {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 -z-10 mx-auto max-w-[430px] overflow-hidden"
+      className="pointer-events-none fixed inset-0 -z-10 mx-auto max-w-app overflow-hidden"
     >
       <div className="absolute inset-y-0 left-1/2 w-[393px] -translate-x-1/2">
         <Image

@@ -16,7 +16,7 @@ export function SuccessSheet({
 }) {
   return (
     <div className="fixed inset-0 z-10 flex justify-center bg-jumpa-black/55">
-      <div className="flex w-full max-w-[430px] flex-col justify-end px-2.5 pb-[calc(11px+env(safe-area-inset-bottom))]">
+      <div className="flex w-full max-w-app flex-col justify-end px-2.5 pb-[calc(11px+env(safe-area-inset-bottom))]">
         <div className="flex flex-col items-center gap-6 rounded-sheet bg-jumpa-white px-4.25 py-4">
           <span className="h-1.5 w-30 rounded-pill bg-jumpa-neutral-75" />
 

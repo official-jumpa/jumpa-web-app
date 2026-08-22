@@ -12,7 +12,7 @@ export function BottomSheet({
   children: ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-30 mx-auto max-w-[430px]">
+    <div className="fixed inset-0 z-30 mx-auto max-w-app">
       <button
         type="button"
         aria-label="Dismiss"

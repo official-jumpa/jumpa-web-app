@@ -47,7 +47,7 @@ export default function SplashPage() {
   }, [shown, next, router]);
 
   return (
-    <main className="mx-auto flex h-dvh max-w-[430px] items-center justify-center bg-jumpa-primary-600">
+    <main className="mx-auto flex h-dvh max-w-app items-center justify-center bg-jumpa-primary-600">
       <div className="relative aspect-square w-full max-w-[393px]">
         <Image
           src="/logo/white-logo-text.png"

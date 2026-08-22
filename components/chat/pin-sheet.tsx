@@ -38,7 +38,7 @@ export function PinSheet({
   }, [error]);
 
   return (
-    <div className="fixed inset-0 z-40 mx-auto max-w-[430px]">
+    <div className="fixed inset-0 z-40 mx-auto max-w-app">
       <button
         type="button"
         aria-label="Dismiss"

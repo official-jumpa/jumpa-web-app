@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Page not found" };
 /** Catches every unmatched URL. Sits outside the route groups, so it carries its own column. */
 export default function NotFound() {
   return (
-    <div className="mx-auto w-full max-w-[430px] bg-jumpa-white">
+    <div className="mx-auto w-full max-w-app bg-jumpa-white">
       <PlaceholderScreen
         art={
           <span className="text-6xl leading-none font-bold text-jumpa-primary-600">

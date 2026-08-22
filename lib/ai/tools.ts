@@ -205,8 +205,10 @@ const onrampNgn: DeepSeekTool = {
   function: {
     name: "onramp_ngn",
     description:
-      "Generate bank transfer details to deposit Nigerian Naira (NGN) and receive crypto. " +
-      "Call this when the user wants to add money via bank transfer, buy crypto with NGN, or deposit NGN.",
+      "Generate real bank transfer details to deposit Nigerian Naira (NGN) and receive crypto via Switch. " +
+      "Call this when the user wants to add money via bank transfer, buy crypto with NGN, or deposit NGN. " +
+      "Switch supports non-Stellar chains only (base, solana, ethereum, polygon, bsc, arbitrum, etc.). " +
+      "If the user has a Stellar wallet, inform them that Stellar is not supported for NGN ramps yet.",
     parameters: {
       type: "object",
       properties: {
@@ -216,10 +218,20 @@ const onrampNgn: DeepSeekTool = {
         },
         cryptoToken: {
           type: "string",
-          description: "Crypto token to receive (e.g. 'USDC', 'XLM').",
+          description: "Crypto token to receive (e.g. 'USDC', 'USDT').",
+        },
+        asset: {
+          type: "string",
+          description:
+            "Switch asset string combining chain and token (e.g. 'base:usdc', 'solana:usdt', 'ethereum:usdc'). " +
+            "Ask the user which chain they want to receive on if not specified.",
+        },
+        walletAddress: {
+          type: "string",
+          description: "User's wallet address on the target chain to receive the crypto.",
         },
       },
-      required: ["fiatAmount", "cryptoToken"],
+      required: ["fiatAmount", "cryptoToken", "asset", "walletAddress"],
     },
   },
 };
@@ -229,8 +241,10 @@ const offrampNgn: DeepSeekTool = {
   function: {
     name: "offramp_ngn",
     description:
-      "Generate a withdrawal request to sell crypto for Nigerian Naira (NGN) to a bank account. " +
-      "Call this when the user wants to cash out, withdraw, or receive NGN from their crypto.",
+      "Initiate a withdrawal via Switch to sell crypto for Nigerian Naira (NGN) to a user's bank account. " +
+      "Call this when the user wants to cash out, withdraw, or receive NGN from their crypto. " +
+      "Switch supports non-Stellar chains only. " +
+      "Collect bankName (human-readable e.g. 'GTBank'), accountNumber, holderName, cryptoAmount, asset.",
     parameters: {
       type: "object",
       properties: {
@@ -240,27 +254,34 @@ const offrampNgn: DeepSeekTool = {
         },
         cryptoToken: {
           type: "string",
-          description: "Token to sell (e.g. 'USDC', 'XLM').",
+          description: "Token to sell (e.g. 'USDC', 'USDT').",
+        },
+        asset: {
+          type: "string",
+          description:
+            "Switch asset string (e.g. 'base:usdc', 'solana:usdt'). " +
+            "Ask user which chain they are sending from if not specified.",
         },
         bankName: {
           type: "string",
-          description: "User's bank name (e.g. 'Access Bank').",
+          description: "User's bank name in plain English (e.g. 'GTBank', 'Access Bank', 'Kuda'). The system resolves the bank code automatically.",
         },
         accountNumber: {
           type: "string",
-          description: "User's bank account number.",
+          description: "User's 10-digit bank account number.",
         },
-        accountName: {
+        holderName: {
           type: "string",
-          description: "User's bank account name.",
+          description: "Account holder's full name as registered with the bank.",
         },
       },
       required: [
         "cryptoAmount",
         "cryptoToken",
+        "asset",
         "bankName",
         "accountNumber",
-        "accountName",
+        "holderName",
       ],
     },
   },

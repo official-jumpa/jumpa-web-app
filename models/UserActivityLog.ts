@@ -11,7 +11,9 @@ export interface IUserActivityLog {
     | "PIN_VERIFIED"
     | "PIN_FAILED"
     | "PIN_LOCKED"
-    | "FAUCET_REQUESTED";
+    | "FAUCET_REQUESTED"
+    | "ONRAMP_INITIATED"
+    | "OFFRAMP_INITIATED";
   details?: Record<string, any>;
   ipAddress?: string;
   userAgent?: string;
@@ -32,6 +34,8 @@ const UserActivityLogSchema = new Schema<IUserActivityLog>(
         "PIN_FAILED",
         "PIN_LOCKED",
         "FAUCET_REQUESTED",
+        "ONRAMP_INITIATED",
+        "OFFRAMP_INITIATED",
       ],
       required: true,
     },

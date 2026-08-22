@@ -8,6 +8,10 @@
 
 import { getSwapQuote } from "@/lib/dex";
 import { fetchStellarBalances } from "@/lib/chains/stellar/account";
+import { SwitchService } from "@/lib/switch";
+import { resolveBankCode } from "@/lib/switch-banks";
+import { connectDB } from "@/lib/db";
+import { Transaction } from "@/models/Transaction";
 import type { SwapQuote } from "@/lib/dex/types";
 import {
   getNetworkFromToolName,
@@ -44,20 +48,31 @@ export interface ToolResult {
   requiresConfirmation: boolean;
 }
 
+function mapAssetToTxChain(asset: string): "stellar" | "solana" | "base" | "eth" | "btc" {
+  const c = (asset.split(":")[0] || "base").toLowerCase();
+  if (c === "solana") return "solana";
+  if (c === "stellar") return "stellar";
+  if (c === "ethereum" || c === "eth") return "eth";
+  if (c === "bitcoin" || c === "btc") return "btc";
+  return "base";
+}
+
 /**
  * Execute a tool call from the AI and return a ToolResult.
  * @param toolName  - The function name the AI called
  * @param toolArgs  - The parsed arguments object
- * @param userCtx   - Runtime context (user addresses, etc.)
+ * @param userCtx   - Runtime context (user addresses, authenticated userId, etc.)
  */
 export async function executeTool(
   toolName: string,
   toolArgs: Record<string, any>,
   userCtx: {
     stellarAddress: string;
+    userId?: string;
   },
 ): Promise<ToolResult> {
   const name = toolName as JumpaToolName;
+  const userId = userCtx.userId || "UNKNOWN";
 
   switch (name) {
     // ── Stellar Testnet Swap Quote 
@@ -205,17 +220,26 @@ export async function executeTool(
       const token = String(toolArgs.token || "XLM").toUpperCase();
       const chain = String(toolArgs.chain || "stellar").toLowerCase();
       const network = (toolArgs.network || "testnet") as "testnet" | "mainnet";
-      
+
       let recipient = String(toolArgs.recipient || "").trim();
       if (!recipient || recipient.toLowerCase().includes("my wallet") || recipient.toLowerCase().includes("myself")) {
         recipient = userCtx.stellarAddress;
       }
 
+      console.log(`[ToolExecutor] [User: ${userId}] send_funds draft:`, {
+        amount,
+        token,
+        recipient,
+        chain,
+        network,
+      });
+
       const cardData = {
+        title: "Transfer Funds",
         contact: {
           name: recipient.length > 20 ? `${recipient.slice(0, 8)}...${recipient.slice(-6)}` : recipient,
           handle: recipient.startsWith("G") ? `${recipient.slice(0, 6)}...${recipient.slice(-6)}` : recipient.startsWith("@") ? recipient : `@${recipient}`,
-          avatar: "/images/chat/contact-alice.webp",
+          avatar: "https://res.cloudinary.com/dyedbeksr/image/upload/v1763964534/Group_1000003624_nrunnu.png",
         },
         amount: { caption: "YOU'LL SEND", value: `${amount} ${token}` },
         prompt: "Confirm transfer details",
@@ -238,72 +262,248 @@ export async function executeTool(
       };
     }
 
-    // ── Onramp NGN ‼️ still mocked
+    // ── Onramp NGN — powered by Switch
     case "onramp_ngn": {
-      const { fiatAmount, cryptoToken } = toolArgs as {
+      const { fiatAmount, cryptoToken, asset, walletAddress } = toolArgs as {
         fiatAmount: string;
         cryptoToken: string;
+        asset: string;
+        walletAddress: string;
       };
 
-      const cardData = {
-        title: "Buy Crypto / Deposit",
+      console.log(`[ToolExecutor] [User: ${userId}] onramp_ngn →`, {
         fiatAmount,
-        fiatCurrency: "NGN",
-        cryptoAmount: "—",
         cryptoToken,
-        bankName: "Wema Bank / Moniepoint",
-        accountName: "Jumpa Settlement",
-        accountNumber: "8291038419",
-        reference: `REF-${Date.now().toString().slice(-6)}`,
-        status: "pending",
-      };
+        asset,
+        walletAddress,
+      });
+
+      let cardData;
+      let summaryForAI: string;
+
+      try {
+        const amount = Number(fiatAmount);
+        if (isNaN(amount) || amount <= 0) {
+          throw new Error("Invalid fiatAmount");
+        }
+
+        const result = await SwitchService.initiateOnRamp(amount, asset, walletAddress, false);
+        console.log(`[ToolExecutor] [User: ${userId}] onramp_ngn ← Switch result:`, result);
+
+        if (!result.success || !result.data) {
+          throw new Error(result.message || "Switch onramp failed");
+        }
+
+        const { deposit, reference, destination } = result.data;
+
+        // Record in ledger tied to authenticated user
+        try {
+          await connectDB();
+          await Transaction.create({
+            userId,
+            type: "ONRAMP",
+            status: "PENDING",
+            chain: mapAssetToTxChain(asset),
+            network: "mainnet",
+            fromAddress: "SWITCH_NGN_BANK",
+            toAddress: walletAddress,
+            amount: String(destination.amount),
+            token: cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC",
+            txHash: reference,
+            feePaid: "0",
+            rampDetails: {
+              provider: "switch",
+              fiatCurrency: "NGN",
+              fiatAmount: amount,
+              reference,
+            },
+            executedAt: new Date(),
+          });
+          console.log(`[ToolExecutor] [User: ${userId}] Transaction saved: ${reference}`);
+        } catch (dbErr: any) {
+          console.warn(`[ToolExecutor] [User: ${userId}] DB record notice:`, dbErr.message);
+        }
+
+        cardData = {
+          title: "Buy Crypto / Deposit",
+          fiatAmount,
+          fiatCurrency: "NGN",
+          cryptoAmount: String(destination.amount),
+          cryptoToken,
+          bankName: deposit.bank_name,
+          accountName: deposit.account_name,
+          accountNumber: deposit.account_number,
+          reference,
+          asset,
+          notes: deposit.note,
+          status: "pending",
+        };
+
+        summaryForAI =
+          `Onramp initiated via Switch. User should transfer ₦${fiatAmount} to ${deposit.bank_name} ` +
+          `account ${deposit.account_number} (${deposit.account_name}). ` +
+          `They will receive ${destination.amount} ${cryptoToken} on ${asset.split(":")[0]}. ` +
+          `Reference: ${reference}.`;
+      } catch (err: any) {
+        console.error(`[ToolExecutor] [User: ${userId}] onramp_ngn ✗ Error:`, err.message);
+        summaryForAI = `Failed to initiate onramp: ${err.message}`;
+        cardData = {
+          title: "Buy Crypto / Deposit",
+          fiatAmount,
+          fiatCurrency: "NGN",
+          cryptoAmount: "—",
+          cryptoToken,
+          bankName: "—",
+          accountName: "—",
+          accountNumber: "—",
+          reference: `ERR-${Date.now().toString().slice(-6)}`,
+          status: "error",
+        };
+      }
 
       return {
         toolName: name,
-        summaryForAI: `Onramp details generated: deposit ₦${fiatAmount} to receive ${cryptoToken}. Bank details shown to user.`,
+        summaryForAI,
         cardHint: { type: "onramp", data: cardData },
         transactionParams: {
           type: "onramp",
           fiatAmount,
           fiatCurrency: "NGN",
           cryptoToken,
+          asset,
         },
         requiresConfirmation: true,
       };
     }
 
-    // ── Offramp NGN  ‼️ still mocked
+    // ── Offramp NGN — powered by Switch
     case "offramp_ngn": {
-      const { cryptoAmount, cryptoToken, bankName, accountNumber, accountName } =
+      const { cryptoAmount, cryptoToken, asset, bankName, accountNumber, holderName } =
         toolArgs as {
           cryptoAmount: string;
           cryptoToken: string;
+          asset: string;
           bankName: string;
           accountNumber: string;
-          accountName: string;
+          holderName: string;
         };
 
-      const cardData = {
-        title: "Withdrawal",
+      console.log(`[ToolExecutor] [User: ${userId}] offramp_ngn →`, {
         cryptoAmount,
         cryptoToken,
-        fiatAmount: "—",
-        fiatCurrency: "NGN",
+        asset,
         bankName,
-        accountName,
         accountNumber,
-        status: "pending",
-      };
+        holderName,
+      });
+
+      let cardData;
+      let summaryForAI: string;
+
+      try {
+        const bankMatch = resolveBankCode(bankName);
+        if (!bankMatch) {
+          throw new Error(`Bank "${bankName}" not found. Please check bank name.`);
+        }
+
+        const amount = Number(cryptoAmount);
+        if (isNaN(amount) || amount <= 0) {
+          throw new Error("Invalid cryptoAmount");
+        }
+
+        const result = await SwitchService.initiateOfframp(
+          amount,
+          asset,
+          {
+            holder_name: holderName,
+            account_number: accountNumber,
+            bank_code: bankMatch.code,
+          },
+          false
+        );
+
+        console.log(`[ToolExecutor] [User: ${userId}] offramp_ngn ← Switch result:`, result);
+
+        if (!result.success || !result.data) {
+          throw new Error(result.message || "Switch offramp failed");
+        }
+
+        const { deposit, reference, destination } = result.data;
+
+        // Record in ledger tied to authenticated user
+        try {
+          await connectDB();
+          await Transaction.create({
+            userId,
+            type: "OFFRAMP",
+            status: "PENDING",
+            chain: mapAssetToTxChain(asset),
+            network: "mainnet",
+            fromAddress: "USER_WALLET",
+            toAddress: `${bankMatch.name} / ${accountNumber}`,
+            amount: String(deposit.amount),
+            token: cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC",
+            txHash: reference,
+            feePaid: "0",
+            rampDetails: {
+              provider: "switch",
+              fiatCurrency: "NGN",
+              fiatAmount: destination.amount,
+              reference,
+            },
+            executedAt: new Date(),
+          });
+          console.log(`[ToolExecutor] [User: ${userId}] Transaction saved: ${reference}`);
+        } catch (dbErr: any) {
+          console.warn(`[ToolExecutor] [User: ${userId}] DB record notice:`, dbErr.message);
+        }
+
+        cardData = {
+          title: "Withdrawal",
+          cryptoAmount,
+          cryptoToken,
+          fiatAmount: String(destination.amount),
+          fiatCurrency: "NGN",
+          bankName: bankMatch.name,
+          accountName: holderName,
+          accountNumber,
+          depositAddress: deposit.address,
+          asset,
+          reference,
+          status: "pending",
+        };
+
+        summaryForAI =
+          `Offramp initiated via Switch. User should send ${deposit.amount} ${asset.split(":")[1]?.toUpperCase()} ` +
+          `to address ${deposit.address}. ` +
+          `They will receive ₦${destination.amount} in their ${bankMatch.name} account (${accountNumber}). ` +
+          `Reference: ${reference}.`;
+      } catch (err: any) {
+        console.error(`[ToolExecutor] [User: ${userId}] offramp_ngn ✗ Error:`, err.message);
+        summaryForAI = `Failed to initiate offramp: ${err.message}`;
+        cardData = {
+          title: "Withdrawal",
+          cryptoAmount,
+          cryptoToken,
+          fiatAmount: "—",
+          fiatCurrency: "NGN",
+          bankName,
+          accountName: holderName,
+          accountNumber,
+          status: "error",
+        };
+      }
 
       return {
         toolName: name,
-        summaryForAI: `Offramp draft created: sell ${cryptoAmount} ${cryptoToken} → NGN to ${bankName} account ${accountNumber}. Withdrawal card shown.`,
+        summaryForAI,
         cardHint: { type: "offramp", data: cardData },
         transactionParams: {
           type: "offramp",
           cryptoAmount,
           cryptoToken,
           fiatCurrency: "NGN",
+          asset,
         },
         requiresConfirmation: true,
       };

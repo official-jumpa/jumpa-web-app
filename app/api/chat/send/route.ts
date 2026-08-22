@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
       testnetBalances,
     };
 
-    // ── Turn 1: Ask the AI what it wants to do ──────────────────────────────
+    // Turn 1: Ask the AI what it wants to do 
     console.log("[Chat Send] Calling DeepSeek AI (Turn 1)...");
     const aiResponse = await callDeepSeekAI({
       prompt: message.trim(),
@@ -146,11 +146,12 @@ export async function POST(req: NextRequest) {
 
       const toolResult = await executeTool(toolName, toolArgs, {
         stellarAddress,
+        userId: session.user.id,
       });
 
       console.log(`[Chat Send] Tool executed. requiresConfirmation: ${toolResult.requiresConfirmation}`);
 
-      // ── Turn 2: Feed the tool result back to the AI for a natural response
+      // Turn 2: Feed the tool result back to the AI for a natural response
       console.log("[Chat Send] Calling DeepSeek AI (Turn 2 — follow-up)...");
       const aiFollowUp = await getAIFollowUpAfterTool({
         prompt: message.trim(),

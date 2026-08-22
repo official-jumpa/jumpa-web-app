@@ -48,7 +48,12 @@ export type OnrampCard = {
   accountName: string;
   accountNumber: string;
   bankName: string;
+  /** Switch / other provider transaction reference */
   reference: string;
+  /** Switch / other provider asset string e.g. "base:usdc" */
+  asset?: string;
+  /** Notes from Switch / other provider (e.g. "Use exact amount") */
+  notes?: string[];
   status: string;
 };
 
@@ -61,6 +66,12 @@ export type OfframpCard = {
   bankName: string;
   accountNumber: string;
   accountName: string;
+  /** Switch / other provider deposit address — crypto wallet to send the asset to */
+  depositAddress?: string;
+  /** Switch / other provider asset string e.g. "base:usdc" */
+  asset?: string;
+  /** Switch / other provider transaction reference */
+  reference?: string;
   status: string;
 };
 

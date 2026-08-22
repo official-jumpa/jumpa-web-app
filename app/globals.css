@@ -130,6 +130,20 @@
     var(--color-jumpa-primary-600) 0%,
     var(--color-jumpa-primary-700) 100%
   );
+  /* Header of a settled-transaction receipt in the chat. */
+  --gradient-jumpa-receipt: linear-gradient(
+    135deg,
+    var(--color-jumpa-primary-700) 0%,
+    var(--color-jumpa-primary-600) 52%,
+    var(--color-jumpa-primary-500) 100%
+  );
+  /* Corner bloom on that header. White, not lime — lime over purple goes muddy
+     rose, and the check badge is where the accent belongs. */
+  --gradient-jumpa-receipt-glow: radial-gradient(
+    120% 108% at 100% 0%,
+    color-mix(in srgb, var(--color-jumpa-white) 26%, transparent) 0%,
+    transparent 64%
+  );
   /* Chat button at the centre of the bottom nav. */
   --gradient-jumpa-nav-chat: linear-gradient(
     180deg,

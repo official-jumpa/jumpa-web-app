@@ -18,7 +18,10 @@ export type ReceiptCard = {
   title: string;
   status: string;
   balance: CardRow;
-  stats: [Stat, Stat];
+  /** Open-ended: a settled transfer sends to/network/fee/hash, a swap only two. */
+  stats: Stat[];
+  explorerUrl?: string;
+  txHash?: string;
 };
 
 /** One asset the user can pay with; the selected one is outlined in the design. */

@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
         );
       } catch (err: any) {
         console.error(
-          "[WalletSetup] ❌ Recovery phrase deriveAddresses thrown:",
+          "[WalletSetup] ❌ Failed to derive addresses from phrase:",
           err,
         );
         return NextResponse.json(

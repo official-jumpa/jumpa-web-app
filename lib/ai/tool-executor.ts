@@ -148,12 +148,16 @@ export async function executeTool(
     case "stellar_testnet_balance":
     case "stellar_mainnet_balance": {
       const network = getNetworkFromToolName(name);
-      const { stellarAddress } = userCtx;
+      const providedAddress = String(toolArgs.address || "").trim();
+      const targetAddress =
+        providedAddress.startsWith("G") && providedAddress.length === 56
+          ? providedAddress
+          : userCtx.stellarAddress;
 
-      if (!stellarAddress || !stellarAddress.startsWith("G")) {
+      if (!targetAddress || !targetAddress.startsWith("G")) {
         return {
           toolName: name,
-          summaryForAI: "The user does not have a Stellar wallet connected.",
+          summaryForAI: "Invalid Stellar public key.",
           cardHint: { type: "none" },
           requiresConfirmation: false,
         };
@@ -161,12 +165,12 @@ export async function executeTool(
 
       let balances: { native: string; usdc: string; usdt: string };
       try {
-        const result = await fetchStellarBalances(stellarAddress);
+        const result = await fetchStellarBalances(targetAddress);
         balances = network === "testnet" ? result.testnet : result.mainnet;
       } catch {
         return {
           toolName: name,
-          summaryForAI: `Failed to fetch Stellar ${network} balance. The account may not be activated yet.`,
+          summaryForAI: `Failed to fetch Stellar ${network} balance for ${targetAddress}. The account may not be activated yet.`,
           cardHint: { type: "none" },
           requiresConfirmation: false,
         };
@@ -175,7 +179,7 @@ export async function executeTool(
       return {
         toolName: name,
         summaryForAI: [
-          `Stellar ${network} balances for ${stellarAddress}:`,
+          `Stellar ${network} balances for ${targetAddress}:`,
           `- XLM: ${balances.native} XLM`,
           `- USDC: ${balances.usdc} USDC`,
         ].join("\n"),

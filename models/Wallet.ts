@@ -26,6 +26,9 @@ export interface IWallet {
   pinHash: string;
   pinAttempts: number;
   pinLockedUntil: Date | null;
+  setupMethod?: "CREATED_SEED" | "IMPORTED_SEED" | "IMPORTED_PRIVATE_KEY";
+  importedChain?: string | null;
+  lastUsedAt?: Date | null;
   createdAt: Date;
 }
 
@@ -55,6 +58,13 @@ const WalletSchema = new Schema<IWallet>(
     pinHash: { type: String, required: true },
     pinAttempts: { type: Number, default: 0 },
     pinLockedUntil: { type: Date, default: null },
+    setupMethod: {
+      type: String,
+      enum: ["CREATED_SEED", "IMPORTED_SEED", "IMPORTED_PRIVATE_KEY"],
+      default: "CREATED_SEED",
+    },
+    importedChain: { type: String, default: null },
+    lastUsedAt: { type: Date, default: null },
   },
   { timestamps: true, _id: false },
 );

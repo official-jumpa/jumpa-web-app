@@ -6,6 +6,9 @@ export interface IUser {
   email: string;
   emailVerified: boolean;
   image: string | null;
+  lastLoginAt?: Date | null;
+  loginMethod?: "google" | "email" | "anonymous";
+  activeWalletId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,6 +20,9 @@ const UserSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true, lowercase: true },
     emailVerified: { type: Boolean, required: true, default: false },
     image: { type: String, default: null },
+    lastLoginAt: { type: Date, default: null },
+    loginMethod: { type: String, enum: ["google", "email", "anonymous"], default: "email" },
+    activeWalletId: { type: String, default: null },
   },
   {
     timestamps: true,

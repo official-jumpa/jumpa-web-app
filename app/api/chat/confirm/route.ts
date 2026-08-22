@@ -5,6 +5,8 @@ import { connectDB } from "@/lib/db";
 import { generateId } from "@/lib/schema-ids";
 import { ChatLog, type IChatMessage } from "@/models/ChatLog";
 import { Wallet } from "@/models/Wallet";
+import { Transaction } from "@/models/Transaction";
+import { UserActivityLog } from "@/models/UserActivityLog";
 import { buildSwapTransaction } from "@/lib/dex";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { decryptMnemonic } from "@/lib/crypto";
@@ -70,8 +72,34 @@ export async function POST(req: NextRequest) {
       const pinValid = await bcrypt.compare(pin, wallet.pinHash);
       if (!pinValid) {
         console.warn("[Chat Confirm] Incorrect PIN for user:", userId);
+        
+        // Track PIN attempt failure
+        const attempts = (wallet.pinAttempts || 0) + 1;
+        const isLocked = attempts >= 5;
+        const pinLockedUntil = isLocked ? new Date(Date.now() + 15 * 60 * 1000) : null;
+
+        await Wallet.updateOne({ _id: wallet._id }, { $set: { pinAttempts: attempts, pinLockedUntil } });
+
+        UserActivityLog.create({
+          userId,
+          action: isLocked ? "PIN_LOCKED" : "PIN_FAILED",
+          details: { attempts, walletId: wallet._id },
+        }).catch((e) => console.error("[Chat Confirm] ActivityLog error:", e));
+
         return NextResponse.json({ error: "Incorrect PIN" }, { status: 401 });
       }
+
+      // Reset attempts on successful PIN match
+      if (wallet.pinAttempts !== 0) {
+        await Wallet.updateOne({ _id: wallet._id }, { $set: { pinAttempts: 0, pinLockedUntil: null } });
+      }
+
+      UserActivityLog.create({
+        userId,
+        action: "PIN_VERIFIED",
+        details: { walletId: wallet._id, sessionId },
+      }).catch((e) => console.error("[Chat Confirm] ActivityLog error:", e));
+
       console.log("[Chat Confirm] PIN verified");
     } else {
       console.log("[Chat Confirm] No wallet PIN hash found on account, skipping hash check");
@@ -234,6 +262,35 @@ export async function POST(req: NextRequest) {
             explorerUrl = `https://stellar.expert/explorer/${network}/tx/${txHash}`;
             console.log("[Chat Confirm] SUCCESS! Hash:", txHash);
             console.log("[Chat Confirm] Explorer URL:", explorerUrl);
+
+            // Record transaction in ledger
+            Transaction.create({
+              userId,
+              walletId: wallet._id,
+              sessionId,
+              messageId: targetMsg?.id,
+              type: "SWAP",
+              status: "CONFIRMED",
+              chain: "stellar",
+              network,
+              fromAddress: userStellarAddr,
+              toAddress: userStellarAddr,
+              amount: payVal,
+              token: payBadge,
+              swapDetails: {
+                fromToken: payBadge,
+                toToken: receiveBadge,
+                fromAmount: payVal,
+                toAmount: receiveVal,
+                protocol: protocolName,
+              },
+              txHash,
+              explorerUrl,
+              feePaid: "0.00001 XLM",
+              executedAt: new Date(),
+            }).catch((e) => console.error("[Chat Confirm] Transaction log error:", e));
+
+            Wallet.updateOne({ _id: wallet._id }, { $set: { lastUsedAt: new Date() } }).catch(() => {});
           } catch (signErr: any) {
             const resultCodes =
               signErr?.response?.data?.extras?.result_codes ||
@@ -257,6 +314,23 @@ export async function POST(req: NextRequest) {
             } else if (typeof resultCodes === "string") {
               userErrorMsg = `Swap failed on-chain: ${resultCodes}`;
             }
+
+            Transaction.create({
+              userId,
+              walletId: wallet._id,
+              sessionId,
+              messageId: targetMsg?.id,
+              type: "SWAP",
+              status: "FAILED",
+              chain: "stellar",
+              network,
+              fromAddress: userStellarAddr,
+              toAddress: userStellarAddr,
+              amount: payVal,
+              token: payBadge,
+              errorMessage: userErrorMsg,
+              executedAt: new Date(),
+            }).catch((e) => console.error("[Chat Confirm] Transaction log error:", e));
 
             return NextResponse.json(
               { error: userErrorMsg, details: resultCodes },
@@ -380,6 +454,28 @@ export async function POST(req: NextRequest) {
         explorerUrl = `https://stellar.expert/explorer/${network}/tx/${txHash}`;
         console.log("[Chat Confirm] Payment SUCCESS! Tx Hash:", txHash);
         console.log("[Chat Confirm] Explorer URL:", explorerUrl);
+
+        // Record transaction in ledger
+        Transaction.create({
+          userId,
+          walletId: wallet._id,
+          sessionId,
+          messageId: targetMsg?.id,
+          type: "TRANSFER",
+          status: "CONFIRMED",
+          chain: "stellar",
+          network,
+          fromAddress: userStellarAddr || sourceKeypair.publicKey(),
+          toAddress: destAddress,
+          amount,
+          token,
+          txHash,
+          explorerUrl,
+          feePaid: "0.00001 XLM",
+          executedAt: new Date(),
+        }).catch((e) => console.error("[Chat Confirm] Transaction log error:", e));
+
+        Wallet.updateOne({ _id: wallet._id }, { $set: { lastUsedAt: new Date() } }).catch(() => {});
       } catch (payErr: any) {
         const resultCodes =
           payErr?.response?.data?.extras?.result_codes ||
@@ -397,6 +493,23 @@ export async function POST(req: NextRequest) {
         } else if (typeof resultCodes === "string") {
           userErrorMsg = `Payment failed: ${resultCodes}`;
         }
+
+        Transaction.create({
+          userId,
+          walletId: wallet._id,
+          sessionId,
+          messageId: targetMsg?.id,
+          type: "TRANSFER",
+          status: "FAILED",
+          chain: "stellar",
+          network,
+          fromAddress: userStellarAddr || wallet?.address || "",
+          toAddress: destAddress,
+          amount,
+          token,
+          errorMessage: userErrorMsg,
+          executedAt: new Date(),
+        }).catch((e) => console.error("[Chat Confirm] Transaction log error:", e));
 
         return NextResponse.json(
           { error: userErrorMsg, details: resultCodes },

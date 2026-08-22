@@ -74,11 +74,16 @@ const stellarTestnetBalance: DeepSeekTool = {
   function: {
     name: "stellar_testnet_balance",
     description:
-      "Fetch the user's live token balances on the Stellar TESTNET network (XLM, USDC). " +
-      "Call this when the user asks about their testnet balance or funds available for testing.",
+      "Fetch live token balances on the Stellar TESTNET network (XLM, USDC). " +
+      "Provide an address if querying a specific public key (G...), or leave empty for the user's own address.",
     parameters: {
       type: "object",
-      properties: {},
+      properties: {
+        address: {
+          type: "string",
+          description: "Optional Stellar public key address (G...) to query balance for.",
+        },
+      },
       required: [],
     },
   },
@@ -124,11 +129,16 @@ const stellarMainnetBalance: DeepSeekTool = {
   function: {
     name: "stellar_mainnet_balance",
     description:
-      "Fetch the user's live token balances on the Stellar MAINNET network. " +
-      "Call this when the user asks about their mainnet Stellar balance.",
+      "Fetch live token balances on the Stellar MAINNET network (XLM, USDC). " +
+      "Provide an address if querying a specific public key (G...), or leave empty for the user's own address.",
     parameters: {
       type: "object",
-      properties: {},
+      properties: {
+        address: {
+          type: "string",
+          description: "Optional Stellar public key address (G...) to query balance for.",
+        },
+      },
       required: [],
     },
   },

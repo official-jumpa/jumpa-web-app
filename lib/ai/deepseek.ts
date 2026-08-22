@@ -115,10 +115,10 @@ export async function callDeepSeekAI(
     messages.push({ role: "user", content: prompt });
   }
 
-  // Detect if user prompt requests a financial action (send, transfer, swap, deposit, withdraw)
+  // Detect if user prompt requests an action or lookup (send, transfer, swap, balance, check, etc.)
   const isActionPrompt =
     !toolResultMessage &&
-    /\b(send|transfer|pay|swap|convert|trade|exchange|buy|deposit|withdraw|onramp|offramp)\b/i.test(
+    /\b(send|transfer|pay|swap|convert|trade|exchange|buy|deposit|withdraw|onramp|offramp|check|balance|portfolio|show|get|fetch|lookup|history)\b/i.test(
       prompt,
     );
 

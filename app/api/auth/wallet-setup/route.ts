@@ -13,6 +13,7 @@ import {
 } from "@/lib/derive-addresses";
 import { environment } from "@/lib/environment";
 import { Wallet } from "@/models/Wallet";
+import { UserActivityLog } from "@/models/UserActivityLog";
 
 const WALLET_PIN_REGEX = /^\d{6}$/;
 
@@ -198,6 +199,13 @@ export async function POST(req: NextRequest) {
     );
     const pinHash = await bcrypt.hash(pin, 10);
 
+    const setupMethod =
+      action === "import"
+        ? providedPhrase
+          ? "IMPORTED_SEED"
+          : "IMPORTED_PRIVATE_KEY"
+        : "CREATED_SEED";
+
     const wallet = await Wallet.create({
       userId: session.user.id,
       name: walletName,
@@ -208,9 +216,24 @@ export async function POST(req: NextRequest) {
       iv,
       salt,
       pinHash,
+      setupMethod,
+      importedChain: chain || null,
+      lastUsedAt: new Date(),
     });
 
-    console.log(`[WalletSetup] Wallet created for user "${session.user.id}": ${wallet.address}`);
+    console.log(`[WalletSetup] Wallet created for user "${session.user.id}": ${wallet.address} (method: ${setupMethod})`);
+
+    // Log activity
+    UserActivityLog.create({
+      userId: session.user.id,
+      action: action === "import" ? "WALLET_IMPORTED" : "WALLET_CREATED",
+      details: {
+        walletId: wallet._id,
+        address: wallet.address,
+        setupMethod,
+        chain: chain || "multichain",
+      },
+    }).catch((e) => console.error("[WalletSetup] ActivityLog error:", e));
 
     const response = NextResponse.json(
       {

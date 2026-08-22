@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { Wallet } from "@/models/Wallet";
+import { User } from "@/models/User";
 
 /**
  * GET /api/auth/status
@@ -23,6 +24,12 @@ export async function GET(req: NextRequest) {
     }
 
     await connectDB();
+
+    // Asynchronously update lastLoginAt on User model
+    User.updateOne(
+      { _id: session.user.id },
+      { $set: { lastLoginAt: new Date() } },
+    ).catch((e) => console.error("[AuthStatus] Failed to update lastLoginAt:", e));
 
     const selectedCookie = req.cookies.get("selected_wallet_address")?.value;
     let selectedWallet = null;

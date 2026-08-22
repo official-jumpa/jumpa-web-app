@@ -148,6 +148,7 @@ export async function PUT(req: NextRequest) {
     httpOnly: true,
     secure: environment.IS_PRODUCTION,
     sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60, // 7 days
   });
 
   return response;

@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { Wallet } from "@/models/Wallet";
 import { User } from "@/models/User";
+import { environment } from "@/lib/environment";
 
 /**
  * GET /api/auth/status
@@ -56,7 +57,15 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    if (!selectedWallet && selectedCookie) {
+    if (selectedWallet) {
+      response.cookies.set("selected_wallet_address", selectedWallet.address, {
+        path: "/",
+        httpOnly: true,
+        secure: environment.IS_PRODUCTION,
+        sameSite: "lax",
+        maxAge: 7 * 24 * 60 * 60, // 7 days
+      });
+    } else if (selectedCookie) {
       response.cookies.delete("selected_wallet_address");
     }
 

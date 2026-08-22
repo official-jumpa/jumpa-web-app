@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
         pin: pin ? `len(${pin.length})` : "empty",
       });
       return NextResponse.json(
-        { error: "Valid 6-digit PIN required" },
+        { error: "Valid PIN required" },
         { status: 400 },
       );
     }

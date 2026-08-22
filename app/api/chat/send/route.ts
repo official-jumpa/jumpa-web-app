@@ -5,7 +5,11 @@ import { connectDB } from "@/lib/db";
 import { generateId } from "@/lib/schema-ids";
 import { ChatLog, type IChatMessage } from "@/models/ChatLog";
 import { Wallet } from "@/models/Wallet";
-import { callDeepSeekAI, getAIFollowUpAfterTool } from "@/lib/ai/deepseek";
+import {
+  buildSystemPrompt,
+  runDeepSeekStep,
+  type ChatHistoryMessage,
+} from "@/lib/ai/deepseek";
 import {
   getCachedWalletBalances,
   type SupportedChain,
@@ -105,10 +109,12 @@ export async function POST(req: NextRequest) {
     };
 
     // Build conversation history for the AI (last 10 messages)
-    const history = (chatLog.messages || []).slice(-10).map((m: any) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content || "",
-    }));
+    const history: ChatHistoryMessage[] = (chatLog.messages || [])
+      .slice(-10)
+      .map((m: any) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content || "",
+      }));
 
     const aiContext = {
       walletAddress,
@@ -119,113 +125,160 @@ export async function POST(req: NextRequest) {
       testnetBalances,
     };
 
-    // Turn 1: Ask the AI what it wants to do 
-    console.log("[Chat Send] Calling DeepSeek AI (Turn 1)...");
-    const aiResponse = await callDeepSeekAI({
-      prompt: message.trim(),
-      history,
-      context: aiContext,
-    });
+    const messages: ChatHistoryMessage[] = [
+      {
+        role: "system",
+        content: buildSystemPrompt(aiContext),
+      },
+      ...history,
+      {
+        role: "user",
+        content: message.trim(),
+      },
+    ];
+
+    const isActionPrompt =
+      /\b(send|transfer|pay|swap|convert|trade|exchange|buy|deposit|withdraw|onramp|offramp|check|balance|portfolio|show|get|fetch|lookup|history)\b/i.test(
+        message.trim(),
+      );
+
+    const MAX_TURNS = 4;
+    let turn = 0;
+    let finalAssistantContent = "";
+    let primaryCardHint: any = { type: "none" };
+    let primaryTransactionParams: any = undefined;
+    let requiresConfirmation = false;
+    const lastToolSummaries: string[] = [];
+
+    // Iterative Multi-Tool Agent Loop
+    while (turn < MAX_TURNS) {
+      turn++;
+      const toolChoice =
+        turn === 1 && isActionPrompt
+          ? "required"
+          : turn === MAX_TURNS
+            ? "none"
+            : "auto";
+
+      console.log(
+        `[Chat Send] Calling DeepSeek AI (Turn ${turn}/${MAX_TURNS}, toolChoice: ${toolChoice})...`,
+      );
+
+      const stepResponse = await runDeepSeekStep({
+        messages,
+        toolChoice,
+      });
+
+      if (stepResponse.mode === "chat") {
+        console.log(
+          `[Chat Send] AI text response (Turn ${turn}): "${stepResponse.message.slice(0, 80)}..."`,
+        );
+        finalAssistantContent = stepResponse.message;
+        break;
+      }
+
+      // Execute all tool calls returned in this turn
+      const { toolCalls, rawAssistantMessage } = stepResponse;
+      messages.push(rawAssistantMessage);
+
+      for (const tc of toolCalls) {
+        console.log(
+          `[Chat Send] Executing tool [${tc.toolName}] with args:`,
+          tc.toolArgs,
+        );
+        const toolResult = await executeTool(tc.toolName, tc.toolArgs, {
+          stellarAddress,
+          userId: session.user.id,
+        });
+
+        console.log(
+          `[Chat Send] Tool [${tc.toolName}] executed. requiresConfirmation: ${toolResult.requiresConfirmation}`,
+        );
+
+        lastToolSummaries.push(toolResult.summaryForAI);
+
+        if (
+          toolResult.requiresConfirmation &&
+          toolResult.cardHint?.type &&
+          toolResult.cardHint.type !== "none"
+        ) {
+          requiresConfirmation = true;
+          primaryCardHint = toolResult.cardHint;
+          primaryTransactionParams = toolResult.transactionParams;
+        }
+
+        messages.push({
+          role: "tool",
+          tool_call_id: tc.toolCallId,
+          name: tc.toolName,
+          content: toolResult.summaryForAI,
+        });
+      }
+    }
+
+    if (!finalAssistantContent) {
+      finalAssistantContent =
+        lastToolSummaries.join("\n\n") || "I've processed your request.";
+    }
 
     let assistantMessage: IChatMessage;
 
-    if (aiResponse.mode === "chat") {
-      // Pure conversation — no tool call needed
-      console.log(`[Chat Send] AI chat response: "${aiResponse.message.slice(0, 60)}..."`);
+    if (primaryCardHint.type === "quote" && requiresConfirmation) {
       assistantMessage = {
         id: generateId("MSG"),
         role: "assistant",
-        content: aiResponse.message,
-        cardType: "text",
+        content: finalAssistantContent,
+        isTransaction: true,
+        cardType: "quote",
+        status: "pending",
+        transactionParams: primaryTransactionParams,
+        cardData: primaryCardHint.data,
+        timestamp: new Date(),
+      };
+    } else if (primaryCardHint.type === "transfer" && requiresConfirmation) {
+      assistantMessage = {
+        id: generateId("MSG"),
+        role: "assistant",
+        content: finalAssistantContent,
+        isTransaction: true,
+        cardType: "transfer",
+        status: "pending",
+        transactionParams: primaryTransactionParams,
+        cardData: primaryCardHint.data,
+        timestamp: new Date(),
+      };
+    } else if (primaryCardHint.type === "onramp") {
+      assistantMessage = {
+        id: generateId("MSG"),
+        role: "assistant",
+        content: finalAssistantContent,
+        isTransaction: true,
+        cardType: "onramp",
+        status: "pending",
+        transactionParams: primaryTransactionParams,
+        cardData: primaryCardHint.data,
+        timestamp: new Date(),
+      };
+    } else if (primaryCardHint.type === "offramp") {
+      assistantMessage = {
+        id: generateId("MSG"),
+        role: "assistant",
+        content: finalAssistantContent,
+        isTransaction: true,
+        cardType: "offramp",
+        status: "pending",
+        transactionParams: primaryTransactionParams,
+        cardData: primaryCardHint.data,
         timestamp: new Date(),
       };
     } else {
-      // ── Tool Call: Execute the tool 
-      const { toolCallId, toolName, toolArgs } = aiResponse;
-      console.log(`[Chat Send] AI tool call: ${toolName}`, toolArgs);
-
-      const toolResult = await executeTool(toolName, toolArgs, {
-        stellarAddress,
-        userId: session.user.id,
-      });
-
-      console.log(`[Chat Send] Tool executed. requiresConfirmation: ${toolResult.requiresConfirmation}`);
-
-      // Turn 2: Feed the tool result back to the AI for a natural response
-      console.log("[Chat Send] Calling DeepSeek AI (Turn 2 — follow-up)...");
-      const aiFollowUp = await getAIFollowUpAfterTool({
-        prompt: message.trim(),
-        history,
-        context: aiContext,
-        toolCallId,
-        toolName,
-        toolArgs,
-        toolResultSummary: toolResult.summaryForAI,
-      });
-
-      console.log(`[Chat Send] AI follow-up: "${aiFollowUp.slice(0, 80)}..."`);
-
-      // Build the assistant message based on card hint type
-      const cardHint = toolResult.cardHint;
-
-      if (cardHint.type === "quote" && toolResult.requiresConfirmation) {
-        assistantMessage = {
-          id: generateId("MSG"),
-          role: "assistant",
-          content: aiFollowUp,
-          isTransaction: true,
-          cardType: "quote",
-          status: "pending",
-          transactionParams: toolResult.transactionParams,
-          cardData: cardHint.data,
-          timestamp: new Date(),
-        };
-      } else if (cardHint.type === "transfer" && toolResult.requiresConfirmation) {
-        assistantMessage = {
-          id: generateId("MSG"),
-          role: "assistant",
-          content: aiFollowUp,
-          isTransaction: true,
-          cardType: "transfer",
-          status: "pending",
-          transactionParams: toolResult.transactionParams,
-          cardData: cardHint.data,
-          timestamp: new Date(),
-        };
-      } else if (cardHint.type === "onramp") {
-        assistantMessage = {
-          id: generateId("MSG"),
-          role: "assistant",
-          content: aiFollowUp,
-          isTransaction: true,
-          cardType: "onramp",
-          status: "pending",
-          transactionParams: toolResult.transactionParams,
-          cardData: cardHint.data,
-          timestamp: new Date(),
-        };
-      } else if (cardHint.type === "offramp") {
-        assistantMessage = {
-          id: generateId("MSG"),
-          role: "assistant",
-          content: aiFollowUp,
-          isTransaction: true,
-          cardType: "offramp",
-          status: "pending",
-          transactionParams: toolResult.transactionParams,
-          cardData: cardHint.data,
-          timestamp: new Date(),
-        };
-      } else {
-        // No card — pure AI message (e.g. balance check, error)
-        assistantMessage = {
-          id: generateId("MSG"),
-          role: "assistant",
-          content: aiFollowUp || toolResult.summaryForAI,
-          cardType: "text",
-          timestamp: new Date(),
-        };
-      }
+      assistantMessage = {
+        id: generateId("MSG"),
+        role: "assistant",
+        content: finalAssistantContent,
+        cardType: "text",
+        timestamp: new Date(),
+      };
     }
 
     // Ensure content is never empty

@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { CloseIcon } from "@/components/ui/icons/close";
-import { TriangleDownIcon } from "@/components/ui/icons/triangle-down";
+import { MessageCircleDotsIcon } from "@/components/ui/icons/message-circle-dots";
+import { PlusIcon } from "@/components/ui/icons/plus";
+import { TrashAltIcon } from "@/components/ui/icons/trash-alt";
 
 export interface SessionSummary {
   sessionId: string;
@@ -31,6 +34,17 @@ function formatRelativeTime(dateStr: string): string {
   }
 }
 
+const CONTROL =
+  "flex items-center justify-center rounded-pill bg-jumpa-white/70 text-jumpa-grey-600 " +
+  "ring-1 ring-jumpa-black/6 shadow-xs backdrop-blur-md tap " +
+  "hover:bg-jumpa-white active:scale-95";
+
+/** A faint wash behind the bar, faded out so it leaves no line across the transcript. */
+const HEADER_BLUR =
+  "before:pointer-events-none before:absolute before:inset-0 before:-z-10 " +
+  "before:backdrop-blur-[3px] " +
+  "before:[mask-image:linear-gradient(to_bottom,black_45%,transparent)]";
+
 interface ChatHeaderProps {
   onNew: () => void;
   sessions?: SessionSummary[];
@@ -39,7 +53,7 @@ interface ChatHeaderProps {
   onDeleteSession?: (sessionId: string) => void;
 }
 
-/** Close / Full-Width Compact Recent Chats dropdown with delete actions / new-thread controls. */
+/** Close, recent-chats panel and new-thread controls, on one 40px line. */
 export function ChatHeader({
   onNew,
   sessions = [],
@@ -47,30 +61,47 @@ export function ChatHeader({
   onSelectSession,
   onDeleteSession,
 }: ChatHeaderProps) {
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex items-center justify-between pt-[calc(env(safe-area-inset-top)+13px)] pr-4.5 pl-4">
+      {/* z-50 keeps the toggle and close reachable while the panel is up. */}
+      <header
+        className={`sticky top-0 z-50 flex items-center justify-between gap-3 px-4 pt-[calc(env(safe-area-inset-top)+13px)] pb-2 ${HEADER_BLUR}`}
+      >
         <Link
           href="/home"
           aria-label="Close chat"
-          className="flex size-9.5 items-center justify-center rounded-pill border border-jumpa-neutral-50 bg-jumpa-grey-300 text-jumpa-white tap hover:opacity-90 active:scale-95"
+          className={`${CONTROL} size-10`}
         >
-          <CloseIcon className="size-5" />
+          <CloseIcon className="size-4.5" />
         </Link>
 
         <button
           type="button"
-          onClick={() => setDropdownOpen((prev) => !prev)}
-          aria-expanded={dropdownOpen}
-          aria-label="View recent chats"
-          className="flex h-7 items-center gap-2 rounded-pill bg-jumpa-secondary-100 px-3 text-xs leading-5 font-medium text-jumpa-primary-950 transition-colors hover:bg-jumpa-secondary-200 cursor-pointer"
+          onClick={() => setOpen((prev) => !prev)}
+          aria-expanded={open}
+          aria-label="Recent chats"
+          className={`${CONTROL} h-10 gap-2 px-4 text-sm leading-4 font-medium text-jumpa-primary-950`}
         >
           Recent
-          <TriangleDownIcon
-            className={`size-3 text-jumpa-primary-600 transition-transform duration-200 ${
-              dropdownOpen ? "rotate-180" : ""
+          {sessions.length > 0 && (
+            <span className="flex h-5 min-w-5 items-center justify-center rounded-pill bg-jumpa-primary-100 px-1.5 text-xs leading-4 font-semibold text-jumpa-primary-600">
+              {sessions.length}
+            </span>
+          )}
+          <ChevronDownIcon
+            className={`size-4 text-jumpa-primary-600 transition-transform duration-300 ${
+              open ? "rotate-180" : ""
             }`}
           />
         </button>
@@ -79,99 +110,114 @@ export function ChatHeader({
           type="button"
           onClick={onNew}
           aria-label="New conversation"
-          className="flex size-9.5 items-center justify-center rounded-pill border border-jumpa-primary-600 bg-jumpa-primary-100 text-xs font-semibold text-jumpa-primary-600 transition-transform hover:scale-105 active:scale-95 cursor-pointer"
+          className="flex size-10 shrink-0 items-center justify-center rounded-pill bg-jumpa-primary-600 text-jumpa-white shadow-sm tap hover:bg-jumpa-primary-500 active:scale-95"
         >
-          +
+          <PlusIcon className="size-4.5" />
         </button>
       </header>
 
-      {/* Full-Width Compact Recent Sessions Popover */}
-      {dropdownOpen && (
+      {open && (
         <>
-          {/* Subtle click-outside backdrop */}
-          <div
-            className="fixed inset-0 z-40 bg-jumpa-black/20 backdrop-blur-2xs"
-            onClick={() => setDropdownOpen(false)}
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 z-40 mx-auto max-w-app animate-fade cursor-default bg-jumpa-black/60 backdrop-blur-md"
           />
 
-          <div className="fixed top-[calc(env(safe-area-inset-top)+54px)] inset-x-3.5 mx-auto max-w-[400px] z-50 max-h-64 overflow-y-auto rounded-2xl border border-jumpa-neutral-100 bg-jumpa-white p-2.5 shadow-2xl animate-drop-in">
-            <div className="px-2 pb-1.5 border-b border-jumpa-neutral-100 flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-jumpa-grey-600">
-                Recent Chats ({sessions.length})
-              </span>
+          <div className="fixed inset-x-3 top-[calc(env(safe-area-inset-top)+66px)] z-45 mx-auto max-w-app animate-drop-in overflow-hidden rounded-3xl bg-jumpa-white/95 shadow-2xl ring-1 ring-jumpa-black/6 backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-3 px-5 pt-4.5 pb-3">
+              <h2 className="text-base leading-5 font-semibold text-jumpa-black">
+                Recent chats
+              </h2>
               <button
                 type="button"
                 onClick={() => {
-                  setDropdownOpen(false);
+                  setOpen(false);
                   onNew();
                 }}
-                className="text-[11px] font-semibold text-jumpa-primary-600 hover:text-jumpa-primary-700 cursor-pointer"
+                className="flex h-8 items-center gap-1.5 rounded-pill bg-jumpa-primary-50 px-3 text-xs leading-4 font-semibold text-jumpa-primary-600 tap hover:bg-jumpa-primary-100 active:scale-95"
               >
-                + New Chat
+                <PlusIcon className="size-3.5" />
+                New chat
               </button>
             </div>
 
-            <div className="flex flex-col gap-0.5 pt-1.5">
-              {sessions.length === 0 ? (
-                <div className="py-4 text-center text-xs text-jumpa-grey-600">
-                  No chat history yet.
-                </div>
-              ) : (
-                sessions.slice(0, 10).map((s) => {
-                  const isActive = s.sessionId === activeSessionId;
+            {sessions.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 px-5 pt-2 pb-9 text-center">
+                <span className="flex size-12 items-center justify-center rounded-pill bg-jumpa-neutral-95 text-jumpa-neutral-350">
+                  <MessageCircleDotsIcon className="size-6" />
+                </span>
+                <p className="text-sm leading-4.5 font-medium text-jumpa-black">
+                  No chats yet
+                </p>
+                <p className="text-xs leading-4 text-jumpa-neutral-350">
+                  Ask Jumpa to send, swap or save something.
+                </p>
+              </div>
+            ) : (
+              <div className="max-h-[min(58dvh,420px)] overflow-y-auto px-2.5 pb-3 [scrollbar-width:none]">
+                {sessions.slice(0, 10).map((session, index) => {
+                  const isActive = session.sessionId === activeSessionId;
                   return (
                     <div
-                      key={s.sessionId}
-                      className={`group flex items-center justify-between w-full rounded-xl px-3 py-1.75 text-left transition-colors ${
+                      key={session.sessionId}
+                      style={{ "--i": index } as React.CSSProperties}
+                      className={`flex animate-rise stagger items-center gap-1 rounded-xl pr-1.5 pl-3 tap ${
                         isActive
-                          ? "bg-jumpa-primary-50 text-jumpa-primary-950 font-medium"
-                          : "text-jumpa-black hover:bg-jumpa-neutral-95"
+                          ? "bg-jumpa-primary-50"
+                          : "hover:bg-jumpa-neutral-95"
                       }`}
                     >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDropdownOpen(false);
-                          onSelectSession?.(s.sessionId);
-                        }}
-                        className="flex items-center justify-between flex-1 min-w-0 pr-2 cursor-pointer text-left"
-                      >
-                        <span className="truncate text-xs leading-4 flex-1 font-medium">
-                          {s.title}
-                        </span>
-                        <span className="text-[10px] text-jumpa-grey-600 shrink-0 ml-2">
-                          {formatRelativeTime(s.updatedAt)}
-                        </span>
-                      </button>
+                      {/* Holds its space when inactive so the row never shifts. */}
+                      <span
+                        aria-hidden="true"
+                        className={`h-6 w-0.5 shrink-0 rounded-pill ${
+                          isActive ? "bg-jumpa-primary-600" : "bg-transparent"
+                        }`}
+                      />
 
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteSession?.(s.sessionId);
+                        onClick={() => {
+                          setOpen(false);
+                          onSelectSession?.(session.sessionId);
                         }}
-                        aria-label="Delete chat"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-jumpa-grey-500 hover:text-jumpa-danger rounded-md hover:bg-jumpa-neutral-200 cursor-pointer"
+                        className="flex min-w-0 flex-1 flex-col items-start gap-0.5 py-2.5 pl-2.5 text-left"
                       >
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
+                        <span
+                          className={`w-full truncate text-sm leading-4.5 ${
+                            isActive
+                              ? "font-semibold text-jumpa-primary-950"
+                              : "font-medium text-jumpa-black"
+                          }`}
                         >
-                          <polyline points="3 6 5 6 21 6" />
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        </svg>
+                          {session.title}
+                        </span>
+                        <span className="text-xs leading-4 text-jumpa-neutral-350">
+                          {formatRelativeTime(session.updatedAt)} ·{" "}
+                          {session.messageCount}{" "}
+                          {session.messageCount === 1 ? "message" : "messages"}
+                        </span>
+                      </button>
+
+                      {/* Always visible — hover-only is unreachable on touch. */}
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onDeleteSession?.(session.sessionId);
+                        }}
+                        aria-label={`Delete chat: ${session.title}`}
+                        className="flex size-9 shrink-0 items-center justify-center rounded-pill text-jumpa-neutral-350 tap hover:bg-jumpa-danger/10 hover:text-jumpa-danger active:scale-90"
+                      >
+                        <TrashAltIcon className="size-4" />
                       </button>
                     </div>
                   );
-                })
-              )}
-            </div>
+                })}
+              </div>
+            )}
           </div>
         </>
       )}

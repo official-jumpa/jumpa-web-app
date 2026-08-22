@@ -14,6 +14,12 @@ import { BalanceSheet } from "./balance-sheet";
 /** Stands in for the digits while the balance is hidden. */
 const MASK = "*".repeat(9);
 
+/**
+ * The details pill is on hold: whether the sheet breaks the total down by asset
+ * or by product is still open. Flip this to bring it back.
+ */
+const DETAILS_ENABLED = false;
+
 const TRANSFERS = [
   { label: "Send", href: "/send", Icon: ArrowUpRightIcon },
   { label: "Receive", href: "/receive", Icon: ArrowDownRightIcon },
@@ -22,7 +28,7 @@ const TRANSFERS = [
 
 /**
  * Total balance and the transfer shortcuts. The eye reveals the amount; the pill
- * opens the breakdown of where that total sits.
+ * would open the breakdown of where that total sits, but is disabled for now.
  */
 export function BalancePanel({
   balance,
@@ -41,9 +47,10 @@ export function BalancePanel({
         <button
           type="button"
           onClick={() => setDetailsOpen(true)}
+          disabled={!DETAILS_ENABLED}
           aria-haspopup="dialog"
           aria-expanded={detailsOpen}
-          className="flex items-center rounded-pill bg-jumpa-primary-950 px-4.5 py-2 text-xs leading-2.5 font-medium text-jumpa-white"
+          className="flex items-center rounded-pill bg-jumpa-primary-950 px-4.5 py-2 text-xs leading-2.5 font-medium text-jumpa-white disabled:cursor-not-allowed"
         >
           Balance Details
           <ChevronDownIcon className="size-4" />

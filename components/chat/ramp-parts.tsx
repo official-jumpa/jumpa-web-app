@@ -31,7 +31,7 @@ export function RampShell({
   children: ReactNode;
 }) {
   return (
-    <div className="w-full overflow-hidden rounded-surface border border-jumpa-neutral-100 bg-jumpa-white shadow-xs">
+    <div className="w-full overflow-hidden rounded-xl border border-jumpa-neutral-100 bg-jumpa-white shadow-xs">
       <div className="flex items-center justify-between gap-3 px-3.5 pt-3.5 pb-3">
         <h3 className="min-w-0 truncate text-[13px] leading-5 font-semibold text-jumpa-black">
           {title}
@@ -108,7 +108,7 @@ export function ConversionBlock({
   to: { caption: string; value: string; badge: string };
 }) {
   return (
-    <div className="rounded-surface border border-jumpa-warm-200 bg-jumpa-warm-50 p-3">
+    <div className="rounded-xl border border-jumpa-warm-200 bg-jumpa-warm-50 p-3">
       <AmountLine {...from} />
       <div className="my-2 flex items-center">
         <span aria-hidden="true" className="rule-dashed h-px flex-1" />
@@ -143,7 +143,7 @@ export function StepLabel({
 
 export function DetailBox({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-2 rounded-surface border border-jumpa-neutral-100 bg-jumpa-neutral-50 p-3">
+    <div className="flex flex-col gap-2 rounded-xl border border-jumpa-neutral-100 bg-jumpa-neutral-50 p-3">
       {children}
     </div>
   );
@@ -232,7 +232,7 @@ export function CopyPill({ value }: { value: string }) {
 /** Provider notes — warm rather than alarming, they are instructions not errors. */
 export function RampNotes({ notes }: { notes: string[] }) {
   return (
-    <div className="flex flex-col gap-1.5 rounded-surface border border-jumpa-warm-200 bg-jumpa-warm-100 px-3 py-2.5">
+    <div className="flex flex-col gap-1.5 rounded-xl border border-jumpa-warm-200 bg-jumpa-warm-100 px-3 py-2.5">
       {notes.map((note) => (
         <p
           key={note}
@@ -256,7 +256,7 @@ export function RampNotice({
   return (
     <p
       className={cn(
-        "rounded-surface px-3 py-2 text-center text-[11px] leading-4 font-medium",
+        "rounded-xl px-3 py-2 text-center text-[11px] leading-4 font-medium",
         tone === "error"
           ? "bg-jumpa-danger-50 text-jumpa-danger"
           : "bg-jumpa-warm-100 text-jumpa-warm-700",

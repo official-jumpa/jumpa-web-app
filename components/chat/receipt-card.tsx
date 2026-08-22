@@ -27,7 +27,7 @@ export function ReceiptCard({ card }: { card: Receipt }) {
   );
 
   return (
-    <div className="w-full overflow-hidden rounded-surface bg-jumpa-white shadow-xs">
+    <div className="w-full overflow-hidden rounded-xl bg-jumpa-white shadow-xs">
       <div className="relative bg-[image:var(--gradient-jumpa-receipt)] px-3.5 pt-3.5 pb-4">
         <span
           aria-hidden="true"

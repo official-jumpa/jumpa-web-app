@@ -32,7 +32,7 @@ export function TransferCard({
   const handle = contact.handle !== contact.name ? contact.handle : null;
 
   return (
-    <div className="w-full overflow-hidden rounded-surface border border-jumpa-warm-200 bg-jumpa-warm-50 shadow-xs">
+    <div className="w-full overflow-hidden rounded-xl border border-jumpa-warm-200 bg-jumpa-warm-50 shadow-xs">
       <div className="flex flex-col gap-3 p-3.5">
         <div className="flex items-center gap-2">
           <span className="flex size-6.5 shrink-0 items-center justify-center rounded-pill bg-jumpa-warm-100 text-jumpa-primary-600">
@@ -65,7 +65,7 @@ export function TransferCard({
           ) : null}
         </div>
 
-        <div className="rounded-surface bg-jumpa-white px-3 py-2.5 shadow-2xs">
+        <div className="rounded-xl bg-jumpa-white px-3 py-2.5 shadow-2xs">
           <span className="block text-[10px] leading-3.5 font-medium tracking-wide text-jumpa-neutral-350 uppercase">
             To
           </span>
@@ -115,7 +115,7 @@ function AssetRow({
       onClick={onSelect}
       aria-pressed={isSelected}
       className={cn(
-        "flex h-12 w-full cursor-pointer items-center gap-2.5 rounded-surface border px-2.5 text-left transition-colors",
+        "flex h-12 w-full cursor-pointer items-center gap-2.5 rounded-xl border px-2.5 text-left transition-colors",
         isSelected
           ? "border-jumpa-primary-600 bg-jumpa-primary-50"
           : "border-jumpa-warm-200 bg-jumpa-white hover:bg-jumpa-warm-100",
@@ -153,7 +153,7 @@ export function TransferCard({ card, onSelectOption }) {
   return (
     <ChatCard>
       <div className="flex w-full items-center gap-2">
-        <span className="size-11.5 shrink-0 overflow-hidden rounded-surface bg-jumpa-white shadow-2xs">
+        <span className="size-11.5 shrink-0 overflow-hidden rounded-xl bg-jumpa-white shadow-2xs">
           <Image src={contact.avatar} alt="" width={46} height={46} />
         </span>
         <span className="flex min-w-0 flex-1 flex-col whitespace-nowrap">

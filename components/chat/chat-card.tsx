@@ -16,7 +16,7 @@ export function ChatCard({
   return (
     <div
       className={cn(
-        "flex w-full flex-col gap-2.5 rounded-surface px-3.5 pt-4.5 pb-3.5 shadow-xs",
+        "flex w-full flex-col gap-2.5 rounded-xl px-3.5 pt-4.5 pb-3.5 shadow-xs",
         className ?? "bg-jumpa-neutral-95",
       )}
     >
@@ -95,7 +95,7 @@ export function CardAmount({
   const logo = row.badge && !isNaira ? getAssetLogo(row.badge) : null;
 
   return (
-    <div className="flex h-16 w-full items-center gap-2.5 rounded-surface bg-jumpa-white p-3">
+    <div className="flex h-16 w-full items-center gap-2.5 rounded-xl bg-jumpa-white p-3">
       <span className="flex min-w-0 flex-1 flex-col gap-0.5 px-2">
         <span className="text-[10px] leading-3 font-bold uppercase tracking-wider text-jumpa-black/50">
           {row.caption}

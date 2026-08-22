@@ -43,7 +43,7 @@ export function MessageBubble({
     <div
       className={cn(
         "bg-jumpa-neutral-95 text-[15px] leading-5.5 text-jumpa-black break-words [overflow-wrap:anywhere] max-w-full overflow-hidden",
-        // Both variants share `rounded-card`: a 44px-tall pill reads as a 22px
+        // Both variants share `rounded-xl`: a 44px-tall pill reads as a 22px
         // corner, so leaving short replies capsule-shaped would mismatch.
         isMultiLineOrLong
           ? // The group in transcript.tsx sets the column width per role.

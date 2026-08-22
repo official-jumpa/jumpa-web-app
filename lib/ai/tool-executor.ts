@@ -344,36 +344,29 @@ export async function executeTool(
           `account ${deposit.account_number} (${deposit.account_name}). ` +
           `They will receive ${destination.amount} ${cryptoToken} on ${asset.split(":")[0]}. ` +
           `Reference: ${reference}.`;
+
+        return {
+          toolName: name,
+          summaryForAI,
+          cardHint: { type: "onramp", data: cardData },
+          transactionParams: {
+            type: "onramp",
+            fiatAmount,
+            fiatCurrency: "NGN",
+            cryptoToken,
+            asset,
+          },
+          requiresConfirmation: true,
+        };
       } catch (err: any) {
         console.error(`[ToolExecutor] [User: ${userId}] onramp_ngn ✗ Error:`, err.message);
-        summaryForAI = `Failed to initiate onramp: ${err.message}`;
-        cardData = {
-          title: "Buy Crypto / Deposit",
-          fiatAmount,
-          fiatCurrency: "NGN",
-          cryptoAmount: "—",
-          cryptoToken,
-          bankName: "—",
-          accountName: "—",
-          accountNumber: "—",
-          reference: `ERR-${Date.now().toString().slice(-6)}`,
-          status: "error",
+        return {
+          toolName: name,
+          summaryForAI: `Failed to initiate onramp: ${err.message}`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
         };
       }
-
-      return {
-        toolName: name,
-        summaryForAI,
-        cardHint: { type: "onramp", data: cardData },
-        transactionParams: {
-          type: "onramp",
-          fiatAmount,
-          fiatCurrency: "NGN",
-          cryptoToken,
-          asset,
-        },
-        requiresConfirmation: true,
-      };
     }
 
     // ── Offramp NGN — powered by Switch
@@ -396,9 +389,6 @@ export async function executeTool(
         accountNumber,
         holderName,
       });
-
-      let cardData;
-      let summaryForAI: string;
 
       try {
         const bankMatch = resolveBankCode(bankName);
@@ -458,7 +448,7 @@ export async function executeTool(
           console.warn(`[ToolExecutor] [User: ${userId}] DB record notice:`, dbErr.message);
         }
 
-        cardData = {
+        const cardData = {
           title: "Withdrawal",
           cryptoAmount,
           cryptoToken,
@@ -473,40 +463,36 @@ export async function executeTool(
           status: "pending",
         };
 
-        summaryForAI =
+        const summaryForAI =
           `Offramp initiated via Switch. User should send ${deposit.amount} ${asset.split(":")[1]?.toUpperCase()} ` +
           `to address ${deposit.address}. ` +
           `They will receive ₦${destination.amount} in their ${bankMatch.name} account (${accountNumber}). ` +
           `Reference: ${reference}.`;
+
+        return {
+          toolName: name,
+          summaryForAI,
+          cardHint: { type: "offramp", data: cardData },
+          transactionParams: {
+            type: "offramp",
+            cryptoAmount,
+            cryptoToken,
+            asset,
+            bankName: bankMatch.name,
+            accountNumber,
+            holderName,
+          },
+          requiresConfirmation: true,
+        };
       } catch (err: any) {
         console.error(`[ToolExecutor] [User: ${userId}] offramp_ngn ✗ Error:`, err.message);
-        summaryForAI = `Failed to initiate offramp: ${err.message}`;
-        cardData = {
-          title: "Withdrawal",
-          cryptoAmount,
-          cryptoToken,
-          fiatAmount: "—",
-          fiatCurrency: "NGN",
-          bankName,
-          accountName: holderName,
-          accountNumber,
-          status: "error",
+        return {
+          toolName: name,
+          summaryForAI: `Failed to initiate offramp: ${err.message}`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
         };
       }
-
-      return {
-        toolName: name,
-        summaryForAI,
-        cardHint: { type: "offramp", data: cardData },
-        transactionParams: {
-          type: "offramp",
-          cryptoAmount,
-          cryptoToken,
-          fiatCurrency: "NGN",
-          asset,
-        },
-        requiresConfirmation: true,
-      };
     }
 
     default:

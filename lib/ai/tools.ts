@@ -205,26 +205,28 @@ const onrampNgn: DeepSeekTool = {
   function: {
     name: "onramp_ngn",
     description:
-      "Generate real bank transfer details to deposit Nigerian Naira (NGN) and receive crypto via Switch. " +
-      "Call this when the user wants to add money via bank transfer, buy crypto with NGN, or deposit NGN. " +
-      "Switch supports non-Stellar chains only (base, solana, ethereum, polygon, bsc, arbitrum, etc.). " +
-      "If the user has a Stellar wallet, inform them that Stellar is not supported for NGN ramps yet.",
+      "Generate bank transfer details to deposit Nigerian Naira (NGN) and receive crypto via Switch. " +
+      "Supported Switch asset pairs: " +
+      "USDC: 'base:usdc', 'solana:usdc', 'polygon:usdc', 'arbitrum:usdc', 'optimism:usdc', 'avalanche:usdc', 'ethereum:usdc', 'bsc:usdc'. " +
+      "USDT: 'solana:usdt', 'tron:usdt', 'polygon:usdt', 'arbitrum:usdt', 'optimism:usdt', 'ethereum:usdt', 'bsc:usdt'. " +
+      "cNGN: 'base:cngn', 'bsc:cngn'. " +
+      "(USDT on Base and all assets on Stellar are NOT supported for NGN onramp). " +
+      "MANDATORY: Do NOT call this tool if fiatAmount or target network/chain has not been explicitly provided by the user — ask them in chat first.",
     parameters: {
       type: "object",
       properties: {
         fiatAmount: {
           type: "string",
-          description: "Amount of NGN to deposit (e.g. '50000').",
+          description: "Exact amount of NGN to deposit provided by user (e.g. '10000', '50000'). Never assume.",
         },
         cryptoToken: {
           type: "string",
-          description: "Crypto token to receive (e.g. 'USDC', 'USDT').",
+          description: "Crypto token to receive ('USDC', 'USDT', 'cNGN').",
         },
         asset: {
           type: "string",
           description:
-            "Switch asset string combining chain and token (e.g. 'base:usdc', 'solana:usdt', 'ethereum:usdc'). " +
-            "Ask the user which chain they want to receive on if not specified.",
+            "Switch asset identifier (e.g. 'base:usdc', 'solana:usdt', 'polygon:usdt', 'arbitrum:usdt', 'tron:usdt').",
         },
         walletAddress: {
           type: "string",
@@ -242,25 +244,25 @@ const offrampNgn: DeepSeekTool = {
     name: "offramp_ngn",
     description:
       "Initiate a withdrawal via Switch to sell crypto for Nigerian Naira (NGN) to a user's bank account. " +
-      "Call this when the user wants to cash out, withdraw, or receive NGN from their crypto. " +
-      "Switch supports non-Stellar chains only. " +
-      "Collect bankName (human-readable e.g. 'GTBank'), accountNumber, holderName, cryptoAmount, asset.",
+      "Supported Switch asset pairs: " +
+      "USDC: 'base:usdc', 'solana:usdc', 'polygon:usdc', 'arbitrum:usdc', 'ethereum:usdc', 'bsc:usdc'. " +
+      "USDT: 'solana:usdt', 'tron:usdt', 'polygon:usdt', 'arbitrum:usdt', 'ethereum:usdt', 'bsc:usdt'. " +
+      "MANDATORY: Do NOT call this tool if cryptoAmount, asset, or bank details are missing — ask the user in chat first.",
     parameters: {
       type: "object",
       properties: {
         cryptoAmount: {
           type: "string",
-          description: "Amount of crypto to sell (e.g. '50').",
+          description: "Amount of crypto to sell provided by user (e.g. '50'). Never assume.",
         },
         cryptoToken: {
           type: "string",
-          description: "Token to sell (e.g. 'USDC', 'USDT').",
+          description: "Token to sell ('USDC', 'USDT').",
         },
         asset: {
           type: "string",
           description:
-            "Switch asset string (e.g. 'base:usdc', 'solana:usdt'). " +
-            "Ask user which chain they are sending from if not specified.",
+            "Switch asset string (e.g. 'base:usdc', 'solana:usdt', 'polygon:usdt').",
         },
         bankName: {
           type: "string",

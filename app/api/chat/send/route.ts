@@ -137,10 +137,12 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    const isActionPrompt =
-      /\b(send|transfer|pay|swap|convert|trade|exchange|buy|deposit|withdraw|onramp|offramp|check|balance|portfolio|show|get|fetch|lookup|history)\b/i.test(
-        message.trim(),
-      );
+    const hasNumericalAmount = /\b\d+(\.\d+)?\b/.test(message);
+    const isLookupAction = /\b(balance|balances|portfolio|holdings|net worth|history)\b/i.test(message);
+    const isTransactionalAction = /\b(send|transfer|pay|swap|convert|trade|exchange|buy|deposit|withdraw|onramp|offramp)\b/i.test(message);
+
+    // Only force tool execution if it's a pure lookup OR a transaction with a specific amount
+    const isActionPrompt = isLookupAction || (isTransactionalAction && hasNumericalAmount);
 
     const MAX_TURNS = 4;
     let turn = 0;

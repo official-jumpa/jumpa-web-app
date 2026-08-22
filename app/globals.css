@@ -82,12 +82,14 @@
   --color-jumpa-success: #11a929; /* positive 24h change on an asset card */
   --color-jumpa-pin-rule: #193d26; /* slot underline in the chat PIN sheet */
 
-  /* Typography. Geist carries all UI copy; the two aliases below stand in for
-     unlicensed faces — Gotham Ultra and Neue Montreal. See README.md. */
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  /* Typography. Host Grotesk carries all UI copy; the two aliases below stand in
+     for unlicensed faces — Gotham Ultra and Neue Montreal. See README.md. */
+  --font-sans: var(--font-host-grotesk), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-numeric: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display:
+    var(--font-host-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-numeric:
+    var(--font-host-grotesk), ui-sans-serif, system-ui, sans-serif;
 
   /* Radius */
   --radius-pill: 100px; /* buttons, chat bubbles, pagination, inputs */

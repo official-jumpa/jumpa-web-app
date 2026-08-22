@@ -66,6 +66,25 @@ That single line yields `bg-jumpa-primary-600`, `text-jumpa-primary-600` and
 Some ramp steps are intentionally absent because they are not yet confirmed from the
 design file. **Do not invent intermediate values** — pull the real ones and add them.
 
+### Typography
+
+**Host Grotesk** carries all UI copy. It is loaded once in `app/layout.tsx` via
+`next/font/google` as a variable face (300–800), so every weight comes from one file —
+use `font-medium`, `font-semibold` and so on rather than adding another import.
+
+Four aliases point at it in `@theme`:
+
+| Token            | Utility          | Used for                                    |
+| ---------------- | ---------------- | ------------------------------------------- |
+| `--font-sans`    | `font-sans`      | Default; set on `body`                       |
+| `--font-display` | `font-display`   | Oversized amounts — the design asks for Gotham Ultra |
+| `--font-numeric` | `font-numeric`   | PIN digits and keypads — the design asks for Neue Montreal |
+| `--font-mono`    | `font-mono`      | Code blocks in chat markdown (Geist Mono)   |
+
+`display` and `numeric` are **placeholders**: Gotham Ultra and Neue Montreal are licensed
+faces we do not have. Repoint those two tokens if they are ever purchased; nothing else
+needs to change.
+
 ## Mobile-first
 
 The design baseline is a **393 × 852** frame, and layouts are centred with a `430px`

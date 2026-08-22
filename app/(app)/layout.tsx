@@ -1,8 +1,6 @@
-/** Signed-in column. Same `max-w-app` cap as the auth flow. */
+import { AppColumn } from "@/components/ui/app-column";
+
+/** Signed-in column. Same shell as the auth flow. */
 export default function AppLayout({ children }: LayoutProps<"/">) {
-  return (
-    <div className="mx-auto min-h-dvh w-full max-w-app bg-jumpa-white">
-      {children}
-    </div>
-  );
+  return <AppColumn>{children}</AppColumn>;
 }

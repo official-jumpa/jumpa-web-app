@@ -115,6 +115,81 @@
     4px 57px 17px rgb(0 0 0 / 0.05), 7px 101px 20px rgb(0 0 0 / 0.01);
 }
 
+/*
+ * Motion. One easing curve and a fixed set of named animations, so every screen
+ * settles the same way. All of them move `opacity`, `transform` or `filter` only
+ * — never a property that reflows, or the Figma geometry shifts while animating.
+ * `prefers-reduced-motion` switches the lot off in the base layer below.
+ */
+@theme static {
+  /* Nearly all of the travel happens up front, then a long soft settle — that
+     tail is what reads as smooth rather than quick. */
+  --ease-jumpa: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Screens and list items entering. */
+  --animate-rise: rise 620ms var(--ease-jumpa) both;
+  --animate-fade: fade 420ms var(--ease-jumpa) both;
+
+  /* Sheets: the panel travels, the scrim behind it just fades. */
+  --animate-sheet-up: sheet-up 520ms var(--ease-jumpa) both;
+  --animate-drop-in: drop-in 300ms var(--ease-jumpa) both;
+  --animate-pop-in: pop-in 300ms var(--ease-jumpa) both;
+
+  /* One word of a chat reply. Staggered by `.stagger-word`. */
+  --animate-word: word 460ms var(--ease-jumpa) both;
+  --animate-typing: typing 1.3s ease-in-out infinite;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes sheet-up {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+  }
+  @keyframes drop-in {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+  }
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: scale(0.94);
+    }
+  }
+  /* The blur is what makes a word arrive rather than blink on. */
+  @keyframes word {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+      filter: blur(4px);
+    }
+  }
+  @keyframes typing {
+    0%,
+    60%,
+    100% {
+      opacity: 0.25;
+      transform: translateY(0);
+    }
+    30% {
+      opacity: 1;
+      transform: translateY(-3px);
+    }
+  }
+}
+
 /* Recurring gradients. Tailwind has no utility for multi-stop brand gradients. */
 @theme static {
   --gradient-jumpa-chip: linear-gradient(
@@ -211,6 +286,30 @@
   body {
     overscroll-behavior-y: none;
   }
+
+  /* Tailwind v4's preflight leaves buttons on the browser default `cursor: default`.
+     Restore the pointer once here rather than per component; anything that wants
+     `disabled:cursor-not-allowed` still gets it, since disabled is excluded. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  label[for],
+  summary {
+    cursor: pointer;
+  }
+
+  /* One switch for every animation in the app. Anything added later is covered
+     automatically, so no component needs its own reduced-motion branch. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer utilities {
@@ -220,6 +319,28 @@
   }
   .pb-safe {
     padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Stagger: set `--i` to the item's index and the delay follows from it. */
+  .stagger {
+    animation-delay: calc(var(--i, 0) * 70ms);
+  }
+  /* Same, tightened to a word cadence. Each word's 460ms fade overlaps the next
+     by a wide margin, so the sentence reads as one sweep, not as ticking words. */
+  .stagger-word {
+    animation-delay: calc(var(--i, 0) * 26ms);
+  }
+
+  /* Press feedback. Use instead of `transition-colors` on anything that also
+     carries an `active:scale-*`, so the press eases in and out like the colour
+     does rather than snapping. */
+  .tap {
+    transition:
+      transform 220ms var(--ease-jumpa),
+      opacity 220ms var(--ease-jumpa),
+      color 220ms var(--ease-jumpa),
+      background-color 220ms var(--ease-jumpa),
+      border-color 220ms var(--ease-jumpa);
   }
 
   /* Chat card divider. Figma's 2-2 dash, which `border-dashed` can't do at 1px. */

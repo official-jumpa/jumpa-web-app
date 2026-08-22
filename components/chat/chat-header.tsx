@@ -55,7 +55,7 @@ export function ChatHeader({
         <Link
           href="/home"
           aria-label="Close chat"
-          className="flex size-9.5 items-center justify-center rounded-pill border border-jumpa-neutral-50 bg-jumpa-grey-300 text-jumpa-white transition-opacity hover:opacity-90 active:scale-95"
+          className="flex size-9.5 items-center justify-center rounded-pill border border-jumpa-neutral-50 bg-jumpa-grey-300 text-jumpa-white tap hover:opacity-90 active:scale-95"
         >
           <CloseIcon className="size-5" />
         </Link>
@@ -94,7 +94,7 @@ export function ChatHeader({
             onClick={() => setDropdownOpen(false)}
           />
 
-          <div className="fixed top-[calc(env(safe-area-inset-top)+54px)] inset-x-3.5 mx-auto max-w-[400px] z-50 max-h-64 overflow-y-auto rounded-2xl border border-jumpa-neutral-100 bg-jumpa-white p-2.5 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="fixed top-[calc(env(safe-area-inset-top)+54px)] inset-x-3.5 mx-auto max-w-[400px] z-50 max-h-64 overflow-y-auto rounded-2xl border border-jumpa-neutral-100 bg-jumpa-white p-2.5 shadow-2xl animate-drop-in">
             <div className="px-2 pb-1.5 border-b border-jumpa-neutral-100 flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-jumpa-grey-600">
                 Recent Chats ({sessions.length})

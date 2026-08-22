@@ -32,7 +32,7 @@ export type ButtonSize = keyof typeof SIZES;
 
 const BASE =
   "flex w-full items-center justify-center rounded-pill px-2.5 text-base leading-4 " +
-  "transition-[transform,opacity] duration-150 active:scale-[0.98] " +
+  "tap active:scale-[0.98] " +
   "disabled:pointer-events-none " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jumpa-alt-400";
 

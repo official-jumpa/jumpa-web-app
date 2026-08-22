@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { AssetList } from "@/components/home/asset-list";
 import { BalancePanel } from "@/components/home/balance-panel";
 import { BottomNav } from "@/components/home/bottom-nav";
@@ -11,14 +11,15 @@ import { PromotionList } from "@/components/home/promotion-list";
 import { QuickActions } from "@/components/home/quick-actions";
 import { TransactionHistory } from "@/components/home/transaction-history";
 import { WalletHeader } from "@/components/home/wallet-header";
+import { RiseIn } from "@/components/ui/rise-in";
+import { unifyTokens } from "@/lib/assets";
 import {
   ACCOUNT,
   ASSETS,
-  PROMOTIONS,
   type Asset,
+  PROMOTIONS,
   type Transaction,
 } from "@/lib/wallet";
-import { unifyTokens } from "@/lib/assets";
 
 export default function HomePage() {
   const router = useRouter();
@@ -86,18 +87,27 @@ export default function HomePage() {
         <BalancePanel balance={totalBalance} assets={assets} />
       </div>
 
+      {/* Sections land one after another, top to bottom. */}
       <div className="flex flex-col gap-4 px-4.5 pt-4 pb-27">
-        <AssetList assets={assets} />
-        {kycComplete ? (
-          <PromotionList promotions={PROMOTIONS} />
-        ) : (
-          <KycCard
-            completed={ACCOUNT.kyc.completed}
-            total={ACCOUNT.kyc.total}
-          />
-        )}
-        <QuickActions />
-        <TransactionHistory transactions={transactions} />
+        <RiseIn index={0}>
+          <AssetList assets={assets} />
+        </RiseIn>
+        <RiseIn index={1}>
+          {kycComplete ? (
+            <PromotionList promotions={PROMOTIONS} />
+          ) : (
+            <KycCard
+              completed={ACCOUNT.kyc.completed}
+              total={ACCOUNT.kyc.total}
+            />
+          )}
+        </RiseIn>
+        <RiseIn index={2}>
+          <QuickActions />
+        </RiseIn>
+        <RiseIn index={3}>
+          <TransactionHistory transactions={transactions} />
+        </RiseIn>
       </div>
 
       <BottomNav />

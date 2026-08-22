@@ -10,6 +10,7 @@ import { ChatTopFade } from "@/components/chat/chat-top-fade";
 import { PinSheet } from "@/components/chat/pin-sheet";
 import { SuggestionCard } from "@/components/chat/suggestion-card";
 import { Transcript } from "@/components/chat/transcript";
+import { TypingIndicator } from "@/components/chat/typing-indicator";
 import type { ChatEntry, ChatItem, QuoteCard as Quote } from "@/lib/chat";
 import type { IChatMessage } from "@/models/ChatLog";
 
@@ -17,7 +18,10 @@ import type { IChatMessage } from "@/models/ChatLog";
  * Transforms database chat messages into visually grouped ChatEntry objects
  * supporting text, quote cards, transfer cards, onramp, offramp, and receipt cards.
  */
-function messagesToChatEntries(messages: IChatMessage[]): ChatEntry[] {
+function messagesToChatEntries(
+  messages: IChatMessage[],
+  revealId?: string | null,
+): ChatEntry[] {
   const entries: ChatEntry[] = [];
   let currentGroup: {
     id: string;
@@ -40,6 +44,9 @@ function messagesToChatEntries(messages: IChatMessage[]): ChatEntry[] {
           msg.content.length > 50 ||
           msg.content.includes("\n") ||
           msg.content.includes("**"),
+        // Only the reply that just came back types itself in; loading a session
+        // must not replay every message in it.
+        reveal: !!revealId && msg.id === revealId,
       });
     }
 
@@ -120,6 +127,9 @@ export function ChatView() {
     null,
   );
   const [pendingQuoteCard, setPendingQuoteCard] = useState<Quote | null>(null);
+  // Id of the reply that should type itself in. Cleared whenever the transcript
+  // is replaced, so switching sessions never replays an old message.
+  const [revealId, setRevealId] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -193,6 +203,7 @@ export function ChatView() {
 
       setLoading(true);
       setPendingQuoteCard(null);
+      setRevealId(null);
       try {
         const res = await fetch(`/api/chat/history?sessionId=${sessionId}`);
         if (res.ok) {
@@ -266,6 +277,7 @@ export function ChatView() {
     setPinOpen(false);
     setPinError(null);
     setPendingQuoteCard(null);
+    setRevealId(null);
   }, []);
 
   // Send message handler
@@ -307,6 +319,7 @@ export function ChatView() {
         }
 
         if (data.assistantMessage) {
+          setRevealId(data.assistantMessage.id ?? null);
           setMessages((prev) => {
             const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
             return [
@@ -328,6 +341,7 @@ export function ChatView() {
             "Sorry, I had trouble sending that. Please check your connection and try again.",
           timestamp: new Date(),
         };
+        setRevealId(errorMsg.id);
         setMessages((prev) => [...prev, errorMsg]);
       } finally {
         setIsResponding(false);
@@ -409,7 +423,7 @@ export function ChatView() {
 
   const started = messages.length > 0;
   const hasMoreMessages = totalMessagesCount > messages.length;
-  const entries = messagesToChatEntries(messages);
+  const entries = messagesToChatEntries(messages, revealId);
 
   return (
     <div className="relative isolate flex min-h-dvh flex-col pb-4">
@@ -443,7 +457,7 @@ export function ChatView() {
                   type="button"
                   onClick={handleLoadAllMessages}
                   disabled={loadingEarlier}
-                  className="flex items-center gap-1.5 rounded-pill bg-jumpa-neutral-100 px-3.5 py-1.5 text-xs font-semibold text-jumpa-primary-950 transition-colors hover:bg-jumpa-neutral-200 active:scale-95 cursor-pointer disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-pill bg-jumpa-neutral-100 px-3.5 py-1.5 text-xs font-semibold text-jumpa-primary-950 tap hover:bg-jumpa-neutral-200 active:scale-95 cursor-pointer disabled:opacity-50"
                 >
                   {loadingEarlier ? (
                     <>
@@ -464,13 +478,9 @@ export function ChatView() {
               onUpdateQuote={setPendingQuoteCard}
             />
 
-            {/* Typing Indicator */}
             {isResponding && (
-              <div className="flex items-center gap-2 px-4 py-2 mt-2">
-                <span className="size-2 animate-pulse rounded-full bg-jumpa-primary-600" />
-                <span className="text-xs text-jumpa-grey-600">
-                  Jumpa is thinking...
-                </span>
+              <div className="mt-5">
+                <TypingIndicator />
               </div>
             )}
 

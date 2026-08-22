@@ -78,7 +78,7 @@ export function ChatComposer({
         <button
           type="button"
           aria-label="Add an attachment"
-          className="flex h-11 w-11.5 shrink-0 items-center justify-center rounded-pill bg-jumpa-neutral-250 text-jumpa-grey-600 transition-colors hover:bg-jumpa-neutral-300 active:scale-95 cursor-pointer"
+          className="flex h-11 w-11.5 shrink-0 items-center justify-center rounded-pill bg-jumpa-neutral-250 text-jumpa-grey-600 tap hover:bg-jumpa-neutral-300 active:scale-95 cursor-pointer"
         >
           <CirclePlusIcon className="size-6" />
         </button>

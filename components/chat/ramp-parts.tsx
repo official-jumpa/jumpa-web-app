@@ -213,7 +213,7 @@ export function CopyPill({ value }: { value: string }) {
       type="button"
       onClick={async () => setCopied(await copyText(value))}
       className={cn(
-        "flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-pill px-3 text-[11px] leading-4 font-semibold transition-colors active:scale-95",
+        "flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-pill px-3 text-[11px] leading-4 font-semibold tap active:scale-95",
         copied
           ? "bg-jumpa-alt-400 text-jumpa-alt-950"
           : "bg-jumpa-primary-600 text-jumpa-white hover:bg-jumpa-primary-700",

@@ -24,10 +24,12 @@ export function MessageBubble({
   children,
   from,
   paragraph,
+  reveal,
 }: {
   children: string;
   from: "user" | "agent";
   paragraph?: boolean;
+  reveal?: boolean;
 }) {
   const cleanContent = sanitizeBubbleContent(children);
   const isMultiLineOrLong =
@@ -54,7 +56,7 @@ export function MessageBubble({
             ),
       )}
     >
-      <MarkdownText content={children} />
+      <MarkdownText content={children} reveal={reveal} />
     </div>
   );
 }

@@ -33,7 +33,7 @@ export function SuggestionCard({
           key={label}
           type="button"
           onClick={() => onSelect?.(label)}
-          className="flex items-center gap-2 rounded-pill bg-jumpa-neutral-95 px-3 py-2 text-[10px] font-medium whitespace-nowrap text-jumpa-black transition-colors hover:bg-jumpa-neutral-100 active:scale-95 cursor-pointer"
+          className="flex items-center gap-2 rounded-pill bg-jumpa-neutral-95 px-3 py-2 text-[10px] font-medium whitespace-nowrap text-jumpa-black tap hover:bg-jumpa-neutral-100 active:scale-95 cursor-pointer"
         >
           <Icon className="size-6 text-jumpa-primary-600" />
           {label}

@@ -3,6 +3,8 @@ import type React from "react";
 interface MarkdownTextProps {
   content: string;
   className?: string;
+  /** Reveal the copy word by word, for a reply that has just arrived. */
+  reveal?: boolean;
 }
 
 /**
@@ -16,10 +18,43 @@ interface MarkdownTextProps {
  * - Bullet lists (- or *) and numbered lists
  * - Paragraphs and line breaks
  */
-export function MarkdownText({ content, className = "" }: MarkdownTextProps) {
+export function MarkdownText({
+  content,
+  className = "",
+  reveal = false,
+}: MarkdownTextProps) {
   if (!content) return null;
 
   const lines = content.split("\n");
+
+  // Counts up across the whole message so the stagger reads left to right, not
+  // per line. Reset every render, which is what we want — the reveal is a mount
+  // animation and re-running it on a re-render would look identical.
+  let wordIndex = 0;
+
+  /**
+   * Splits a run of plain text into per-word spans. The text is laid out in full
+   * before it animates, so the bubble never resizes mid-reveal and the scroller
+   * does not chase it.
+   */
+  const revealWords = (text: string, key: number) => (
+    <span key={key} className="break-words [overflow-wrap:anywhere]">
+      {text.split(/(\s+)/).map((token, tokenIndex) =>
+        token.trim() === "" ? (
+          token
+        ) : (
+          <span
+            // biome-ignore lint/suspicious/noArrayIndexKey: tokens never reorder
+            key={tokenIndex}
+            className="inline-block animate-word stagger-word whitespace-pre-wrap"
+            style={{ "--i": wordIndex++ } as React.CSSProperties}
+          >
+            {token}
+          </span>
+        ),
+      )}
+    </span>
+  );
 
   const renderInline = (text: string): React.ReactNode[] => {
     // 1. Links, Bold, Italic, Code
@@ -84,6 +119,7 @@ export function MarkdownText({ content, className = "" }: MarkdownTextProps) {
       }
 
       // Normal text
+      if (reveal) return revealWords(part, index);
       return (
         <span key={index} className="break-words [overflow-wrap:anywhere]">
           {part}

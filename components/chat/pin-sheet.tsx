@@ -43,10 +43,10 @@ export function PinSheet({
         type="button"
         aria-label="Dismiss"
         onClick={onClose}
-        className="absolute inset-0 bg-jumpa-black/40 backdrop-blur-xs cursor-default"
+        className="absolute inset-0 animate-fade bg-jumpa-black/40 backdrop-blur-xs cursor-default"
       />
 
-      <div className="absolute inset-x-2.5 bottom-[calc(env(safe-area-inset-bottom)+10px)] rounded-sheet border border-jumpa-black/4 bg-jumpa-white px-6 pt-6 pb-7.5 shadow-2xl z-50 animate-in slide-in-from-bottom duration-200">
+      <div className="absolute inset-x-2.5 bottom-[calc(env(safe-area-inset-bottom)+10px)] animate-sheet-up rounded-sheet border border-jumpa-black/4 bg-jumpa-white px-6 pt-6 pb-7.5 shadow-2xl z-50">
         <h2 className="text-center text-base leading-4.5 font-semibold text-jumpa-black">
           Enter your PIN
         </h2>

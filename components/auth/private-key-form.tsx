@@ -1,16 +1,16 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CaretDownIcon } from "@/components/ui/icons/caret-down";
 import { EyeOffIcon } from "@/components/ui/icons/eye-off";
 import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
-import { NETWORKS } from "@/lib/networks";
 import { getAssetLogo } from "@/lib/assets";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/cn";
+import { NETWORKS } from "@/lib/networks";
 
 function validatePrivateKeyFormat(key: string, chain: string): string | null {
   const trimmed = key.trim();
@@ -186,7 +186,7 @@ export function PrivateKeyForm({ nextHref }: { nextHref: string }) {
             {dropdownOpen && (
               <div
                 role="listbox"
-                className="absolute top-full left-0 z-50 mt-2 w-full rounded-2xl border border-jumpa-primary-100 bg-white p-1.5 shadow-xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-150"
+                className="absolute top-full left-0 z-50 mt-2 w-full rounded-2xl border border-jumpa-primary-100 bg-white p-1.5 shadow-xl backdrop-blur-md animate-pop-in"
               >
                 <div className="flex flex-col gap-1">
                   {NETWORKS.map(({ id, label }) => {

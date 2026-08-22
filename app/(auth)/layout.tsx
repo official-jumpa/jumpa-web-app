@@ -1,8 +1,6 @@
-/** Light column for the sign-up flow. Same `max-w-app` cap as the onboarding carousel. */
+import { AppColumn } from "@/components/ui/app-column";
+
+/** Light column for the sign-up flow. Same shell as the signed-in app. */
 export default function AuthLayout({ children }: LayoutProps<"/">) {
-  return (
-    <div className="mx-auto min-h-dvh w-full max-w-app bg-jumpa-white">
-      {children}
-    </div>
-  );
+  return <AppColumn>{children}</AppColumn>;
 }

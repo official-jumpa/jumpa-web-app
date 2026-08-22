@@ -17,12 +17,12 @@ export function BottomSheet({
         type="button"
         aria-label="Dismiss"
         onClick={onClose}
-        className="absolute inset-0 cursor-default bg-jumpa-black/45"
+        className="absolute inset-0 animate-fade cursor-default bg-jumpa-black/45"
       />
 
       <div
         className={cn(
-          "absolute inset-x-2.5 bottom-[calc(env(safe-area-inset-bottom)+10px)] rounded-sheet bg-jumpa-white px-6 pt-3 pb-6",
+          "absolute inset-x-2.5 bottom-[calc(env(safe-area-inset-bottom)+10px)] animate-sheet-up rounded-sheet bg-jumpa-white px-6 pt-3 pb-6",
           className,
         )}
       >

@@ -76,8 +76,11 @@ export type OfframpCard = {
 };
 
 export type ChatItem =
-  /** `paragraph` renders the wider, squared-off bubble the design uses for prose. */
-  | { kind: "text"; text: string; paragraph?: boolean }
+  /**
+   * `paragraph` renders the wider, squared-off bubble the design uses for prose.
+   * `reveal` is set only on a reply that just arrived, so it types itself in.
+   */
+  | { kind: "text"; text: string; paragraph?: boolean; reveal?: boolean }
   | { kind: "quote"; card: QuoteCard; isEditable?: boolean }
   | { kind: "receipt"; card: ReceiptCard }
   | { kind: "transfer"; card: TransferCard }

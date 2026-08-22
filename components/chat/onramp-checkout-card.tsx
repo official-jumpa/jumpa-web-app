@@ -103,7 +103,7 @@ export function OnrampCheckoutCard({ card, onPaid }: OnrampCheckoutCardProps) {
                 type="button"
                 onClick={handleConfirmPaid}
                 disabled={verifying}
-                className="flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-pill bg-[image:var(--gradient-jumpa-cta)] text-[13px] leading-4 font-semibold text-jumpa-white shadow-xs transition-opacity active:scale-98 disabled:opacity-50"
+                className="flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-pill bg-[image:var(--gradient-jumpa-cta)] text-[13px] leading-4 font-semibold text-jumpa-white shadow-xs tap active:scale-98 disabled:opacity-50"
               >
                 {verifying ? (
                   <>

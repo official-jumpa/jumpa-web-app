@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { ActionRow } from "@/components/chat/action-row";
 import { AgentAvatar } from "@/components/chat/agent-avatar";
 import { MessageBubble } from "@/components/chat/message-bubble";
@@ -64,16 +65,30 @@ function Group({
   from: "user" | "agent";
   className: string;
 } & Handlers) {
+  // A group carrying a fresh reply reveals its text word by word; anything below
+  // that text rises in behind it, so the card lands as the sentence finishes.
+  const isFresh = items.some((item) => item.kind === "text" && item.reveal);
+
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
-      {items.map((item, index) => (
-        <Item
-          key={`${item.kind}-${index}`}
-          item={item}
-          from={from}
-          {...handlers}
-        />
-      ))}
+      {items.map((item, index) =>
+        isFresh && item.kind !== "text" ? (
+          <div
+            key={`${item.kind}-${index}`}
+            className="w-full animate-rise stagger"
+            style={{ "--i": index + 3 } as CSSProperties}
+          >
+            <Item item={item} from={from} {...handlers} />
+          </div>
+        ) : (
+          <Item
+            key={`${item.kind}-${index}`}
+            item={item}
+            from={from}
+            {...handlers}
+          />
+        ),
+      )}
     </div>
   );
 }
@@ -88,7 +103,11 @@ function Item({
   switch (item.kind) {
     case "text":
       return (
-        <MessageBubble from={from} paragraph={item.paragraph}>
+        <MessageBubble
+          from={from}
+          paragraph={item.paragraph}
+          reveal={item.reveal}
+        >
           {item.text}
         </MessageBubble>
       );

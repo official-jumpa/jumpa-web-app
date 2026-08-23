@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { BottomNav } from "@/components/home/bottom-nav";
 import { IdDocumentSheet } from "@/components/settings/id-document-sheet";
 import { SettingLink } from "@/components/settings/setting-row";
 import {
@@ -26,7 +25,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <div className="px-4.5 pt-[calc(env(safe-area-inset-top)+21px)] pb-27">
+      <div className="px-4.5 pt-[calc(env(safe-area-inset-top)+21px)] pb-12">
         <SettingsHeader back="/profile" title="Settings" />
 
         <div className="mt-4.25 flex flex-col gap-8.5">
@@ -107,7 +106,6 @@ export default function SettingsPage() {
       </div>
 
       {kycOpen ? <IdDocumentSheet onClose={() => setKycOpen(false)} /> : null}
-      <BottomNav />
     </>
   );
 }

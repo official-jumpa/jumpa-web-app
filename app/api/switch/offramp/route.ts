@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { SwitchService } from "@/lib/switch";
 import { resolveBankCode } from "@/lib/switch-banks";
+import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
 import { connectDB } from "@/lib/db";
 import { Transaction } from "@/models/Transaction";
 
@@ -45,14 +46,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Resolve bank code from user-supplied bank name
-    const bankMatch = resolveBankCode(bankName);
-    if (!bankMatch) {
+    // Resolve bank code and verify account via Paystack
+    const paystackBank = findPaystackBank(bankName);
+    if (!paystackBank) {
       console.error(`[Switch Offramp API] [User: ${userId}] ✗ Could not resolve bank code for: "${bankName}"`);
       return NextResponse.json(
         {
           success: false,
           error: `Bank "${bankName}" not found. Please check the bank name and try again.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const cleanAccount = String(accountNumber || "").trim().replace(/\D/g, "");
+    const resolveRes = await validateAccountNumber(cleanAccount, paystackBank.code);
+    if (!resolveRes || !resolveRes.status || !resolveRes.data?.account_name) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Could not verify account number ${cleanAccount} with ${paystackBank.name}. Please ensure the details are correct.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const verifiedHolderName = resolveRes.data.account_name.trim();
+    const bankMatch = resolveBankCode(bankName) || resolveBankCode(paystackBank.name);
+    if (!bankMatch) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Bank "${paystackBank.name}" is not supported by Switch for offramp.`,
         },
         { status: 400 }
       );
@@ -69,8 +94,8 @@ export async function POST(req: NextRequest) {
       amount,
       asset,
       {
-        holder_name: holderName,
-        account_number: accountNumber,
+        holder_name: verifiedHolderName,
+        account_number: cleanAccount,
         bank_code: bankMatch.code,
       },
       isExactOut

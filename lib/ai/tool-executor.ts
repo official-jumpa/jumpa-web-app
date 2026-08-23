@@ -10,6 +10,7 @@ import { getSwapQuote } from "@/lib/dex";
 import { fetchStellarBalances, fundTestnetAccount } from "@/lib/chains/stellar";
 import { SwitchService } from "@/lib/switch";
 import { resolveBankCode } from "@/lib/switch-banks";
+import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
 import { connectDB } from "@/lib/db";
 import { Transaction } from "@/models/Transaction";
 import type { SwapQuote } from "@/lib/dex/types";
@@ -396,7 +397,7 @@ export async function executeTool(
       }
     }
 
-    // ── Offramp NGN — powered by Switch
+    // ── Offramp NGN — powered by Switch + Paystack Account Verification
     case "offramp_ngn": {
       const {
         cryptoAmount,
@@ -411,7 +412,7 @@ export async function executeTool(
         asset: string;
         bankName: string;
         accountNumber: string;
-        holderName: string;
+        holderName?: string;
       };
 
       console.log(`[ToolExecutor] [User: ${userId}] offramp_ngn →`, {
@@ -420,29 +421,76 @@ export async function executeTool(
         asset,
         bankName,
         accountNumber,
-        holderName,
+        providedHolderName: holderName,
       });
 
       try {
-        const bankMatch = resolveBankCode(bankName);
-        if (!bankMatch) {
+        if (!bankName || !bankName.trim()) {
+          throw new Error("Bank name is required. Please provide your bank name (e.g. GTBank, Kuda, Access Bank, OPay, Zenith).");
+        }
+
+        const cleanAccount = String(accountNumber || "").trim().replace(/\D/g, "");
+        if (cleanAccount.length !== 10) {
+          throw new Error(`Invalid account number "${accountNumber}". Nigerian bank account numbers must be exactly 10 digits.`);
+        }
+
+        // 1. Identify Paystack bank
+        const paystackBank = findPaystackBank(bankName);
+        if (!paystackBank) {
           throw new Error(
-            `Bank "${bankName}" not found. Please check bank name.`,
+            `Could not find bank matching "${bankName}". Please check the bank name (e.g. GTBank, Access Bank, Kuda, Zenith, OPay).`,
           );
         }
+
+        console.log(
+          `[ToolExecutor] [User: ${userId}] Matched Paystack Bank: "${paystackBank.name}" (${paystackBank.code})`,
+        );
+
+        // 2. Validate account number with Paystack to retrieve verified name
+        const resolveRes = await validateAccountNumber(cleanAccount, paystackBank.code);
+        if (!resolveRes || !resolveRes.status || !resolveRes.data?.account_name) {
+          console.warn(
+            `[ToolExecutor] [User: ${userId}] Paystack verification failed:`,
+            resolveRes?.message,
+          );
+          throw new Error(
+            `Could not verify account number ${cleanAccount} with ${paystackBank.name}. Please ensure the 10-digit account number and bank name are correct.`,
+          );
+        }
+
+        const verifiedHolderName = resolveRes.data.account_name.trim();
+        console.log(
+          `[ToolExecutor] [User: ${userId}] ✅ Paystack account verified: "${verifiedHolderName}" (${cleanAccount})`,
+        );
+
+        // 3. Resolve Switch bank code for Switch offramp (never use Paystack bank code for Switch!)
+        const switchBank =
+          resolveBankCode(bankName) ||
+          resolveBankCode(paystackBank.name);
+
+        if (!switchBank) {
+          throw new Error(
+            `Bank "${paystackBank.name}" could not be matched with our settlement partner (Switch). Please check bank name.`,
+          );
+        }
+
+        console.log(
+          `[ToolExecutor] [User: ${userId}] Matched Switch Bank: "${switchBank.name}" (${switchBank.code})`,
+        );
 
         const amount = Number(cryptoAmount);
         if (isNaN(amount) || amount <= 0) {
           throw new Error("Invalid cryptoAmount");
         }
 
+        // 4. Initiate offramp order with Switch using the verified account name
         const result = await SwitchService.initiateOfframp(
           amount,
           asset,
           {
-            holder_name: holderName,
-            account_number: accountNumber,
-            bank_code: bankMatch.code,
+            holder_name: verifiedHolderName,
+            account_number: cleanAccount,
+            bank_code: switchBank.code,
           },
           false,
         );
@@ -468,7 +516,7 @@ export async function executeTool(
             chain: mapAssetToTxChain(asset),
             network: "mainnet",
             fromAddress: "USER_WALLET",
-            toAddress: `${bankMatch.name} / ${accountNumber}`,
+            toAddress: `${paystackBank.name} / ${cleanAccount} (${verifiedHolderName})`,
             amount: String(deposit.amount),
             token: cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC",
             txHash: reference,
@@ -478,6 +526,10 @@ export async function executeTool(
               fiatCurrency: "NGN",
               fiatAmount: destination.amount,
               reference,
+              verifiedAccountName: verifiedHolderName,
+              bankName: paystackBank.name,
+              accountNumber: cleanAccount,
+              depositAddress: deposit.address,
             },
             executedAt: new Date(),
           });
@@ -493,13 +545,13 @@ export async function executeTool(
 
         const cardData = {
           title: "Withdrawal",
-          cryptoAmount,
-          cryptoToken,
+          cryptoAmount: String(deposit.amount),
+          cryptoToken: cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC",
           fiatAmount: String(destination.amount),
           fiatCurrency: "NGN",
-          bankName: bankMatch.name,
-          accountName: holderName,
-          accountNumber,
+          bankName: paystackBank.name,
+          accountName: verifiedHolderName,
+          accountNumber: cleanAccount,
           depositAddress: deposit.address,
           asset,
           reference,
@@ -507,10 +559,10 @@ export async function executeTool(
         };
 
         const summaryForAI =
-          `Offramp initiated via Switch. User should send ${deposit.amount} ${asset.split(":")[1]?.toUpperCase()} ` +
-          `to address ${deposit.address}. ` +
-          `They will receive ₦${destination.amount} in their ${bankMatch.name} account (${accountNumber}). ` +
-          `Reference: ${reference}.`;
+          `Offramp draft created for ${deposit.amount} ${cardData.cryptoToken} via Switch. ` +
+          `Account verified via Paystack as **${verifiedHolderName}** (${paystackBank.name} - ${cleanAccount}). ` +
+          `The user will receive **₦${destination.amount.toLocaleString()}**. ` +
+          `Ask the user to confirm to proceed with the withdrawal. Do NOT use emojis or tell them to click buttons.`;
 
         return {
           toolName: name,
@@ -518,12 +570,14 @@ export async function executeTool(
           cardHint: { type: "offramp", data: cardData },
           transactionParams: {
             type: "offramp",
-            cryptoAmount,
-            cryptoToken,
+            cryptoAmount: String(deposit.amount),
+            cryptoToken: cardData.cryptoToken,
             asset,
-            bankName: bankMatch.name,
-            accountNumber,
-            holderName,
+            bankName: paystackBank.name,
+            accountNumber: cleanAccount,
+            holderName: verifiedHolderName,
+            depositAddress: deposit.address,
+            reference,
           },
           requiresConfirmation: true,
         };

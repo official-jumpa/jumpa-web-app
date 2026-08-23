@@ -1,11 +1,9 @@
 import {
   ConversionBlock,
-  CopyField,
   DetailBox,
   DetailRow,
   RampNotice,
   RampShell,
-  StepLabel,
 } from "@/components/chat/ramp-parts";
 import type { OfframpCard } from "@/lib/chat";
 
@@ -13,26 +11,45 @@ interface OfframpCheckoutCardProps {
   card: OfframpCard;
 }
 
-/** Cashing out: send the asset to this address, the bank account gets credited. */
+/**
+ * Clean offramp proposal / review card.
+ * Displays token, amount, receiving fiat amount, and verified bank account details.
+ * The AI/sovereign wallet executes the transaction upon PIN confirmation.
+ */
 export function OfframpCheckoutCard({ card }: OfframpCheckoutCardProps) {
   const isDone = card.status === "confirmed";
   const isError = card.status === "error";
+  const isCancelled = card.status === "cancelled";
 
-  // Without a deposit address there is nothing for the user to do, so the bank
-  // account becomes step one rather than step two.
-  const bankStep = card.depositAddress ? 2 : 1;
+  const statusLabel = isDone
+    ? "Completed"
+    : isCancelled
+      ? "Cancelled"
+      : isError
+        ? "Error"
+        : "Pending Confirmation";
+
+  const tone = isDone
+    ? "done"
+    : isCancelled || isError
+      ? "error"
+      : "pending";
+
+  const networkName = card.asset
+    ? card.asset.split(":")[0]?.toUpperCase()
+    : "BASE";
 
   return (
     <RampShell
-      title={card.title || "Cash Out"}
-      status={isDone ? "Completed" : isError ? "Error" : "Pending"}
-      tone={isDone ? "done" : isError ? "error" : "pending"}
+      title={card.title || "Withdrawal"}
+      status={statusLabel}
+      tone={tone}
     >
       <ConversionBlock
         from={{
-          caption: "You send",
+          caption: `You sell (${networkName})`,
           value: card.cryptoAmount,
-          badge: card.cryptoToken,
+          badge: card.cryptoToken || "USDC",
         }}
         to={{
           caption: "You receive",
@@ -46,40 +63,26 @@ export function OfframpCheckoutCard({ card }: OfframpCheckoutCardProps) {
         <RampNotice tone="error">
           Could not process withdrawal. Please try again.
         </RampNotice>
+      ) : isCancelled ? (
+        <RampNotice tone="error">
+          This withdrawal has been cancelled.
+        </RampNotice>
       ) : (
         <>
-          {card.depositAddress ? (
-            <div className="flex flex-col gap-2">
-              <StepLabel step={1}>
-                Send {card.cryptoToken} to this address
-              </StepLabel>
-              <DetailBox>
-                {card.asset ? (
-                  <DetailRow label="Network" value={card.asset} />
-                ) : null}
-                <CopyField
-                  label="Deposit address"
-                  value={card.depositAddress}
-                  wrap
-                />
-              </DetailBox>
-            </div>
-          ) : null}
-
           <div className="flex flex-col gap-2">
-            <StepLabel step={bankStep}>Paid into your account</StepLabel>
             <DetailBox>
               <DetailRow label="Bank" value={card.bankName} />
               <DetailRow label="Account name" value={card.accountName} />
               <DetailRow label="Account number" value={card.accountNumber} />
+              {card.asset ? (
+                <DetailRow label="Network" value={networkName} />
+              ) : null}
             </DetailBox>
           </div>
 
           {isDone ? null : (
             <RampNotice tone="pending">
-              {card.depositAddress
-                ? "Send the exact amount to the address above. Your account is credited once the transfer confirms."
-                : "Your account is credited once the transfer confirms."}
+              Confirm with your PIN to execute this withdrawal.
             </RampNotice>
           )}
         </>

@@ -253,10 +253,11 @@ const offrampNgn: DeepSeekTool = {
     name: "offramp_ngn",
     description:
       "Initiate a withdrawal via Switch to sell crypto for Nigerian Naira (NGN) to a user's bank account. " +
+      "The system automatically verifies the account number and bank with Paystack to ensure accuracy. " +
       "Supported Switch asset pairs: " +
       "USDC: 'base:usdc', 'solana:usdc', 'polygon:usdc', 'arbitrum:usdc', 'ethereum:usdc', 'bsc:usdc'. " +
       "USDT: 'solana:usdt', 'tron:usdt', 'polygon:usdt', 'arbitrum:usdt', 'ethereum:usdt', 'bsc:usdt'. " +
-      "MANDATORY: Do NOT call this tool if cryptoAmount, asset, or bank details are missing — ask the user in chat first.",
+      "MANDATORY: Do NOT call this tool if cryptoAmount, asset, bankName, or accountNumber are missing — ask the user in chat first.",
     parameters: {
       type: "object",
       properties: {
@@ -277,16 +278,16 @@ const offrampNgn: DeepSeekTool = {
         bankName: {
           type: "string",
           description:
-            "User's bank name in plain English (e.g. 'GTBank', 'Access Bank', 'Kuda'). The system resolves the bank code automatically.",
+            "User's bank name or alias (e.g. 'GTBank', 'Access Bank', 'Kuda', 'OPay', 'Zenith').",
         },
         accountNumber: {
           type: "string",
-          description: "User's 10-digit bank account number.",
+          description: "User's 10-digit Nigerian bank account number.",
         },
         holderName: {
           type: "string",
           description:
-            "Account holder's full name as registered with the bank.",
+            "Optional account holder name. The system verifies and fetches the official registered name via Paystack automatically.",
         },
       },
       required: [
@@ -295,7 +296,6 @@ const offrampNgn: DeepSeekTool = {
         "asset",
         "bankName",
         "accountNumber",
-        "holderName",
       ],
     },
   },

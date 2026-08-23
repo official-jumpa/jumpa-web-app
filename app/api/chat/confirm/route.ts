@@ -8,6 +8,8 @@ import { Wallet } from "@/models/Wallet";
 import { Transaction } from "@/models/Transaction";
 import { UserActivityLog } from "@/models/UserActivityLog";
 import { buildSwapTransaction } from "@/lib/dex";
+import { executeOfframpTransfer } from "@/lib/chains/offramp-transfer";
+import { SwitchService } from "@/lib/switch";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { decryptMnemonic } from "@/lib/crypto";
 import {
@@ -672,12 +674,153 @@ export async function POST(req: NextRequest) {
         txHash: txHash || undefined,
         explorerUrl: explorerUrl || undefined,
       };
-    } else {
-      // Fallback for onramp/offramp — no on-chain call, just acknowledge
+    } else if (cardType === "offramp") {
+      const cryptoAmount =
+        effectiveCardData?.cryptoAmount || txParams?.cryptoAmount || "0";
+      const cryptoToken =
+        effectiveCardData?.cryptoToken || txParams?.cryptoToken || "USDC";
+      const asset = effectiveCardData?.asset || txParams?.asset || "base:usdc";
+      const depositAddress =
+        effectiveCardData?.depositAddress || txParams?.depositAddress;
+      const reference = effectiveCardData?.reference || txParams?.reference || "";
+      const bankName =
+        effectiveCardData?.bankName || txParams?.bankName || "Bank";
+      const accountNumber =
+        effectiveCardData?.accountNumber || txParams?.accountNumber || "";
+      const accountName =
+        effectiveCardData?.accountName || txParams?.holderName || "";
+      const fiatAmount = effectiveCardData?.fiatAmount || "0";
+
+      if (!depositAddress) {
+        return NextResponse.json(
+          { error: "Switch deposit address missing. Please initiate a new offramp." },
+          { status: 400 },
+        );
+      }
+
+      if (!wallet?.encryptedMnemonic || !pin) {
+        return NextResponse.json(
+          { error: "Wallet secret or PIN missing." },
+          { status: 400 },
+        );
+      }
+
+      let phrase = "";
+      try {
+        phrase = decryptMnemonic(
+          wallet.encryptedMnemonic,
+          wallet.iv,
+          wallet.salt,
+          pin,
+        );
+      } catch {
+        return NextResponse.json(
+          { error: "Failed to decrypt wallet with provided PIN." },
+          { status: 401 },
+        );
+      }
+
+      console.log(
+        `[Chat Confirm] Executing live on-chain offramp transfer: ${cryptoAmount} ${cryptoToken} to ${depositAddress} on ${asset}...`,
+      );
+
+      const transferResult = await executeOfframpTransfer({
+        mnemonic: phrase,
+        asset,
+        depositAddress,
+        amount: cryptoAmount,
+      });
+
+      if (!transferResult.success || !transferResult.txHash) {
+        console.error(
+          "[Chat Confirm] Offramp on-chain transfer failed:",
+          transferResult.error,
+        );
+        return NextResponse.json(
+          {
+            error: transferResult.error || "On-chain crypto transfer failed.",
+          },
+          { status: 400 },
+        );
+      }
+
+      const txHash = transferResult.txHash;
+      const explorerUrl = transferResult.explorerUrl || "";
+
+      console.log(
+        `[Chat Confirm] Offramp on-chain transfer SUCCESS! TxHash: ${txHash}. Confirming with Switch...`,
+      );
+
+      // Confirm payment with Switch provider
+      try {
+        await SwitchService.confirmPayment(reference, txHash);
+        console.log(`[Chat Confirm] Switch payment confirmed for ${reference}`);
+      } catch (switchConfirmErr) {
+        console.warn(
+          "[Chat Confirm] Notice: Switch confirmPayment call warning:",
+          switchConfirmErr,
+        );
+      }
+
+      // Update Transaction in DB
+      try {
+        await Transaction.findOneAndUpdate(
+          { txHash: reference },
+          {
+            $set: {
+              status: "CONFIRMED",
+              txHash,
+              explorerUrl,
+              executedAt: new Date(),
+            },
+          },
+        );
+      } catch (dbErr: any) {
+        console.warn("[Chat Confirm] DB update notice:", dbErr.message);
+      }
+
+      Wallet.updateOne(
+        { _id: wallet._id },
+        { $set: { lastUsedAt: new Date() } },
+      ).catch(() => {});
+
       receiptCardData = {
-        title: "Request Submitted",
+        title: "Withdrawal Sent",
+        status: "Successful",
+        balance: {
+          caption: "SENT",
+          value: cryptoAmount,
+          badge: cryptoToken,
+        },
+        stats: [
+          { value: `- ${cryptoAmount} ${cryptoToken}` },
+          { lead: "Bank ", value: bankName },
+          { lead: "Account Name ", value: accountName },
+          {
+            lead: "Account No. ",
+            value:
+              accountNumber.length === 10
+                ? `${accountNumber.slice(0, 3)}****${accountNumber.slice(-3)}`
+                : accountNumber,
+          },
+          {
+            lead: "Receiving ",
+            value: `₦${Number(fiatAmount).toLocaleString()}`,
+          },
+          {
+            lead: "Tx Hash ",
+            value: txHash ? `${txHash.slice(0, 6)}...${txHash.slice(-6)}` : "—",
+          },
+        ],
+        txHash,
+        explorerUrl,
+      };
+    } else {
+      // Fallback for onramp — no on-chain call needed, user transfers NGN to bank
+      receiptCardData = {
+        title: "Deposit Order Created",
         status: "Pending",
-        balance: { caption: "STATUS", value: "Processing", badge: "" },
+        balance: { caption: "STATUS", value: "Awaiting Bank Transfer", badge: "" },
         stats: [{ lead: "Type ", value: cardType }],
       };
     }

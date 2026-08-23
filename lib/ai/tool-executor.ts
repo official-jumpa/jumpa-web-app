@@ -7,16 +7,13 @@
  */
 
 import { getSwapQuote } from "@/lib/dex";
-import { fetchStellarBalances } from "@/lib/chains/stellar/account";
+import { fetchStellarBalances, fundTestnetAccount } from "@/lib/chains/stellar";
 import { SwitchService } from "@/lib/switch";
 import { resolveBankCode } from "@/lib/switch-banks";
 import { connectDB } from "@/lib/db";
 import { Transaction } from "@/models/Transaction";
 import type { SwapQuote } from "@/lib/dex/types";
-import {
-  getNetworkFromToolName,
-  type JumpaToolName,
-} from "./tools";
+import { getNetworkFromToolName, type JumpaToolName } from "./tools";
 
 export type CardHint =
   | { type: "quote"; data: QuoteCardData }
@@ -48,7 +45,9 @@ export interface ToolResult {
   requiresConfirmation: boolean;
 }
 
-function mapAssetToTxChain(asset: string): "stellar" | "solana" | "base" | "eth" | "btc" {
+function mapAssetToTxChain(
+  asset: string,
+): "stellar" | "solana" | "base" | "eth" | "btc" {
   const c = (asset.split(":")[0] || "base").toLowerCase();
   if (c === "solana") return "solana";
   if (c === "stellar") return "stellar";
@@ -75,7 +74,7 @@ export async function executeTool(
   const userId = userCtx.userId || "UNKNOWN";
 
   switch (name) {
-    // ── Stellar Testnet Swap Quote 
+    // ── Stellar Testnet Swap Quote
     case "stellar_testnet_swap_quote":
     case "stellar_mainnet_swap_quote": {
       const network = getNetworkFromToolName(name);
@@ -159,7 +158,7 @@ export async function executeTool(
       };
     }
 
-    // ── Stellar Balance 
+    // ── Stellar Balance
     case "stellar_testnet_balance":
     case "stellar_mainnet_balance": {
       const network = getNetworkFromToolName(name);
@@ -203,7 +202,7 @@ export async function executeTool(
       };
     }
 
-    // ── Portfolio 
+    // ── Portfolio
     case "check_portfolio": {
       return {
         toolName: name,
@@ -214,7 +213,7 @@ export async function executeTool(
       };
     }
 
-    // ── Send Funds 
+    // ── Send Funds
     case "send_funds": {
       const amount = String(toolArgs.amount || "0");
       const token = String(toolArgs.token || "XLM").toUpperCase();
@@ -222,7 +221,11 @@ export async function executeTool(
       const network = (toolArgs.network || "testnet") as "testnet" | "mainnet";
 
       let recipient = String(toolArgs.recipient || "").trim();
-      if (!recipient || recipient.toLowerCase().includes("my wallet") || recipient.toLowerCase().includes("myself")) {
+      if (
+        !recipient ||
+        recipient.toLowerCase().includes("my wallet") ||
+        recipient.toLowerCase().includes("myself")
+      ) {
         recipient = userCtx.stellarAddress;
       }
 
@@ -237,9 +240,17 @@ export async function executeTool(
       const cardData = {
         title: "Transfer Funds",
         contact: {
-          name: recipient.length > 20 ? `${recipient.slice(0, 8)}...${recipient.slice(-6)}` : recipient,
-          handle: recipient.startsWith("G") ? `${recipient.slice(0, 6)}...${recipient.slice(-6)}` : recipient.startsWith("@") ? recipient : `@${recipient}`,
-          avatar: "https://res.cloudinary.com/dyedbeksr/image/upload/v1763964534/Group_1000003624_nrunnu.png",
+          name:
+            recipient.length > 20
+              ? `${recipient.slice(0, 8)}...${recipient.slice(-6)}`
+              : recipient,
+          handle: recipient.startsWith("G")
+            ? `${recipient.slice(0, 6)}...${recipient.slice(-6)}`
+            : recipient.startsWith("@")
+              ? recipient
+              : `@${recipient}`,
+          avatar:
+            "https://res.cloudinary.com/dyedbeksr/image/upload/v1763964534/Group_1000003624_nrunnu.png",
         },
         amount: { caption: "YOU'LL SEND", value: `${amount} ${token}` },
         prompt: "Confirm transfer details",
@@ -287,8 +298,16 @@ export async function executeTool(
           throw new Error("Invalid fiatAmount");
         }
 
-        const result = await SwitchService.initiateOnRamp(amount, asset, walletAddress, false);
-        console.log(`[ToolExecutor] [User: ${userId}] onramp_ngn ← Switch result:`, result);
+        const result = await SwitchService.initiateOnRamp(
+          amount,
+          asset,
+          walletAddress,
+          false,
+        );
+        console.log(
+          `[ToolExecutor] [User: ${userId}] onramp_ngn ← Switch result:`,
+          result,
+        );
 
         if (!result.success || !result.data) {
           throw new Error(result.message || "Switch onramp failed");
@@ -319,9 +338,14 @@ export async function executeTool(
             },
             executedAt: new Date(),
           });
-          console.log(`[ToolExecutor] [User: ${userId}] Transaction saved: ${reference}`);
+          console.log(
+            `[ToolExecutor] [User: ${userId}] Transaction saved: ${reference}`,
+          );
         } catch (dbErr: any) {
-          console.warn(`[ToolExecutor] [User: ${userId}] DB record notice:`, dbErr.message);
+          console.warn(
+            `[ToolExecutor] [User: ${userId}] DB record notice:`,
+            dbErr.message,
+          );
         }
 
         cardData = {
@@ -359,7 +383,10 @@ export async function executeTool(
           requiresConfirmation: true,
         };
       } catch (err: any) {
-        console.error(`[ToolExecutor] [User: ${userId}] onramp_ngn ✗ Error:`, err.message);
+        console.error(
+          `[ToolExecutor] [User: ${userId}] onramp_ngn ✗ Error:`,
+          err.message,
+        );
         return {
           toolName: name,
           summaryForAI: `Failed to initiate onramp: ${err.message}`,
@@ -371,15 +398,21 @@ export async function executeTool(
 
     // ── Offramp NGN — powered by Switch
     case "offramp_ngn": {
-      const { cryptoAmount, cryptoToken, asset, bankName, accountNumber, holderName } =
-        toolArgs as {
-          cryptoAmount: string;
-          cryptoToken: string;
-          asset: string;
-          bankName: string;
-          accountNumber: string;
-          holderName: string;
-        };
+      const {
+        cryptoAmount,
+        cryptoToken,
+        asset,
+        bankName,
+        accountNumber,
+        holderName,
+      } = toolArgs as {
+        cryptoAmount: string;
+        cryptoToken: string;
+        asset: string;
+        bankName: string;
+        accountNumber: string;
+        holderName: string;
+      };
 
       console.log(`[ToolExecutor] [User: ${userId}] offramp_ngn →`, {
         cryptoAmount,
@@ -393,7 +426,9 @@ export async function executeTool(
       try {
         const bankMatch = resolveBankCode(bankName);
         if (!bankMatch) {
-          throw new Error(`Bank "${bankName}" not found. Please check bank name.`);
+          throw new Error(
+            `Bank "${bankName}" not found. Please check bank name.`,
+          );
         }
 
         const amount = Number(cryptoAmount);
@@ -409,10 +444,13 @@ export async function executeTool(
             account_number: accountNumber,
             bank_code: bankMatch.code,
           },
-          false
+          false,
         );
 
-        console.log(`[ToolExecutor] [User: ${userId}] offramp_ngn ← Switch result:`, result);
+        console.log(
+          `[ToolExecutor] [User: ${userId}] offramp_ngn ← Switch result:`,
+          result,
+        );
 
         if (!result.success || !result.data) {
           throw new Error(result.message || "Switch offramp failed");
@@ -443,9 +481,14 @@ export async function executeTool(
             },
             executedAt: new Date(),
           });
-          console.log(`[ToolExecutor] [User: ${userId}] Transaction saved: ${reference}`);
+          console.log(
+            `[ToolExecutor] [User: ${userId}] Transaction saved: ${reference}`,
+          );
         } catch (dbErr: any) {
-          console.warn(`[ToolExecutor] [User: ${userId}] DB record notice:`, dbErr.message);
+          console.warn(
+            `[ToolExecutor] [User: ${userId}] DB record notice:`,
+            dbErr.message,
+          );
         }
 
         const cardData = {
@@ -485,7 +528,10 @@ export async function executeTool(
           requiresConfirmation: true,
         };
       } catch (err: any) {
-        console.error(`[ToolExecutor] [User: ${userId}] offramp_ngn ✗ Error:`, err.message);
+        console.error(
+          `[ToolExecutor] [User: ${userId}] offramp_ngn ✗ Error:`,
+          err.message,
+        );
         return {
           toolName: name,
           summaryForAI: `Failed to initiate offramp: ${err.message}`,
@@ -493,6 +539,57 @@ export async function executeTool(
           requiresConfirmation: false,
         };
       }
+    }
+
+    // ── Claim Testnet Faucet (Friendbot)
+    case "claim_faucet": {
+      const providedAddress = String(toolArgs.walletAddress || "").trim();
+      const targetAddress =
+        providedAddress.startsWith("G") && providedAddress.length === 56
+          ? providedAddress
+          : userCtx.stellarAddress;
+
+      if (!targetAddress || !targetAddress.startsWith("G")) {
+        return {
+          toolName: name,
+          summaryForAI:
+            "Cannot claim faucet: No valid Stellar public key (G...) found for your account.",
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      console.log(
+        `[ToolExecutor] [User: ${userId}] claim_faucet requested for: ${targetAddress}`,
+      );
+      const res = await fundTestnetAccount(targetAddress);
+
+      if (!res.success) {
+        return {
+          toolName: name,
+          summaryForAI: `Faucet funding failed: ${res.message}. The testnet network may be busy.`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      // Fetch fresh testnet balance
+      let newBalanceText = "10,000 XLM";
+      try {
+        const bal = await fetchStellarBalances(targetAddress);
+        newBalanceText = `${bal.testnet.native} XLM`;
+      } catch {
+        // Fallback
+      }
+
+      return {
+        toolName: name,
+        summaryForAI:
+          `Successfully funded your Stellar testnet wallet (${targetAddress.slice(0, 6)}...${targetAddress.slice(-4)}) with 10,000 testnet XLM via Friendbot. ` +
+          `Your active testnet balance is now **${newBalanceText}**. Your wallet is active and ready for testnet transactions!`,
+        cardHint: { type: "none" },
+        requiresConfirmation: false,
+      };
     }
 
     default:

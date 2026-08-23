@@ -72,16 +72,24 @@ You ask clarifying questions when details are missing. You never assume, guess, 
 - **Stellar**: NGN fiat onramp/offramp is NOT available on Stellar.
 
 ### TOOL CALLING RULES:
-1. You have access to function tools ('send_funds', 'stellar_testnet_swap_quote', 'stellar_mainnet_swap_quote', 'stellar_testnet_balance', 'stellar_mainnet_balance', 'check_portfolio', 'onramp_ngn', 'offramp_ngn').
-2. MANDATORY: Whenever the user requests to send or transfer crypto with amount and recipient (e.g., "send 100 XLM to GB25H...", "transfer 50 USDC to @alice", "send 53 XLM to my wallet"), YOU MUST IMMEDIATELY CALL THE 'send_funds' TOOL.
-3. CRITICAL: NEVER hallucinate, invent, or guess transaction amounts or networks!
+1. You have access to function tools ('send_funds', 'stellar_testnet_swap_quote', 'stellar_mainnet_swap_quote', 'stellar_testnet_balance', 'stellar_mainnet_balance', 'check_portfolio', 'onramp_ngn', 'offramp_ngn', 'claim_faucet').
+2. NIGERIAN BANK ACCOUNTS VS ON-CHAIN ADDRESSES:
+   - A 10-digit number (e.g. '9169419535', '0123456789') is a Nigerian NUBAN bank account number, NOT a crypto address!
+   - If a user says "Send 10 XLM to 9169419535" or asks to transfer crypto to a 10-digit number, recognize this as a bank offramp withdrawal intent (selling crypto for NGN to bank).
+   - DO NOT call 'send_funds' with a 10-digit number! Instead, ask the user for their bank name (e.g. GTBank, Kuda, Access Bank) so you can set up the offramp to their bank account, or ask for their Stellar public key (56-character string starting with 'G') if they meant an on-chain transfer.
+3. INACTIVE STELLAR ACCOUNTS & FAUCET:
+   - If a user has 0 XLM or an unactivated account, explain that on Stellar, accounts must have at least 1 XLM to be active on the ledger.
+   - For testnet wallets, tell them they can claim free testnet XLM using the faucet (or call 'claim_faucet').
+   - When the user asks for test tokens, testnet XLM, or faucet funds, call the 'claim_faucet' tool immediately.
+4. MANDATORY: Whenever the user requests an on-chain crypto transfer with amount and valid recipient address/handle (e.g., "send 100 XLM to GB25H...", "transfer 50 USDC to @alice", "send 53 XLM to my wallet"), YOU MUST IMMEDIATELY CALL THE 'send_funds' TOOL.
+5. CRITICAL: NEVER hallucinate, invent, or guess transaction amounts or networks!
    - If the user asks to deposit, buy, onramp, offramp, send, or swap WITHOUT providing the specific amount (e.g. "I want to deposit naira for usdt"), DO NOT CALL A TOOL. Reply conversationally asking for the amount in Naira and their preferred network/chain.
    - If the user wants USDT, inform them that USDT is available on Solana, Tron, Polygon, Arbitrum, BSC, or Ethereum (not Base), and ask which network they prefer.
-4. NEVER reply with text saying "I have drafted the transfer" or "Just tap Confirm on the card" without executing a tool call! Text responses DO NOT render cards or confirm buttons. You MUST output a tool call for the card to appear.
-5. For transfers to "my wallet" or "myself", set 'recipient' to the user's Stellar address from the context above.
-6. If the user mentions "testnet" or testing, set 'network': "testnet". Default 'chain' to "stellar" for XLM.
-7. If a user requests USDT on Stellar, explain that USDT is not available on Stellar networks and offer XLM ↔ USDC.
-8. If the user asks for multiple pieces of information (e.g., "What's my balance on mainnet and testnet"), call all relevant tools needed to answer.
+6. NEVER reply with text saying "I have drafted the transfer" or "Just tap Confirm on the card" without executing a tool call! Text responses DO NOT render cards or confirm buttons. You MUST output a tool call for the card to appear.
+7. For transfers to "my wallet" or "myself", set 'recipient' to the user's Stellar address from the context above.
+8. If the user mentions "testnet" or testing, set 'network': "testnet". Default 'chain' to "stellar" for XLM.
+9. If a user requests USDT on Stellar, explain that USDT is not available on Stellar networks and offer XLM ↔ USDC.
+10. If the user asks for multiple pieces of information (e.g., "What's my balance on mainnet and testnet"), call all relevant tools needed to answer.
 
 ### FORMATTING & TONE:
 - NEVER use emojis in any response (no 🚀, 😄, 👍, etc.).
@@ -98,8 +106,14 @@ You ask clarifying questions when details are missing. You never assume, guess, 
 export function sanitizeDSML(content: string): string {
   if (!content) return "";
   return content
-    .replace(/<｜(?:｜)?DSML(?:｜)?[\s\S]*?<\/｜(?:｜)?DSML(?:｜)?tool_calls>/gi, "")
-    .replace(/<｜(?:｜)?DSML(?:｜)?[\s\S]*?<\/｜(?:｜)?DSML(?:｜)?invoke>/gi, "")
+    .replace(
+      /<｜(?:｜)?DSML(?:｜)?[\s\S]*?<\/｜(?:｜)?DSML(?:｜)?tool_calls>/gi,
+      "",
+    )
+    .replace(
+      /<｜(?:｜)?DSML(?:｜)?[\s\S]*?<\/｜(?:｜)?DSML(?:｜)?invoke>/gi,
+      "",
+    )
     .replace(/<｜(?:｜)?DSML(?:｜)?[\s\S]*?>/gi, "")
     .replace(/<｜[\s\S]*?｜>/gi, "")
     .trim();
@@ -304,4 +318,3 @@ export async function runDeepSeekStep(options: {
     };
   }
 }
-

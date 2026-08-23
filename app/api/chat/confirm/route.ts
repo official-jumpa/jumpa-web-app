@@ -10,7 +10,10 @@ import { UserActivityLog } from "@/models/UserActivityLog";
 import { buildSwapTransaction } from "@/lib/dex";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { decryptMnemonic } from "@/lib/crypto";
-import { deriveStellarKeypairFromMnemonic, getHorizonServer } from "@/lib/chains/stellar";
+import {
+  deriveStellarKeypairFromMnemonic,
+  getHorizonServer,
+} from "@/lib/chains/stellar";
 import bcrypt from "bcryptjs";
 
 const WALLET_PIN_REGEX = /^\d{6}$/;
@@ -45,7 +48,10 @@ export async function POST(req: NextRequest) {
 
     console.log("[Chat Confirm] User ID:", session.user.id);
     console.log("[Chat Confirm] Session ID:", sessionId);
-    console.log("[Chat Confirm] Message ID:", messageId || "auto-detect pending");
+    console.log(
+      "[Chat Confirm] Message ID:",
+      messageId || "auto-detect pending",
+    );
 
     if (!sessionId) {
       console.warn("[Chat Confirm] Error: sessionId is required");
@@ -72,13 +78,18 @@ export async function POST(req: NextRequest) {
       const pinValid = await bcrypt.compare(pin, wallet.pinHash);
       if (!pinValid) {
         console.warn("[Chat Confirm] Incorrect PIN for user:", userId);
-        
+
         // Track PIN attempt failure
         const attempts = (wallet.pinAttempts || 0) + 1;
         const isLocked = attempts >= 5;
-        const pinLockedUntil = isLocked ? new Date(Date.now() + 15 * 60 * 1000) : null;
+        const pinLockedUntil = isLocked
+          ? new Date(Date.now() + 15 * 60 * 1000)
+          : null;
 
-        await Wallet.updateOne({ _id: wallet._id }, { $set: { pinAttempts: attempts, pinLockedUntil } });
+        await Wallet.updateOne(
+          { _id: wallet._id },
+          { $set: { pinAttempts: attempts, pinLockedUntil } },
+        );
 
         UserActivityLog.create({
           userId,
@@ -91,7 +102,10 @@ export async function POST(req: NextRequest) {
 
       // Reset attempts on successful PIN match
       if (wallet.pinAttempts !== 0) {
-        await Wallet.updateOne({ _id: wallet._id }, { $set: { pinAttempts: 0, pinLockedUntil: null } });
+        await Wallet.updateOne(
+          { _id: wallet._id },
+          { $set: { pinAttempts: 0, pinLockedUntil: null } },
+        );
       }
 
       UserActivityLog.create({
@@ -102,7 +116,9 @@ export async function POST(req: NextRequest) {
 
       console.log("[Chat Confirm] PIN verified");
     } else {
-      console.log("[Chat Confirm] No wallet PIN hash found on account, skipping hash check");
+      console.log(
+        "[Chat Confirm] No wallet PIN hash found on account, skipping hash check",
+      );
     }
 
     const chatLog = await ChatLog.findOne({ _id: sessionId, userId });
@@ -118,13 +134,20 @@ export async function POST(req: NextRequest) {
     const targetMsg = messageId
       ? chatLog.messages.find((m) => m.id === messageId)
       : [...chatLog.messages]
-        .reverse()
-        .find((m) => m.isTransaction && m.status === "pending");
+          .reverse()
+          .find((m) => m.isTransaction && m.status === "pending");
 
     if (!targetMsg) {
-      console.warn("[Chat Confirm] No pending transaction message found in session");
+      console.warn(
+        "[Chat Confirm] No pending transaction message found in session",
+      );
     } else {
-      console.log("[Chat Confirm] Found target message:", targetMsg.id, "Type:", targetMsg.cardType);
+      console.log(
+        "[Chat Confirm] Found target message:",
+        targetMsg.id,
+        "Type:",
+        targetMsg.cardType,
+      );
     }
 
     if (targetMsg) {
@@ -141,7 +164,11 @@ export async function POST(req: NextRequest) {
 
       // Mark all other older pending transactions as cancelled/superseded
       for (const m of chatLog.messages) {
-        if (m.isTransaction && m.status === "pending" && m.id !== targetMsg.id) {
+        if (
+          m.isTransaction &&
+          m.status === "pending" &&
+          m.id !== targetMsg.id
+        ) {
           m.status = "cancelled";
         }
       }
@@ -151,8 +178,14 @@ export async function POST(req: NextRequest) {
     const effectiveCardData = updatedCardData || targetMsg?.cardData || {};
     const txParams = targetMsg?.transactionParams || {};
 
-    console.log("[Chat Confirm] Effective Card Data:", JSON.stringify(effectiveCardData, null, 2));
-    console.log("[Chat Confirm] Transaction Params:", JSON.stringify(txParams, null, 2));
+    console.log(
+      "[Chat Confirm] Effective Card Data:",
+      JSON.stringify(effectiveCardData, null, 2),
+    );
+    console.log(
+      "[Chat Confirm] Transaction Params:",
+      JSON.stringify(txParams, null, 2),
+    );
 
     // User authorization message
     const userAuthMsg: IChatMessage = {
@@ -167,21 +200,13 @@ export async function POST(req: NextRequest) {
 
     if (cardType === "quote") {
       const payVal =
-        effectiveCardData?.pay?.value ||
-        txParams?.fromAmount ||
-        "0";
+        effectiveCardData?.pay?.value || txParams?.fromAmount || "0";
       const payBadge =
-        effectiveCardData?.pay?.badge ||
-        txParams?.fromToken ||
-        "XLM";
+        effectiveCardData?.pay?.badge || txParams?.fromToken || "XLM";
       const receiveVal =
-        effectiveCardData?.receive?.value ||
-        txParams?.toAmount ||
-        "0";
+        effectiveCardData?.receive?.value || txParams?.toAmount || "0";
       const receiveBadge =
-        effectiveCardData?.receive?.badge ||
-        txParams?.toToken ||
-        "USDC";
+        effectiveCardData?.receive?.badge || txParams?.toToken || "USDC";
       const protocolName =
         txParams?.protocol ||
         effectiveCardData?._rawQuote?.protocol ||
@@ -214,11 +239,11 @@ export async function POST(req: NextRequest) {
       }
 
       const userStellarAddr =
-        sourceKeypair.publicKey() ||
-        wallet?.addresses?.xlm ||
-        wallet?.address;
+        sourceKeypair.publicKey() || wallet?.addresses?.xlm || wallet?.address;
 
-      console.log(`[Chat Confirm] Processing Swap: ${payVal} ${payBadge} -> ${receiveVal} ${receiveBadge} on ${protocolName}`);
+      console.log(
+        `[Chat Confirm] Processing Swap: ${payVal} ${payBadge} -> ${receiveVal} ${receiveBadge} on ${protocolName}`,
+      );
       console.log(`[Chat Confirm] User Stellar Address: ${userStellarAddr}`);
 
       let txHash = "";
@@ -228,7 +253,9 @@ export async function POST(req: NextRequest) {
       const rawQuote = effectiveCardData?._rawQuote;
       if (rawQuote) {
         try {
-          console.log("[Chat Confirm] Invoking buildSwapTransaction on Soroswap...");
+          console.log(
+            "[Chat Confirm] Invoking buildSwapTransaction on Soroswap...",
+          );
           const buildResult = await buildSwapTransaction({
             quote: rawQuote,
             fromAddress: userStellarAddr,
@@ -242,7 +269,10 @@ export async function POST(req: NextRequest) {
           );
 
           try {
-            console.log("[Chat Confirm] Signing transaction with keypair:", userStellarAddr);
+            console.log(
+              "[Chat Confirm] Signing transaction with keypair:",
+              userStellarAddr,
+            );
             const passphrase =
               network === "mainnet"
                 ? StellarSdk.Networks.PUBLIC
@@ -254,7 +284,9 @@ export async function POST(req: NextRequest) {
             );
             tx.sign(sourceKeypair);
 
-            console.log("[Chat Confirm] Submitting signed transaction to Stellar...");
+            console.log(
+              "[Chat Confirm] Submitting signed transaction to Stellar...",
+            );
             const server = getHorizonServer(network);
             const horizonRes = await server.submitTransaction(tx);
 
@@ -288,15 +320,23 @@ export async function POST(req: NextRequest) {
               explorerUrl,
               feePaid: "0.00001 XLM",
               executedAt: new Date(),
-            }).catch((e) => console.error("[Chat Confirm] Transaction log error:", e));
+            }).catch((e) =>
+              console.error("[Chat Confirm] Transaction log error:", e),
+            );
 
-            Wallet.updateOne({ _id: wallet._id }, { $set: { lastUsedAt: new Date() } }).catch(() => {});
+            Wallet.updateOne(
+              { _id: wallet._id },
+              { $set: { lastUsedAt: new Date() } },
+            ).catch(() => {});
           } catch (signErr: any) {
             const resultCodes =
               signErr?.response?.data?.extras?.result_codes ||
               signErr?.message ||
               String(signErr);
-            console.error("[Chat Confirm] Horizon submission ERROR:", resultCodes);
+            console.error(
+              "[Chat Confirm] Horizon submission ERROR:",
+              resultCodes,
+            );
 
             let userErrorMsg = "Transaction failed on Stellar network.";
             if (
@@ -330,7 +370,9 @@ export async function POST(req: NextRequest) {
               token: payBadge,
               errorMessage: userErrorMsg,
               executedAt: new Date(),
-            }).catch((e) => console.error("[Chat Confirm] Transaction log error:", e));
+            }).catch((e) =>
+              console.error("[Chat Confirm] Transaction log error:", e),
+            );
 
             return NextResponse.json(
               { error: userErrorMsg, details: resultCodes },
@@ -343,12 +385,16 @@ export async function POST(req: NextRequest) {
             buildErr?.message || buildErr,
           );
           return NextResponse.json(
-            { error: `Swap transaction build failed: ${buildErr?.message || "Internal error"}` },
+            {
+              error: `Swap transaction build failed: ${buildErr?.message || "Internal error"}`,
+            },
             { status: 400 },
           );
         }
       } else {
-        console.warn("[Chat Confirm] No _rawQuote attached on message cardData");
+        console.warn(
+          "[Chat Confirm] No _rawQuote attached on message cardData",
+        );
       }
 
       receiptCardData = {
@@ -365,7 +411,9 @@ export async function POST(req: NextRequest) {
           { lead: "Network Fee ", value: "0.00001 XLM" },
           {
             lead: "Tx Hash ",
-            value: txHash ? `${txHash.slice(0, 6)}...${txHash.slice(-6)}` : "On-chain",
+            value: txHash
+              ? `${txHash.slice(0, 6)}...${txHash.slice(-6)}`
+              : "On-chain",
           },
         ],
         txHash: txHash || undefined,
@@ -378,20 +426,36 @@ export async function POST(req: NextRequest) {
       const recipient = String(txParams?.recipient || "");
       const network = (txParams?.network || "testnet") as "testnet" | "mainnet";
 
-      const userStellarAddr =
-        wallet?.addresses?.xlm ||
-        wallet?.address ||
-        "";
+      const userStellarAddr = wallet?.addresses?.xlm || wallet?.address || "";
 
-      console.log(`[Chat Confirm] Processing Transfer: ${amount} ${token} → ${recipient} on Stellar ${network}`);
+      console.log(
+        `[Chat Confirm] Processing Transfer: ${amount} ${token} → ${recipient} on Stellar ${network}`,
+      );
 
       let txHash = "";
       let explorerUrl = "";
 
       let destAddress = recipient.trim();
-      if (!destAddress || destAddress.startsWith("@") || !destAddress.startsWith("G")) {
-        // If recipient is a handle or self, fallback to userStellarAddr or a valid testnet pubkey
-        destAddress = userStellarAddr || "GAB72B74GG24KKJMASIYPFFDCHPZ7GJK4TZBTG7HFPN4K5GUKRSQF4IB";
+      if (
+        !destAddress ||
+        !destAddress.startsWith("G") ||
+        destAddress.length !== 56
+      ) {
+        if (/^\d{10}$/.test(destAddress)) {
+          return NextResponse.json(
+            {
+              error: `"${destAddress}" appears to be a 10-digit bank account number. To send money to a bank account, please use the offramp (cash out) feature with your bank name.`,
+            },
+            { status: 400 },
+          );
+        }
+        return NextResponse.json(
+          {
+            error:
+              "Recipient must be a valid 56-character Stellar public key (starting with 'G').",
+          },
+          { status: 400 },
+        );
       }
 
       if (!wallet?.encryptedMnemonic || !pin) {
@@ -410,12 +474,38 @@ export async function POST(req: NextRequest) {
           pin,
         );
         const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
-        const sourceKeypair = StellarSdk.Keypair.fromSecret(stellarKeys.secretKey);
+        const sourceKeypair = StellarSdk.Keypair.fromSecret(
+          stellarKeys.secretKey,
+        );
 
-        console.log("[Chat Confirm] Source keypair:", sourceKeypair.publicKey());
+        console.log(
+          "[Chat Confirm] Source keypair:",
+          sourceKeypair.publicKey(),
+        );
 
         const server = getHorizonServer(network);
-        const sourceAccount = await server.loadAccount(userStellarAddr || sourceKeypair.publicKey());
+
+        let sourceAccount;
+        try {
+          sourceAccount = await server.loadAccount(
+            userStellarAddr || sourceKeypair.publicKey(),
+          );
+        } catch (loadErr: any) {
+          if (
+            loadErr?.response?.status === 404 ||
+            loadErr?.message?.includes("Not Found")
+          ) {
+            const inactiveAdvice =
+              network === "testnet"
+                ? "Your Stellar testnet account is not activated. Please fund it with at least 1 XLM or ask Jumpa AI to 'claim faucet' for free test tokens."
+                : "Your Stellar account is not activated. Stellar accounts need a minimum balance of 1 XLM to be active.";
+            return NextResponse.json(
+              { error: inactiveAdvice, details: "Account not found on ledger" },
+              { status: 400 },
+            );
+          }
+          throw loadErr;
+        }
 
         const passphrase =
           network === "mainnet"
@@ -426,16 +516,39 @@ export async function POST(req: NextRequest) {
           // Non-native Stellar classic assets (USDC etc.) require knowing the issuer address,
           // which is different from the Soroban contract address. Not yet supported for direct payment.
           return NextResponse.json(
-            { error: `Sending ${token} via native Stellar payment is not yet supported. XLM transfers are supported.` },
+            {
+              error: `Sending ${token} via native Stellar payment is not yet supported. XLM transfers are supported.`,
+            },
             { status: 400 },
           );
         }
 
-        const paymentOp = StellarSdk.Operation.payment({
-          destination: destAddress,
-          asset: StellarSdk.Asset.native(),
-          amount: amount,
-        });
+        // Check if destination account exists on ledger
+        let destExists = false;
+        try {
+          await server.loadAccount(destAddress);
+          destExists = true;
+        } catch (destErr: any) {
+          if (
+            destErr?.response?.status === 404 ||
+            destErr?.message?.includes("Not Found")
+          ) {
+            destExists = false;
+          } else {
+            throw destErr;
+          }
+        }
+
+        const paymentOp = destExists
+          ? StellarSdk.Operation.payment({
+              destination: destAddress,
+              asset: StellarSdk.Asset.native(),
+              amount: amount,
+            })
+          : StellarSdk.Operation.createAccount({
+              destination: destAddress,
+              startingBalance: amount,
+            });
 
         const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
           fee: StellarSdk.BASE_FEE,
@@ -473,9 +586,14 @@ export async function POST(req: NextRequest) {
           explorerUrl,
           feePaid: "0.00001 XLM",
           executedAt: new Date(),
-        }).catch((e) => console.error("[Chat Confirm] Transaction log error:", e));
+        }).catch((e) =>
+          console.error("[Chat Confirm] Transaction log error:", e),
+        );
 
-        Wallet.updateOne({ _id: wallet._id }, { $set: { lastUsedAt: new Date() } }).catch(() => {});
+        Wallet.updateOne(
+          { _id: wallet._id },
+          { $set: { lastUsedAt: new Date() } },
+        ).catch(() => {});
       } catch (payErr: any) {
         const resultCodes =
           payErr?.response?.data?.extras?.result_codes ||
@@ -484,12 +602,23 @@ export async function POST(req: NextRequest) {
         console.error("[Chat Confirm] Payment ERROR:", resultCodes);
 
         let userErrorMsg = "Payment failed on Stellar network.";
-        if (JSON.stringify(resultCodes).includes("op_underfunded")) {
+        const errStr = JSON.stringify(resultCodes);
+        if (errStr.includes("Not Found") || errStr.includes("404")) {
+          userErrorMsg =
+            network === "testnet"
+              ? "Your Stellar testnet account is not activated. Please fund it with at least 1 XLM or ask Jumpa AI to 'claim faucet' for free test tokens."
+              : "Your Stellar account is not activated. Stellar accounts need a minimum balance of 1 XLM to be active.";
+        } else if (errStr.includes("op_underfunded")) {
           userErrorMsg = "Payment failed: Insufficient XLM balance.";
-        } else if (JSON.stringify(resultCodes).includes("op_no_destination")) {
-          userErrorMsg = "Payment failed: The recipient account does not exist on the network.";
-        } else if (JSON.stringify(resultCodes).includes("op_no_trust")) {
-          userErrorMsg = "Payment failed: Recipient account does not trust this asset.";
+        } else if (
+          errStr.includes("op_no_destination") ||
+          errStr.includes("op_low_reserve")
+        ) {
+          userErrorMsg =
+            "Payment failed: Destination account requires at least 1 XLM minimum reserve to be created.";
+        } else if (errStr.includes("op_no_trust")) {
+          userErrorMsg =
+            "Payment failed: Recipient account does not trust this asset.";
         } else if (typeof resultCodes === "string") {
           userErrorMsg = `Payment failed: ${resultCodes}`;
         }
@@ -509,7 +638,9 @@ export async function POST(req: NextRequest) {
           token,
           errorMessage: userErrorMsg,
           executedAt: new Date(),
-        }).catch((e) => console.error("[Chat Confirm] Transaction log error:", e));
+        }).catch((e) =>
+          console.error("[Chat Confirm] Transaction log error:", e),
+        );
 
         return NextResponse.json(
           { error: userErrorMsg, details: resultCodes },
@@ -527,7 +658,10 @@ export async function POST(req: NextRequest) {
         },
         stats: [
           { value: `- ${amount} ${token}` },
-          { lead: "To ", value: `${recipient.slice(0, 6)}...${recipient.slice(-6)}` },
+          {
+            lead: "To ",
+            value: `${recipient.slice(0, 6)}...${recipient.slice(-6)}`,
+          },
           { lead: "Network ", value: `Stellar ${network}` },
           { lead: "Network Fee ", value: "0.00001 XLM" },
           {
@@ -550,15 +684,12 @@ export async function POST(req: NextRequest) {
 
     const elapsedSeconds = ((Date.now() - startTime) / 1000).toFixed(1);
 
-
     // Assistant receipt message
     const receiptMsg: IChatMessage = {
       id: generateId("MSG"),
       role: "assistant",
       content:
-        cardType === "quote"
-          ? `✓ Swap confirmed`
-          : `✓ Transfer successful`,
+        cardType === "quote" ? `✓ Swap confirmed` : `✓ Transfer successful`,
       isTransaction: true,
       cardType: "receipt",
       status: "confirmed",
@@ -570,7 +701,11 @@ export async function POST(req: NextRequest) {
     chatLog.messages.push(receiptMsg);
 
     await chatLog.save();
-    console.log("[Chat Confirm] Saved confirmed messages to ChatLog. Elapsed time:", elapsedSeconds, "s");
+    console.log(
+      "[Chat Confirm] Saved confirmed messages to ChatLog. Elapsed time:",
+      elapsedSeconds,
+      "s",
+    );
 
     return NextResponse.json({
       success: true,

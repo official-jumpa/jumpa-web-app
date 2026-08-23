@@ -6,6 +6,9 @@ export interface IUser {
   email: string;
   emailVerified: boolean;
   image: string | null;
+  jumpaTag?: string | null;
+  referralCode?: string | null;
+  referredBy?: string | null;
   lastLoginAt?: Date | null;
   loginMethod?: "google" | "email" | "anonymous";
   activeWalletId?: string | null;
@@ -20,6 +23,9 @@ const UserSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true, lowercase: true },
     emailVerified: { type: Boolean, required: true, default: false },
     image: { type: String, default: null },
+    jumpaTag: { type: String, unique: true, sparse: true, lowercase: true },
+    referralCode: { type: String, unique: true, sparse: true, uppercase: true },
+    referredBy: { type: String, default: null },
     lastLoginAt: { type: Date, default: null },
     loginMethod: { type: String, enum: ["google", "email", "anonymous"], default: "email" },
     activeWalletId: { type: String, default: null },

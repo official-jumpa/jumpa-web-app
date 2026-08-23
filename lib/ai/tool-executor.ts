@@ -7,16 +7,14 @@
  */
 
 import { getSwapQuote } from "@/lib/dex";
-import { fetchStellarBalances } from "@/lib/chains/stellar/account";
+import { fetchStellarBalances, fundTestnetAccount } from "@/lib/chains/stellar";
 import { SwitchService } from "@/lib/switch";
 import { resolveBankCode } from "@/lib/switch-banks";
+import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
 import { connectDB } from "@/lib/db";
 import { Transaction } from "@/models/Transaction";
 import type { SwapQuote } from "@/lib/dex/types";
-import {
-  getNetworkFromToolName,
-  type JumpaToolName,
-} from "./tools";
+import { getNetworkFromToolName, type JumpaToolName } from "./tools";
 
 export type CardHint =
   | { type: "quote"; data: QuoteCardData }
@@ -48,7 +46,9 @@ export interface ToolResult {
   requiresConfirmation: boolean;
 }
 
-function mapAssetToTxChain(asset: string): "stellar" | "solana" | "base" | "eth" | "btc" {
+function mapAssetToTxChain(
+  asset: string,
+): "stellar" | "solana" | "base" | "eth" | "btc" {
   const c = (asset.split(":")[0] || "base").toLowerCase();
   if (c === "solana") return "solana";
   if (c === "stellar") return "stellar";
@@ -75,7 +75,7 @@ export async function executeTool(
   const userId = userCtx.userId || "UNKNOWN";
 
   switch (name) {
-    // ── Stellar Testnet Swap Quote 
+    // ── Stellar Testnet Swap Quote
     case "stellar_testnet_swap_quote":
     case "stellar_mainnet_swap_quote": {
       const network = getNetworkFromToolName(name);
@@ -159,7 +159,7 @@ export async function executeTool(
       };
     }
 
-    // ── Stellar Balance 
+    // ── Stellar Balance
     case "stellar_testnet_balance":
     case "stellar_mainnet_balance": {
       const network = getNetworkFromToolName(name);
@@ -203,7 +203,7 @@ export async function executeTool(
       };
     }
 
-    // ── Portfolio 
+    // ── Portfolio
     case "check_portfolio": {
       return {
         toolName: name,
@@ -214,7 +214,7 @@ export async function executeTool(
       };
     }
 
-    // ── Send Funds 
+    // ── Send Funds
     case "send_funds": {
       const amount = String(toolArgs.amount || "0");
       const token = String(toolArgs.token || "XLM").toUpperCase();
@@ -222,7 +222,11 @@ export async function executeTool(
       const network = (toolArgs.network || "testnet") as "testnet" | "mainnet";
 
       let recipient = String(toolArgs.recipient || "").trim();
-      if (!recipient || recipient.toLowerCase().includes("my wallet") || recipient.toLowerCase().includes("myself")) {
+      if (
+        !recipient ||
+        recipient.toLowerCase().includes("my wallet") ||
+        recipient.toLowerCase().includes("myself")
+      ) {
         recipient = userCtx.stellarAddress;
       }
 
@@ -237,9 +241,17 @@ export async function executeTool(
       const cardData = {
         title: "Transfer Funds",
         contact: {
-          name: recipient.length > 20 ? `${recipient.slice(0, 8)}...${recipient.slice(-6)}` : recipient,
-          handle: recipient.startsWith("G") ? `${recipient.slice(0, 6)}...${recipient.slice(-6)}` : recipient.startsWith("@") ? recipient : `@${recipient}`,
-          avatar: "https://res.cloudinary.com/dyedbeksr/image/upload/v1763964534/Group_1000003624_nrunnu.png",
+          name:
+            recipient.length > 20
+              ? `${recipient.slice(0, 8)}...${recipient.slice(-6)}`
+              : recipient,
+          handle: recipient.startsWith("G")
+            ? `${recipient.slice(0, 6)}...${recipient.slice(-6)}`
+            : recipient.startsWith("@")
+              ? recipient
+              : `@${recipient}`,
+          avatar:
+            "https://res.cloudinary.com/dyedbeksr/image/upload/v1763964534/Group_1000003624_nrunnu.png",
         },
         amount: { caption: "YOU'LL SEND", value: `${amount} ${token}` },
         prompt: "Confirm transfer details",
@@ -287,8 +299,16 @@ export async function executeTool(
           throw new Error("Invalid fiatAmount");
         }
 
-        const result = await SwitchService.initiateOnRamp(amount, asset, walletAddress, false);
-        console.log(`[ToolExecutor] [User: ${userId}] onramp_ngn ← Switch result:`, result);
+        const result = await SwitchService.initiateOnRamp(
+          amount,
+          asset,
+          walletAddress,
+          false,
+        );
+        console.log(
+          `[ToolExecutor] [User: ${userId}] onramp_ngn ← Switch result:`,
+          result,
+        );
 
         if (!result.success || !result.data) {
           throw new Error(result.message || "Switch onramp failed");
@@ -319,9 +339,14 @@ export async function executeTool(
             },
             executedAt: new Date(),
           });
-          console.log(`[ToolExecutor] [User: ${userId}] Transaction saved: ${reference}`);
+          console.log(
+            `[ToolExecutor] [User: ${userId}] Transaction saved: ${reference}`,
+          );
         } catch (dbErr: any) {
-          console.warn(`[ToolExecutor] [User: ${userId}] DB record notice:`, dbErr.message);
+          console.warn(
+            `[ToolExecutor] [User: ${userId}] DB record notice:`,
+            dbErr.message,
+          );
         }
 
         cardData = {
@@ -359,7 +384,10 @@ export async function executeTool(
           requiresConfirmation: true,
         };
       } catch (err: any) {
-        console.error(`[ToolExecutor] [User: ${userId}] onramp_ngn ✗ Error:`, err.message);
+        console.error(
+          `[ToolExecutor] [User: ${userId}] onramp_ngn ✗ Error:`,
+          err.message,
+        );
         return {
           toolName: name,
           summaryForAI: `Failed to initiate onramp: ${err.message}`,
@@ -369,17 +397,23 @@ export async function executeTool(
       }
     }
 
-    // ── Offramp NGN — powered by Switch
+    // ── Offramp NGN — powered by Switch + Paystack Account Verification
     case "offramp_ngn": {
-      const { cryptoAmount, cryptoToken, asset, bankName, accountNumber, holderName } =
-        toolArgs as {
-          cryptoAmount: string;
-          cryptoToken: string;
-          asset: string;
-          bankName: string;
-          accountNumber: string;
-          holderName: string;
-        };
+      const {
+        cryptoAmount,
+        cryptoToken,
+        asset,
+        bankName,
+        accountNumber,
+        holderName,
+      } = toolArgs as {
+        cryptoAmount: string;
+        cryptoToken: string;
+        asset: string;
+        bankName: string;
+        accountNumber: string;
+        holderName?: string;
+      };
 
       console.log(`[ToolExecutor] [User: ${userId}] offramp_ngn →`, {
         cryptoAmount,
@@ -387,32 +421,84 @@ export async function executeTool(
         asset,
         bankName,
         accountNumber,
-        holderName,
+        providedHolderName: holderName,
       });
 
       try {
-        const bankMatch = resolveBankCode(bankName);
-        if (!bankMatch) {
-          throw new Error(`Bank "${bankName}" not found. Please check bank name.`);
+        if (!bankName || !bankName.trim()) {
+          throw new Error("Bank name is required. Please provide your bank name (e.g. GTBank, Kuda, Access Bank, OPay, Zenith).");
         }
+
+        const cleanAccount = String(accountNumber || "").trim().replace(/\D/g, "");
+        if (cleanAccount.length !== 10) {
+          throw new Error(`Invalid account number "${accountNumber}". Nigerian bank account numbers must be exactly 10 digits.`);
+        }
+
+        // 1. Identify Paystack bank
+        const paystackBank = findPaystackBank(bankName);
+        if (!paystackBank) {
+          throw new Error(
+            `Could not find bank matching "${bankName}". Please check the bank name (e.g. GTBank, Access Bank, Kuda, Zenith, OPay).`,
+          );
+        }
+
+        console.log(
+          `[ToolExecutor] [User: ${userId}] Matched Paystack Bank: "${paystackBank.name}" (${paystackBank.code})`,
+        );
+
+        // 2. Validate account number with Paystack to retrieve verified name
+        const resolveRes = await validateAccountNumber(cleanAccount, paystackBank.code);
+        if (!resolveRes || !resolveRes.status || !resolveRes.data?.account_name) {
+          console.warn(
+            `[ToolExecutor] [User: ${userId}] Paystack verification failed:`,
+            resolveRes?.message,
+          );
+          throw new Error(
+            `Could not verify account number ${cleanAccount} with ${paystackBank.name}. Please ensure the 10-digit account number and bank name are correct.`,
+          );
+        }
+
+        const verifiedHolderName = resolveRes.data.account_name.trim();
+        console.log(
+          `[ToolExecutor] [User: ${userId}] ✅ Paystack account verified: "${verifiedHolderName}" (${cleanAccount})`,
+        );
+
+        // 3. Resolve Switch bank code for Switch offramp (never use Paystack bank code for Switch!)
+        const switchBank =
+          resolveBankCode(bankName) ||
+          resolveBankCode(paystackBank.name);
+
+        if (!switchBank) {
+          throw new Error(
+            `Bank "${paystackBank.name}" could not be matched with our settlement partner (Switch). Please check bank name.`,
+          );
+        }
+
+        console.log(
+          `[ToolExecutor] [User: ${userId}] Matched Switch Bank: "${switchBank.name}" (${switchBank.code})`,
+        );
 
         const amount = Number(cryptoAmount);
         if (isNaN(amount) || amount <= 0) {
           throw new Error("Invalid cryptoAmount");
         }
 
+        // 4. Initiate offramp order with Switch using the verified account name
         const result = await SwitchService.initiateOfframp(
           amount,
           asset,
           {
-            holder_name: holderName,
-            account_number: accountNumber,
-            bank_code: bankMatch.code,
+            holder_name: verifiedHolderName,
+            account_number: cleanAccount,
+            bank_code: switchBank.code,
           },
-          false
+          false,
         );
 
-        console.log(`[ToolExecutor] [User: ${userId}] offramp_ngn ← Switch result:`, result);
+        console.log(
+          `[ToolExecutor] [User: ${userId}] offramp_ngn ← Switch result:`,
+          result,
+        );
 
         if (!result.success || !result.data) {
           throw new Error(result.message || "Switch offramp failed");
@@ -430,7 +516,7 @@ export async function executeTool(
             chain: mapAssetToTxChain(asset),
             network: "mainnet",
             fromAddress: "USER_WALLET",
-            toAddress: `${bankMatch.name} / ${accountNumber}`,
+            toAddress: `${paystackBank.name} / ${cleanAccount} (${verifiedHolderName})`,
             amount: String(deposit.amount),
             token: cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC",
             txHash: reference,
@@ -440,23 +526,32 @@ export async function executeTool(
               fiatCurrency: "NGN",
               fiatAmount: destination.amount,
               reference,
+              verifiedAccountName: verifiedHolderName,
+              bankName: paystackBank.name,
+              accountNumber: cleanAccount,
+              depositAddress: deposit.address,
             },
             executedAt: new Date(),
           });
-          console.log(`[ToolExecutor] [User: ${userId}] Transaction saved: ${reference}`);
+          console.log(
+            `[ToolExecutor] [User: ${userId}] Transaction saved: ${reference}`,
+          );
         } catch (dbErr: any) {
-          console.warn(`[ToolExecutor] [User: ${userId}] DB record notice:`, dbErr.message);
+          console.warn(
+            `[ToolExecutor] [User: ${userId}] DB record notice:`,
+            dbErr.message,
+          );
         }
 
         const cardData = {
           title: "Withdrawal",
-          cryptoAmount,
-          cryptoToken,
+          cryptoAmount: String(deposit.amount),
+          cryptoToken: cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC",
           fiatAmount: String(destination.amount),
           fiatCurrency: "NGN",
-          bankName: bankMatch.name,
-          accountName: holderName,
-          accountNumber,
+          bankName: paystackBank.name,
+          accountName: verifiedHolderName,
+          accountNumber: cleanAccount,
           depositAddress: deposit.address,
           asset,
           reference,
@@ -464,10 +559,10 @@ export async function executeTool(
         };
 
         const summaryForAI =
-          `Offramp initiated via Switch. User should send ${deposit.amount} ${asset.split(":")[1]?.toUpperCase()} ` +
-          `to address ${deposit.address}. ` +
-          `They will receive ₦${destination.amount} in their ${bankMatch.name} account (${accountNumber}). ` +
-          `Reference: ${reference}.`;
+          `Offramp draft created for ${deposit.amount} ${cardData.cryptoToken} via Switch. ` +
+          `Account verified via Paystack as **${verifiedHolderName}** (${paystackBank.name} - ${cleanAccount}). ` +
+          `The user will receive **₦${destination.amount.toLocaleString()}**. ` +
+          `Ask the user to confirm to proceed with the withdrawal. Do NOT use emojis or tell them to click buttons.`;
 
         return {
           toolName: name,
@@ -475,17 +570,22 @@ export async function executeTool(
           cardHint: { type: "offramp", data: cardData },
           transactionParams: {
             type: "offramp",
-            cryptoAmount,
-            cryptoToken,
+            cryptoAmount: String(deposit.amount),
+            cryptoToken: cardData.cryptoToken,
             asset,
-            bankName: bankMatch.name,
-            accountNumber,
-            holderName,
+            bankName: paystackBank.name,
+            accountNumber: cleanAccount,
+            holderName: verifiedHolderName,
+            depositAddress: deposit.address,
+            reference,
           },
           requiresConfirmation: true,
         };
       } catch (err: any) {
-        console.error(`[ToolExecutor] [User: ${userId}] offramp_ngn ✗ Error:`, err.message);
+        console.error(
+          `[ToolExecutor] [User: ${userId}] offramp_ngn ✗ Error:`,
+          err.message,
+        );
         return {
           toolName: name,
           summaryForAI: `Failed to initiate offramp: ${err.message}`,
@@ -493,6 +593,57 @@ export async function executeTool(
           requiresConfirmation: false,
         };
       }
+    }
+
+    // ── Claim Testnet Faucet (Friendbot)
+    case "claim_faucet": {
+      const providedAddress = String(toolArgs.walletAddress || "").trim();
+      const targetAddress =
+        providedAddress.startsWith("G") && providedAddress.length === 56
+          ? providedAddress
+          : userCtx.stellarAddress;
+
+      if (!targetAddress || !targetAddress.startsWith("G")) {
+        return {
+          toolName: name,
+          summaryForAI:
+            "Cannot claim faucet: No valid Stellar public key (G...) found for your account.",
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      console.log(
+        `[ToolExecutor] [User: ${userId}] claim_faucet requested for: ${targetAddress}`,
+      );
+      const res = await fundTestnetAccount(targetAddress);
+
+      if (!res.success) {
+        return {
+          toolName: name,
+          summaryForAI: `Faucet funding failed: ${res.message}. The testnet network may be busy.`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      // Fetch fresh testnet balance
+      let newBalanceText = "10,000 XLM";
+      try {
+        const bal = await fetchStellarBalances(targetAddress);
+        newBalanceText = `${bal.testnet.native} XLM`;
+      } catch {
+        // Fallback
+      }
+
+      return {
+        toolName: name,
+        summaryForAI:
+          `Successfully funded your Stellar testnet wallet (${targetAddress.slice(0, 6)}...${targetAddress.slice(-4)}) with 10,000 testnet XLM via Friendbot. ` +
+          `Your active testnet balance is now **${newBalanceText}**. Your wallet is active and ready for testnet transactions!`,
+        cardHint: { type: "none" },
+        requiresConfirmation: false,
+      };
     }
 
     default:

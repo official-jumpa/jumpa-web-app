@@ -78,10 +78,15 @@ function messagesToChatEntries(
         card: msg.cardData as any,
       });
     } else if (msg.cardType === "offramp" && msg.cardData) {
+      const isPending = msg.status === "pending";
       items.push({
         kind: "offramp",
         card: msg.cardData as any,
       });
+
+      if (isPending) {
+        items.push({ kind: "actions" });
+      }
     } else if (msg.cardType === "receipt" && msg.cardData) {
       items.push({
         kind: "receipt",
@@ -421,6 +426,59 @@ export function ChatView() {
     ],
   );
 
+  // Cancel pending transaction proposal
+  const handleCancelTransaction = useCallback(async () => {
+    setPinOpen(false);
+    setPinError(null);
+    setPinProcessing(false);
+
+    if (!activeSessionId) return;
+
+    const latestPendingMsg = [...messages]
+      .reverse()
+      .find((m) => m.isTransaction && m.status === "pending");
+    const targetId = pendingActionMsgId || latestPendingMsg?.id;
+    if (!targetId) return;
+
+    // Optimistically update local message status to cancelled
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id === targetId) {
+          return {
+            ...m,
+            status: "cancelled",
+            cardData: m.cardData
+              ? { ...m.cardData, status: "cancelled" }
+              : m.cardData,
+          };
+        }
+        return m;
+      }),
+    );
+
+    try {
+      const res = await fetch("/api/chat/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: activeSessionId,
+          messageId: targetId,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.assistantMessage) {
+          setRevealId(data.assistantMessage.id);
+          setMessages((prev) => [...prev, data.assistantMessage]);
+        }
+      }
+      refreshSessionsList();
+    } catch (err) {
+      console.error("[ChatView] Error cancelling transaction:", err);
+    }
+  }, [activeSessionId, pendingActionMsgId, messages, refreshSessionsList]);
+
   const started = messages.length > 0;
   const hasMoreMessages = totalMessagesCount > messages.length;
   const entries = messagesToChatEntries(messages, revealId);
@@ -474,7 +532,7 @@ export function ChatView() {
             <Transcript
               entries={entries}
               onConfirm={handleOpenPin}
-              onCancel={handleClosePin}
+              onCancel={handleCancelTransaction}
               onUpdateQuote={setPendingQuoteCard}
             />
 

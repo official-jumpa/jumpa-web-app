@@ -48,10 +48,7 @@ export async function POST(req: NextRequest) {
         ? await SwitchService.getOfframpQuote(numAmount, asset, isExactOut)
         : await SwitchService.getQuote(numAmount, asset, isExactOut);
 
-    console.log(
-      `[Switch Quote API] [User: ${userId}] ← Raw response:`,
-      JSON.stringify(result, null, 2)
-    );
+    console.log(`[Switch Quote API] [User: ${userId}] ← Raw response:`, result);
 
     if (!result.success) {
       console.error(`[Switch Quote API] [User: ${userId}] ✗ Error:`, result.message);

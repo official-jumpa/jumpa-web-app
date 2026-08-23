@@ -33,7 +33,7 @@ export interface ToolCall {
   };
 }
 
-// ─── Stellar Testnet Tools 
+// ─── Stellar Testnet Tools
 
 const stellarTestnetSwapQuote: DeepSeekTool = {
   type: "function",
@@ -81,7 +81,8 @@ const stellarTestnetBalance: DeepSeekTool = {
       properties: {
         address: {
           type: "string",
-          description: "Optional Stellar public key address (G...) to query balance for.",
+          description:
+            "Optional Stellar public key address (G...) to query balance for.",
         },
       },
       required: [],
@@ -89,7 +90,7 @@ const stellarTestnetBalance: DeepSeekTool = {
   },
 };
 
-// ─── Stellar Mainnet Tools 
+// ─── Stellar Mainnet Tools
 
 const stellarMainnetSwapQuote: DeepSeekTool = {
   type: "function",
@@ -136,7 +137,8 @@ const stellarMainnetBalance: DeepSeekTool = {
       properties: {
         address: {
           type: "string",
-          description: "Optional Stellar public key address (G...) to query balance for.",
+          description:
+            "Optional Stellar public key address (G...) to query balance for.",
         },
       },
       required: [],
@@ -144,7 +146,7 @@ const stellarMainnetBalance: DeepSeekTool = {
   },
 };
 
-// ─── Cross-Chain / Portfolio Tools 
+// ─── Cross-Chain / Portfolio Tools
 
 const checkPortfolio: DeepSeekTool = {
   type: "function",
@@ -166,9 +168,11 @@ const sendFunds: DeepSeekTool = {
   function: {
     name: "send_funds",
     description:
-      "Draft a crypto transfer to a recipient address or Jumpa handle. " +
-      "Call this IMMEDIATELY whenever the user asks to send or transfer crypto (e.g. 'send 100 XLM to GB25H...', 'send 50 XLM to GAB...', 'send 53 XLM to my wallet'). " +
-      "If recipient is 'my wallet' or 'myself', use the user's Stellar address from context. Always set chain to 'stellar' for XLM.",
+      "Draft an on-chain crypto transfer to a recipient Stellar public key (56-character string starting with 'G') or a Jumpa handle (e.g. '@alice'). " +
+      "MANDATORY RULES: " +
+      "1. A 10-digit number (e.g. '9169419535') is a Nigerian bank account number, NOT a Stellar address. DO NOT use send_funds for 10-digit numbers! Instead, ask the user for their bank name to initiate an offramp. " +
+      "2. For transfers to 'my wallet' or 'myself', set recipient to the user's Stellar address from context. " +
+      "3. Default chain to 'stellar' for XLM. Network defaults to 'testnet' unless mainnet is specified.",
     parameters: {
       type: "object",
       properties: {
@@ -178,21 +182,24 @@ const sendFunds: DeepSeekTool = {
         },
         token: {
           type: "string",
-          description: "Token symbol to send (e.g. 'XLM', 'USDC', 'SOL'). Default to 'XLM'.",
+          description:
+            "Token symbol to send (e.g. 'XLM', 'USDC', 'SOL'). Default to 'XLM'.",
         },
         chain: {
           type: "string",
-          description: "Chain to send on ('stellar', 'solana', 'base'). Default to 'stellar'.",
+          description:
+            "Chain to send on ('stellar', 'solana', 'base'). Default to 'stellar'.",
         },
         network: {
           type: "string",
           enum: ["testnet", "mainnet"],
-          description: "Network to use ('testnet' or 'mainnet'). Default to 'testnet'.",
+          description:
+            "Network to use ('testnet' or 'mainnet'). Default to 'testnet'.",
         },
         recipient: {
           type: "string",
           description:
-            "Recipient address or @handle (e.g. '@alice', 'GB25H...').",
+            "Recipient Stellar public key (G...) or Jumpa @handle (e.g. '@alice'). Never a 10-digit bank account number.",
         },
       },
       required: ["amount", "token", "recipient"],
@@ -217,7 +224,8 @@ const onrampNgn: DeepSeekTool = {
       properties: {
         fiatAmount: {
           type: "string",
-          description: "Exact amount of NGN to deposit provided by user (e.g. '10000', '50000'). Never assume.",
+          description:
+            "Exact amount of NGN to deposit provided by user (e.g. '10000', '50000'). Never assume.",
         },
         cryptoToken: {
           type: "string",
@@ -230,7 +238,8 @@ const onrampNgn: DeepSeekTool = {
         },
         walletAddress: {
           type: "string",
-          description: "User's wallet address on the target chain to receive the crypto.",
+          description:
+            "User's wallet address on the target chain to receive the crypto.",
         },
       },
       required: ["fiatAmount", "cryptoToken", "asset", "walletAddress"],
@@ -244,16 +253,18 @@ const offrampNgn: DeepSeekTool = {
     name: "offramp_ngn",
     description:
       "Initiate a withdrawal via Switch to sell crypto for Nigerian Naira (NGN) to a user's bank account. " +
+      "The system automatically verifies the account number and bank with Paystack to ensure accuracy. " +
       "Supported Switch asset pairs: " +
       "USDC: 'base:usdc', 'solana:usdc', 'polygon:usdc', 'arbitrum:usdc', 'ethereum:usdc', 'bsc:usdc'. " +
       "USDT: 'solana:usdt', 'tron:usdt', 'polygon:usdt', 'arbitrum:usdt', 'ethereum:usdt', 'bsc:usdt'. " +
-      "MANDATORY: Do NOT call this tool if cryptoAmount, asset, or bank details are missing — ask the user in chat first.",
+      "MANDATORY: Do NOT call this tool if cryptoAmount, asset, bankName, or accountNumber are missing — ask the user in chat first.",
     parameters: {
       type: "object",
       properties: {
         cryptoAmount: {
           type: "string",
-          description: "Amount of crypto to sell provided by user (e.g. '50'). Never assume.",
+          description:
+            "Amount of crypto to sell provided by user (e.g. '50'). Never assume.",
         },
         cryptoToken: {
           type: "string",
@@ -266,15 +277,17 @@ const offrampNgn: DeepSeekTool = {
         },
         bankName: {
           type: "string",
-          description: "User's bank name in plain English (e.g. 'GTBank', 'Access Bank', 'Kuda'). The system resolves the bank code automatically.",
+          description:
+            "User's bank name or alias (e.g. 'GTBank', 'Access Bank', 'Kuda', 'OPay', 'Zenith').",
         },
         accountNumber: {
           type: "string",
-          description: "User's 10-digit bank account number.",
+          description: "User's 10-digit Nigerian bank account number.",
         },
         holderName: {
           type: "string",
-          description: "Account holder's full name as registered with the bank.",
+          description:
+            "Optional account holder name. The system verifies and fetches the official registered name via Paystack automatically.",
         },
       },
       required: [
@@ -283,13 +296,34 @@ const offrampNgn: DeepSeekTool = {
         "asset",
         "bankName",
         "accountNumber",
-        "holderName",
       ],
     },
   },
 };
 
-// ─── Exported Tool Registry 
+const claimFaucet: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "claim_faucet",
+    description:
+      "Claim 10,000 free testnet tokens (XLM) from the Stellar testnet faucet (Friendbot) to activate or fund a testnet wallet. " +
+      "Call this whenever the user asks for test tokens, faucet funds, testnet XLM, or asks to fund/activate their testnet wallet. " +
+      "If walletAddress is omitted, the system defaults to the user's active Stellar wallet address.",
+    parameters: {
+      type: "object",
+      properties: {
+        walletAddress: {
+          type: "string",
+          description:
+            "Optional Stellar public key (G...). If omitted, defaults to the user's connected Stellar address.",
+        },
+      },
+      required: [],
+    },
+  },
+};
+
+// ─── Exported Tool Registry
 
 export const JUMPA_TOOLS: DeepSeekTool[] = [
   stellarTestnetSwapQuote,
@@ -300,6 +334,7 @@ export const JUMPA_TOOLS: DeepSeekTool[] = [
   sendFunds,
   onrampNgn,
   offrampNgn,
+  claimFaucet,
 ];
 
 export type JumpaToolName =
@@ -310,7 +345,8 @@ export type JumpaToolName =
   | "check_portfolio"
   | "send_funds"
   | "onramp_ngn"
-  | "offramp_ngn";
+  | "offramp_ngn"
+  | "claim_faucet";
 
 /** Infer network from tool name — single source of truth */
 export function getNetworkFromToolName(

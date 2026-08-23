@@ -3388,41 +3388,151 @@ export interface SwitchBank {
 }
 
 /**
- * Resolve a Switch bank code from a user-supplied bank name string.
- * Tries exact match (case-insensitive), then partial includes match.
- * Returns null if no match found.
+ * Common aliases and abbreviations mapped directly to Switch bank names / codes.
+ */
+const SWITCH_BANK_ALIASES: Record<string, string> = {
+  "opay": "100004", // OPAY
+  "opay digital services limited (opay)": "100004",
+  "opay digital services limited": "100004",
+  "paycom": "100004",
+  "palmpay": "100033", // PALMPAY
+  "palm pay": "100033",
+  "kuda": "090267", // KUDA MICROFINANCE BANK
+  "kuda bank": "090267",
+  "kuda mfb": "090267",
+  "moniepoint": "090405", // MONIEPOINT MICROFINANCE BANK
+  "monie point": "090405",
+  "moniepoint mfb": "090405",
+  "gtb": "000013", // GTBANK PLC
+  "gt bank": "000013",
+  "gtbank": "000013",
+  "gtbank plc": "000013",
+  "guaranty trust bank": "000013",
+  "guaranty trust": "000013",
+  "access": "000014", // ACCESS BANK
+  "access bank": "000014",
+  "access bank (diamond)": "000014",
+  "diamond bank": "000014",
+  "zenith": "000015", // ZENITH BANK
+  "zenith bank": "000015",
+  "first bank": "000016", // FIRST BANK OF NIGERIA
+  "first bank of nigeria": "000016",
+  "fbn": "000016",
+  "uba": "000004", // UNITED BANK FOR AFRICA
+  "united bank for africa": "000004",
+  "fcmb": "000003", // FIRST CITY MONUMENT BANK
+  "first city monument bank": "000003",
+  "wema": "000017", // WEMA BANK
+  "wema bank": "000017",
+  "alat": "000017",
+  "alat by wema": "000017",
+  "ecobank": "000010", // ECOBANK
+  "ecobank nigeria": "000010",
+  "fidelity": "000007", // FIDELITY BANK
+  "fidelity bank": "000007",
+  "union bank": "000018", // UNION BANK
+  "union bank of nigeria": "000018",
+  "stanbic": "000012", // STANBIC IBTC BANK
+  "stanbic ibtc": "000012",
+  "stanbic ibtc bank": "000012",
+  "sterling": "000001", // STERLING BANK
+  "sterling bank": "000001",
+  "polaris": "000008", // POLARIS BANK
+  "polaris bank": "000008",
+  "keystone": "000002", // KEYSTONE BANK
+  "keystone bank": "000002",
+  "providus": "000023", // PROVIDUS BANK
+  "providus bank": "000023",
+  "jaiz": "000006", // JAIZ BANK
+  "jaiz bank": "000006",
+  "taj": "000026", // TAJ BANK
+  "taj bank": "000026",
+  "vfd": "090110", // VFD MFB
+  "vfd mfb": "090110",
+  "vfd microfinance bank limited": "090110",
+  "fairmoney": "090551",
+  "fairmoney microfinance bank": "090551",
+  "carbon": "090365",
+  "rubies": "090175",
+  "rubies mfb": "090175",
+};
+
+/**
+ * Resolve a Switch bank code from a user-supplied bank name or Paystack bank name.
+ * Uses exact alias lookup first, then clean normalized token matching.
  */
 export function resolveBankCode(
   bankNameInput: string
 ): { code: string; name: string } | null {
-  const needle = bankNameInput.trim().toUpperCase();
-  console.log(`[SwitchBanks] Resolving bank code for input: "${bankNameInput}" (normalised: "${needle}")`);
+  if (!bankNameInput || typeof bankNameInput !== "string") return null;
 
-  // 1. Exact match
-  const exact = SwitchBanks.find((b) => b.name === needle);
+  const raw = bankNameInput.trim().toLowerCase();
+  console.log(`[SwitchBanks] Resolving bank code for input: "${bankNameInput}"`);
+
+  // 1. Direct Alias Lookup
+  const aliasCode = SWITCH_BANK_ALIASES[raw];
+  if (aliasCode) {
+    const matchedBank = SwitchBanks.find((b) => b.code === aliasCode);
+    if (matchedBank) {
+      console.log(`[SwitchBanks] Alias match → "${matchedBank.name}" (${matchedBank.code})`);
+      return { code: matchedBank.code, name: matchedBank.name };
+    }
+  }
+
+  // 2. Exact match on bank name (case-insensitive)
+  const exact = SwitchBanks.find((b) => b.name.toLowerCase() === raw);
   if (exact) {
     console.log(`[SwitchBanks] Exact match → "${exact.name}" (${exact.code})`);
     return { code: exact.code, name: exact.name };
   }
 
-  // 2. Partial match — bank name contains the needle or needle contains bank name
-  const partial = SwitchBanks.find(
-    (b) => b.name.includes(needle) || needle.includes(b.name.split(" ")[0])
-  );
-  if (partial) {
-    console.log(`[SwitchBanks] Partial match → "${partial.name}" (${partial.code})`);
-    return { code: partial.code, name: partial.name };
+  // 3. Normalized alphanumeric search
+  const cleanNeedle = raw.replace(/[^a-z0-9]/g, "");
+
+  // Priority check on primary keyword tokens (e.g. "opay", "palmpay", "kuda", "moniepoint", "zenith", "access", "gtbank")
+  const primaryKeywords = [
+    "opay",
+    "palmpay",
+    "kuda",
+    "moniepoint",
+    "zenith",
+    "gtbank",
+    "access",
+    "firstbank",
+    "fcmb",
+    "wema",
+    "ecobank",
+    "fidelity",
+    "unionbank",
+    "stanbic",
+    "sterling",
+    "polaris",
+    "keystone",
+    "providus",
+    "jaiz",
+    "taj",
+  ];
+
+  for (const kw of primaryKeywords) {
+    if (cleanNeedle.includes(kw) && SWITCH_BANK_ALIASES[kw]) {
+      const code = SWITCH_BANK_ALIASES[kw];
+      const matched = SwitchBanks.find((b) => b.code === code);
+      if (matched) {
+        console.log(`[SwitchBanks] Primary keyword match "${kw}" → "${matched.name}" (${matched.code})`);
+        return { code: matched.code, name: matched.name };
+      }
+    }
   }
 
-  // 3. Word-level match — any word in needle matches first word of bank name
-  const needleWords = needle.split(/\s+/);
-  const wordMatch = SwitchBanks.find((b) => {
-    const bankWords = b.name.split(/\s+/);
-    return needleWords.some((w) => w.length > 2 && bankWords.includes(w));
+  // 4. Whole-word / clean match with SwitchBanks
+  const matched = SwitchBanks.find((b) => {
+    const cleanBank = b.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+    return cleanBank === cleanNeedle || cleanBank.includes(cleanNeedle);
   });
-  if (wordMatch) {
-    console.log(`[SwitchBanks] Word match → "${wordMatch.name}" (${wordMatch.code})`);
-    return { code: wordMatch.code, name: wordMatch.name };
+
+  if (matched) {
+    console.log(`[SwitchBanks] Normalized match → "${matched.name}" (${matched.code})`);
+    return { code: matched.code, name: matched.name };
   }
 
   console.warn(`[SwitchBanks] No match found for: "${bankNameInput}"`);

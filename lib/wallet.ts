@@ -85,34 +85,3 @@ export const PROMOTIONS: Promotion[] = [
     href: "/home",
   },
 ];
-
-export type ProfileInfo = {
-  handle: string;
-  email: string;
-  jumpaTag: string;
-  walletAddress: string;
-  referralCode: string;
-  referralLink: string;
-};
-
-export const PROFILE: ProfileInfo = {
-  handle: "ademola_bharry22",
-  email: "ademola28.brainpoint@gmail.com",
-  jumpaTag: "Bharry@jumpa",
-  walletAddress: "xsw3d4r4t55g6hu7jk78hgfec",
-  referralCode: "3268h3309",
-  referralLink: "xby72822822238hdice90c",
-};
-
-export type ReferralSummary = {
-  /** Unprefixed — the screen sets the "$" at its own size. */
-  earnings: string;
-  invited: number;
-  target: number;
-};
-
-export const REFERRALS: ReferralSummary = {
-  earnings: "144,760.21",
-  invited: 19,
-  target: 40,
-};

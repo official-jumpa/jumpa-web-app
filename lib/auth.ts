@@ -6,10 +6,68 @@ import { sendOtpEmail } from "./email-otp-mail";
 import { environment } from "./environment";
 import { generateId } from "./schema-ids";
 
+import { generateUniqueJumpaTag, generateUniqueReferralCode } from "./user-profile";
+import { User } from "@/models/User";
+import { Referral } from "@/models/Referral";
+
 await connectDB();
 
 export const auth = betterAuth({
   database: mongodbAdapter(getDb()),
+  user: {
+    additionalFields: {
+      jumpaTag: {
+        type: "string",
+        required: false,
+      },
+      referralCode: {
+        type: "string",
+        required: false,
+      },
+      referredBy: {
+        type: "string",
+        required: false,
+      },
+    },
+  },
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user) => {
+          const jumpaTag = await generateUniqueJumpaTag(user.name, user.email);
+          const referralCode = await generateUniqueReferralCode();
+          return {
+            data: {
+              ...user,
+              jumpaTag: (user as any).jumpaTag || jumpaTag,
+              referralCode: (user as any).referralCode || referralCode,
+            },
+          };
+        },
+        after: async (user) => {
+          const referredBy = (user as any).referredBy;
+          if (referredBy) {
+            try {
+              const referrer = await User.findOne({
+                referralCode: String(referredBy).toUpperCase(),
+              });
+              if (referrer && referrer._id !== user.id) {
+                await Referral.create({
+                  referrerId: referrer._id,
+                  referrerCode: String(referredBy).toUpperCase(),
+                  referredUserId: user.id,
+                  points: 1,
+                  status: "joined",
+                });
+              }
+            } catch (e) {
+              console.error("[Auth Hook] Failed to record referral:", e);
+            }
+          }
+        },
+      },
+    },
+  },
   advanced: {
     database: {
       generateId: ({ model }: { model: string }) => {

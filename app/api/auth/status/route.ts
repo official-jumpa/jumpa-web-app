@@ -6,9 +6,11 @@ import { Wallet } from "@/models/Wallet";
 import { User } from "@/models/User";
 import { environment } from "@/lib/environment";
 
+import { ensureUserJumpaFields } from "@/lib/user-profile";
+
 /**
  * GET /api/auth/status
- * Light status check returning authentication status and whether the user owns a wallet.
+ * Light status check returning authentication status, user profile info, and active wallet details.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -25,6 +27,9 @@ export async function GET(req: NextRequest) {
     }
 
     await connectDB();
+
+    // Ensure user has jumpaTag and referralCode (auto-backfill for existing accounts)
+    const usr = await ensureUserJumpaFields(session.user.id);
 
     // Asynchronously update lastLoginAt on User model
     User.updateOne(
@@ -46,6 +51,11 @@ export async function GET(req: NextRequest) {
       selectedWallet = await Wallet.findOne({ userId: session.user.id });
     }
 
+    // Build referral link
+    const origin = environment.BETTER_AUTH_URL;
+    const referralCode = usr?.referralCode || "";
+    const referralLink = `${origin}/signup?ref=${referralCode}`;
+
     const response = NextResponse.json({
       authenticated: true,
       hasWallet: !!selectedWallet,
@@ -54,6 +64,17 @@ export async function GET(req: NextRequest) {
         id: session.user.id,
         email: session.user.email,
         name: session.user.name,
+        image: session.user.image,
+        jumpaTag: usr?.jumpaTag || (session.user as any).jumpaTag || null,
+        referralCode: referralCode || null,
+        referralLink: referralLink || null,
+        wallet: selectedWallet
+          ? {
+            address: selectedWallet.address,
+            name: selectedWallet.name,
+            addresses: selectedWallet.addresses,
+          }
+          : null,
       },
     });
 

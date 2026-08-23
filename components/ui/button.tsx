@@ -23,6 +23,7 @@ const VARIANTS = {
 } as const;
 
 const SIZES = {
+  sm: "h-11", // referrals
   md: "h-[52px]", // onboarding
   lg: "h-14", // auth screens
 } as const;

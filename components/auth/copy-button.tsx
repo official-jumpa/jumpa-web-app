@@ -12,11 +12,14 @@ const CONFIRM_MS = 2000;
 export function CopyButton({
   value,
   label,
+  variant = "pill",
   className,
 }: {
   value: string;
   /** Shown beside the icon; omit for the icon-only form. */
   label?: string;
+  /** `text` drops the pill and the icon, leaving the label alone. */
+  variant?: "pill" | "text";
   className?: string;
 }) {
   const [copied, setCopied] = useState(false);
@@ -32,6 +35,7 @@ export function CopyButton({
   };
 
   const Icon = copied ? CheckIcon : CopyIcon;
+  const bare = variant === "text";
 
   return (
     <button
@@ -41,13 +45,13 @@ export function CopyButton({
       className={cn(
         "flex items-center justify-center gap-2 transition-colors",
         copied ? "text-jumpa-success" : "text-jumpa-primary-950",
-        label && "rounded-pill bg-jumpa-primary-50 px-5.5 py-2.5",
+        label && !bare && "rounded-pill bg-jumpa-primary-50 px-5.5 py-2.5",
         className,
       )}
     >
-      <Icon className="size-6 shrink-0" />
+      {bare ? null : <Icon className="size-6 shrink-0" />}
       {label ? (
-        <span className="text-sm leading-4 font-medium">
+        <span className={bare ? undefined : "text-sm leading-4 font-medium"}>
           {copied ? "Copied" : label}
         </span>
       ) : null}

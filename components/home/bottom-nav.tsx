@@ -14,7 +14,7 @@ const TABS = [
   { label: "Home", href: "/home", Icon: HouseLineIcon },
   { label: "Cards", href: "/cards", Icon: CreditCardNavIcon },
   { label: "Transactions", href: "/transactions", Icon: ReceiptAltIcon },
-  { label: "Me", href: "/me", Icon: CircleUserIcon },
+  { label: "Me", href: "/profile", Icon: CircleUserIcon },
 ];
 
 /** Floating tab bar. The chat action sits at the centre, between tabs 2 and 3. */

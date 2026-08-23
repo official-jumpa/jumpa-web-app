@@ -48,6 +48,7 @@
      not Figma variables, so the names are ours. Distinct from `grey` above. */
   --color-jumpa-neutral-25: #fbfbfb; /* label on a chat Confirm button */
   --color-jumpa-neutral-50: #fafafa; /* card / key / chip surface */
+  --color-jumpa-neutral-60: #f8f8f8; /* settings card border */
   --color-jumpa-neutral-75: #f4f4f4; /* bottom-sheet grab handle */
   --color-jumpa-neutral-90: #f1f1f1; /* bottom-nav hairline */
   --color-jumpa-neutral-95: #f0f0f0; /* chat bubble, card and chip surface */

@@ -4,10 +4,14 @@ import { cn } from "@/lib/cn";
 /** Dimmed overlay with a bottom panel. The grab handle is decorative — no drag in the design. */
 export function BottomSheet({
   onClose,
+  pb = "pb-6",
   className,
   children,
 }: {
   onClose: () => void;
+  /** Bottom padding, as its own slot — `cn` is a plain join, so a `pb-*` in
+   *  `className` would not reliably beat the default. */
+  pb?: string;
   className?: string;
   children: ReactNode;
 }) {
@@ -22,7 +26,8 @@ export function BottomSheet({
 
       <div
         className={cn(
-          "absolute inset-x-2.5 bottom-[calc(env(safe-area-inset-bottom)+10px)] animate-sheet-up rounded-sheet bg-jumpa-white px-6 pt-3 pb-6",
+          "absolute inset-x-2.5 bottom-[calc(env(safe-area-inset-bottom)+10px)] animate-sheet-up rounded-sheet bg-jumpa-white px-6 pt-3",
+          pb,
           className,
         )}
       >

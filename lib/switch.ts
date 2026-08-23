@@ -327,7 +327,7 @@ export class SwitchService {
         exact_output: isExactOut
       };
 
-      console.log("[SwitchService] Initiating offramp:", JSON.stringify(payload, null, 2));
+      console.log("[SwitchService] Initiating offramp:", payload);
 
       const response = await fetch(`${this.BASE_URL}/offramp/initiate`, {
         method: "POST",

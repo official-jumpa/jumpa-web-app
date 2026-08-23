@@ -403,12 +403,13 @@ export async function fetchWalletBalances(
 
   summary.totalUsd = `$${totalUsd}`;
 
+  const nonZeroBalances = tokens
+    .filter((t) => (parseFloat(t.balance) || 0) > 0)
+    .map((t) => `${t.balance} ${t.symbol}`)
+    .join(", ");
+
   console.log(
-    `[Balance Service] Returned balances for [${chains?.join(", ") || "ALL"}]:`,
-    {
-      summary,
-      testnetSummary,
-    },
+    `[Balance Service] [${chains?.join(", ") || "ALL"}] Total: $${totalUsd}${nonZeroBalances ? ` (${nonZeroBalances})` : ""}`,
   );
 
   return {

@@ -24,10 +24,7 @@ export async function GET(req: NextRequest) {
 
     const result = await SwitchService.getTransactionStatus(reference);
 
-    console.log(
-      `[Switch Status API] [User: ${userId}] ← Raw response:`,
-      JSON.stringify(result, null, 2)
-    );
+    console.log(`[Switch Status API] [User: ${userId}] ← Raw response:`, result);
 
     if (!result.success) {
       console.error(`[Switch Status API] [User: ${userId}] ✗ Error:`, result.message);

@@ -136,8 +136,8 @@ export async function POST(req: NextRequest) {
     const targetMsg = messageId
       ? chatLog.messages.find((m) => m.id === messageId)
       : [...chatLog.messages]
-          .reverse()
-          .find((m) => m.isTransaction && m.status === "pending");
+        .reverse()
+        .find((m) => m.isTransaction && m.status === "pending");
 
     if (!targetMsg) {
       console.warn(
@@ -180,20 +180,14 @@ export async function POST(req: NextRequest) {
     const effectiveCardData = updatedCardData || targetMsg?.cardData || {};
     const txParams = targetMsg?.transactionParams || {};
 
-    console.log(
-      "[Chat Confirm] Effective Card Data:",
-      JSON.stringify(effectiveCardData, null, 2),
-    );
-    console.log(
-      "[Chat Confirm] Transaction Params:",
-      JSON.stringify(txParams, null, 2),
-    );
+    console.log("[Chat Confirm] Effective Card Data:", effectiveCardData);
+    console.log("[Chat Confirm] Transaction Params:", txParams);
 
     // User authorization message
     const userAuthMsg: IChatMessage = {
       id: generateId("MSG"),
       role: "user",
-      content: cardType === "quote" ? "Swap authorised" : "Transfer authorised",
+      content: cardType === "quote" ? "Swap approved" : "Transfer approved",
       timestamp: new Date(),
     };
 
@@ -329,7 +323,7 @@ export async function POST(req: NextRequest) {
             Wallet.updateOne(
               { _id: wallet._id },
               { $set: { lastUsedAt: new Date() } },
-            ).catch(() => {});
+            ).catch(() => { });
           } catch (signErr: any) {
             const resultCodes =
               signErr?.response?.data?.extras?.result_codes ||
@@ -543,14 +537,14 @@ export async function POST(req: NextRequest) {
 
         const paymentOp = destExists
           ? StellarSdk.Operation.payment({
-              destination: destAddress,
-              asset: StellarSdk.Asset.native(),
-              amount: amount,
-            })
+            destination: destAddress,
+            asset: StellarSdk.Asset.native(),
+            amount: amount,
+          })
           : StellarSdk.Operation.createAccount({
-              destination: destAddress,
-              startingBalance: amount,
-            });
+            destination: destAddress,
+            startingBalance: amount,
+          });
 
         const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
           fee: StellarSdk.BASE_FEE,
@@ -595,7 +589,7 @@ export async function POST(req: NextRequest) {
         Wallet.updateOne(
           { _id: wallet._id },
           { $set: { lastUsedAt: new Date() } },
-        ).catch(() => {});
+        ).catch(() => { });
       } catch (payErr: any) {
         const resultCodes =
           payErr?.response?.data?.extras?.result_codes ||
@@ -782,7 +776,7 @@ export async function POST(req: NextRequest) {
       Wallet.updateOne(
         { _id: wallet._id },
         { $set: { lastUsedAt: new Date() } },
-      ).catch(() => {});
+      ).catch(() => { });
 
       receiptCardData = {
         title: "Withdrawal Sent",

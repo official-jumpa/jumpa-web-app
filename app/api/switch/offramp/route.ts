@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
       isExactOut
     );
 
-    console.log(`[Switch Offramp API] [User: ${userId}] ← Raw Switch response:`, JSON.stringify(result, null, 2));
+    console.log(`[Switch Offramp API] [User: ${userId}] ← Switch response:`, result);
 
     if (!result.success || !result.data) {
       console.error(`[Switch Offramp API] [User: ${userId}] ✗ Switch API error:`, result.message);

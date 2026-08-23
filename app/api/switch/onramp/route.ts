@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
     const result = await SwitchService.initiateOnRamp(amount, asset, walletAddress, isExactOut);
 
-    console.log(`[Switch Onramp API] [User: ${userId}] ← Raw Switch response:`, JSON.stringify(result, null, 2));
+    console.log(`[Switch Onramp API] [User: ${userId}] ← Raw Switch response:`, result);
 
     if (!result.success || !result.data) {
       console.error(`[Switch Onramp API] [User: ${userId}] ✗ Switch API error:`, result.message);

@@ -26,12 +26,8 @@ export async function GET(req: NextRequest) {
     const user = await ensureUserJumpaFields(session.user.id);
     const referralCode = user?.referralCode || "";
 
-    const origin =
-      req.nextUrl.origin ||
-      environment.NEXT_PUBLIC_APP_URL;
-    const referralLink = referralCode
-      ? `${origin}/signup?ref=${referralCode}`
-      : "";
+    const origin = environment.BETTER_AUTH_URL;
+    const referralLink = `${origin}/signup?ref=${referralCode}`;
 
     // Fetch all referrals where this user is the referrer
     const referrals = await Referral.find({ referrerId: session.user.id })

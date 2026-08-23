@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     await connectDB();
 
     // Ensure user has jumpaTag and referralCode (auto-backfill for existing accounts)
-    const userDoc = await ensureUserJumpaFields(session.user.id);
+    const usr = await ensureUserJumpaFields(session.user.id);
 
     // Asynchronously update lastLoginAt on User model
     User.updateOne(
@@ -52,13 +52,9 @@ export async function GET(req: NextRequest) {
     }
 
     // Build referral link
-    const origin =
-      req.nextUrl.origin ||
-      environment.NEXT_PUBLIC_APP_URL;
-    const referralCode = userDoc?.referralCode || (session.user as any).referralCode || "";
-    const referralLink = referralCode
-      ? `${origin}/signup?ref=${referralCode}`
-      : "";
+    const origin = environment.BETTER_AUTH_URL;
+    const referralCode = usr?.referralCode || "";
+    const referralLink = `${origin}/signup?ref=${referralCode}`;
 
     const response = NextResponse.json({
       authenticated: true,
@@ -69,15 +65,15 @@ export async function GET(req: NextRequest) {
         email: session.user.email,
         name: session.user.name,
         image: session.user.image,
-        jumpaTag: userDoc?.jumpaTag || (session.user as any).jumpaTag || null,
+        jumpaTag: usr?.jumpaTag || (session.user as any).jumpaTag || null,
         referralCode: referralCode || null,
         referralLink: referralLink || null,
         wallet: selectedWallet
           ? {
-              address: selectedWallet.address,
-              name: selectedWallet.name,
-              addresses: selectedWallet.addresses,
-            }
+            address: selectedWallet.address,
+            name: selectedWallet.name,
+            addresses: selectedWallet.addresses,
+          }
           : null,
       },
     });

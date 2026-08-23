@@ -82,7 +82,7 @@ export function OfframpCheckoutCard({ card }: OfframpCheckoutCardProps) {
 
           {isDone ? null : (
             <RampNotice tone="pending">
-              Confirm with your PIN to execute this withdrawal.
+              Confirm with your PIN to complete this withdrawal
             </RampNotice>
           )}
         </>

@@ -1,4 +1,6 @@
-import type { Metadata } from "next";
+"use client";
+
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { CopyButton } from "@/components/auth/copy-button";
@@ -10,6 +12,7 @@ import {
   SettingSection,
 } from "@/components/settings/setting-section";
 import { SettingsHeader } from "@/components/settings/settings-header";
+import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { CornerUpRightIcon } from "@/components/ui/icons/corner-up-right";
 import { GearIcon } from "@/components/ui/icons/gear";
 import { PartyBellIcon } from "@/components/ui/icons/party-bell";
@@ -17,12 +20,73 @@ import { TagsIcon } from "@/components/ui/icons/tags";
 import { UserAlt1Icon } from "@/components/ui/icons/user-alt-1";
 import { UsersIcon } from "@/components/ui/icons/users";
 import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
-import { ACCOUNT, PROFILE } from "@/lib/wallet";
+import { ACCOUNT } from "@/lib/wallet";
 
-export const metadata: Metadata = { title: "Your Profile" };
+interface UserProfileData {
+  id: string;
+  name: string | null;
+  email: string;
+  image: string | null;
+  jumpaTag: string | null;
+  referralCode: string | null;
+  referralLink: string | null;
+  wallet: {
+    address: string;
+    name: string;
+    addresses?: {
+      eth: string;
+      base: string;
+      sol: string;
+      xlm: string;
+      btc: string;
+    };
+  } | null;
+}
 
 export default function ProfilePage() {
+  const [profile, setProfile] = useState<UserProfileData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showOtherChains, setShowOtherChains] = useState(false);
+
+  useEffect(() => {
+    async function fetchStatus() {
+      try {
+        const res = await fetch("/api/auth/status");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.authenticated && data.user) {
+            setProfile(data.user);
+          }
+        }
+      } catch (err) {
+        console.error("[ProfilePage] Failed to fetch profile:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchStatus();
+  }, []);
+
   const { completed, total } = ACCOUNT.kyc;
+
+  // Fallbacks while loading or if data is empty
+  const displayName = profile?.name || profile?.jumpaTag || ACCOUNT.firstName;
+  const displayEmail = profile?.email || "";
+  const jumpaTag = profile?.jumpaTag || "user@jumpa";
+  const referralCode = profile?.referralCode || "JUMPA";
+
+  const walletAddresses = profile?.wallet?.addresses;
+  const stellarAddress =
+    walletAddresses?.xlm || profile?.wallet?.address || "";
+  const evmAddress = walletAddresses?.base || walletAddresses?.eth || "";
+  const solanaAddress = walletAddresses?.sol || "";
+  const btcAddress = walletAddresses?.btc || "";
+
+  const formatAddress = (addr: string) => {
+    if (!addr) return "";
+    if (addr.length <= 40) return addr;
+    return `${addr.slice(0, 18)}...${addr.slice(-18)}`;
+  };
 
   return (
     <>
@@ -44,7 +108,7 @@ export default function ProfilePage() {
         <div className="mt-7.25 flex flex-col items-center">
           <span className="relative">
             <Image
-              src={ACCOUNT.avatar}
+              src={profile?.image || ACCOUNT.avatar}
               alt=""
               width={160}
               height={160}
@@ -56,17 +120,11 @@ export default function ProfilePage() {
           </span>
 
           <p className="mt-3.75 text-sm leading-4 font-semibold text-jumpa-black">
-            {PROFILE.handle}
+            {displayName}
           </p>
           <p className="mt-2 text-[10px] leading-3 font-medium text-jumpa-primary-600">
-            {PROFILE.email}
+            {displayEmail}
           </p>
-          <CopyButton
-            value={PROFILE.walletAddress}
-            label="Copy wallet address"
-            variant="text"
-            className="mt-1 text-[10px] leading-3 font-semibold"
-          />
         </div>
 
         <Link
@@ -94,50 +152,119 @@ export default function ProfilePage() {
               <SettingRow
                 icon={TagsIcon}
                 label="Jumpa Tag"
-                value={PROFILE.jumpaTag}
-                action={<CopyButton value={PROFILE.jumpaTag} />}
+                value={jumpaTag}
+                action={<CopyButton value={jumpaTag} />}
               />
               <SettingRule />
+
+              {/* Default Stellar Address */}
               <SettingRow
-                icon={TagsIcon}
-                label="Wallet Address"
-                value={PROFILE.walletAddress}
-                action={<CopyButton value={PROFILE.walletAddress} />}
+                icon={
+                  <Image
+                    src="/assets/chains/stellar.png"
+                    alt="Stellar"
+                    width={24}
+                    height={24}
+                    className="size-6 shrink-0 rounded-full object-contain"
+                  />
+                }
+                label="Wallet Address (Stellar)"
+                value={formatAddress(stellarAddress)}
+                action={<CopyButton value={stellarAddress} />}
               />
 
-              <span className="flex items-center justify-center gap-2">
-                <span className="text-xs leading-3 text-jumpa-black">
-                  Powered by
-                </span>
-                <span className="flex items-center gap-1 rounded-pill bg-jumpa-neutral-95 px-1.25 py-1.25">
-                  <Image
-                    src="/images/home/coin-generic.svg"
-                    alt=""
-                    width={22}
-                    height={22}
-                    className="size-5.5"
-                  />
-                  <span className="flex flex-col pr-1">
-                    <span className="text-xs leading-3 font-semibold text-jumpa-black">
-                      XLM
+              {/* Toggle to expand other chain addresses */}
+              {profile?.wallet && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowOtherChains(!showOtherChains)}
+                    className="mt-2 flex w-full items-center justify-between py-1.5 text-left text-xs font-semibold text-jumpa-primary-600 transition-colors tap active:opacity-80"
+                  >
+                    <span>
+                      {showOtherChains
+                        ? "Hide other addresses"
+                        : "Show other addresses (EVM, Solana, Bitcoin)"}
                     </span>
-                    <span className="text-[8px] leading-2 text-jumpa-neutral-350">
-                      Stellar
-                    </span>
-                  </span>
-                </span>
-              </span>
+                    <ChevronDownIcon
+                      className={`size-4.5 transition-transform duration-200 ${
+                        showOtherChains ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {showOtherChains && (
+                    <div className="mt-2 flex flex-col gap-3 border-t border-jumpa-neutral-60 pt-3">
+                      {evmAddress && (
+                        <>
+                          <SettingRow
+                            icon={
+                              <Image
+                                src="/coins/eth.svg"
+                                alt="Ethereum / Base"
+                                width={24}
+                                height={24}
+                                className="size-6 shrink-0 rounded-full object-contain"
+                              />
+                            }
+                            label="Base & Ethereum Address (EVM)"
+                            value={formatAddress(evmAddress)}
+                            action={<CopyButton value={evmAddress} />}
+                          />
+                          <SettingRule />
+                        </>
+                      )}
+
+                      {solanaAddress && (
+                        <>
+                          <SettingRow
+                            icon={
+                              <Image
+                                src="/coins/sol.svg"
+                                alt="Solana"
+                                width={24}
+                                height={24}
+                                className="size-6 shrink-0 rounded-full object-contain"
+                              />
+                            }
+                            label="Solana Address"
+                            value={formatAddress(solanaAddress)}
+                            action={<CopyButton value={solanaAddress} />}
+                          />
+                          <SettingRule />
+                        </>
+                      )}
+
+                      {btcAddress && (
+                        <SettingRow
+                          icon={
+                            <Image
+                              src="/coins/btc.svg"
+                              alt="Bitcoin"
+                              width={24}
+                              height={24}
+                              className="size-6 shrink-0 rounded-full object-contain"
+                            />
+                          }
+                          label="Bitcoin Address"
+                          value={formatAddress(btcAddress)}
+                          action={<CopyButton value={btcAddress} />}
+                        />
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </SettingCard>
           </SettingSection>
 
-          {/* The design repeats this heading; kept verbatim. */}
-          <SettingSection label="Your wallet Information">
+          <SettingSection label="Referral Information">
             <SettingCard>
               <SettingRow
                 icon={UsersIcon}
                 label="Your Referral Code"
-                value={PROFILE.referralCode}
-                action={<CopyButton value={PROFILE.referralCode} />}
+                value={referralCode}
+                action={<CopyButton value={referralCode} />}
               />
               <SettingRule />
               <SettingLink

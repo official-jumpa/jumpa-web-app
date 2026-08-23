@@ -20,7 +20,10 @@ export function WalletHeader() {
 
   return (
     <header className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
+      <Link
+        href="/profile"
+        className="flex items-center gap-2 tap active:scale-95"
+      >
         <span className="relative justify-center items-center block size-10 shrink-0 bg-jumpa-primary-100 rounded-full p-1">
           <Image
             src={session?.user?.image || ACCOUNT.avatar}
@@ -40,7 +43,7 @@ export function WalletHeader() {
           </span>
           <span className="font-bold">{displayName}</span>
         </p>
-      </div>
+      </Link>
 
       <Link
         href="/notifications"

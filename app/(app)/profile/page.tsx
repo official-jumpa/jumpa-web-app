@@ -122,12 +122,6 @@ export default function ProfilePage() {
         <p className="mt-2 text-[10px] leading-3 font-medium text-jumpa-primary-600">
           {displayEmail}
         </p>
-        <CopyButton
-          value={stellarAddress}
-          label="Copy wallet address"
-          variant="text"
-          className="mt-1 text-[10px] leading-3 font-semibold"
-        />
       </div>
 
       <Link

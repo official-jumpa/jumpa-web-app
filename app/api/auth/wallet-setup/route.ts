@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
       derived.addresses.xlm ||
       derived.addresses.btc;
 
-    console.log(`[WalletSetup] Primary address determined: ${primaryAddress}`);
+    console.log(`[WalletSetup] Primary address: ${primaryAddress}`);
 
     const duplicateWallet = await Wallet.findOne({
       address: primaryAddress.toLowerCase(),

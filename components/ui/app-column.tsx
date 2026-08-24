@@ -1,7 +1,8 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
+import { recordVisit } from "@/lib/nav-history";
 
 /**
  * The centred column every screen sits in, plus the fade between screens. Keying
@@ -17,6 +18,10 @@ import type { ReactNode } from "react";
  */
 export function AppColumn({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+
+  // Every screen passes through here, so this is where a back arrow learns
+  // whether there is an in-app screen behind it.
+  useEffect(() => recordVisit(pathname), [pathname]);
 
   return (
     <div

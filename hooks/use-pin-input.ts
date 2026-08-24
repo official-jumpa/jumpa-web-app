@@ -14,5 +14,18 @@ export function usePinInput(length: number) {
   const backspace = useCallback(() => setValue((v) => v.slice(0, -1)), []);
   const clear = useCallback(() => setValue(""), []);
 
-  return { value, push, backspace, clear, complete: value.length === length };
+  /** Whole-value entry — typing, autofill, or a pasted code with spaces or dashes in it. */
+  const set = useCallback(
+    (next: string) => setValue(next.replace(/\D/g, "").slice(0, length)),
+    [length],
+  );
+
+  return {
+    value,
+    push,
+    backspace,
+    clear,
+    set,
+    complete: value.length === length,
+  };
 }

@@ -1,12 +1,12 @@
 "use client";
 
+import { useCallback, useEffect, useRef, useState } from "react";
 import { InfoNote } from "@/components/auth/info-note";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
 import { SuccessSheet } from "@/components/auth/success-sheet";
 import { usePinInput } from "@/hooks/use-pin-input";
 import { emailOtp, signIn } from "@/lib/auth-client";
-import { useCallback, useEffect, useRef, useState } from "react";
 
 const CODE_LENGTH = 6;
 
@@ -99,6 +99,23 @@ export function VerifyCodeForm({
     }
   }, [code.complete, code.value, verifying, verified, handleVerify]);
 
+  /** Clipboard read is blocked in some browsers, so it falls back to the callout. */
+  const handlePaste = async () => {
+    try {
+      const digits = (await navigator.clipboard.readText())
+        .replace(/\D/g, "")
+        .slice(0, CODE_LENGTH);
+      if (!digits) {
+        setError("No code found on the clipboard.");
+        return;
+      }
+      setError(null);
+      code.set(digits);
+    } catch {
+      setError("Long-press the code box and choose Paste.");
+    }
+  };
+
   const handleResend = async () => {
     const targetEmail =
       email ||
@@ -132,7 +149,20 @@ export function VerifyCodeForm({
   return (
     <>
       <div className="mt-8 flex flex-1 flex-col gap-6">
-        <PinDisplay length={CODE_LENGTH} value={code.value} />
+        <PinDisplay
+          length={CODE_LENGTH}
+          value={code.value}
+          reveal
+          onValueChange={code.set}
+        />
+
+        <button
+          type="button"
+          onClick={handlePaste}
+          className="tap -mt-3 self-center text-xs font-semibold text-jumpa-primary-600 active:scale-95"
+        >
+          Paste code
+        </button>
 
         {error && (
           <p className="text-center text-xs text-jumpa-danger">{error}</p>

@@ -32,7 +32,7 @@ export function TransactionsView({
     <>
       <div className="flex flex-col gap-4 px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-30">
         <ScreenHeader
-          back="/cards"
+          back="/home"
           title="Transaction History"
           action={
             <button

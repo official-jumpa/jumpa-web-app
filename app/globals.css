@@ -140,6 +140,8 @@
   /* One word of a chat reply. Staggered by `.stagger-word`. */
   --animate-word: word 460ms var(--ease-jumpa) both;
   --animate-typing: typing 1.3s ease-in-out infinite;
+  /* Marks the slot the next digit lands in. */
+  --animate-caret: caret 1.1s steps(1, end) infinite;
 
   @keyframes rise {
     from {
@@ -176,6 +178,11 @@
       opacity: 0;
       transform: translateY(4px);
       filter: blur(4px);
+    }
+  }
+  @keyframes caret {
+    50% {
+      opacity: 0;
     }
   }
   @keyframes typing {

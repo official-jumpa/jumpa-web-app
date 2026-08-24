@@ -20,7 +20,7 @@ export function ComingSoon({ feature }: { feature: string }) {
       }
       eyebrow="In development"
       title={feature}
-      body="This screen is still being built. Everything around it works — check back shortly."
+      body="This screen is still is development. Everything around it works, check back shortly."
       action={{ label: "Back to Home", href: "/home" }}
     />
   );

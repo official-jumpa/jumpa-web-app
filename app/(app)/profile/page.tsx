@@ -187,7 +187,7 @@ export default function ProfilePage() {
                   <span>
                     {showOtherChains
                       ? "Hide other addresses"
-                      : "Show other addresses (EVM, Solana, Bitcoin)"}
+                      : "Show other addresses"}
                   </span>
                   <ChevronDownIcon
                     className={`size-4.5 transition-transform duration-200 ${

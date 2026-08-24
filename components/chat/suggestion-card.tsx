@@ -7,11 +7,11 @@ import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
 import { WalletPlusIcon } from "@/components/ui/icons/wallet-plus";
 
 const SUGGESTIONS = [
-  { label: "Add funds", Icon: WalletPlusIcon },
-  { label: "Cash In", Icon: EuroCircleIcon },
+  { label: "Send 20 USDC", Icon: WalletPlusIcon },
+  { label: "Withdraw", Icon: EuroCircleIcon },
   { label: "Check Balance", Icon: MoneyBillIcon },
-  { label: "Create Savings", Icon: BadgePercentIcon },
-  { label: "Swap 20 USD to XLM", Icon: SwitchHorizontalIcon },
+  { label: "Claim faucet", Icon: BadgePercentIcon },
+  { label: "Swap 20 XLM to USDC", Icon: SwitchHorizontalIcon },
 ];
 
 /**

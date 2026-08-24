@@ -165,116 +165,141 @@ export async function fetchWalletBalances(
   const { eth: ethAddr, sol: solAddr, xlm: xlmAddr, btc: btcAddr } = addresses;
   await updateCoinGeckoData();
 
-  // 1. EVM Chains (Mainnet only)
-  let evmResults: any[] = [];
-  if (fetchEvm) {
-    const mainnetChains = EVM_CHAINS.filter((c) => !c.isTestnet);
-    const filteredChains = fetchBaseOnly
-      ? mainnetChains.filter((c) => c.id === "base")
-      : mainnetChains;
+  // Fetch all chain ecosystems concurrently in parallel with isolated error fallbacks
+  const [
+    evmResults,
+    solMainnetBal,
+    { mainnet: xlmMainnet, testnet: xlmTestnet },
+    btcBal,
+  ] = await Promise.all([
+    // 1. EVM Chains (Mainnet only)
+    fetchEvm
+      ? (async () => {
+          const mainnetChains = EVM_CHAINS.filter((c) => !c.isTestnet);
+          const filteredChains = fetchBaseOnly
+            ? mainnetChains.filter((c) => c.id === "base")
+            : mainnetChains;
 
-    const evmQueries = filteredChains.map(async (chain) => {
-      const client = EVM_CLIENTS[chain.id];
-      const evmAddress = ethAddr as `0x${string}`;
+          const evmQueries = filteredChains.map(async (chain) => {
+            const client = EVM_CLIENTS[chain.id];
+            const evmAddress = ethAddr as `0x${string}`;
 
-      const result = await safeFetchBalance(
-        async () => {
-          const [nativeWei, tokenResults] = await Promise.all([
-            client.getBalance({ address: evmAddress }),
-            chain.tokens.length > 0
-              ? client.multicall({
-                  allowFailure: true,
-                  contracts: chain.tokens.map((token) => ({
-                    address: token.address as `0x${string}`,
-                    abi: erc20Abi,
-                    functionName: "balanceOf" as const,
-                    args: [evmAddress] as [`0x${string}`],
-                  })),
-                })
-              : Promise.resolve(
-                  [] as { status: "success" | "failure"; result?: unknown }[],
-                ),
-          ]);
+            const result = await safeFetchBalance(
+              async () => {
+                if (!client) {
+                  return {
+                    nativeBal: "0.00",
+                    tokenBals: chain.tokens.map(() => "0.00"),
+                  };
+                }
+                const [nativeWei, tokenResults] = await Promise.all([
+                  client.getBalance({ address: evmAddress }),
+                  chain.tokens.length > 0
+                    ? client.multicall({
+                        allowFailure: true,
+                        contracts: chain.tokens.map((token) => ({
+                          address: token.address as `0x${string}`,
+                          abi: erc20Abi,
+                          functionName: "balanceOf" as const,
+                          args: [evmAddress] as [`0x${string}`],
+                        })),
+                      })
+                    : Promise.resolve(
+                        [] as {
+                          status: "success" | "failure";
+                          result?: unknown;
+                        }[],
+                      ),
+                ]);
 
-          const nativeBal = formatEther(nativeWei);
-          const tokenBals = tokenResults.map((res, idx) =>
-            res.status === "success"
-              ? formatUnits(res.result as bigint, chain.tokens[idx].decimals)
-              : "0.00",
-          );
+                const nativeBal = formatEther(nativeWei);
+                const tokenBals = tokenResults.map((res, idx) =>
+                  res.status === "success"
+                    ? formatUnits(
+                        res.result as bigint,
+                        chain.tokens[idx].decimals,
+                      )
+                    : "0.00",
+                );
 
-          return { nativeBal, tokenBals };
-        },
-        `${chain.label} balance`,
-        { nativeBal: "0.00", tokenBals: chain.tokens.map(() => "0.00") },
-      );
+                return { nativeBal, tokenBals };
+              },
+              `${chain.label} balance`,
+              { nativeBal: "0.00", tokenBals: chain.tokens.map(() => "0.00") },
+            );
 
-      return {
-        chain,
-        nativeBal: result.nativeBal,
-        tokens: chain.tokens.map((token, idx) => ({
-          symbol: token.symbol,
-          name: token.name,
-          address: token.address,
-          balance: result.tokenBals[idx],
-          decimals: token.decimals,
-        })),
-      };
-    });
+            return {
+              chain,
+              nativeBal: result.nativeBal,
+              tokens: chain.tokens.map((token, idx) => ({
+                symbol: token.symbol,
+                name: token.name,
+                address: token.address,
+                balance: result.tokenBals[idx],
+                decimals: token.decimals,
+              })),
+            };
+          });
 
-    evmResults = await Promise.all(evmQueries);
-  }
+          return Promise.all(evmQueries);
+        })()
+      : Promise.resolve([]),
 
-  // 2. Solana (Mainnet only)
-  let solMainnetBal = "0.00";
-  if (fetchSolana && solAddr) {
-    solMainnetBal = await safeFetchBalance(
-      () =>
-        solMainnetConnection
-          .getBalance(new PublicKey(solAddr))
-          .then((b) => (b / LAMPORTS_PER_SOL).toFixed(4)),
-      "Solana Mainnet",
-      "0.00",
-    );
-  }
+    // 2. Solana (Mainnet only)
+    fetchSolana && solAddr
+      ? safeFetchBalance(
+          () =>
+            solMainnetConnection
+              .getBalance(new PublicKey(solAddr))
+              .then((b) => (b / LAMPORTS_PER_SOL).toFixed(4)),
+          "Solana Mainnet",
+          "0.00",
+        )
+      : Promise.resolve("0.00"),
 
-  // 3. Stellar (Mainnet & Testnet)
-  let xlmMainnet = { native: "0.00", usdc: "0.00", usdt: "0.00" };
-  let xlmTestnet = { native: "0.00", usdc: "0.00", usdt: "0.00" };
-  if (fetchStellar && xlmAddr) {
-    const stellarBals = await fetchStellarBalances(xlmAddr);
-    xlmMainnet = stellarBals.mainnet;
-    xlmTestnet = stellarBals.testnet;
-  }
-
-  // 4. Bitcoin (Mainnet only)
-  let btcBal = "0.0000";
-  if (fetchBitcoin && btcAddr) {
-    btcBal = await safeFetchBalance(
-      async () => {
-        const ALCHEMY_KEY = environment.ALCHEMY_API_KEY || "demo";
-        const res = await fetch(
-          `https://bitcoin-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
+    // 3. Stellar (Mainnet & Testnet)
+    fetchStellar && xlmAddr
+      ? safeFetchBalance(
+          () => fetchStellarBalances(xlmAddr),
+          "Stellar Balances",
           {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              jsonrpc: "2.0",
-              id: 1,
-              method: "bb_getaddress",
-              params: [btcAddr, { details: "basic" }],
-            }),
+            mainnet: { native: "0.00", usdc: "0.00", usdt: "0.00" },
+            testnet: { native: "0.00", usdc: "0.00", usdt: "0.00" },
           },
-        );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        const satoshis = parseInt(json.result?.balance || "0", 10);
-        return (satoshis / 100000000).toFixed(8);
-      },
-      "Bitcoin Mainnet",
-      "0.00000000",
-    );
-  }
+        )
+      : Promise.resolve({
+          mainnet: { native: "0.00", usdc: "0.00", usdt: "0.00" },
+          testnet: { native: "0.00", usdc: "0.00", usdt: "0.00" },
+        }),
+
+    // 4. Bitcoin (Mainnet only)
+    fetchBitcoin && btcAddr
+      ? safeFetchBalance(
+          async () => {
+            const ALCHEMY_KEY = environment.ALCHEMY_API_KEY || "demo";
+            const res = await fetch(
+              `https://bitcoin-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  jsonrpc: "2.0",
+                  id: 1,
+                  method: "bb_getaddress",
+                  params: [btcAddr, { details: "basic" }],
+                }),
+              },
+            );
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+            const satoshis = parseInt(json.result?.balance || "0", 10);
+            return (satoshis / 100000000).toFixed(8);
+          },
+          "Bitcoin Mainnet",
+          "0.00000000",
+        )
+      : Promise.resolve("0.00000000"),
+  ]);
 
   const btcCached = coinGeckoCache.BTC;
   const solCached = coinGeckoCache.SOL;

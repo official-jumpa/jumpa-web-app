@@ -3,9 +3,17 @@ import { DesignLayer, HOLDS_POSITION } from "../design-layer";
 import { GlowBackdrop } from "../glow-backdrop";
 import { SlideFrame, SlideHeading } from "../slide-frame";
 
-export function ChatSlide() {
+export function ChatSlide({
+  index,
+  clone,
+}: {
+  index: number;
+  clone?: boolean;
+}) {
   return (
     <SlideFrame
+      index={index}
+      clone={clone}
       className="bg-jumpa-primary-600"
       gutter={42}
       backdrop={<GlowBackdrop />}

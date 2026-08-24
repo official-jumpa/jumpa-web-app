@@ -2,9 +2,10 @@ import Image from "next/image";
 import { DesignLayer } from "../design-layer";
 import { SlideFrame, SlideHeading } from "../slide-frame";
 
-export function HeroSlide() {
+export function HeroSlide({ index }: { index: number }) {
   return (
     <SlideFrame
+      index={index}
       // Split matches the photo's top and bottom edge pixels, so taller viewports
       // read as a continuation of the sky and the sweater rather than a purple band.
       className="bg-[image:linear-gradient(to_bottom,#456fad_50%,#ae97c6_50%)]"

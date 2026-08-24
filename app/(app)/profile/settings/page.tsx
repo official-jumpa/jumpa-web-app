@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AccountActions } from "@/components/settings/account-actions";
 import { IdDocumentSheet } from "@/components/settings/id-document-sheet";
 import { SettingLink } from "@/components/settings/setting-row";
 import {
@@ -102,6 +103,8 @@ export default function SettingsPage() {
               />
             </SettingCard>
           </SettingSection>
+
+          <AccountActions />
         </div>
       </div>
 

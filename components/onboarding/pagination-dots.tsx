@@ -2,7 +2,7 @@
 
 import { useContext } from "react";
 import { cn } from "@/lib/cn";
-import { CarouselProgressContext } from "./carousel-progress";
+import { CarouselProgressContext, slideDistance } from "./carousel-progress";
 import { ONBOARDING_SLIDES } from "./slides";
 
 const DOT_MIN = 17;
@@ -20,7 +20,10 @@ export function PaginationDots({ className }: { className?: string }) {
     >
       {ONBOARDING_SLIDES.map((slide, index) => {
         // Weights sum to 1 across the track, so the pill keeps a constant width.
-        const weight = Math.max(0, 1 - Math.abs(progress - index));
+        const weight = Math.max(
+          0,
+          1 - slideDistance(progress, index, ONBOARDING_SLIDES.length),
+        );
         return (
           <span
             key={slide}

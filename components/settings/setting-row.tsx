@@ -1,21 +1,27 @@
-import React from "react";
 import Link from "next/link";
 import type { ComponentType, ReactNode, SVGProps } from "react";
+import React from "react";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
 
-export type SettingIconType = ComponentType<SVGProps<SVGSVGElement>> | ReactNode;
+export type SettingIconType =
+  | ComponentType<SVGProps<SVGSVGElement>>
+  | ReactNode;
 
 function Body({
   icon,
   label,
   value,
   brand,
+  danger,
 }: {
   icon: SettingIconType;
   label: string;
   value?: string;
   brand?: boolean;
+  danger?: boolean;
 }) {
+  const accent = danger ? "text-jumpa-danger" : "text-jumpa-primary-600";
+
   const renderIcon = () => {
     if (!icon) return null;
     if (React.isValidElement(icon)) {
@@ -23,7 +29,7 @@ function Body({
     }
     if (typeof icon === "function") {
       const IconComponent = icon as ComponentType<SVGProps<SVGSVGElement>>;
-      return <IconComponent className="size-6 shrink-0 text-jumpa-primary-600" />;
+      return <IconComponent className={`size-6 shrink-0 ${accent}`} />;
     }
     return null;
   };
@@ -43,7 +49,7 @@ function Body({
       ) : (
         <span
           className={`truncate text-xs leading-3 font-medium ${
-            brand ? "text-jumpa-primary-600" : "text-jumpa-black"
+            danger || brand ? accent : "text-jumpa-black"
           }`}
         >
           {label}
@@ -76,6 +82,32 @@ export function SettingLink({
       <Body icon={icon} label={label} value={value} brand={brand} />
       <ChevronRightIcon className="size-5 shrink-0 text-jumpa-black" />
     </Link>
+  );
+}
+
+/** Row that runs an action instead of navigating. `danger` tints it red. */
+export function SettingAction({
+  icon,
+  label,
+  onClick,
+  danger,
+}: {
+  icon: SettingIconType;
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center justify-between gap-3 tap active:scale-[0.99]"
+    >
+      <Body icon={icon} label={label} danger={danger} />
+      <ChevronRightIcon
+        className={`size-5 shrink-0 ${danger ? "text-jumpa-danger" : "text-jumpa-black"}`}
+      />
+    </button>
   );
 }
 

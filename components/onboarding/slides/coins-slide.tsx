@@ -3,9 +3,10 @@ import { DesignLayer, HOLDS_POSITION } from "../design-layer";
 import { GlowBackdrop } from "../glow-backdrop";
 import { SlideFrame, SlideHeading } from "../slide-frame";
 
-export function CoinsSlide() {
+export function CoinsSlide({ index }: { index: number }) {
   return (
     <SlideFrame
+      index={index}
       className="bg-jumpa-primary-600"
       gutter={42}
       backdrop={<GlowBackdrop spread="wide" />}

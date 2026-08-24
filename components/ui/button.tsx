@@ -20,6 +20,9 @@ const VARIANTS = {
   soft: "bg-jumpa-primary-50 text-jumpa-primary-400 font-semibold",
   /** Tinted secondary action that is available, e.g. "i'll do this later". */
   softStrong: "bg-jumpa-primary-50 text-jumpa-primary-950 font-bold",
+  /** Irreversible action — deleting an account. */
+  danger:
+    "bg-jumpa-danger text-jumpa-white font-semibold disabled:bg-jumpa-danger/35",
 } as const;
 
 const SIZES = {

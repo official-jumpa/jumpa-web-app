@@ -1,8 +1,8 @@
+import { cookies, headers } from "next/headers";
+import type { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
-import { headers, cookies } from "next/headers";
-import { NextRequest } from "next/server";
-import { connectDB } from "./db";
 import { Wallet } from "@/models/Wallet";
+import { connectDB } from "./db";
 
 export interface SessionPayload {
   address: string;
@@ -54,9 +54,21 @@ export async function getSession(
   }
 }
 
-/** Clear the session cookie */
+/**
+ * Clear every cookie the proxy treats as a session. It gates on any name ending
+ * in `session_token`, and BetterAuth prefixes that with `__Secure-` over HTTPS,
+ * so deleting a literal name is not enough to sign someone out.
+ */
 export async function clearSession(): Promise<void> {
   const cookieStore = await cookies();
+
+  for (const { name } of cookieStore.getAll()) {
+    if (name.toLowerCase().includes("session_token")) {
+      cookieStore.delete(name);
+    }
+  }
+
   cookieStore.delete("jumpa_session");
+  cookieStore.delete("selected_wallet_address");
   console.log("[Session] Session cleared");
 }

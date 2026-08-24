@@ -1,6 +1,7 @@
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { headers, cookies } from "next/headers";
+import { clearSession } from "@/lib/session";
 
 /** POST /api/auth/logout — signs out the BetterAuth session */
 export async function POST() {
@@ -12,9 +13,7 @@ export async function POST() {
     console.warn("[Logout] signOut error:", err);
   }
 
-  const cookieStore = await cookies();
-  cookieStore.delete("jumpa_session");
-  cookieStore.delete("selected_wallet_address");
+  await clearSession();
 
   return NextResponse.json({ message: "Logged out" });
 }

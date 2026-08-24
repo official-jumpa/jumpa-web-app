@@ -4,8 +4,9 @@ import { BackspaceIcon } from "@/components/ui/icons/backspace";
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"];
 
 const KEY_CLASS =
-  "flex items-center justify-center rounded-key border border-jumpa-neutral-100 bg-jumpa-neutral-50 " +
-  "font-numeric text-4xl leading-9 text-jumpa-black transition-colors active:bg-jumpa-neutral-100";
+  "tap flex items-center justify-center rounded-key border border-jumpa-neutral-100 bg-jumpa-neutral-50 " +
+  "font-numeric text-4xl leading-9 text-jumpa-black active:scale-95 active:bg-jumpa-neutral-100 " +
+  "disabled:opacity-40";
 
 /** Frame the auth screens put around the pad. Sits 8px wider than the gutter. */
 export const KEYPAD_PANEL =
@@ -15,10 +16,13 @@ export const KEYPAD_PANEL =
 export function NumericKeypad({
   onDigit,
   onBackspace,
+  disabled,
   className,
 }: {
   onDigit: (digit: string) => void;
   onBackspace: () => void;
+  /** Locks the pad while the entry is being checked. */
+  disabled?: boolean;
   /** Panel around the grid, if the screen calls for one. */
   className?: string;
 }) {
@@ -33,6 +37,7 @@ export function NumericKeypad({
               key={key}
               type="button"
               onClick={onBackspace}
+              disabled={disabled}
               aria-label="Delete"
               className={KEY_CLASS}
             >
@@ -43,6 +48,7 @@ export function NumericKeypad({
               key={key}
               type="button"
               onClick={() => onDigit(key)}
+              disabled={disabled}
               className={KEY_CLASS}
             >
               {key}

@@ -1,11 +1,12 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { InfoNote } from "@/components/auth/info-note";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
+import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 
 const PIN_LENGTH = 6;
 
@@ -20,6 +21,8 @@ export function PinForm({
   const pin = usePinInput(PIN_LENGTH);
   const router = useRouter();
 
+  useKeypadKeys(pin);
+
   useEffect(() => {
     if (pin.complete) {
       if (typeof window !== "undefined") {
@@ -32,7 +35,13 @@ export function PinForm({
   return (
     <>
       <div className="mt-8 flex flex-1 flex-col gap-8">
-        <PinDisplay length={PIN_LENGTH} value={pin.value} label={label} />
+        <PinDisplay
+          length={PIN_LENGTH}
+          value={pin.value}
+          label={label}
+          autoFocus
+          onValueChange={pin.set}
+        />
         <InfoNote>
           <span className="flex flex-col gap-2">
             <span className="font-medium">

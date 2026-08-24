@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { NumericKeypad } from "@/components/auth/numeric-keypad";
+import { PinDisplay } from "@/components/auth/pin-display";
+import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 
 const PIN_LENGTH = 6;
@@ -20,6 +22,8 @@ export function PinSheet({
 }) {
   const pin = usePinInput(PIN_LENGTH);
   const submittedPinRef = useRef<string | null>(null);
+
+  useKeypadKeys({ ...pin, enabled: !processing });
 
   // Trigger completion once exactly 6 digits are typed
   useEffect(() => {
@@ -63,24 +67,20 @@ export function PinSheet({
           </p>
         )}
 
-        <div className="mt-4 flex h-20 items-center justify-center gap-3 rounded-key border border-jumpa-neutral-275/10">
-          {Array.from({ length: PIN_LENGTH }, (_, slot) => (
-            <span
-              // biome-ignore lint/suspicious/noArrayIndexKey: slots never reorder
-              key={slot}
-              className="flex h-10 w-8 flex-col justify-end"
-            >
-              <span className="mb-2 text-center font-numeric text-3xl leading-[0] text-jumpa-black">
-                {slot < pin.value.length ? "*" : ""}
-              </span>
-              <span className="h-1 w-full rounded-full bg-jumpa-pin-rule" />
-            </span>
-          ))}
+        <div className="mt-4">
+          <PinDisplay
+            length={PIN_LENGTH}
+            value={pin.value}
+            tone="sheet"
+            autoFocus
+            onValueChange={pin.set}
+          />
         </div>
 
         <NumericKeypad
           onDigit={pin.push}
           onBackspace={pin.backspace}
+          disabled={processing}
           className="mt-5"
         />
       </div>

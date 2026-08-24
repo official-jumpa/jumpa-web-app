@@ -5,6 +5,7 @@ import { InfoNote } from "@/components/auth/info-note";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
 import { SuccessSheet } from "@/components/auth/success-sheet";
+import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 import { emailOtp, signIn } from "@/lib/auth-client";
 
@@ -25,6 +26,8 @@ export function VerifyCodeForm({
   const [error, setError] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
   const attemptedCodeRef = useRef<string | null>(null);
+
+  useKeypadKeys({ ...code, enabled: !verifying && !verified });
 
   useEffect(() => {
     if (code.value.length < CODE_LENGTH) {
@@ -153,6 +156,7 @@ export function VerifyCodeForm({
           length={CODE_LENGTH}
           value={code.value}
           reveal
+          autoFocus
           onValueChange={code.set}
         />
 
@@ -190,6 +194,7 @@ export function VerifyCodeForm({
       <NumericKeypad
         onDigit={code.push}
         onBackspace={code.backspace}
+        disabled={verifying || verified}
         className={KEYPAD_PANEL}
       />
 

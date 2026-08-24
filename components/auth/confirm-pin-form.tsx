@@ -1,11 +1,12 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { InfoNote } from "@/components/auth/info-note";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
+import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
 
 const PIN_LENGTH = 6;
 
@@ -20,6 +21,8 @@ export function ConfirmPinForm({
   const [status, setStatus] = useState<
     "idle" | "submitting" | "success" | "error"
   >("idle");
+
+  useKeypadKeys({ ...pin, enabled: status === "idle" });
 
   useEffect(() => {
     if (pin.complete && status === "idle") {
@@ -116,6 +119,8 @@ export function ConfirmPinForm({
           length={PIN_LENGTH}
           value={pin.value}
           label="Enter pin again"
+          autoFocus
+          onValueChange={pin.set}
         />
 
         {error && (
@@ -137,6 +142,7 @@ export function ConfirmPinForm({
       <NumericKeypad
         onDigit={pin.push}
         onBackspace={pin.backspace}
+        disabled={status !== "idle"}
         className={KEYPAD_PANEL}
       />
     </>

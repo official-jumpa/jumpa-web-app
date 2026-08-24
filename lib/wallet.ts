@@ -46,11 +46,21 @@ export const ASSETS: Asset[] = [
   },
 ];
 
+export type TransactionStatus = "completed" | "pending" | "failed";
+
+/** Picks the glyph on the row's tile. */
+export type TransactionKind = "send" | "receive" | "card";
+
 export type Transaction = {
   id: string;
-  merchant: string;
-  date: string;
+  kind: TransactionKind;
+  title: string;
+  /** Counterparty and time, pre-joined: "To 0x82...4F2A • Today, 2:34 PM". */
+  detail: string;
   amount: string;
+  status: TransactionStatus;
+  /** Network badge on the tile; omit for none. */
+  chain?: string;
 };
 
 export const TRANSACTIONS: Transaction[] = [];

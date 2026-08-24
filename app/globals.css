@@ -64,6 +64,7 @@
   --color-jumpa-neutral-600: #464646; /* social button label */
   --color-jumpa-neutral-700: #434343; /* transaction amount */
   --color-jumpa-neutral-750: #2f2f2f; /* chat Cancel button, "Successful" */
+  --color-jumpa-neutral-775: #212121; /* transaction status */
   --color-jumpa-neutral-800: #161616; /* supporting copy under a heading */
   --color-jumpa-neutral-900: #141414; /* "Resend Code" */
 
@@ -278,6 +279,8 @@
     background-color: var(--color-jumpa-white);
     color: var(--color-jumpa-black);
     font-family: var(--font-sans);
+    /* Host Grotesk's contextual alternates turn "0x82" into "0×82" — wrong for every address. */
+    font-feature-settings: "calt" 0;
     /* Disable the double-tap-to-zoom delay on touch targets. */
     touch-action: manipulation;
   }

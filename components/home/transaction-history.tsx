@@ -1,4 +1,10 @@
 import Link from "next/link";
+import { Fragment } from "react";
+import { TransactionEmpty } from "@/components/transactions/transaction-empty";
+import {
+  TransactionRow,
+  TransactionRule,
+} from "@/components/transactions/transaction-row";
 import type { Transaction } from "@/lib/wallet";
 import { HomeSection } from "./home-section";
 
@@ -13,48 +19,24 @@ export function TransactionHistory({
       title="Transaction History"
       className="mt-4 gap-4"
       action={
-        <Link
-          href="/transactions"
-          className="text-xs leading-4 font-medium text-jumpa-primary-600"
-        >
+        <Link href="/transactions" className="tap active:scale-95">
           See All
         </Link>
       }
     >
-      {transactions.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-6 text-center text-jumpa-neutral-400">
-          <p className="text-xs leading-4 font-medium">No transactions yet</p>
-          <p className="text-[10px] text-jumpa-neutral-400/60 mt-1">
-            Your recent transfer and swap activities will appear here.
-          </p>
-        </div>
-      ) : (
-        <ul className="flex flex-col">
-          {transactions.map((transaction, index) => (
-            <li key={transaction.id}>
-              {index > 0 ? (
-                <hr className="my-4 border-jumpa-neutral-100" />
-              ) : null}
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="size-10 shrink-0 rounded-panel bg-jumpa-neutral-50" />
-                  <span className="flex flex-col gap-0.5 font-medium">
-                    <span className="text-xs leading-3.5 text-jumpa-black">
-                      {transaction.merchant}
-                    </span>
-                    <span className="text-[10px] leading-3 text-jumpa-neutral-400">
-                      {transaction.date}
-                    </span>
-                  </span>
-                </div>
-                <span className="text-sm leading-4 font-semibold text-jumpa-neutral-700">
-                  {transaction.amount}
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      {/* px-5, not the design's 24 — its own row is 13px wider than that padding allows. */}
+      <div className="flex flex-col gap-4 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-5 py-5">
+        {transactions.length === 0 ? (
+          <TransactionEmpty />
+        ) : (
+          transactions.map((transaction, index) => (
+            <Fragment key={transaction.id}>
+              {index > 0 ? <TransactionRule /> : null}
+              <TransactionRow transaction={transaction} />
+            </Fragment>
+          ))
+        )}
+      </div>
     </HomeSection>
   );
 }

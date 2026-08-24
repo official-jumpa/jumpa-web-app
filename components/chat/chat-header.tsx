@@ -156,7 +156,7 @@ export function ChatHeader({
                 </p>
               </div>
             ) : (
-              <div className="max-h-[min(58dvh,420px)] overflow-y-auto px-2.5 pb-3 [scrollbar-width:none]">
+              <div className="max-h-[min(38dvh,260px)] overflow-y-auto px-2.5 pb-3 [scrollbar-width:none]">
                 {sessions.slice(0, 10).map((session, index) => {
                   const isActive = session.sessionId === activeSessionId;
                   return (
@@ -183,10 +183,10 @@ export function ChatHeader({
                           setOpen(false);
                           onSelectSession?.(session.sessionId);
                         }}
-                        className="flex min-w-0 flex-1 flex-col items-start gap-0.5 py-2.5 pl-2.5 text-left"
+                        className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-2.5 text-left"
                       >
                         <span
-                          className={`w-full truncate text-sm leading-4.5 ${
+                          className={`min-w-0 flex-1 truncate text-sm leading-4.5 ${
                             isActive
                               ? "font-semibold text-jumpa-primary-950"
                               : "font-medium text-jumpa-black"
@@ -194,10 +194,8 @@ export function ChatHeader({
                         >
                           {session.title}
                         </span>
-                        <span className="text-xs leading-4 text-jumpa-neutral-350">
-                          {formatRelativeTime(session.updatedAt)} ·{" "}
-                          {session.messageCount}{" "}
-                          {session.messageCount === 1 ? "message" : "messages"}
+                        <span className="shrink-0 text-xs leading-4 text-jumpa-neutral-350">
+                          {formatRelativeTime(session.updatedAt)}
                         </span>
                       </button>
 
@@ -209,7 +207,7 @@ export function ChatHeader({
                           onDeleteSession?.(session.sessionId);
                         }}
                         aria-label={`Delete chat: ${session.title}`}
-                        className="flex size-9 shrink-0 items-center justify-center rounded-pill text-jumpa-neutral-350 tap hover:bg-jumpa-danger/10 hover:text-jumpa-danger active:scale-90"
+                        className="flex size-8 shrink-0 items-center justify-center rounded-pill text-jumpa-neutral-350 tap hover:bg-jumpa-danger/10 hover:text-jumpa-danger active:scale-90"
                       >
                         <TrashAltIcon className="size-4" />
                       </button>

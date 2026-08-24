@@ -67,9 +67,6 @@ Every color, font, radius, shadow, and gradient is declared once in [`app/global
 }
 ```
 
-> [!IMPORTANT]
-> **Zero Hardcoded CSS Rule:** Never write raw hex codes, `rgb()` values, or inline pixel font sizes in `.tsx` files. Always use token classes like `bg-jumpa-primary-600` or CSS variables like `var(--color-jumpa-primary-600)`.
-
 ### 2. Tailored Color Palette
 - **Brand Primary (Purple):** Ranging from `jumpa-primary-50` (`#f5f0ff`) up to deep `jumpa-primary-950` (`#370078`), with `jumpa-primary-600` (`#8f12ff`) powering primary actions, CTA buttons, and brand backdrops.
 - **Alt Highlight (Lime Accent):** Vibrant accent `jumpa-alt-400` (`#d5ff19`) used for active indicators, badges, and attention-grabbing cues.

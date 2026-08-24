@@ -25,7 +25,7 @@ export function TransactionsView({
   const [query, setQuery] = useState("");
 
   const visible = transactions.filter((transaction) =>
-    transaction.merchant.toLowerCase().includes(query.trim().toLowerCase()),
+    transaction.title.toLowerCase().includes(query.trim().toLowerCase()),
   );
 
   return (

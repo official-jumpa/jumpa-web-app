@@ -98,7 +98,7 @@ export function CardsView({
       {sheet === "freeze" ? (
         <ConfirmSheet
           art={{
-            src: "/images/cards/freeze-berg.svg",
+            src: "/images/cards/freeze_main.svg",
             width: 127,
             height: 93,
             className: "w-31.75",
@@ -117,10 +117,10 @@ export function CardsView({
       {sheet === "delete" ? (
         <ConfirmSheet
           art={{
-            src: "/images/cards/delete-bin.svg",
-            width: 81,
-            height: 93,
-            className: "w-20.25",
+            src: "/images/cards/delete_main.svg",
+            width: 113,
+            height: 120,
+            className: "",
           }}
           title="Delete Virtual Card?"
           noteIcon={<SealAlertIcon className="size-5 text-jumpa-danger" />}

@@ -59,7 +59,7 @@ export function ConfirmSheet({
         {title}
       </h2>
 
-      <div className="mt-4 flex flex-col gap-3 border-t border-jumpa-neutral-100 pt-4">
+      <div className="mt-4 flex flex-col gap-6 border-t border-jumpa-neutral-100 pt-4">
         <Note icon={noteIcon}>{note}</Note>
         {warning ? (
           <Note

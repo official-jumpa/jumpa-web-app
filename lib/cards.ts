@@ -89,3 +89,38 @@ export const TRANSACTION_FILTERS: TransactionFilter[] = [
     options: ["Show All", "7 Days Ago", "1 Month Ago", "3 Months Ago"],
   },
 ];
+
+export const CARD_PERKS = [
+  "One transaction only",
+  "Highest security",
+  "Auto-expires after use",
+  "Instantly generated",
+  "Zero cost",
+];
+
+export const CARD_CATEGORIES = [
+  { value: "debit", label: "Debit Card" },
+  { value: "credit", label: "Credit Card" },
+] as const;
+
+export type CardCategory = (typeof CARD_CATEGORIES)[number]["value"];
+
+export type CardKind = "virtual" | "physical";
+
+export const CARD_KINDS: { kind: CardKind; title: string; blurb: string }[] = [
+  {
+    kind: "virtual",
+    title: "Get your Virtual card",
+    blurb:
+      "A real card for everyday payments, withdrawals, and purchases wherever you go.",
+  },
+  {
+    kind: "physical",
+    title: "Get your physical card",
+    blurb:
+      "A real card for everyday payments, withdrawals, and purchases wherever you go.",
+  },
+];
+
+/** PIN handed back after a card is created. Placeholder until the processor issues one. */
+export const NEW_CARD_PIN = "2345";

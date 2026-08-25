@@ -2,7 +2,7 @@ import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
 
-/** The card's transaction PIN, opened from Show PIN. */
+/** The card's transaction PIN — from Show PIN, and after a card is created. */
 export function CardPinSheet({
   pin,
   onClose,
@@ -16,12 +16,12 @@ export function CardPinSheet({
         Your Card PIN
       </h2>
 
-      <p className="mt-4 flex h-17 items-center justify-center rounded-card bg-jumpa-neutral-50 font-numeric text-4xl leading-9 font-semibold tracking-[0.1em] text-jumpa-primary-600">
+      <p className="mt-4 flex h-16 items-center justify-center rounded-chip border border-jumpa-neutral-60 bg-jumpa-neutral-50 font-numeric text-[40px] leading-11 font-medium text-jumpa-primary-950">
         {pin}
       </p>
 
-      <p className="mt-5 flex items-start gap-2 text-xs leading-4 text-jumpa-neutral-500">
-        <SealAlertIcon className="size-5 shrink-0 text-jumpa-danger" />
+      <p className="mt-8 flex items-center gap-2 text-xs leading-3.5 text-jumpa-black">
+        <SealAlertIcon className="size-6 shrink-0 text-jumpa-danger" />
         Never share your PIN with anyone or save it somewhere others can access.
         Keep your PIN private, even if someone claims to be from support.
       </p>
@@ -29,7 +29,7 @@ export function CardPinSheet({
       <Button
         variant="gradientSheet"
         size="lg"
-        className="mt-6"
+        className="mt-8"
         onClick={onClose}
       >
         Done

@@ -40,7 +40,7 @@ export function CardsView({
             back="/home"
             action={
               <Link
-                href="/cards"
+                href="/cards/new"
                 className="flex h-9.5 items-center gap-2 rounded-pill border border-jumpa-primary-600 px-3 text-xs leading-3.5 font-medium text-jumpa-primary-600"
               >
                 <PlusIcon className="size-4" />

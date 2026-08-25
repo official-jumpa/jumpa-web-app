@@ -6,15 +6,18 @@ export function ScreenHeader({
   back,
   title,
   action,
+  round,
 }: {
   /** Where a direct load goes back to; in-app the arrow steps back through history. */
   back: string;
   title?: string;
   action?: ReactNode;
+  /** Circled corner-up-left arrow, as the card screens draw it. */
+  round?: boolean;
 }) {
   return (
     <header className="relative flex h-11 items-center">
-      <BackLink href={back} />
+      <BackLink href={back} round={round} />
 
       {title ? (
         <h1 className="pointer-events-none absolute inset-x-11 text-center text-base leading-4.5 font-semibold text-jumpa-black">

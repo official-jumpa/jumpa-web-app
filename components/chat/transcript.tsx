@@ -7,6 +7,7 @@ import { OnrampCheckoutCard } from "@/components/chat/onramp-checkout-card";
 import { QuoteCard } from "@/components/chat/quote-card";
 import { ReceiptCard } from "@/components/chat/receipt-card";
 import { TransferCard } from "@/components/chat/transfer-card";
+import { Sep24Card } from "@/components/chat/sep24-card";
 import type { ChatEntry, ChatItem, QuoteCard as Quote } from "@/lib/chat";
 
 type Handlers = {
@@ -127,6 +128,8 @@ function Item({
       return <OnrampCheckoutCard card={item.card} />;
     case "offramp":
       return <OfframpCheckoutCard card={item.card} />;
+    case "sep24":
+      return <Sep24Card card={item.card} />;
     case "actions":
       return <ActionRow onConfirm={onConfirm} onCancel={onCancel} />;
   }

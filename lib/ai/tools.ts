@@ -323,6 +323,40 @@ const claimFaucet: DeepSeekTool = {
   },
 };
 
+const stellarSep24Sandbox: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "stellar_sep24_sandbox",
+    description:
+      "Initialize and launch an interactive sandboxed SEP-24 hosted on-ramp / off-ramp window (Stellar TestAnchor, MoneyGram Access, or Mercuryo) in Jumpa's UI Sheet. " +
+      "Call this whenever the user wants to test or demo SEP-24 anchor deposit/withdrawals, sandbox on-ramps, MoneyGram testnet, or Stellar anchor ramps.",
+    parameters: {
+      type: "object",
+      properties: {
+        assetCode: {
+          type: "string",
+          enum: ["USDC", "XLM", "EURC"],
+          description: "Asset code to deposit or withdraw (e.g. 'USDC', 'XLM'). Defaults to 'USDC'.",
+        },
+        type: {
+          type: "string",
+          enum: ["deposit", "withdraw"],
+          description: "Ramp direction: 'deposit' (onramp) or 'withdraw' (offramp). Defaults to 'deposit'.",
+        },
+        amount: {
+          type: "string",
+          description: "Optional testnet amount (e.g. '50').",
+        },
+        anchorName: {
+          type: "string",
+          description: "Anchor provider name (e.g. 'MoneyGram / TestAnchor').",
+        },
+      },
+      required: [],
+    },
+  },
+};
+
 // ─── Exported Tool Registry
 
 export const JUMPA_TOOLS: DeepSeekTool[] = [
@@ -330,6 +364,7 @@ export const JUMPA_TOOLS: DeepSeekTool[] = [
   stellarTestnetBalance,
   stellarMainnetSwapQuote,
   stellarMainnetBalance,
+  stellarSep24Sandbox,
   checkPortfolio,
   sendFunds,
   onrampNgn,
@@ -342,6 +377,7 @@ export type JumpaToolName =
   | "stellar_testnet_balance"
   | "stellar_mainnet_swap_quote"
   | "stellar_mainnet_balance"
+  | "stellar_sep24_sandbox"
   | "check_portfolio"
   | "send_funds"
   | "onramp_ngn"

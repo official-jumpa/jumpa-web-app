@@ -200,11 +200,12 @@ export async function POST(req: NextRequest) {
         lastToolSummaries.push(toolResult.summaryForAI);
 
         if (
-          toolResult.requiresConfirmation &&
           toolResult.cardHint?.type &&
           toolResult.cardHint.type !== "none"
         ) {
-          requiresConfirmation = true;
+          if (toolResult.requiresConfirmation) {
+            requiresConfirmation = true;
+          }
           primaryCardHint = toolResult.cardHint;
           primaryTransactionParams = toolResult.transactionParams;
         }
@@ -270,6 +271,17 @@ export async function POST(req: NextRequest) {
         cardType: "offramp",
         status: "pending",
         transactionParams: primaryTransactionParams,
+        cardData: primaryCardHint.data,
+        timestamp: new Date(),
+      };
+    } else if (primaryCardHint.type === "sep24") {
+      assistantMessage = {
+        id: generateId("MSG"),
+        role: "assistant",
+        content: finalAssistantContent,
+        isTransaction: false,
+        cardType: "sep24",
+        status: "confirmed",
         cardData: primaryCardHint.data,
         timestamp: new Date(),
       };

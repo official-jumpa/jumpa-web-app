@@ -13,6 +13,8 @@ import { resolveBankCode } from "@/lib/switch-banks";
 import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
 import { connectDB } from "@/lib/db";
 import { Transaction } from "@/models/Transaction";
+import { Wallet } from "@/models/Wallet";
+import { User } from "@/models/User";
 import type { SwapQuote } from "@/lib/dex/types";
 import { getNetworkFromToolName, type JumpaToolName } from "./tools";
 
@@ -21,6 +23,7 @@ export type CardHint =
   | { type: "transfer"; data: Record<string, any> }
   | { type: "onramp"; data: Record<string, any> }
   | { type: "offramp"; data: Record<string, any> }
+  | { type: "sep24"; data: Record<string, any> }
   | { type: "none" };
 
 export interface QuoteCardData {
@@ -271,6 +274,61 @@ export async function executeTool(
           recipient,
         },
         requiresConfirmation: true,
+      };
+    }
+
+    // ── SEP-24 Hosted Anchor Sandbox
+    case "stellar_sep24_sandbox": {
+      const { assetCode = "USDC", type = "deposit", amount = "50", anchorName = "MoneyGram / TestAnchor" } = toolArgs as {
+        assetCode?: string;
+        type?: "deposit" | "withdraw";
+        amount?: string;
+        anchorName?: string;
+      };
+
+      let stellarAddress = userCtx?.stellarAddress;
+      let userName = "Jumpa User";
+      let userEmail = "user@jumpa.cash";
+
+      if (userId) {
+        const [wallet, user] = await Promise.all([
+          Wallet.findOne({ userId }),
+          User.findOne({ $or: [{ _id: userId }, { id: userId }] }),
+        ]);
+
+        if (!stellarAddress && wallet) {
+          stellarAddress = wallet.addresses?.xlm || wallet.address;
+        }
+        if (user) {
+          if (user.name) userName = user.name;
+          if (user.email) userEmail = user.email;
+        }
+      }
+
+      if (!stellarAddress) {
+        stellarAddress = "GB25HBRJWZBPWKKGXW5BAOWYFUENSV5JHVDAS4TA43FULA4WU2QJDYMZ";
+      }
+
+      const cardData = {
+        anchorName,
+        assetCode,
+        account: stellarAddress,
+        userName,
+        userEmail,
+        type,
+        amount,
+      };
+
+      return {
+        toolName: "stellar_sep24_sandbox",
+        summaryForAI:
+          `Initialized sandboxed SEP-24 ${type} interactive window for ${amount} ${assetCode} via ${anchorName} on Stellar Testnet for account ${stellarAddress}. ` +
+          `The interactive sandbox UI Sheet is now ready for user interaction.`,
+        cardHint: {
+          type: "sep24",
+          data: cardData,
+        },
+        requiresConfirmation: false,
       };
     }
 

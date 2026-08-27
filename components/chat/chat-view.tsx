@@ -87,6 +87,11 @@ function messagesToChatEntries(
       if (isPending) {
         items.push({ kind: "actions" });
       }
+    } else if (msg.cardType === "sep24" && msg.cardData) {
+      items.push({
+        kind: "sep24",
+        card: msg.cardData as any,
+      });
     } else if (msg.cardType === "receipt" && msg.cardData) {
       items.push({
         kind: "receipt",

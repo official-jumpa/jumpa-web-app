@@ -86,6 +86,7 @@ export type ChatItem =
   | { kind: "transfer"; card: TransferCard }
   | { kind: "onramp"; card: OnrampCard }
   | { kind: "offramp"; card: OfframpCard }
+  | { kind: "sep24"; card: any }
   /** Cancel / Confirm pair. Confirm is what raises the PIN sheet. */
   | { kind: "actions" };
 

@@ -19,6 +19,7 @@
     "bcryptjs": "^3.0.3",
     "better-auth": "^1.7.1",
     "bip39": "^3.1.0",
+    "dotenv": "^17.4.2",
     "ed25519-hd-key": "^2.0.0",
     "mongodb": "^7.5.0",
     "mongoose": "^9.9.3",

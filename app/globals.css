@@ -78,6 +78,12 @@
   --color-jumpa-warm-200: #f4e5d2;
   --color-jumpa-warm-700: #8a6733; /* label on a warm surface */
 
+  /* SEP-24 anchor window. The hosted sandbox is deliberately dark so it reads as
+     the anchor's own surface, not ours. Read off the sandbox, not Figma. */
+  --color-jumpa-anchor-950: #0a0b10; /* window base */
+  --color-jumpa-anchor-900: #0c0d14; /* panel, header and footer bars */
+  --color-jumpa-anchor-800: #12131a; /* raised row, input */
+
   --color-jumpa-danger: #ff0004; /* self-custody warnings */
   --color-jumpa-danger-50: #fff0f0; /* error notice inside a card */
   --color-jumpa-warning: #e69200; /* PIN-vs-password note on the import screens */

@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { CirclePlusIcon } from "@/components/ui/icons/circle-plus";
 import { MicrophoneIcon } from "@/components/ui/icons/microphone";
 import { useSpeechToText } from "@/hooks/use-speech-to-text";
+import Image from "next/image";
 
 /** How tall the field is allowed to grow before it starts scrolling. */
 const MAX_LINES = 3;
@@ -124,7 +125,7 @@ export function ChatComposer({
               ? "Send message"
               : "Dictate a message"
         }
-        className={`mb-0.75 flex size-11.5 shrink-0 items-center justify-center rounded-pill transition-all active:scale-95 cursor-pointer ${
+        className={`mb-0.75 flex size-11.5 shrink-0 items-center justify-center rounded-pill transition-all active:scale-95 cursor-pointer relative overflow-hidden ${
           isListening
             ? "bg-red-500 text-jumpa-white animate-pulse shadow-lg ring-2 ring-red-400"
             : hasText
@@ -133,21 +134,15 @@ export function ChatComposer({
         } disabled:opacity-50`}
       >
         {isListening ? (
-          <div className="size-3.5 rounded-xs bg-white" />
+          <div className="size-6 rounded-xs bg-white" />
         ) : hasText ? (
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <line x1="22" y1="2" x2="11" y2="13" />
-            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-          </svg>
+          <Image
+            src="/images/chat/send_icon.svg"
+            alt="send icon"
+            fill
+            priority
+            className="object-cover"
+          />
         ) : (
           <MicrophoneIcon className="size-6" />
         )}

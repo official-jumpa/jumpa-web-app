@@ -23,7 +23,7 @@ export function SuccessSheet({
           <div className="flex w-full flex-col items-center gap-8">
             <div className="flex flex-col items-center gap-6">
               <Image
-                src="/images/auth/verification-success.svg"
+                src="/images/auth/verification_success.svg"
                 alt=""
                 width={126}
                 height={94}

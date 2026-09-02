@@ -17,7 +17,7 @@ export function ScreenHeader({
 }) {
   return (
     <header className="relative flex h-11 items-center">
-      <BackLink href={back} round={round} />
+      <BackLink href={back} variant={round ? "round" : "arrow"} />
 
       {title ? (
         <h1 className="pointer-events-none absolute inset-x-11 text-center text-base leading-4.5 font-semibold text-jumpa-black">

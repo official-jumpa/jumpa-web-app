@@ -1,8 +1,6 @@
-import type { Metadata } from "next";
-import { ComingSoon } from "@/components/ui/coming-soon";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Receive" };
-
+/** Receive picks a wallet first; the design has no screen of its own for it. */
 export default function ReceivePage() {
-  return <ComingSoon feature="Receive" />;
+  redirect("/assets");
 }

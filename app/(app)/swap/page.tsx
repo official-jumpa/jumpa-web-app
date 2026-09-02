@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { ComingSoon } from "@/components/ui/coming-soon";
+import { SwapView } from "@/components/swap/swap-view";
+import { PROMOTIONS } from "@/lib/wallet";
 
 export const metadata: Metadata = { title: "Swap" };
 
 export default function SwapPage() {
-  return <ComingSoon feature="Swap" />;
+  return <SwapView promotions={PROMOTIONS} />;
 }

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/auth/copy-button";
 import { PromotionList } from "@/components/home/promotion-list";
 import { SettingLink, SettingRow } from "@/components/settings/setting-row";

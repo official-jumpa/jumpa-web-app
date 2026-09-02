@@ -26,6 +26,7 @@ export function PinDisplay({
   value,
   label,
   tone = "panel",
+  error,
   reveal,
   autoFocus,
   onValueChange,
@@ -35,6 +36,8 @@ export function PinDisplay({
   /** Optional caption above the box, e.g. "Enter your pin". */
   label?: string;
   tone?: keyof typeof TONE;
+  /** Tints every slot red — a rejected PIN, not a separate screen. */
+  error?: boolean;
   /** Show the digits instead of masking them — right for a code, not a PIN. */
   reveal?: boolean;
   autoFocus?: boolean;
@@ -51,7 +54,9 @@ export function PinDisplay({
         </p>
       ) : null}
 
-      <div className={cn("relative flex items-center justify-center", style.box)}>
+      <div
+        className={cn("relative flex items-center justify-center", style.box)}
+      >
         {Array.from({ length }, (_, slot) => {
           // Where the next digit lands — the caret slot.
           const active = slot === value.length;
@@ -62,20 +67,24 @@ export function PinDisplay({
               className={cn(
                 "relative flex h-10 flex-col justify-end",
                 style.slot,
-                active ? "text-jumpa-primary-600" : style.idle,
+                error
+                  ? "text-jumpa-danger"
+                  : active
+                    ? "text-jumpa-primary-600"
+                    : style.idle,
               )}
             >
               <span
                 className={cn(
                   "text-center font-numeric leading-[0]",
                   style.digit,
-                  style.ink,
+                  error ? undefined : style.ink,
                 )}
               >
                 {slot < value.length ? (reveal ? value[slot] : "*") : ""}
               </span>
 
-              {active ? (
+              {active && !error ? (
                 <span
                   aria-hidden="true"
                   className="absolute inset-x-0 bottom-2 mx-auto h-6 w-0.5 animate-caret rounded-full bg-current"

@@ -2,43 +2,29 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { SendOptionsSheet } from "@/components/transfer/send-options-sheet";
 import { ArrowDownRightIcon } from "@/components/ui/icons/arrow-down-right";
 import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
 import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { EyeIcon } from "@/components/ui/icons/eye";
 import { EyeOffIcon } from "@/components/ui/icons/eye-off";
 import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
-import type { Asset } from "@/lib/wallet";
 import { BalanceSheet } from "./balance-sheet";
 
 /** Stands in for the digits while the balance is hidden. */
 const MASK = "*".repeat(9);
 
-/**
- * The details pill is on hold: whether the sheet breaks the total down by asset
- * or by product is still open. Flip this to bring it back.
- */
-const DETAILS_ENABLED = false;
-
-const TRANSFERS = [
-  { label: "Send", href: "/send", Icon: ArrowUpRightIcon },
-  { label: "Receive", href: "/receive", Icon: ArrowDownRightIcon },
-  { label: "Swap", href: "/swap", Icon: SwitchHorizontalIcon },
-];
+const TRANSFER =
+  "flex items-center gap-1.5 rounded-pill bg-jumpa-primary-500 py-1.5 pr-4 pl-1.5 text-base " +
+  "font-medium text-jumpa-white shadow-[inset_0_0_8px_0_var(--color-jumpa-primary-400)]";
 
 /**
- * Total balance and the transfer shortcuts. The eye reveals the amount; the pill
- * would open the breakdown of where that total sits, but is disabled for now.
+ * Total balance and the transfer shortcuts. The eye masks the amount, the pill
+ * opens the breakdown, and Send raises the chooser rather than navigating.
  */
-export function BalancePanel({
-  balance,
-  assets,
-}: {
-  balance: string;
-  assets: Asset[];
-}) {
+export function BalancePanel({ balance }: { balance: string }) {
   const [visible, setVisible] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [sheet, setSheet] = useState<"details" | "send" | null>(null);
   const ToggleIcon = visible ? EyeOffIcon : EyeIcon;
 
   return (
@@ -46,11 +32,10 @@ export function BalancePanel({
       <div className="flex flex-col items-center gap-2">
         <button
           type="button"
-          onClick={() => setDetailsOpen(true)}
-          disabled={!DETAILS_ENABLED}
+          onClick={() => setSheet("details")}
           aria-haspopup="dialog"
-          aria-expanded={detailsOpen}
-          className="flex items-center rounded-pill bg-jumpa-primary-950 px-4.5 py-2 text-xs leading-2.5 font-medium text-jumpa-white disabled:cursor-not-allowed"
+          aria-expanded={sheet === "details"}
+          className="tap flex items-center rounded-pill bg-jumpa-primary-950 px-4.5 py-2 text-xs leading-2.5 font-medium text-jumpa-white active:scale-95"
         >
           Balance Details
           <ChevronDownIcon className="size-4" />
@@ -75,26 +60,40 @@ export function BalancePanel({
       </div>
 
       <nav className="flex items-center gap-1.5">
-        {TRANSFERS.map(({ label, href, Icon }) => (
-          <Link
-            key={label}
-            href={href}
-            className="flex items-center gap-1.5 rounded-pill bg-jumpa-primary-500 py-1.5 pr-4 pl-1.5 text-base font-medium text-jumpa-white shadow-[inset_0_0_8px_0_var(--color-jumpa-primary-400)]"
-          >
-            <span className="flex size-8 items-center justify-center rounded-panel bg-jumpa-primary-400 text-jumpa-alt-400">
-              <Icon className="size-6" />
-            </span>
-            {label}
-          </Link>
-        ))}
+        <button
+          type="button"
+          onClick={() => setSheet("send")}
+          aria-haspopup="dialog"
+          aria-expanded={sheet === "send"}
+          className={`tap ${TRANSFER} active:scale-95`}
+        >
+          <span className="flex size-8 items-center justify-center rounded-panel bg-jumpa-primary-400 text-jumpa-alt-400">
+            <ArrowUpRightIcon className="size-6" />
+          </span>
+          Send
+        </button>
+
+        <Link href="/assets" className={TRANSFER}>
+          <span className="flex size-8 items-center justify-center rounded-panel bg-jumpa-primary-400 text-jumpa-alt-400">
+            <ArrowDownRightIcon className="size-6" />
+          </span>
+          Receive
+        </Link>
+
+        <Link href="/swap" className={TRANSFER}>
+          <span className="flex size-8 items-center justify-center rounded-panel bg-jumpa-primary-400 text-jumpa-alt-400">
+            <SwitchHorizontalIcon className="size-6" />
+          </span>
+          Swap
+        </Link>
       </nav>
 
-      {detailsOpen ? (
-        <BalanceSheet
-          balance={balance}
-          assets={assets}
-          onClose={() => setDetailsOpen(false)}
-        />
+      {sheet === "details" ? (
+        <BalanceSheet balance={balance} onClose={() => setSheet(null)} />
+      ) : null}
+
+      {sheet === "send" ? (
+        <SendOptionsSheet onClose={() => setSheet(null)} />
       ) : null}
     </section>
   );

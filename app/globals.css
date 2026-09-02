@@ -68,6 +68,23 @@
   --color-jumpa-neutral-800: #161616; /* supporting copy under a heading */
   --color-jumpa-neutral-900: #141414; /* "Resend Code" */
 
+  /* Transfer flows — read off the send/swap exports, not Figma variables. */
+  --color-jumpa-primary-525: #972cff; /* asset medallion on a review row */
+  --color-jumpa-primary-575: #9019ff; /* amount-entry canvas */
+  --color-jumpa-secondary-200: #ecd4ff; /* placeholder inside a transfer field */
+  --color-jumpa-secondary-300: #ddb2ff; /* balance line on the amount screen */
+  --color-jumpa-grey-100: #f1f2f4; /* transfer field border */
+
+  /* Quick-action tiles. One pastel per utility, straight off the design. */
+  --color-jumpa-tile-sky: #ebf8ff;
+  --color-jumpa-tile-rose: #ffebf4;
+  --color-jumpa-tile-violet: #efebff;
+  --color-jumpa-tile-peach: #fff3eb;
+  --color-jumpa-tile-sky-ink: #47c2ff;
+  --color-jumpa-tile-rose-ink: #fb4ba3;
+  --color-jumpa-tile-violet-ink: #7d52f4;
+  --color-jumpa-tile-peach-ink: #fa7319;
+
   /* Semantic */
   --color-jumpa-verified: #47c2ff;
   --color-jumpa-fill-primary: #787880;

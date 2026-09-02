@@ -84,7 +84,7 @@ export default function HomePage() {
       <div className="relative isolate flex flex-col gap-6 border-b border-jumpa-primary-950 bg-[image:var(--gradient-jumpa-hero)] px-4.5 pt-[calc(env(safe-area-inset-top)+1rem)] pb-6">
         <HeroBackdrop />
         <WalletHeader />
-        <BalancePanel balance={totalBalance} assets={assets} />
+        <BalancePanel balance={totalBalance} />
       </div>
 
       {/* Sections land one after another, top to bottom. */}

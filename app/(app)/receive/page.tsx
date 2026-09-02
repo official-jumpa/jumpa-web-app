@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
-import { AssetPicker } from "@/components/assets/asset-picker";
-import { ASSETS } from "@/lib/wallet";
+import { ReceiveOptionList } from "@/components/transfer/receive-options";
+import { TransferHeader } from "@/components/transfer/transfer-header";
 
-export const metadata: Metadata = { title: "Receive" };
+export const metadata: Metadata = { title: "Add Money" };
 
-/** Pick the wallet to be paid into; multi-chain assets ask for the network next. */
 export default function ReceivePage() {
-  return <AssetPicker assets={ASSETS} receive />;
+  return (
+    <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      <TransferHeader back="/home" title="Add Money" />
+      <div className="mt-8">
+        <ReceiveOptionList />
+      </div>
+    </div>
+  );
 }

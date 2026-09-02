@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { ReceiveOptionsSheet } from "@/components/transfer/receive-options-sheet";
 import { SendOptionsSheet } from "@/components/transfer/send-options-sheet";
 import { ArrowDownRightIcon } from "@/components/ui/icons/arrow-down-right";
 import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
@@ -20,11 +21,14 @@ const TRANSFER =
 
 /**
  * Total balance and the transfer shortcuts. The eye masks the amount, the pill
- * opens the breakdown, and Send raises the chooser rather than navigating.
+ * opens the breakdown, and Send and Receive each raise their chooser rather
+ * than navigating.
  */
 export function BalancePanel({ balance }: { balance: string }) {
   const [visible, setVisible] = useState(false);
-  const [sheet, setSheet] = useState<"details" | "send" | null>(null);
+  const [sheet, setSheet] = useState<"details" | "send" | "receive" | null>(
+    null,
+  );
   const ToggleIcon = visible ? EyeOffIcon : EyeIcon;
 
   return (
@@ -73,12 +77,18 @@ export function BalancePanel({ balance }: { balance: string }) {
           Send
         </button>
 
-        <Link href="/receive" className={TRANSFER}>
+        <button
+          type="button"
+          onClick={() => setSheet("receive")}
+          aria-haspopup="dialog"
+          aria-expanded={sheet === "receive"}
+          className={`tap ${TRANSFER} active:scale-95`}
+        >
           <span className="flex size-8 items-center justify-center rounded-panel bg-jumpa-primary-400 text-jumpa-alt-400">
             <ArrowDownRightIcon className="size-6" />
           </span>
           Receive
-        </Link>
+        </button>
 
         <Link href="/swap" className={TRANSFER}>
           <span className="flex size-8 items-center justify-center rounded-panel bg-jumpa-primary-400 text-jumpa-alt-400">
@@ -94,6 +104,10 @@ export function BalancePanel({ balance }: { balance: string }) {
 
       {sheet === "send" ? (
         <SendOptionsSheet onClose={() => setSheet(null)} />
+      ) : null}
+
+      {sheet === "receive" ? (
+        <ReceiveOptionsSheet onClose={() => setSheet(null)} />
       ) : null}
     </section>
   );

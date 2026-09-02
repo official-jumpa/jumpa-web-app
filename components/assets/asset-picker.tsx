@@ -16,9 +16,11 @@ import type { Asset } from "@/lib/wallet";
 export function AssetPicker({
   assets,
   receive = false,
+  back = "/home",
 }: {
   assets: Asset[];
   receive?: boolean;
+  back?: string;
 }) {
   const [query, setQuery] = useState("");
   const network = useReceiveNetwork();
@@ -35,8 +37,8 @@ export function AssetPicker({
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
       <ScreenHeader
-        back="/home"
-        title={receive ? "Receive" : "All Wallets"}
+        back={back}
+        title={receive ? "Deposit Crypto" : "All Wallets"}
         round
       />
 

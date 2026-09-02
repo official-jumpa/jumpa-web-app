@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { ComingSoon } from "@/components/ui/coming-soon";
+import { SavingsView } from "@/components/savings/savings-view";
+import { SAVINGS_PLANS } from "@/lib/savings";
 
 export const metadata: Metadata = { title: "Savings" };
 
 export default function SavingsPage() {
-  return <ComingSoon feature="Savings" />;
+  return <SavingsView hasGoals={SAVINGS_PLANS.length > 0} />;
 }

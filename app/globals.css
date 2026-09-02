@@ -14,6 +14,7 @@
   /* Primary (purple) — the core brand ramp */
   --color-jumpa-primary-50: #f5f0ff;
   --color-jumpa-primary-100: #ede4ff;
+  --color-jumpa-primary-200: #ddcdff; /* savings progress track */
   --color-jumpa-primary-300: #c6a5ff;
   --color-jumpa-primary-400: #ac72ff;
   --color-jumpa-primary-500: #963aff;
@@ -38,6 +39,7 @@
   --color-jumpa-secondary-50: #fbf5ff;
   --color-jumpa-secondary-100: #e8dff1; /* "Recent" filter pill in chat */
   --color-jumpa-secondary-600: #a02eef;
+  --color-jumpa-secondary-950: #410566; /* savings plan progress caption */
 
   /* Greys */
   --color-jumpa-grey-300: #abb0ba; /* close button on the chat header */
@@ -59,6 +61,7 @@
   --color-jumpa-neutral-300: #a1a1a1; /* KYC card supporting copy */
   --color-jumpa-neutral-350: #979797; /* asset ticker name */
   --color-jumpa-neutral-400: #818181; /* transaction date */
+  --color-jumpa-neutral-425: #767676; /* notification read state */
   --color-jumpa-neutral-500: #4f4f4f; /* captions, "Or Sign Up With" */
   --color-jumpa-neutral-550: #555555; /* asset amount on a transfer card */
   --color-jumpa-neutral-600: #464646; /* social button label */
@@ -75,6 +78,7 @@
   --color-jumpa-secondary-200: #ecd4ff; /* placeholder inside a transfer field */
   --color-jumpa-secondary-300: #ddb2ff; /* balance line on the amount screen */
   --color-jumpa-grey-100: #f1f2f4; /* transfer field border */
+  --color-jumpa-grey-400: #9ca3af; /* placeholder inside a savings field */
 
 
   /* Semantic */

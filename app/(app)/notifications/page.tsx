@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { ComingSoon } from "@/components/ui/coming-soon";
+import { NotificationList } from "@/components/notifications/notification-list";
+import { NOTIFICATIONS } from "@/lib/notifications";
 
 export const metadata: Metadata = { title: "Notifications" };
 
 export default function NotificationsPage() {
-  return <ComingSoon feature="Notifications" />;
+  return <NotificationList items={NOTIFICATIONS} />;
 }

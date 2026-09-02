@@ -21,9 +21,12 @@ const TRIGGER = {
   field:
     "h-12 w-full gap-2 rounded-pill bg-jumpa-primary-50 px-4 text-sm leading-4.5 font-medium text-jumpa-primary-950",
   pill: "h-7 gap-2 rounded-pill bg-jumpa-secondary-100 px-3 text-[10px] leading-5 font-medium text-jumpa-primary-950",
+  /** Bordered white field, matching the savings forms. */
+  savings:
+    "h-11.5 w-full gap-2 rounded-surface border border-jumpa-grey-100 bg-jumpa-white px-3 text-xs leading-4 font-medium text-jumpa-primary-950",
 } as const;
 
-const LOGO = { field: 20, pill: 14 } as const;
+const LOGO = { field: 20, pill: 14, savings: 20 } as const;
 
 export function Select({
   value,

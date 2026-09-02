@@ -1,7 +1,25 @@
 "use client";
 
+import type { ComponentType, SVGProps } from "react";
+import { BadgePercentIcon } from "@/components/ui/icons/badge-percent";
+import { ChartMixedAltIcon } from "@/components/ui/icons/chart-mixed-alt";
+import { MoneyWithdrawalIcon } from "@/components/ui/icons/money-withdrawal";
+import { MoneybagIcon } from "@/components/ui/icons/moneybag";
 import { SheetPortal } from "@/components/ui/sheet-portal";
 import { BALANCE_BUCKETS } from "@/lib/transfer";
+
+/** One glyph per product, so a row can never show a bucket it isn't. */
+const GLYPH: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
+  savings: BadgePercentIcon,
+  credit: MoneybagIcon,
+  "commercial-paper": ChartMixedAltIcon,
+  available: MoneyWithdrawalIcon,
+};
+
+/** Figma draws these as zero-height lines, so the height has to come back out. */
+function BucketRule() {
+  return <span className="-mb-px h-px w-full bg-jumpa-neutral-95" />;
+}
 
 /**
  * Where the total balance actually sits, one row per product. Portalled: the
@@ -16,47 +34,63 @@ export function BalanceSheet({
 }) {
   return (
     <SheetPortal onClose={onClose}>
-      <h2 className="text-xl leading-6 font-bold text-jumpa-black">
-        Balance Details
-      </h2>
+      {/* pb-1 tops the panel's own pb-4 up to the design's 20px. */}
+      <div className="flex flex-col gap-4 pb-1">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-base font-medium text-jumpa-black">
+            Your Balance Overview
+          </h2>
+          <div className="flex flex-col gap-1">
+            <p className="text-[32px] font-semibold text-jumpa-black">
+              ${balance}
+            </p>
+            <p className="text-base font-medium text-jumpa-neutral-300">
+              Total balance
+            </p>
+          </div>
+        </div>
 
-      <p className="mt-4 text-sm leading-4.5 text-jumpa-neutral-400">
-        Your Total Balance
-      </p>
-      <p className="mt-1 text-[28px] leading-8 font-bold text-jumpa-black">
-        ${balance}
-      </p>
+        <ul className="flex flex-col gap-4 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-6 py-5">
+          {BALANCE_BUCKETS.map((bucket, index) => {
+            const Glyph = GLYPH[bucket.id];
 
-      <ul className="mt-4 flex flex-col gap-2">
-        {BALANCE_BUCKETS.map((bucket) => (
-          <li
-            key={bucket.id}
-            className="flex items-center justify-between gap-3 rounded-panel bg-jumpa-neutral-50 px-3 py-3"
-          >
-            <span className="flex min-w-0 flex-col">
-              <span className="truncate text-sm leading-4.5 font-medium text-jumpa-black">
-                {bucket.label}
-              </span>
-              {bucket.caption ? (
-                <span className="truncate text-[11px] leading-3.5 text-jumpa-neutral-350">
-                  {bucket.caption}
-                </span>
-              ) : null}
-            </span>
+            return (
+              <li key={bucket.id} className="flex flex-col gap-4">
+                {index > 0 ? <BucketRule /> : null}
 
-            {/* A null amount is a product that has not launched yet. */}
-            {bucket.amount === null ? (
-              <span className="shrink-0 rounded-pill bg-jumpa-primary-50 px-3 py-1 text-[10px] leading-4 font-semibold text-jumpa-primary-600">
-                Coming Soon
-              </span>
-            ) : (
-              <span className="shrink-0 text-sm leading-4.5 font-semibold text-jumpa-black">
-                {bucket.amount}
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex min-w-0 items-center gap-2">
+                    {Glyph ? (
+                      <Glyph className="size-6 shrink-0 text-jumpa-primary-600" />
+                    ) : null}
+                    <span className="flex min-w-0 flex-col justify-center">
+                      <span className="truncate text-sm font-medium text-jumpa-black">
+                        {bucket.label}
+                      </span>
+                      {bucket.caption ? (
+                        <span className="truncate text-xs leading-3.5 text-jumpa-neutral-300">
+                          {bucket.caption}
+                        </span>
+                      ) : null}
+                    </span>
+                  </span>
+
+                  {/* A null amount is a product that has not launched yet. */}
+                  <span
+                    className={`shrink-0 text-right text-base font-semibold ${
+                      bucket.amount === null
+                        ? "text-jumpa-neutral-300"
+                        : "text-jumpa-black"
+                    }`}
+                  >
+                    {bucket.amount ?? "Coming Soon"}
+                  </span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </SheetPortal>
   );
 }

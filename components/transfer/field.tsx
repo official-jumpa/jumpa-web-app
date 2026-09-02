@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { CaretDownIcon } from "@/components/ui/icons/caret-down";
+import type { SelectOption } from "@/components/ui/select";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
 
 /** Label above every transfer input. */
@@ -58,7 +59,7 @@ export function PasteAction({ onPaste }: { onPaste: (text: string) => void }) {
   );
 }
 
-/** Tinted picker — country, asset, network. Native select, so mobile gets its own wheel. */
+/** Tinted picker — country, asset, network. */
 export function SelectField({
   label,
   icon,
@@ -71,28 +72,20 @@ export function SelectField({
   icon?: ReactNode;
   value: string;
   placeholder?: string;
-  options: readonly string[];
+  options: SelectOption[];
   onChange: (next: string) => void;
 }) {
   return (
-    <label className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2">
       <FieldLabel>{label}</FieldLabel>
-      <span className="flex h-12 items-center gap-2 rounded-pill bg-jumpa-primary-50 px-4 text-jumpa-primary-950">
-        {icon}
-        <select
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className="min-w-0 flex-1 appearance-none bg-transparent text-sm leading-4 font-medium outline-none"
-        >
-          {placeholder ? <option value="">{placeholder}</option> : null}
-          {options.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <CaretDownIcon aria-hidden="true" className="size-4 shrink-0" />
-      </span>
-    </label>
+      <Select
+        label={label}
+        icon={icon}
+        value={value}
+        placeholder={placeholder}
+        options={options}
+        onValueChange={onChange}
+      />
+    </div>
   );
 }

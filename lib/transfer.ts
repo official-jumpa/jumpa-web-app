@@ -67,6 +67,41 @@ export const RECENT_BANK_ACCOUNTS: BankAccount[] = [
   },
 ];
 
+/** Placeholder names the stub resolver returns. Not real account holders. */
+const RESOLVED_NAMES = [
+  "Adekunle Michael",
+  "Olafunke Mariam",
+  "Chinedu Okafor",
+  "Amina Yusuf",
+  "Jorge Burrows",
+  "Emeka Nwosu",
+];
+
+/**
+ * Stands in for the bank's name-enquiry call: given an account number and a
+ * bank, the rails return the account holder. Deterministic so a given number
+ * always resolves to the same name; replace with the real lookup.
+ */
+export function resolveAccountName(
+  bank: string,
+  account: string,
+): Promise<string> {
+  const digits = account.replace(/\D/g, "");
+  const seed = [...`${bank}${digits}`].reduce(
+    (sum, c) => sum + c.charCodeAt(0),
+    0,
+  );
+  return new Promise((resolve) =>
+    setTimeout(
+      () => resolve(RESOLVED_NAMES[seed % RESOLVED_NAMES.length]),
+      600,
+    ),
+  );
+}
+
+/** An account number is only worth looking up once it is this long. */
+export const ACCOUNT_NUMBER_MIN = 10;
+
 export type WalletContact = {
   id: string;
   handle: string;

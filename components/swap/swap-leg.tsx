@@ -1,45 +1,50 @@
-import Image from "next/image";
 import type { ReactNode } from "react";
-import { CaretDownIcon } from "@/components/ui/icons/caret-down";
 import { WalletIcon } from "@/components/ui/icons/wallet";
+import { Select } from "@/components/ui/select";
 import { getAssetLogo } from "@/lib/assets";
+import { SEND_ASSETS } from "@/lib/transfer";
 
-/** One side of the swap: what is typed, the asset pill and that asset's balance. */
+const ASSET_OPTIONS = SEND_ASSETS.map((symbol) => ({
+  value: symbol,
+  label: symbol,
+  icon: getAssetLogo(symbol),
+}));
+
+/** One side of the swap: what is typed, the asset picker and that asset's balance. */
 export function SwapLeg({
   label,
   symbol,
   balance,
+  onSymbolChange,
   children,
 }: {
   label: string;
   symbol: string;
   balance: string;
+  onSymbolChange: (next: string) => void;
   /** The value — an input on the send leg, plain text on the receive leg. */
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-surface bg-jumpa-white px-4 py-3.5">
-      <span className="flex min-w-0 flex-col gap-1.5">
-        <span className="text-[8px] leading-2 font-medium tracking-wide text-jumpa-neutral-350 uppercase">
+    <div className="flex items-center gap-2.5 rounded-xl bg-jumpa-white p-2.5">
+      <span className="flex min-w-0 flex-1 flex-col gap-1 px-2.5">
+        <span className="text-[8px] leading-2.5 text-jumpa-black/50 uppercase">
           {label}
         </span>
         {children}
       </span>
 
-      <span className="flex shrink-0 flex-col items-end gap-1">
-        <span className="flex items-center gap-1 rounded-pill bg-jumpa-primary-50 py-1.5 pr-2 pl-2.5 text-[10px] leading-3 font-semibold text-jumpa-primary-950">
-          <Image
-            src={getAssetLogo(symbol)}
-            alt=""
-            width={16}
-            height={16}
-            className="size-4 rounded-full object-contain"
-          />
-          {symbol}
-          <CaretDownIcon aria-hidden="true" className="size-3.5" />
-        </span>
-        <span className="flex items-center gap-1 text-[8px] leading-2 font-medium text-jumpa-primary-600">
-          <WalletIcon aria-hidden="true" className="size-3" />
+      <span className="flex shrink-0 flex-col items-end justify-center gap-2.5">
+        <Select
+          variant="pill"
+          label={`${label} asset`}
+          value={symbol}
+          options={ASSET_OPTIONS}
+          onValueChange={onSymbolChange}
+        />
+
+        <span className="flex items-center gap-1 text-[8px] leading-2.5 font-bold text-jumpa-primary-400">
+          <WalletIcon aria-hidden="true" className="size-2.5" />
           Balance: {balance}
         </span>
       </span>

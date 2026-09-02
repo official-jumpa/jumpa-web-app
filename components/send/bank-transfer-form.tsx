@@ -1,23 +1,26 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import {
   FIELD_INPUT,
-  FIELD_SHELL,
   Field,
+  FieldLabel,
   PasteAction,
   SelectField,
 } from "@/components/transfer/field";
 import { OptionRow } from "@/components/transfer/option-row";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { CircleInformationIcon } from "@/components/ui/icons/circle-information";
 import { GlobeIcon } from "@/components/ui/icons/globe";
-import { SearchAltIcon } from "@/components/ui/icons/search-alt";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
 import {
+  ACCOUNT_NUMBER_MIN,
   BANKS,
   type BankAccount,
   COUNTRIES,
   RECENT_BANK_ACCOUNTS,
+  resolveAccountName,
 } from "@/lib/transfer";
 
 export type BankForm = {
@@ -38,6 +41,12 @@ export const EMPTY_BANK_FORM: BankForm = {
   note: "",
 };
 
+const COUNTRY_OPTIONS = COUNTRIES.map((entry) => ({
+  value: entry.label,
+  label: entry.label,
+  caption: entry.currency,
+}));
+
 /** Recipient details. Recents are offered until a country picks the rails. */
 export function BankTransferForm({
   form,
@@ -54,6 +63,34 @@ export function BankTransferForm({
   const set = (patch: Partial<BankForm>) => onChange({ ...form, ...patch });
   const ready = Boolean(form.country && form.account && form.bank);
 
+  const [resolving, setResolving] = useState(false);
+  const { account, bank } = form;
+
+  // The lookup resolves after a delay; patch whatever the form holds by then,
+  // not the snapshot it started from, or a narration typed meanwhile is lost.
+  const latest = useRef(form);
+  latest.current = form;
+
+  // Account number + bank is what the rails need to return the holder's name.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: those two are the only trigger; re-running on every other keystroke would overwrite an edited name
+  useEffect(() => {
+    if (account.replace(/\D/g, "").length < ACCOUNT_NUMBER_MIN || !bank) return;
+
+    let live = true;
+    setResolving(true);
+    resolveAccountName(bank, account)
+      .then((name) => {
+        if (live) onChange({ ...latest.current, name });
+      })
+      .finally(() => {
+        if (live) setResolving(false);
+      });
+
+    return () => {
+      live = false;
+    };
+  }, [account, bank]);
+
   return (
     <div className="flex flex-1 flex-col gap-5 pt-6">
       <SelectField
@@ -61,8 +98,8 @@ export function BankTransferForm({
         icon={<GlobeIcon aria-hidden="true" className="size-6 shrink-0" />}
         value={form.country}
         placeholder="Select Country"
-        options={COUNTRIES.map((entry) => `${entry.label} (${entry.currency})`)}
-        onChange={(next) => set({ country: next.replace(/ \(\w+\)$/, "") })}
+        options={COUNTRY_OPTIONS}
+        onChange={(next) => set({ country: next })}
       />
 
       <Field label="Account number">
@@ -76,29 +113,16 @@ export function BankTransferForm({
         <PasteAction onPaste={(text) => set({ account: text.trim() })} />
       </Field>
 
-      <label className="flex flex-col gap-2">
-        <span className="text-xs leading-5 font-medium text-jumpa-black">
-          Search bank
-        </span>
-        <span className={FIELD_SHELL}>
-          <SearchAltIcon
-            aria-hidden="true"
-            className="size-6 shrink-0 text-jumpa-primary-600"
-          />
-          <input
-            value={form.bank}
-            onChange={(event) => set({ bank: event.target.value })}
-            placeholder="Search"
-            list="jumpa-banks"
-            className={FIELD_INPUT}
-          />
-        </span>
-        <datalist id="jumpa-banks">
-          {(BANKS[country?.code ?? ""] ?? []).map((bank) => (
-            <option key={bank} value={bank} />
-          ))}
-        </datalist>
-      </label>
+      <div className="flex flex-col gap-2">
+        <FieldLabel>Search bank</FieldLabel>
+        <Combobox
+          label="Search bank"
+          value={form.bank}
+          options={BANKS[country?.code ?? ""] ?? []}
+          placeholder="Search"
+          onValueChange={(next) => set({ bank: next })}
+        />
+      </div>
 
       {country?.routing ? (
         <Field label="Routing number">
@@ -118,7 +142,7 @@ export function BankTransferForm({
             <input
               value={form.name}
               onChange={(event) => set({ name: event.target.value })}
-              placeholder="Account name"
+              placeholder={resolving ? "Verifying account…" : "Account name"}
               className={FIELD_INPUT}
             />
           </Field>
@@ -151,13 +175,13 @@ export function BankTransferForm({
               Recent accounts
             </h2>
             <ul className="flex flex-col gap-4 rounded-surface bg-jumpa-primary-50 px-4 py-4">
-              {RECENT_BANK_ACCOUNTS.map((account) => (
-                <li key={account.id}>
+              {RECENT_BANK_ACCOUNTS.map((entry) => (
+                <li key={entry.id}>
                   <OptionRow
                     Icon={CircleInformationIcon}
-                    title={account.name}
-                    caption={`${account.bank} - ${account.number}`}
-                    onClick={() => onPickRecent(account)}
+                    title={entry.name}
+                    caption={`${entry.bank} - ${entry.number}`}
+                    onClick={() => onPickRecent(entry)}
                   />
                 </li>
               ))}

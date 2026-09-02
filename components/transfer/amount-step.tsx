@@ -17,6 +17,12 @@ const CHIP_SIZE = {
   roomy: "h-9.5 px-4 text-xs leading-4",
 } as const;
 
+/** Digits with one dot and two decimals, as the design shows the amount. */
+function sanitise(value: string): string {
+  const [whole = "", ...rest] = value.replace(/[^\d.]/g, "").split(".");
+  return rest.length ? `${whole}.${rest.join("").slice(0, 2)}` : whole;
+}
+
 /**
  * Purple amount canvas with the keypad below it. Shared by the bank and wallet
  * flows — only the header above it and what Review opens differ.
@@ -44,25 +50,34 @@ export function AmountStep({
   onReview: () => void;
 }) {
   const size = CHIP_SIZE[chips.length > 3 ? "dense" : "roomy"];
+  const spendable = Number(balance.replace(/[^\d.]/g, ""));
+  const low = Number(amount) > spendable;
 
-  const push = (digit: string) => {
-    // Two decimal places, as the design shows the amount.
-    if (/\.\d{2}$/.test(amount)) return;
-    onAmountChange(amount === "0" ? digit : amount + digit);
-  };
+  const push = (digit: string) =>
+    onAmountChange(sanitise(amount === "0" ? digit : amount + digit));
 
   return (
     <div className="flex flex-1 flex-col rounded-t-dock bg-jumpa-primary-575 px-4.5 pt-6 pb-2.5">
-      <p className="text-xs leading-2.5 text-jumpa-primary-50">Enter amount</p>
+      <p className="text-xs leading-2.5 text-jumpa-primary-50">
+        {low ? "Low balance" : "Enter amount"}
+      </p>
 
       <div className="mt-3 flex items-center justify-between gap-3">
-        <p
-          className={`min-w-0 truncate text-[56px] leading-none font-medium ${
-            amount ? "text-jumpa-white" : "text-jumpa-primary-500"
+        {/* The design's pad is the keyboard here, so the OS one stays down —
+            inputMode="none" still lets a physical keyboard and paste through. */}
+        <input
+          value={amount}
+          onChange={(event) => onAmountChange(sanitise(event.target.value))}
+          inputMode="none"
+          // biome-ignore lint/a11y/noAutofocus: the screen exists to take this entry
+          autoFocus
+          placeholder="0.00"
+          aria-label="Amount"
+          aria-invalid={low}
+          className={`min-w-0 flex-1 bg-transparent text-[56px] leading-none font-medium caret-jumpa-alt-400 outline-none placeholder:text-jumpa-primary-500 ${
+            low ? "text-jumpa-danger-400" : "text-jumpa-white"
           }`}
-        >
-          {amount || "0.00"}
-        </p>
+        />
         {amount ? (
           <button
             type="button"
@@ -122,7 +137,7 @@ export function AmountStep({
         <button
           type="button"
           onClick={onReview}
-          disabled={!Number(amount)}
+          disabled={!Number(amount) || low}
           className="tap flex h-14 w-full items-center justify-center rounded-pill bg-jumpa-primary-50 text-base leading-4 font-semibold text-jumpa-primary-500 active:scale-[0.98] disabled:opacity-60"
         >
           Review

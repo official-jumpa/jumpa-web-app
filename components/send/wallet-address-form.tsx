@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import {
   FIELD_INPUT,
   FIELD_SHELL,
@@ -38,6 +37,18 @@ export const EMPTY_WALLET_FORM: WalletForm = {
   memo: "",
   pasted: false,
 };
+
+const ASSET_OPTIONS = SEND_ASSETS.map((symbol) => ({
+  value: symbol,
+  label: symbol,
+  icon: getAssetLogo(symbol),
+}));
+
+const NETWORK_OPTIONS = NETWORKS.map((network) => ({
+  value: network,
+  label: network,
+  icon: getAssetLogo(network),
+}));
 
 /** Address entry; the asset, network and memo appear once there is an address. */
 export function WalletAddressForm({
@@ -95,17 +106,8 @@ export function WalletAddressForm({
         <>
           <SelectField
             label="Asset to send"
-            icon={
-              <Image
-                src={getAssetLogo(form.asset)}
-                alt=""
-                width={24}
-                height={24}
-                className="size-6 shrink-0 rounded-full object-contain"
-              />
-            }
             value={form.asset}
-            options={SEND_ASSETS}
+            options={ASSET_OPTIONS}
             onChange={(asset) => set({ asset })}
           />
 
@@ -113,7 +115,7 @@ export function WalletAddressForm({
             label="Network"
             icon={<GlobeIcon aria-hidden="true" className="size-6 shrink-0" />}
             value={form.network}
-            options={NETWORKS}
+            options={NETWORK_OPTIONS}
             onChange={(network) => set({ network })}
           />
 

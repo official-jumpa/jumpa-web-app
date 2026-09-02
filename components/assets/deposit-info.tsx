@@ -1,3 +1,4 @@
+import { DepositQr } from "@/components/assets/deposit-qr";
 import { CopyButton } from "@/components/auth/copy-button";
 import { GlobeIcon } from "@/components/ui/icons/globe";
 import { UsersIcon } from "@/components/ui/icons/users";
@@ -54,9 +55,8 @@ export function DepositInfo({ symbol }: { symbol: string }) {
         </div>
       </dl>
 
-      {/* The design leaves the QR as a labelled placeholder; no code is generated yet. */}
-      <div className="mt-4 flex h-73.5 items-center justify-center rounded-surface bg-jumpa-neutral-50 text-sm leading-4.5 text-jumpa-black">
-        QR code
+      <div className="mt-4 flex h-73.5 items-center justify-center rounded-surface bg-jumpa-neutral-50">
+        <DepositQr value={DEPOSIT_ACCOUNT.address} />
       </div>
 
       <h2 className="mt-4 text-sm leading-4.5 font-medium text-jumpa-black">

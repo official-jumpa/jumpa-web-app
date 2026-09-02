@@ -19,7 +19,8 @@ export function CloseButton({
         size === "sm" ? "size-7.5" : "size-9.5"
       }`}
     >
-      <CloseIcon className={size === "sm" ? "size-3" : "size-3.5"} />
+      {/* The glyph is 14 of the icon's 24 units, so the box carries the extra. */}
+      <CloseIcon className={size === "sm" ? "size-4.75" : "size-6"} />
     </button>
   );
 }

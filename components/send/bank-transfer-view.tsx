@@ -34,22 +34,27 @@ export function BankTransferView({ promotions }: { promotions: Promotion[] }) {
   const currency = country?.currency ?? "USD";
   const { symbol, balance } = SEND_BALANCE;
 
+  // Routing and narration are only there for some rails, so the rule that
+  // separates rows has to be decided against the rows actually rendered.
+  const rows = [
+    { label: "From", value: "Jumpa wallet" },
+    { label: "Type", value: country?.routing ? "ACH" : "Bank transfer" },
+    { label: "To", value: `${form.bank} - ${form.account}` },
+    { label: "Recipient", value: form.name || "—" },
+    ...(form.routing ? [{ label: "Routing", value: form.routing }] : []),
+    ...(form.note ? [{ label: "Narration", value: form.note }] : []),
+  ];
+
   const details = (
     <DetailList>
-      <DetailRow label="From" value="Jumpa wallet" />
-      <DetailRow
-        label="Type"
-        value={country?.routing ? "ACH" : "Bank transfer"}
-      />
-      <DetailRow label="To" value={`${form.bank} - ${form.account}`} />
-      <DetailRow
-        label="Recipient"
-        value={form.name || "—"}
-        rule={Boolean(form.routing)}
-      />
-      {form.routing ? (
-        <DetailRow label="Routing" value={form.routing} rule={false} />
-      ) : null}
+      {rows.map((row, index) => (
+        <DetailRow
+          key={row.label}
+          label={row.label}
+          value={row.value}
+          rule={index < rows.length - 1}
+        />
+      ))}
     </DetailList>
   );
 

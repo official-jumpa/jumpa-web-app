@@ -71,19 +71,11 @@
   /* Transfer flows — read off the send/swap exports, not Figma variables. */
   --color-jumpa-primary-525: #972cff; /* asset medallion on a review row */
   --color-jumpa-primary-575: #9019ff; /* amount-entry canvas */
+  --color-jumpa-secondary-150: #ebddff; /* swap header "+" button */
   --color-jumpa-secondary-200: #ecd4ff; /* placeholder inside a transfer field */
   --color-jumpa-secondary-300: #ddb2ff; /* balance line on the amount screen */
   --color-jumpa-grey-100: #f1f2f4; /* transfer field border */
 
-  /* Quick-action tiles. One pastel per utility, straight off the design. */
-  --color-jumpa-tile-sky: #ebf8ff;
-  --color-jumpa-tile-rose: #ffebf4;
-  --color-jumpa-tile-violet: #efebff;
-  --color-jumpa-tile-peach: #fff3eb;
-  --color-jumpa-tile-sky-ink: #47c2ff;
-  --color-jumpa-tile-rose-ink: #fb4ba3;
-  --color-jumpa-tile-violet-ink: #7d52f4;
-  --color-jumpa-tile-peach-ink: #fa7319;
 
   /* Semantic */
   --color-jumpa-verified: #47c2ff;
@@ -103,6 +95,7 @@
 
   --color-jumpa-danger: #ff0004; /* self-custody warnings */
   --color-jumpa-danger-50: #fff0f0; /* error notice inside a card */
+  --color-jumpa-danger-400: #ff383c; /* amount above the spendable balance */
   --color-jumpa-warning: #e69200; /* PIN-vs-password note on the import screens */
   --color-jumpa-success: #11a929; /* positive 24h change on an asset card */
   --color-jumpa-pin-rule: #193d26; /* slot underline in the chat PIN sheet */

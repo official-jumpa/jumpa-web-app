@@ -30,6 +30,7 @@ export function TransferSuccess({
   /** Swap puts its title above the amount; the send flows put it below. */
   titleFirst,
   actionsFirst,
+  actions: actionsOverride,
   onShare,
 }: {
   back: string;
@@ -44,6 +45,8 @@ export function TransferSuccess({
   titleFirst?: boolean;
   /** Swap draws the action row above the offer cards; the send flows below. */
   actionsFirst?: boolean;
+  /** Replaces the More details / Share pair, as the bill flows do. */
+  actions?: ReactNode;
   onShare?: () => void;
 }) {
   const [showDetails, setShowDetails] = useState(false);
@@ -64,7 +67,7 @@ export function TransferSuccess({
       <PromotionList promotions={promotions} />
     );
 
-  const actions = (
+  const actions = actionsOverride ?? (
     <div className="flex h-17.5 items-center gap-2 rounded-card border border-jumpa-neutral-100 p-2.25">
       {showDetails ? null : (
         <button

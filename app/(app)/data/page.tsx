@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { ComingSoon } from "@/components/ui/coming-soon";
+import { MobileDataView } from "@/components/bills/data-view";
+import { PROMOTIONS } from "@/lib/wallet";
 
 export const metadata: Metadata = { title: "Data" };
 
 export default function DataPage() {
-  return <ComingSoon feature="Data" />;
+  return <MobileDataView promotions={PROMOTIONS} />;
 }

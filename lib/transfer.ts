@@ -166,6 +166,13 @@ export const SWAP_QUOTE = {
 };
 
 /** The PIN the placeholder flows accept. Replace with a real verification call. */
+/** Thousands separators, as the design prints every entered amount. */
+export function formatAmount(value: string): string {
+  const [whole = "", decimals] = value.split(".");
+  const grouped = whole ? Number(whole).toLocaleString("en-US") : "";
+  return decimals === undefined ? grouped : `${grouped}.${decimals}`;
+}
+
 export const DEMO_PIN = "1234";
 
 /** First and last few characters of a long chain address. */

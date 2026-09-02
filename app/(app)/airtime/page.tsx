@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { ComingSoon } from "@/components/ui/coming-soon";
+import { AirtimeView } from "@/components/bills/airtime-view";
+import { PROMOTIONS } from "@/lib/wallet";
 
 export const metadata: Metadata = { title: "Airtime" };
 
 export default function AirtimePage() {
-  return <ComingSoon feature="Airtime" />;
+  return <AirtimeView promotions={PROMOTIONS} />;
 }

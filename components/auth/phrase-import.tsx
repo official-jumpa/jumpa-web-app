@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { validateMnemonic } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 import { InfoNote } from "@/components/auth/info-note";
-import { SegmentedToggle } from "@/components/auth/segmented-toggle";
+import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { WordGrid } from "@/components/auth/word-chip";
 import { Button } from "@/components/ui/button";
 import { PHRASE_LENGTHS, type PhraseLength } from "@/lib/recovery-phrase";

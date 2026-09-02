@@ -58,3 +58,23 @@ export function BackLink({
     </Link>
   );
 }
+
+/** Same glyph as `BackLink`, for stepping back inside a multi-stage screen. */
+export function BackButton({
+  onClick,
+  variant = "arrow",
+}: {
+  onClick: () => void;
+  variant?: keyof typeof GLYPH;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Go back"
+      className="tap flex size-11 items-center justify-center active:scale-90"
+    >
+      {GLYPH[variant]}
+    </button>
+  );
+}

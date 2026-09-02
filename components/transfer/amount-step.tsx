@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { NumericKeypad } from "@/components/auth/numeric-keypad";
 import { CloseIcon } from "@/components/ui/icons/close";
 import { getAssetLogo } from "@/lib/assets";
-import { QUICK_AMOUNTS } from "@/lib/transfer";
+import { formatAmount, QUICK_AMOUNTS } from "@/lib/transfer";
 
 const CHIP =
   "tap flex shrink-0 items-center justify-center rounded-pill bg-jumpa-primary-50 " +
@@ -32,6 +32,8 @@ export function AmountStep({
   symbol,
   balance,
   chips = QUICK_AMOUNTS,
+  chipUnit,
+  checkBalance = true,
   rate,
   caption,
   onAmountChange,
@@ -43,6 +45,13 @@ export function AmountStep({
   balance: string;
   /** Quick-fill values; the flows differ on whether 5 is offered. */
   chips?: readonly number[];
+  /** Unit printed on the chips. The bill flows show bare amounts. */
+  chipUnit?: string;
+  /**
+   * Off for the bill flows: they quote in local currency, so the wallet
+   * balance neither gates the amount nor makes a MAX chip meaningful.
+   */
+  checkBalance?: boolean;
   /** Conversion line opposite the balance, where the flow shows one. */
   rate?: string;
   caption?: ReactNode;
@@ -50,8 +59,9 @@ export function AmountStep({
   onReview: () => void;
 }) {
   const size = CHIP_SIZE[chips.length > 3 ? "dense" : "roomy"];
+  const unit = chipUnit ?? symbol;
   const spendable = Number(balance.replace(/[^\d.]/g, ""));
-  const low = Number(amount) > spendable;
+  const low = checkBalance && Number(amount) > spendable;
 
   const push = (digit: string) =>
     onAmountChange(sanitise(amount === "0" ? digit : amount + digit));
@@ -66,7 +76,7 @@ export function AmountStep({
         {/* The design's pad is the keyboard here, so the OS one stays down —
             inputMode="none" still lets a physical keyboard and paste through. */}
         <input
-          value={amount}
+          value={formatAmount(amount)}
           onChange={(event) => onAmountChange(sanitise(event.target.value))}
           inputMode="none"
           // biome-ignore lint/a11y/noAutofocus: the screen exists to take this entry
@@ -93,23 +103,28 @@ export function AmountStep({
       <span className="mt-6 -mb-px block h-px w-full bg-jumpa-white/25" />
 
       <div className="-mx-4.5 mt-4 flex gap-2 overflow-x-auto px-4.5 [scrollbar-width:none]">
-        {chips.map((value) => (
+        {chips.map((value) => {
+          const label = formatAmount(String(value));
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => onAmountChange(String(value))}
+              className={`${CHIP} ${size}`}
+            >
+              {unit ? `${label} ${unit}` : label}
+            </button>
+          );
+        })}
+        {checkBalance ? (
           <button
-            key={value}
             type="button"
-            onClick={() => onAmountChange(String(value))}
+            onClick={() => onAmountChange(balance.replace(/[^\d.]/g, ""))}
             className={`${CHIP} ${size}`}
           >
-            {value} {symbol}
+            MAX
           </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => onAmountChange(balance.replace(/[^\d.]/g, ""))}
-          className={`${CHIP} ${size}`}
-        >
-          MAX
-        </button>
+        ) : null}
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-3">

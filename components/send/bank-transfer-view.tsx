@@ -22,7 +22,7 @@ import type { Promotion } from "@/lib/wallet";
 type Stage = "form" | "amount" | "done";
 type Sheet = "review" | "pin" | null;
 
-/** Bank transfer, end to end: recipient, amount, review, PIN, receipt. */
+/** Bank and mobile-money transfers: recipient, amount, review, PIN, receipt. */
 export function BankTransferView({ promotions }: { promotions: Promotion[] }) {
   const [stage, setStage] = useState<Stage>("form");
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -33,17 +33,25 @@ export function BankTransferView({ promotions }: { promotions: Promotion[] }) {
   const country = COUNTRIES.find((entry) => entry.label === form.country);
   const currency = country?.currency ?? "USD";
   const { symbol, balance } = SEND_BALANCE;
+  const momo = form.destination === "momo";
 
   // Routing and narration are only there for some rails, so the rule that
   // separates rows has to be decided against the rows actually rendered.
-  const rows = [
-    { label: "From", value: "Jumpa wallet" },
-    { label: "Type", value: country?.routing ? "ACH" : "Bank transfer" },
-    { label: "To", value: `${form.bank} - ${form.account}` },
-    { label: "Recipient", value: form.name || "—" },
-    ...(form.routing ? [{ label: "Routing", value: form.routing }] : []),
-    ...(form.note ? [{ label: "Narration", value: form.note }] : []),
-  ];
+  const rows = momo
+    ? [
+        { label: "From", value: "Jumpa wallet" },
+        { label: "Type", value: "Mobile money" },
+        { label: "To", value: `${form.network} - ${form.phone}` },
+        { label: "Recipient", value: form.name || "—" },
+      ]
+    : [
+        { label: "From", value: "Jumpa wallet" },
+        { label: "Type", value: country?.routing ? "ACH" : "Bank transfer" },
+        { label: "To", value: `${form.bank} - ${form.account}` },
+        { label: "Recipient", value: form.name || "—" },
+        ...(form.routing ? [{ label: "Routing", value: form.routing }] : []),
+        ...(form.note ? [{ label: "Narration", value: form.note }] : []),
+      ];
 
   const details = (
     <DetailList>
@@ -66,7 +74,9 @@ export function BankTransferView({ promotions }: { promotions: Promotion[] }) {
         note={
           <>
             Your money is on its way to{" "}
-            <b className="font-bold">{form.name || form.bank}</b>
+            <b className="font-bold">
+              {form.name || (momo ? form.network : form.bank)}
+            </b>
           </>
         }
         details={details}
@@ -80,9 +90,13 @@ export function BankTransferView({ promotions }: { promotions: Promotion[] }) {
       <>
         <AmountScreen
           recipient={
-            <span className="truncate rounded-pill bg-jumpa-neutral-95 px-3 py-1 text-[10px] leading-4 font-medium text-jumpa-neutral-500">
-              {form.bank} - {form.account}
-            </span>
+            momo ? (
+              <RecipientTag primary={form.phone} secondary={form.network} />
+            ) : (
+              <span className="truncate rounded-pill bg-jumpa-neutral-95 px-3 py-1 text-[10px] leading-4 font-medium text-jumpa-neutral-500">
+                {form.bank} - {form.account}
+              </span>
+            )
           }
           onClose={() => setStage("form")}
           amount={amount}
@@ -110,8 +124,12 @@ export function BankTransferView({ promotions }: { promotions: Promotion[] }) {
                   }
                 />
                 <RecipientTag
-                  primary={form.account}
-                  secondary={`${form.bank} - ${form.name}`}
+                  primary={momo ? form.phone : form.account}
+                  secondary={
+                    momo
+                      ? `${form.network} - ${form.name}`
+                      : `${form.bank} - ${form.name}`
+                  }
                   align="right"
                 />
               </div>
@@ -149,6 +167,7 @@ export function BankTransferView({ promotions }: { promotions: Promotion[] }) {
         onPickRecent={(account) =>
           setForm({
             ...form,
+            destination: "bank",
             country: "Nigeria",
             account: account.number,
             bank: account.bank,

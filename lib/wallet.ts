@@ -20,13 +20,24 @@ export type Asset = {
   icon: string;
   balance: string;
   change: string;
+  /** How the wallet list prints it — the design says STELLAR, not XLM. */
+  label?: string;
 };
 
-export const ASSETS: Asset[] = [
+/** Every wallet the app supports, in the order the wallet list shows them. */
+export const SUPPORTED_ASSETS: Asset[] = [
   {
     symbol: "XLM",
     name: "Stellar",
+    label: "STELLAR",
     icon: "/coins/xlm.webp",
+    balance: "$0.00",
+    change: "+$0.00",
+  },
+  {
+    symbol: "BTC",
+    name: "Bitcoin",
+    icon: "/coins/btc.webp",
     balance: "$0.00",
     change: "+$0.00",
   },
@@ -44,7 +55,49 @@ export const ASSETS: Asset[] = [
     balance: "$0.00",
     change: "+$0.00",
   },
+  {
+    symbol: "ETH",
+    name: "Ethereum",
+    icon: "/coins/eth.webp",
+    balance: "$0.00",
+    change: "+$0.00",
+  },
+  {
+    symbol: "SOL",
+    name: "Solana",
+    icon: "/coins/sol.webp",
+    balance: "$0.00",
+    change: "+$0.00",
+  },
+  {
+    symbol: "TRX",
+    name: "Tron",
+    icon: "/coins/trx.webp",
+    balance: "$0.00",
+    change: "+$0.00",
+  },
+  {
+    symbol: "TON",
+    name: "Toncoin",
+    icon: "/coins/ton.webp",
+    balance: "$0.00",
+    change: "+$0.00",
+  },
+  {
+    symbol: "SUI",
+    name: "Sui",
+    icon: "/coins/sui.webp",
+    balance: "$0.00",
+    change: "+$0.00",
+  },
 ];
+
+/** The three the home hero scrolls through; the design draws exactly these. */
+const HOME_WALLETS = ["XLM", "USDC", "USDT"];
+
+export const ASSETS: Asset[] = SUPPORTED_ASSETS.filter((asset) =>
+  HOME_WALLETS.includes(asset.symbol),
+);
 
 export type TransactionStatus = "completed" | "pending" | "failed";
 

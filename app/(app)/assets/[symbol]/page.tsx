@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { TokenDetailView } from "@/components/assets/token-detail-view";
-import { ASSETS, TRANSACTIONS } from "@/lib/wallet";
+import { SUPPORTED_ASSETS, TRANSACTIONS } from "@/lib/wallet";
 
 export const metadata: Metadata = { title: "Wallet" };
 
@@ -9,7 +9,7 @@ export default async function TokenPage({
   params,
 }: PageProps<"/assets/[symbol]">) {
   const { symbol } = await params;
-  const asset = ASSETS.find(
+  const asset = SUPPORTED_ASSETS.find(
     (entry) => entry.symbol.toLowerCase() === symbol.toLowerCase(),
   );
 

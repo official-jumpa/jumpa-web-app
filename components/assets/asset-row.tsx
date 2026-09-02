@@ -3,10 +3,9 @@ import Link from "next/link";
 import { getAssetLogo } from "@/lib/assets";
 import type { Asset } from "@/lib/wallet";
 
-const ROW =
-  "tap flex w-full items-center gap-3 rounded-surface bg-jumpa-neutral-50 px-4 py-3.5 text-left active:scale-[0.99]";
+const ROW = "tap flex w-full items-center gap-2 text-left active:scale-[0.99]";
 
-/** One wallet in the picker: glyph, symbol and name, balance and change. */
+/** One wallet in the picker: brand mark and ticker. */
 export function AssetRow({
   asset,
   onSelect,
@@ -21,25 +20,12 @@ export function AssetRow({
       <Image
         src={getAssetLogo(asset.symbol)}
         alt=""
-        width={40}
-        height={40}
-        className="size-10 shrink-0 rounded-full object-contain"
+        width={32}
+        height={32}
+        className="size-8 shrink-0 rounded-full object-contain"
       />
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm leading-4.5 font-semibold text-jumpa-black">
-          {asset.symbol}
-        </span>
-        <span className="truncate text-[10px] leading-3 text-jumpa-neutral-350">
-          {asset.name}
-        </span>
-      </span>
-      <span className="flex shrink-0 flex-col items-end">
-        <span className="text-sm leading-4.5 font-semibold text-jumpa-black">
-          {asset.balance}
-        </span>
-        <span className="text-[10px] leading-3 font-medium text-jumpa-success">
-          {asset.change}
-        </span>
+      <span className="truncate text-sm leading-4 font-semibold text-jumpa-black">
+        {asset.label ?? asset.symbol}
       </span>
     </>
   );
@@ -53,4 +39,9 @@ export function AssetRow({
       {body}
     </Link>
   );
+}
+
+/** Figma draws these as zero-height lines, so the height has to come back out. */
+export function AssetRule() {
+  return <span className="-mb-px h-px w-full bg-jumpa-neutral-95" />;
 }

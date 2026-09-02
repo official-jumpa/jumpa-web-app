@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { AssetRow } from "@/components/assets/asset-row";
+import { AssetRow, AssetRule } from "@/components/assets/asset-row";
 import { NetworkSheet } from "@/components/assets/network-sheet";
-import { FIELD_INPUT, FIELD_SHELL } from "@/components/transfer/field";
+import { BottomNav } from "@/components/home/bottom-nav";
 import { SearchAltIcon } from "@/components/ui/icons/search-alt";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { useReceiveNetwork } from "@/hooks/use-receive-network";
@@ -27,32 +27,36 @@ export function AssetPicker({
 
   const term = query.trim().toLowerCase();
   const matches = term
-    ? assets.filter(
-        (asset) =>
-          asset.symbol.toLowerCase().includes(term) ||
-          asset.name.toLowerCase().includes(term),
+    ? assets.filter((asset) =>
+        [asset.symbol, asset.name, asset.label ?? ""].some((field) =>
+          field.toLowerCase().includes(term),
+        ),
       )
     : assets;
 
   return (
-    <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+    // Receive is a step in the deposit flow, so it carries no tab bar.
+    <div
+      className={`flex min-h-dvh flex-col px-4.5 pt-6 ${receive ? "pb-[calc(env(safe-area-inset-bottom)+1.5rem)]" : "pb-27"}`}
+    >
       <ScreenHeader
         back={back}
         title={receive ? "Deposit Crypto" : "All Wallets"}
         round
       />
 
-      <label className={`${FIELD_SHELL} mt-6`}>
+      {/* h-14.5 — the design's stroke is inside, a CSS border is outside. */}
+      <label className="mt-4 flex h-14.5 w-full items-center gap-2 rounded-pill border border-jumpa-neutral-60 bg-jumpa-neutral-50 pr-5.25 pl-4">
         <SearchAltIcon
           aria-hidden="true"
-          className="size-6 shrink-0 text-jumpa-primary-600"
+          className="size-6 shrink-0 text-jumpa-primary-950"
         />
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search"
-          aria-label="Search wallets"
-          className={FIELD_INPUT}
+          placeholder="Search for tokens"
+          aria-label="Search for tokens"
+          className="w-full min-w-0 bg-transparent text-sm leading-4 font-medium text-jumpa-primary-950 outline-none placeholder:text-jumpa-primary-950"
         />
       </label>
 
@@ -61,10 +65,10 @@ export function AssetPicker({
           No wallet matches &ldquo;{query}&rdquo;.
         </p>
       ) : (
-        <ul className="mt-4 flex flex-col gap-2">
+        <ul className="mt-3.5 flex flex-col gap-4 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-6 py-5">
           {matches.map((asset, index) => (
-            // Placeholder data can repeat a symbol, so the index is the key.
-            <li key={`${asset.symbol}-${index}`}>
+            <li key={asset.symbol} className="flex flex-col gap-4">
+              {index > 0 ? <AssetRule /> : null}
               <AssetRow
                 asset={asset}
                 onSelect={
@@ -84,6 +88,8 @@ export function AssetPicker({
           onClose={network.cancel}
         />
       ) : null}
+
+      {receive ? null : <BottomNav />}
     </div>
   );
 }

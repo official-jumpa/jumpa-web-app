@@ -18,6 +18,9 @@ const LOGOS: Record<string, string> = {
   CELO: "/coins/celo.webp",
   ETH: "/coins/eth.webp",
   BASE: "/coins/base.webp",
+  TRX: "/coins/trx.webp",
+  TON: "/coins/ton.webp",
+  SUI: "/coins/sui.webp",
 };
 
 /** Longest alias first — "STELLAR" must beat a bare "SOL" inside it. */
@@ -29,6 +32,8 @@ const ALIASES: [string, string][] = [
   ["POLYGON", "POL"],
   ["BINANCE", "BNB"],
   ["SOLANA", "SOL"],
+  ["TONCOIN", "TON"],
+  ["TRON", "TRX"],
   ["MATIC", "POL"],
   ["USDC", "USDC"],
   ["USDT", "USDT"],
@@ -40,6 +45,9 @@ const ALIASES: [string, string][] = [
   ["POL", "POL"],
   ["SOL", "SOL"],
   ["ETH", "ETH"],
+  ["TRX", "TRX"],
+  ["TON", "TON"],
+  ["SUI", "SUI"],
   ["USD", "USDC"],
 ];
 

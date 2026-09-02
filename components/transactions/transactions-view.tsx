@@ -53,7 +53,7 @@ export function TransactionsView({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search for transactions"
-            className="min-w-0 flex-1 bg-transparent text-sm leading-4 text-jumpa-black outline-none placeholder:text-jumpa-primary-600"
+            className="min-w-0 flex-1 bg-transparent text-sm leading-4 text-jumpa-black outline-none placeholder:text-jumpa-primary-950"
           />
         </label>
 

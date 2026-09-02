@@ -12,7 +12,7 @@ export function savingsShell(invalid?: boolean): string {
 
 export const SAVINGS_INPUT =
   "min-w-0 flex-1 bg-transparent text-xs leading-4 font-medium text-jumpa-primary-950 " +
-  "outline-none placeholder:text-jumpa-grey-400";
+  "outline-none placeholder:text-jumpa-secondary-200";
 
 export function SavingsLabel({ children }: { children: ReactNode }) {
   return (

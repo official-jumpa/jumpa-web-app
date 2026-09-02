@@ -64,6 +64,24 @@ export const CHAINS: Record<string, Chain> = {
     caption: "Bitcoin network",
     address: "bc1qdemoplaceholderjumpaaddressnotliveyet0",
   },
+  tron: {
+    id: "tron",
+    name: "Tron",
+    caption: "Tron network (TRC-20)",
+    address: "TDem0Plac3h0lderJumpaAddressNotLiveYet00",
+  },
+  ton: {
+    id: "ton",
+    name: "TON",
+    caption: "The Open Network",
+    address: "UQDem0placeh0lderJumpaAddressNotLiveYet0000",
+  },
+  sui: {
+    id: "sui",
+    name: "Sui",
+    caption: "Sui network",
+    address: "0xDEM0PLACEH0LDER0JUMPA0SUI0N0TLIVEYET00000",
+  },
 };
 
 /** Where each asset can be received, in the order the picker offers them. */
@@ -77,6 +95,9 @@ const ASSET_CHAINS: Record<string, string[]> = {
   BNB: ["bnb"],
   POL: ["polygon"],
   CELO: ["celo"],
+  TRX: ["tron"],
+  TON: ["ton"],
+  SUI: ["sui"],
 };
 
 /** Chains an asset can be received on; Stellar is the fallback home chain. */

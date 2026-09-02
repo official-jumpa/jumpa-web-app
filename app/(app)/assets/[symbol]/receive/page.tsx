@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DepositInfo } from "@/components/assets/deposit-info";
 import { chainsFor } from "@/lib/networks";
-import { ASSETS } from "@/lib/wallet";
+import { SUPPORTED_ASSETS } from "@/lib/wallet";
 
 export const metadata: Metadata = { title: "Receive" };
 
@@ -13,7 +13,7 @@ export default async function DepositPage({
   const { symbol } = await params;
   const { network } = await searchParams;
 
-  const asset = ASSETS.find(
+  const asset = SUPPORTED_ASSETS.find(
     (entry) => entry.symbol.toLowerCase() === symbol.toLowerCase(),
   );
   if (!asset) notFound();
@@ -22,10 +22,6 @@ export default async function DepositPage({
   const chosen = chains.find((chain) => chain.id === network) ?? chains[0];
 
   return (
-    <DepositInfo
-      symbol={asset.symbol}
-      chains={chains}
-      initialChain={chosen}
-    />
+    <DepositInfo symbol={asset.symbol} chains={chains} initialChain={chosen} />
   );
 }

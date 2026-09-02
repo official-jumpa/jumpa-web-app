@@ -39,8 +39,10 @@ export function getNetwork(id: string): MobileNetwork | undefined {
 
 /** Offer art above the recharge forms. The banner cycles through these. */
 export const BILL_ADS = [
-  { id: "recharge", src: "/images/bills/ad-recharge.webp" },
-  { id: "stay-connected", src: "/images/bills/ad-stay-connected.webp" },
+  { id: "recharge", src: "/images/bills/ad-1.webp" },
+  { id: "stay-connected", src: "/images/bills/ad-2.webp" },
+  { id: "call-bae", src: "/images/bills/ad-3.webp" },
+  { id: "data-finish", src: "/images/bills/ad-4.webp" },
 ] as const;
 
 /** Quick-fill amounts on the airtime keypad. */

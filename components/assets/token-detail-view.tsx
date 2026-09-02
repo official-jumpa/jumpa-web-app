@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { NetworkSheet } from "@/components/assets/network-sheet";
 import { TransactionEmpty } from "@/components/transactions/transaction-empty";
 import {
   TransactionRow,
@@ -14,11 +15,14 @@ import { EyeIcon } from "@/components/ui/icons/eye";
 import { EyeOffIcon } from "@/components/ui/icons/eye-off";
 import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
 import { ScreenHeader } from "@/components/ui/screen-header";
+import { useReceiveNetwork } from "@/hooks/use-receive-network";
 import { getAssetLogo } from "@/lib/assets";
 import type { Asset, Transaction } from "@/lib/wallet";
 
 /** Stands in for the digits while the balance is hidden. */
 const MASK = "*".repeat(9);
+
+const ACTION = "tap flex w-14 flex-col items-center gap-2 active:scale-95";
 
 /** One wallet: its balance, what you can do with it, and its history. */
 export function TokenDetailView({
@@ -30,18 +34,14 @@ export function TokenDetailView({
 }) {
   const [visible, setVisible] = useState(true);
   const ToggleIcon = visible ? EyeOffIcon : EyeIcon;
+  const network = useReceiveNetwork();
+
+  // Add and Receive both end at the deposit address, via the network question.
+  const deposit = () => network.start(asset.symbol);
 
   const actions = [
-    {
-      label: "Add",
-      href: `/assets/${asset.symbol.toLowerCase()}/receive`,
-      Icon: ArrowUpRightIcon,
-    },
-    {
-      label: "Receive",
-      href: `/assets/${asset.symbol.toLowerCase()}/receive`,
-      Icon: ArrowDownRightIcon,
-    },
+    { label: "Add", onClick: deposit, Icon: ArrowUpRightIcon },
+    { label: "Receive", onClick: deposit, Icon: ArrowDownRightIcon },
     { label: "Swap", href: "/swap", Icon: SwitchHorizontalIcon },
   ];
 
@@ -83,20 +83,33 @@ export function TokenDetailView({
       </section>
 
       <nav className="mt-6 flex items-start justify-center gap-8">
-        {actions.map(({ label, href, Icon }) => (
-          <Link
-            key={label}
-            href={href}
-            className="tap flex w-14 flex-col items-center gap-2 active:scale-95"
-          >
-            <span className="flex size-14 items-center justify-center rounded-full bg-jumpa-primary-50 text-jumpa-primary-600">
-              <Icon className="size-6" />
-            </span>
-            <span className="text-xs leading-4 font-medium text-jumpa-black">
-              {label}
-            </span>
-          </Link>
-        ))}
+        {actions.map(({ label, href, onClick, Icon }) => {
+          const body = (
+            <>
+              <span className="flex size-14 items-center justify-center rounded-full bg-jumpa-primary-50 text-jumpa-primary-600">
+                <Icon className="size-6" />
+              </span>
+              <span className="text-xs leading-4 font-medium text-jumpa-black">
+                {label}
+              </span>
+            </>
+          );
+
+          return href ? (
+            <Link key={label} href={href} className={ACTION}>
+              {body}
+            </Link>
+          ) : (
+            <button
+              key={label}
+              type="button"
+              onClick={onClick}
+              className={ACTION}
+            >
+              {body}
+            </button>
+          );
+        })}
       </nav>
 
       <div className="mt-8 flex items-center justify-between text-sm leading-4.5 font-medium text-jumpa-black">
@@ -120,6 +133,15 @@ export function TokenDetailView({
           </ul>
         )}
       </div>
+
+      {network.asking ? (
+        <NetworkSheet
+          symbol={network.asking}
+          chains={network.chains}
+          onSelect={network.choose}
+          onClose={network.cancel}
+        />
+      ) : null}
     </div>
   );
 }

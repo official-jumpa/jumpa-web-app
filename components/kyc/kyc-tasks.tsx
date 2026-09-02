@@ -1,4 +1,5 @@
-import type { ComponentType, SVGProps } from "react";
+import { type ComponentType, type SVGProps, useState } from "react";
+import { FieldError } from "@/components/ui/field-error";
 import { CheckIcon } from "@/components/ui/icons/check";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
 import { FaceIdIcon } from "@/components/ui/icons/face-id";
@@ -21,7 +22,18 @@ export function KycTasks({
   onPick: (task: KycTask) => void;
   onContinue: () => void;
 }) {
+  const [error, setError] = useState<string>();
   const complete = done.length === KYC_TASKS.length;
+
+  const submit = () => {
+    if (complete) return onContinue();
+    const left = KYC_TASKS.filter((task) => !done.includes(task.id));
+    setError(
+      left.length === KYC_TASKS.length
+        ? "Complete both steps above to continue."
+        : `One step left: ${left[0].title.toLowerCase()}.`,
+    );
+  };
 
   return (
     <>
@@ -41,7 +53,10 @@ export function KycTasks({
             <li key={task.id} className="flex flex-col gap-4">
               <button
                 type="button"
-                onClick={() => onPick(task.id)}
+                onClick={() => {
+                  setError(undefined);
+                  onPick(task.id);
+                }}
                 className="tap flex w-full items-center gap-3 text-left active:scale-[0.99]"
               >
                 <Icon
@@ -75,10 +90,9 @@ export function KycTasks({
         })}
       </ul>
 
-      <div className="mt-auto flex justify-center pt-10">
-        <RingedButton disabled={!complete} onClick={onContinue}>
-          Continue to verification
-        </RingedButton>
+      <div className="mt-auto flex flex-col items-center gap-3 pt-10">
+        <FieldError>{error}</FieldError>
+        <RingedButton onClick={submit}>Continue to verification</RingedButton>
       </div>
     </>
   );

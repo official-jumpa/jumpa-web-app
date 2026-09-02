@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { NumericKeypad } from "@/components/auth/numeric-keypad";
+import { CanvasError } from "@/components/ui/field-error";
 import { CloseIcon } from "@/components/ui/icons/close";
 import { getAssetLogo } from "@/lib/assets";
 import { formatAmount, QUICK_AMOUNTS } from "@/lib/transfer";
@@ -58,13 +59,27 @@ export function AmountStep({
   onAmountChange: (next: string) => void;
   onReview: () => void;
 }) {
+  const [error, setError] = useState<string>();
+
   const size = CHIP_SIZE[chips.length > 3 ? "dense" : "roomy"];
   const unit = chipUnit ?? symbol;
   const spendable = Number(balance.replace(/[^\d.]/g, ""));
   const low = checkBalance && Number(amount) > spendable;
 
+  const change = (next: string) => {
+    setError(undefined);
+    onAmountChange(next);
+  };
+
   const push = (digit: string) =>
-    onAmountChange(sanitise(amount === "0" ? digit : amount + digit));
+    change(sanitise(amount === "0" ? digit : amount + digit));
+
+  const review = () => {
+    if (!Number(amount)) return setError("Enter an amount to continue.");
+    if (low)
+      return setError(`Your balance is ${balance}. Enter less than that.`);
+    onReview();
+  };
 
   return (
     <div className="flex flex-1 flex-col rounded-t-dock bg-jumpa-primary-575 px-4.5 pt-6 pb-2.5">
@@ -77,7 +92,7 @@ export function AmountStep({
             inputMode="none" still lets a physical keyboard and paste through. */}
         <input
           value={formatAmount(amount)}
-          onChange={(event) => onAmountChange(sanitise(event.target.value))}
+          onChange={(event) => change(sanitise(event.target.value))}
           inputMode="none"
           // biome-ignore lint/a11y/noAutofocus: the screen exists to take this entry
           autoFocus
@@ -91,7 +106,7 @@ export function AmountStep({
         {amount ? (
           <button
             type="button"
-            onClick={() => onAmountChange("")}
+            onClick={() => change("")}
             aria-label="Clear amount"
             className="tap flex size-6 shrink-0 items-center justify-center rounded-full bg-jumpa-white/25 text-jumpa-white active:scale-90"
           >
@@ -109,7 +124,7 @@ export function AmountStep({
             <button
               key={value}
               type="button"
-              onClick={() => onAmountChange(String(value))}
+              onClick={() => change(String(value))}
               className={`${CHIP} ${size}`}
             >
               {unit ? `${label} ${unit}` : label}
@@ -119,7 +134,7 @@ export function AmountStep({
         {checkBalance ? (
           <button
             type="button"
-            onClick={() => onAmountChange(balance.replace(/[^\d.]/g, ""))}
+            onClick={() => change(balance.replace(/[^\d.]/g, ""))}
             className={`${CHIP} ${size}`}
           >
             MAX
@@ -151,12 +166,12 @@ export function AmountStep({
       <div className="mt-auto flex flex-col items-center gap-4 pt-8 pb-6">
         <button
           type="button"
-          onClick={onReview}
-          disabled={!Number(amount) || low}
-          className="tap flex h-14 w-full items-center justify-center rounded-pill bg-jumpa-primary-50 text-base leading-4 font-semibold text-jumpa-primary-500 active:scale-[0.98] disabled:opacity-60"
+          onClick={review}
+          className="tap flex h-14 w-full items-center justify-center rounded-pill bg-jumpa-primary-50 text-base leading-4 font-semibold text-jumpa-primary-500 active:scale-[0.98]"
         >
           Review
         </button>
+        <CanvasError>{error}</CanvasError>
         {caption ? (
           <p className="w-62.75 text-center text-[10px] leading-3.5 font-medium text-jumpa-primary-50">
             {caption}
@@ -166,7 +181,7 @@ export function AmountStep({
 
       <NumericKeypad
         onDigit={push}
-        onBackspace={() => onAmountChange(amount.slice(0, -1))}
+        onBackspace={() => change(amount.slice(0, -1))}
         className="-mx-2 rounded-sheet bg-jumpa-white px-5.75 py-7.5"
       />
     </div>

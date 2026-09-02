@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { WordChip, WordGrid } from "@/components/auth/word-chip";
 import { Button } from "@/components/ui/button";
+import { FieldError } from "@/components/ui/field-error";
 import { cn } from "@/lib/cn";
 
 /** 1-based slots to verify in the quiz */
@@ -14,6 +15,7 @@ export function RecoveryPhraseQuiz({ nextHref }: { nextHref: string }) {
   const [words, setWords] = useState<string[]>([]);
   const [round, setRound] = useState(0);
   const [quizError, setQuizError] = useState<string | null>(null);
+  const [error, setError] = useState<string>();
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -47,6 +49,7 @@ export function RecoveryPhraseQuiz({ nextHref }: { nextHref: string }) {
 
     if (selectedWord === correctWord) {
       setQuizError(null);
+      setError(undefined);
       setRound((n) => n + 1);
     } else {
       setQuizError("Incorrect word. Please check your backup and try again.");
@@ -89,11 +92,7 @@ export function RecoveryPhraseQuiz({ nextHref }: { nextHref: string }) {
               </span>
             </div>
 
-            {quizError && (
-              <p className="text-xs text-jumpa-danger text-center">
-                {quizError}
-              </p>
-            )}
+            <FieldError>{quizError ?? undefined}</FieldError>
 
             <div className="grid grid-cols-4 gap-x-2 gap-y-4">
               {options.map((word, index) => (
@@ -118,18 +117,22 @@ export function RecoveryPhraseQuiz({ nextHref }: { nextHref: string }) {
         </p>
       </div>
 
-      <Button
-        type="button"
-        variant={done ? "gradient" : "soft"}
-        size="lg"
-        className="mt-8 cursor-pointer disabled:opacity-50"
-        disabled={!done}
-        onClick={() => {
-          if (done) router.push(nextHref);
-        }}
-      >
-        I've written it down
-      </Button>
+      <div className="mt-8 flex flex-col items-center gap-3">
+        <FieldError>{error}</FieldError>
+        <Button
+          type="button"
+          variant={done ? "gradient" : "soft"}
+          size="lg"
+          className="cursor-pointer"
+          onClick={() =>
+            done
+              ? router.push(nextHref)
+              : setError("Pick the right word for each slot to continue.")
+          }
+        >
+          I've written it down
+        </Button>
+      </div>
     </>
   );
 }

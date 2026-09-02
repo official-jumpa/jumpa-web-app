@@ -1,15 +1,17 @@
 "use client";
 
+import { useRef, useState } from "react";
 import {
   FIELD_INPUT,
-  FIELD_SHELL,
   Field,
   FieldLabel,
+  fieldShell,
   PasteAction,
   SelectField,
 } from "@/components/transfer/field";
 import { OptionRow } from "@/components/transfer/option-row";
 import { Button } from "@/components/ui/button";
+import { FieldError } from "@/components/ui/field-error";
 import { GlobeIcon } from "@/components/ui/icons/globe";
 import { SearchAltIcon } from "@/components/ui/icons/search-alt";
 import { getAssetLogo } from "@/lib/assets";
@@ -20,6 +22,10 @@ import {
   shortenAddress,
   type WalletContact,
 } from "@/lib/transfer";
+import { revealFirstError } from "@/lib/validation";
+
+/** Short enough that no chain in the picker could produce it. */
+const ADDRESS_MIN = 26;
 
 export type WalletForm = {
   address: string;
@@ -62,11 +68,33 @@ export function WalletAddressForm({
   onPickRecent: (contact: WalletContact) => void;
   onProceed: () => void;
 }) {
-  const set = (patch: Partial<WalletForm>) => onChange({ ...form, ...patch });
+  const [error, setError] = useState<string>();
+  const fields = useRef<HTMLDivElement>(null);
+
+  const set = (patch: Partial<WalletForm>) => {
+    if (patch.address !== undefined) setError(undefined);
+    onChange({ ...form, ...patch });
+  };
+
   const filled = form.address.length > 0;
 
+  const submit = () => {
+    const address = form.address.trim();
+    const message = !address
+      ? "Enter the wallet address you are sending to."
+      : /\s/.test(address)
+        ? "A wallet address cannot contain spaces."
+        : address.length < ADDRESS_MIN
+          ? "That address looks too short. Check it and try again."
+          : undefined;
+
+    setError(message);
+    if (message) revealFirstError(fields.current);
+    else onProceed();
+  };
+
   return (
-    <div className="flex flex-1 flex-col gap-5 pt-6">
+    <div ref={fields} className="flex flex-1 flex-col gap-5 pt-6">
       <label className="flex flex-col gap-2">
         <span className="flex items-baseline justify-between gap-3">
           <FieldLabel>{filled ? "Enter wallet address" : "To:"}</FieldLabel>
@@ -77,7 +105,7 @@ export function WalletAddressForm({
           ) : null}
         </span>
 
-        <span className={FIELD_SHELL}>
+        <span className={fieldShell(Boolean(error))}>
           {filled ? null : (
             <SearchAltIcon
               aria-hidden="true"
@@ -92,6 +120,7 @@ export function WalletAddressForm({
             placeholder="Enter wallet address"
             autoComplete="off"
             spellCheck={false}
+            aria-invalid={Boolean(error)}
             className={FIELD_INPUT}
           />
           {filled ? null : (
@@ -100,6 +129,7 @@ export function WalletAddressForm({
             />
           )}
         </span>
+        <FieldError>{error}</FieldError>
       </label>
 
       {filled ? (
@@ -154,13 +184,7 @@ export function WalletAddressForm({
         )
       )}
 
-      <Button
-        variant="gradient"
-        size="lg"
-        className="mt-auto"
-        disabled={!filled}
-        onClick={onProceed}
-      >
+      <Button variant="gradient" size="lg" className="mt-auto" onClick={submit}>
         Proceed
       </Button>
     </div>

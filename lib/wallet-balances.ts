@@ -60,7 +60,7 @@ const coinGeckoCache: Record<string, CoinGeckoInfo> = {
   BNB: { priceUsd: "580.00", icon: "/images/home/coin-generic.svg" },
   POL: { priceUsd: "0.55", icon: "/images/home/coin-generic.svg" },
   CELO: { priceUsd: "0.65", icon: "/images/home/coin-generic.svg" },
-  USDC: { priceUsd: "1.00", icon: "/images/home/usdcImg.png" },
+  USDC: { priceUsd: "1.00", icon: "/coins/usdc.webp" },
   USDT: { priceUsd: "1.00", icon: "/images/home/coin-generic.svg" },
 };
 

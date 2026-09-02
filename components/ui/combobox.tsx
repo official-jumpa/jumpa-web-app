@@ -14,6 +14,7 @@ export function Combobox({
   options,
   placeholder,
   label,
+  invalid,
   className,
 }: {
   value: string;
@@ -21,6 +22,8 @@ export function Combobox({
   options: readonly string[];
   placeholder?: string;
   label: string;
+  /** Flags the field after a failed submit. */
+  invalid?: boolean;
   className?: string;
 }) {
   const [query, setQuery] = useState("");
@@ -67,7 +70,11 @@ export function Combobox({
 
   return (
     <div ref={box} className={cn("relative", className)}>
-      <span className="flex h-11.5 items-center gap-2 rounded-surface border border-jumpa-grey-100 bg-jumpa-white px-3">
+      <span
+        className={`flex h-11.5 items-center gap-2 rounded-surface border bg-jumpa-white px-3 ${
+          invalid ? "border-jumpa-danger" : "border-jumpa-grey-100"
+        }`}
+      >
         <SearchAltIcon
           aria-hidden="true"
           className="size-5 shrink-0 text-jumpa-primary-600"
@@ -86,6 +93,7 @@ export function Combobox({
           aria-expanded={open}
           aria-controls={listId}
           aria-autocomplete="list"
+          aria-invalid={invalid}
           role="combobox"
           autoComplete="off"
           className="min-w-0 flex-1 bg-transparent text-sm leading-4 font-medium text-jumpa-primary-950 outline-none placeholder:text-jumpa-secondary-200"

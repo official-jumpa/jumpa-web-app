@@ -102,6 +102,9 @@ export function resolveAccountName(
 /** An account number is only worth looking up once it is this long. */
 export const ACCOUNT_NUMBER_MIN = 10;
 
+/** US routing numbers are fixed-length. */
+export const ROUTING_NUMBER_LENGTH = 9;
+
 export type WalletContact = {
   id: string;
   handle: string;
@@ -194,19 +197,15 @@ export const NETWORKS = [
 /** Assets that can leave the wallet. */
 export const SEND_ASSETS = ["USDC", "USDT", "XLM"] as const;
 
-/** Where an incoming deposit lands. One entry per asset once balances are live. */
-export const DEPOSIT_ACCOUNT = {
-  network: "Solana",
-  address: "xi2edg72372uged8c92ec29dec9",
-};
-
-/** Rules the deposit screen lists under the QR. */
-export const DEPOSIT_NOTES = [
-  "Minimum deposit: $2",
-  "Funds auto-convert to USDC and arrive in your Jumpa wallet",
-  "Funds arrive in ~1 minutes after confirmation",
-  "Other tokens accepted on TON: GRAM, USDT",
-];
+/** Rules the deposit screen lists under the QR, for the chain in play. */
+export function depositNotes(symbol: string, network: string): string[] {
+  return [
+    "Minimum deposit: $2",
+    `Only send ${symbol} on the ${network} network — anything else is lost`,
+    "Funds arrive in ~1 minute after confirmation",
+    "Funds auto-convert to USDC and arrive in your Jumpa wallet",
+  ];
+}
 
 /** Spendable balance the transfer screens show until live balances land. */
 export const SEND_BALANCE = { symbol: "USDC", balance: "$450.50" };

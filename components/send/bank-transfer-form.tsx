@@ -11,6 +11,7 @@ import {
 import { OptionRow } from "@/components/transfer/option-row";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
+import { FieldError } from "@/components/ui/field-error";
 import { CircleInformationIcon } from "@/components/ui/icons/circle-information";
 import { GlobeIcon } from "@/components/ui/icons/globe";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
@@ -21,9 +22,17 @@ import {
   BANKS,
   type BankAccount,
   COUNTRIES,
+  type Country,
   RECENT_BANK_ACCOUNTS,
+  ROUTING_NUMBER_LENGTH,
   resolveAccountName,
 } from "@/lib/transfer";
+import {
+  checkLength,
+  digitsOf,
+  type FormErrors,
+  revealFirstError,
+} from "@/lib/validation";
 
 /** Both rails share one form; `destination` decides which fields are asked for. */
 export type Destination = "bank" | "momo";
@@ -68,6 +77,51 @@ const NETWORK_OPTIONS = MOBILE_NETWORKS.map((network) => ({
   icon: network.logo,
 }));
 
+type BankField = keyof BankForm;
+
+/** What has to be filled in before the amount screen, per rail. */
+function validate(
+  form: BankForm,
+  country: Country | undefined,
+): FormErrors<BankField> {
+  const errors: FormErrors<BankField> = {};
+  if (!form.country) errors.country = "Choose the country you are sending to.";
+
+  if (form.destination === "momo") {
+    if (!form.network) errors.network = "Choose the mobile money network.";
+    errors.phone = checkLength(
+      form.phone,
+      PHONE_NUMBER_MIN,
+      "Phone numbers",
+      "Enter the recipient's phone number.",
+    );
+  } else {
+    errors.account = checkLength(
+      form.account,
+      ACCOUNT_NUMBER_MIN,
+      "Account numbers",
+      "Enter the recipient's account number.",
+    );
+    if (!form.bank) errors.bank = "Choose the recipient's bank.";
+    if (country?.routing) {
+      errors.routing = checkLength(
+        form.routing,
+        ROUTING_NUMBER_LENGTH,
+        "Routing numbers",
+        "Enter the bank's routing number.",
+      );
+    }
+    if (country && !form.name.trim()) {
+      errors.name = "Enter the account name.";
+    }
+  }
+
+  for (const key of Object.keys(errors) as BankField[]) {
+    if (!errors[key]) delete errors[key];
+  }
+  return errors;
+}
+
 /** Recipient details. Recents are offered until a country picks the rails. */
 export function BankTransferForm({
   form,
@@ -82,12 +136,27 @@ export function BankTransferForm({
 }) {
   const country = COUNTRIES.find((entry) => entry.label === form.country);
   const momo = form.destination === "momo";
-  const set = (patch: Partial<BankForm>) => onChange({ ...form, ...patch });
-  const ready = momo
-    ? Boolean(form.country && form.network && form.phone)
-    : Boolean(form.country && form.account && form.bank);
 
   const [resolving, setResolving] = useState(false);
+  const [errors, setErrors] = useState<FormErrors<BankField>>({});
+  const fields = useRef<HTMLDivElement>(null);
+
+  // Editing a field clears its message; the rest stay until the next attempt.
+  const set = (patch: Partial<BankForm>) => {
+    setErrors((current) => {
+      const next = { ...current };
+      for (const key of Object.keys(patch) as BankField[]) delete next[key];
+      return next;
+    });
+    onChange({ ...form, ...patch });
+  };
+
+  const submit = () => {
+    const found = validate(form, country);
+    setErrors(found);
+    if (Object.keys(found).length === 0) onContinue();
+    else revealFirstError(fields.current);
+  };
   // Whichever pair identifies the recipient on the rail in play.
   const holder = momo ? form.network : form.bank;
   const reference = momo ? form.phone : form.account;
@@ -102,7 +171,7 @@ export function BankTransferForm({
   // other keystroke would overwrite a name the user has edited.
   // biome-ignore lint/correctness/useExhaustiveDependencies: onChange is read through latest.current, and adding it would refire on every keystroke
   useEffect(() => {
-    if (reference.replace(/\D/g, "").length < minimum || !holder) return;
+    if (digitsOf(reference).length < minimum || !holder) return;
 
     let live = true;
     setResolving(true);
@@ -120,13 +189,14 @@ export function BankTransferForm({
   }, [holder, reference, minimum]);
 
   return (
-    <div className="flex flex-1 flex-col gap-5 pt-6">
+    <div ref={fields} className="flex flex-1 flex-col gap-5 pt-6">
       <SelectField
         label="Select country"
         icon={<GlobeIcon aria-hidden="true" className="size-6 shrink-0" />}
         value={form.country}
         placeholder="Select Country"
         options={COUNTRY_OPTIONS}
+        error={errors.country}
         onChange={(next) => set({ country: next })}
       />
 
@@ -145,15 +215,17 @@ export function BankTransferForm({
             value={form.network}
             placeholder="Select network"
             options={NETWORK_OPTIONS}
+            error={errors.network}
             onChange={(next) => set({ network: next })}
           />
 
-          <Field label="Phone number">
+          <Field label="Phone number" error={errors.phone}>
             <input
               value={form.phone}
               onChange={(event) => set({ phone: event.target.value })}
               inputMode="tel"
               placeholder="234XXX9320"
+              aria-invalid={Boolean(errors.phone)}
               className={FIELD_INPUT}
             />
             <PasteAction onPaste={(text) => set({ phone: text.trim() })} />
@@ -161,12 +233,13 @@ export function BankTransferForm({
         </>
       ) : (
         <>
-          <Field label="Account number">
+          <Field label="Account number" error={errors.account}>
             <input
               value={form.account}
               onChange={(event) => set({ account: event.target.value })}
               inputMode="numeric"
               placeholder="234XXX9320"
+              aria-invalid={Boolean(errors.account)}
               className={FIELD_INPUT}
             />
             <PasteAction onPaste={(text) => set({ account: text.trim() })} />
@@ -179,17 +252,20 @@ export function BankTransferForm({
               value={form.bank}
               options={BANKS[country?.code ?? ""] ?? []}
               placeholder="Search"
+              invalid={Boolean(errors.bank)}
               onValueChange={(next) => set({ bank: next })}
             />
+            <FieldError>{errors.bank}</FieldError>
           </div>
 
           {country?.routing ? (
-            <Field label="Routing number">
+            <Field label="Routing number" error={errors.routing}>
               <input
                 value={form.routing}
                 onChange={(event) => set({ routing: event.target.value })}
                 inputMode="numeric"
                 placeholder="021000021"
+                aria-invalid={Boolean(errors.routing)}
                 className={FIELD_INPUT}
               />
             </Field>
@@ -197,13 +273,14 @@ export function BankTransferForm({
 
           {country ? (
             <>
-              <Field label="Account name">
+              <Field label="Account name" error={errors.name}>
                 <input
                   value={form.name}
                   onChange={(event) => set({ name: event.target.value })}
                   placeholder={
                     resolving ? "Verifying account…" : "Account name"
                   }
+                  aria-invalid={Boolean(errors.name)}
                   className={FIELD_INPUT}
                 />
               </Field>
@@ -253,13 +330,7 @@ export function BankTransferForm({
         </>
       )}
 
-      <Button
-        variant="gradient"
-        size="lg"
-        className="mt-auto"
-        disabled={!ready}
-        onClick={onContinue}
-      >
+      <Button variant="gradient" size="lg" className="mt-auto" onClick={submit}>
         Continue
       </Button>
     </div>

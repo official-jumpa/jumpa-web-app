@@ -2,14 +2,26 @@
 
 import { useState } from "react";
 import { AssetRow } from "@/components/assets/asset-row";
+import { NetworkSheet } from "@/components/assets/network-sheet";
 import { FIELD_INPUT, FIELD_SHELL } from "@/components/transfer/field";
 import { SearchAltIcon } from "@/components/ui/icons/search-alt";
 import { ScreenHeader } from "@/components/ui/screen-header";
+import { useReceiveNetwork } from "@/hooks/use-receive-network";
 import type { Asset } from "@/lib/wallet";
 
-/** Every wallet, searchable. Reached from "See All" and from Receive. */
-export function AssetPicker({ assets }: { assets: Asset[] }) {
+/**
+ * Every wallet, searchable. "See All" opens each one's detail screen; Receive
+ * asks for the network and goes straight to the deposit address.
+ */
+export function AssetPicker({
+  assets,
+  receive = false,
+}: {
+  assets: Asset[];
+  receive?: boolean;
+}) {
   const [query, setQuery] = useState("");
+  const network = useReceiveNetwork();
 
   const term = query.trim().toLowerCase();
   const matches = term
@@ -22,7 +34,11 @@ export function AssetPicker({ assets }: { assets: Asset[] }) {
 
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-      <ScreenHeader back="/home" title="All Wallets" round />
+      <ScreenHeader
+        back="/home"
+        title={receive ? "Receive" : "All Wallets"}
+        round
+      />
 
       <label className={`${FIELD_SHELL} mt-6`}>
         <SearchAltIcon
@@ -47,11 +63,25 @@ export function AssetPicker({ assets }: { assets: Asset[] }) {
           {matches.map((asset, index) => (
             // Placeholder data can repeat a symbol, so the index is the key.
             <li key={`${asset.symbol}-${index}`}>
-              <AssetRow asset={asset} />
+              <AssetRow
+                asset={asset}
+                onSelect={
+                  receive ? () => network.start(asset.symbol) : undefined
+                }
+              />
             </li>
           ))}
         </ul>
       )}
+
+      {network.asking ? (
+        <NetworkSheet
+          symbol={network.asking}
+          chains={network.chains}
+          onSelect={network.choose}
+          onClose={network.cancel}
+        />
+      ) : null}
     </div>
   );
 }

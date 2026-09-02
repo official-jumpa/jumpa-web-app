@@ -19,6 +19,7 @@ import { TagsIcon } from "@/components/ui/icons/tags";
 import { UserAlt1Icon } from "@/components/ui/icons/user-alt-1";
 import { UsersIcon } from "@/components/ui/icons/users";
 import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
+import { getAssetLogo } from "@/lib/assets";
 import { ACCOUNT } from "@/lib/wallet";
 
 interface UserProfileData {
@@ -158,7 +159,7 @@ export default function ProfilePage() {
             <SettingRow
               icon={
                 <Image
-                  src="/assets/chains/stellar.png"
+                  src={getAssetLogo("XLM")}
                   alt="Stellar"
                   width={24}
                   height={24}
@@ -197,7 +198,7 @@ export default function ProfilePage() {
                         <SettingRow
                           icon={
                             <Image
-                              src="/coins/eth.svg"
+                              src={getAssetLogo("ETH")}
                               alt="Ethereum / Base"
                               width={24}
                               height={24}
@@ -217,7 +218,7 @@ export default function ProfilePage() {
                         <SettingRow
                           icon={
                             <Image
-                              src="/coins/sol.svg"
+                              src={getAssetLogo("SOL")}
                               alt="Solana"
                               width={24}
                               height={24}
@@ -236,7 +237,7 @@ export default function ProfilePage() {
                       <SettingRow
                         icon={
                           <Image
-                            src="/coins/btc.svg"
+                            src={getAssetLogo("BTC")}
                             alt="Bitcoin"
                             width={24}
                             height={24}

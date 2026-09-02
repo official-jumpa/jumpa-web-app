@@ -3,37 +3,54 @@ import type { Asset } from "@/lib/wallet";
 /**
  * Helper to resolve asset/coin logo URLs across the application
  */
+/**
+ * Official brand marks, kept as one map so a symbol can never resolve to a
+ * glyph that disagrees with it. Every logo is a full-bleed 128px circle.
+ */
+const LOGOS: Record<string, string> = {
+  XLM: "/coins/xlm.webp",
+  USDC: "/coins/usdc.webp",
+  USDT: "/coins/usdt.webp",
+  SOL: "/coins/sol.webp",
+  BTC: "/coins/btc.webp",
+  BNB: "/coins/bnb.webp",
+  POL: "/coins/pol.webp",
+  CELO: "/coins/celo.webp",
+  ETH: "/coins/eth.webp",
+  BASE: "/coins/base.webp",
+};
+
+/** Longest alias first — "STELLAR" must beat a bare "SOL" inside it. */
+const ALIASES: [string, string][] = [
+  ["STELLAR", "XLM"],
+  ["TETHER", "USDT"],
+  ["BITCOIN", "BTC"],
+  ["ETHEREUM", "ETH"],
+  ["POLYGON", "POL"],
+  ["BINANCE", "BNB"],
+  ["SOLANA", "SOL"],
+  ["MATIC", "POL"],
+  ["USDC", "USDC"],
+  ["USDT", "USDT"],
+  ["BASE", "BASE"],
+  ["CELO", "CELO"],
+  ["XLM", "XLM"],
+  ["BTC", "BTC"],
+  ["BNB", "BNB"],
+  ["POL", "POL"],
+  ["SOL", "SOL"],
+  ["ETH", "ETH"],
+  ["USD", "USDC"],
+];
+
+/** Resolve an asset, chain or network name to its logo. */
 export function getAssetLogo(symbol = ""): string {
-  const s = symbol.toUpperCase().trim();
-  if (s.includes("XLM") || s.includes("STELLAR")) {
-    return "/assets/chains/stellar.png";
-  }
-  if (s.includes("USDC")) {
-    return "/coins/usdc.svg";
-  }
-  if (s.includes("USDT") || s.includes("TETHER")) {
-    return "/coins/usdt.svg";
-  }
-  if (s.includes("SOL") || s.includes("SOLANA")) {
-    return "/coins/sol.svg";
-  }
-  if (s.includes("BTC") || s.includes("BITCOIN")) {
-    return "/coins/btc.svg";
-  }
-  if (s.includes("BNB") || s.includes("BINANCE")) {
-    return "/coins/bnb.svg";
-  }
-  if (s.includes("POL") || s.includes("POLYGON") || s.includes("MATIC")) {
-    return "/coins/pol.svg";
-  }
-  if (s.includes("CELO")) {
-    return "/coins/celo.svg";
-  }
-  if (s.includes("ETH") || s.includes("ETHEREUM") || s.includes("BASE")) {
-    return "/coins/eth.svg";
-  }
-  if (s.includes("USD")) {
-    return "/coins/usdc.svg";
+  const value = symbol.toUpperCase().trim();
+  const direct = LOGOS[value];
+  if (direct) return direct;
+
+  for (const [needle, key] of ALIASES) {
+    if (value.includes(needle)) return LOGOS[key];
   }
   return "/images/home/coin-generic.svg";
 }

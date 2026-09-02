@@ -33,6 +33,7 @@ export function Select({
   label,
   icon,
   variant = "field",
+  invalid,
   className,
 }: {
   value: string;
@@ -44,6 +45,8 @@ export function Select({
   /** Leading glyph for the field trigger, e.g. a globe on "Select country". */
   icon?: ReactNode;
   variant?: keyof typeof TRIGGER;
+  /** Flags the trigger after a failed submit. */
+  invalid?: boolean;
   className?: string;
 }) {
   const selected = options.find((option) => option.value === value);
@@ -53,7 +56,9 @@ export function Select({
     <Primitive.Root value={value} onValueChange={onValueChange}>
       <Primitive.Trigger
         aria-label={label}
+        aria-invalid={invalid}
         className={cn(
+          invalid && "ring-1 ring-jumpa-danger",
           "tap flex shrink-0 items-center outline-none active:scale-[0.98] data-[state=open]:ring-1 data-[state=open]:ring-jumpa-primary-600",
           TRIGGER[variant],
           className,

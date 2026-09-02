@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { FieldError } from "@/components/ui/field-error";
 import { MailIcon } from "@/components/ui/icons/mail";
 import { TextField } from "@/components/ui/text-field";
 import { emailOtp } from "@/lib/auth-client";
@@ -75,14 +76,14 @@ export function EmailAuthForm({
           }}
           icon={<MailIcon />}
         />
-        {error && <p className="text-xs text-jumpa-danger px-1">{error}</p>}
+        <FieldError>{error ?? undefined}</FieldError>
       </div>
 
       <Button
         type="submit"
         variant="gradient"
         size="lg"
-        disabled={loading || !isValidEmail(email)}
+        disabled={loading}
         className="disabled:opacity-50 cursor-pointer"
       >
         {loading ? "Sending code..." : "Continue"}

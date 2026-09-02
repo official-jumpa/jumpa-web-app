@@ -3,13 +3,20 @@ import Link from "next/link";
 import { getAssetLogo } from "@/lib/assets";
 import type { Asset } from "@/lib/wallet";
 
+const ROW =
+  "tap flex w-full items-center gap-3 rounded-surface bg-jumpa-neutral-50 px-4 py-3.5 text-left active:scale-[0.99]";
+
 /** One wallet in the picker: glyph, symbol and name, balance and change. */
-export function AssetRow({ asset }: { asset: Asset }) {
-  return (
-    <Link
-      href={`/assets/${asset.symbol.toLowerCase()}`}
-      className="tap flex items-center gap-3 rounded-surface bg-jumpa-neutral-50 px-4 py-3.5 active:scale-[0.99]"
-    >
+export function AssetRow({
+  asset,
+  onSelect,
+}: {
+  asset: Asset;
+  /** Set on Receive, where the row raises the network sheet instead of navigating. */
+  onSelect?: () => void;
+}) {
+  const body = (
+    <>
       {/* Resolved from the symbol so the glyph can never disagree with it. */}
       <Image
         src={getAssetLogo(asset.symbol)}
@@ -34,6 +41,16 @@ export function AssetRow({ asset }: { asset: Asset }) {
           {asset.change}
         </span>
       </span>
+    </>
+  );
+
+  return onSelect ? (
+    <button type="button" onClick={onSelect} className={ROW}>
+      {body}
+    </button>
+  ) : (
+    <Link href={`/assets/${asset.symbol.toLowerCase()}`} className={ROW}>
+      {body}
     </Link>
   );
 }

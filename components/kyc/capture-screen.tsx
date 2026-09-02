@@ -100,14 +100,14 @@ export function CaptureScreen({
         </>
       )}
 
+      {/* Never dead: with no photo yet the CTA opens the picker instead. */}
       <Button
         variant="gradient"
         size="lg"
         className="mt-auto"
-        disabled={!camera && !preview}
         onClick={() => (preview ? onDone() : field.current?.click())}
       >
-        {camera ? "Capture and Continue" : "Continue"}
+        {preview ? "Continue" : camera ? "Capture and Continue" : "Add photo"}
       </Button>
     </>
   );

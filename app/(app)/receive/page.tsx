@@ -1,6 +1,10 @@
-import { redirect } from "next/navigation";
+import type { Metadata } from "next";
+import { AssetPicker } from "@/components/assets/asset-picker";
+import { ASSETS } from "@/lib/wallet";
 
-/** Receive picks a wallet first; the design has no screen of its own for it. */
+export const metadata: Metadata = { title: "Receive" };
+
+/** Pick the wallet to be paid into; multi-chain assets ask for the network next. */
 export default function ReceivePage() {
-  redirect("/assets");
+  return <AssetPicker assets={ASSETS} receive />;
 }

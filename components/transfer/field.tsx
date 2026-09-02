@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { FieldError } from "@/components/ui/field-error";
 import type { SelectOption } from "@/components/ui/select";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
@@ -13,15 +14,25 @@ export function FieldLabel({ children }: { children: ReactNode }) {
 }
 
 /** Explicit h-11.5 — the design's stroke is inside, a CSS border is outside. */
-const SHELL =
-  "flex h-11.5 items-center gap-2 rounded-surface border border-jumpa-grey-100 bg-jumpa-white py-1 pr-1 pl-3";
+const SHELL_BASE =
+  "flex h-11.5 items-center gap-2 rounded-surface border bg-jumpa-white py-1 pr-1 pl-3";
+
+/** `cn` is a plain join, so the border colour has to be chosen, not layered. */
+export function fieldShell(invalid?: boolean): string {
+  return `${SHELL_BASE} ${invalid ? "border-jumpa-danger" : "border-jumpa-grey-100"}`;
+}
+
+const SHELL = fieldShell();
 
 export function Field({
   label,
+  error,
   children,
   className,
 }: {
   label: string;
+  /** Validation message; also tints the shell. */
+  error?: string;
   children: ReactNode;
   className?: string;
 }) {
@@ -29,7 +40,8 @@ export function Field({
     // biome-ignore lint/a11y/noLabelWithoutControl: the control is passed in as children
     <label className={cn("flex flex-col gap-2", className)}>
       <FieldLabel>{label}</FieldLabel>
-      <span className={SHELL}>{children}</span>
+      <span className={fieldShell(Boolean(error))}>{children}</span>
+      <FieldError>{error}</FieldError>
     </label>
   );
 }
@@ -66,6 +78,7 @@ export function SelectField({
   value,
   placeholder,
   options,
+  error,
   onChange,
 }: {
   label: string;
@@ -73,6 +86,7 @@ export function SelectField({
   value: string;
   placeholder?: string;
   options: SelectOption[];
+  error?: string;
   onChange: (next: string) => void;
 }) {
   return (
@@ -84,8 +98,10 @@ export function SelectField({
         value={value}
         placeholder={placeholder}
         options={options}
+        invalid={Boolean(error)}
         onValueChange={onChange}
       />
+      <FieldError>{error}</FieldError>
     </div>
   );
 }

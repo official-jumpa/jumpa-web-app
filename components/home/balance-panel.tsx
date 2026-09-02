@@ -73,7 +73,7 @@ export function BalancePanel({ balance }: { balance: string }) {
           Send
         </button>
 
-        <Link href="/assets" className={TRANSFER}>
+        <Link href="/receive" className={TRANSFER}>
           <span className="flex size-8 items-center justify-center rounded-panel bg-jumpa-primary-400 text-jumpa-alt-400">
             <ArrowDownRightIcon className="size-6" />
           </span>

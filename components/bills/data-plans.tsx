@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import { CloseButton } from "@/components/transfer/close-button";
+import { CanvasError } from "@/components/ui/field-error";
 import { SearchAltIcon } from "@/components/ui/icons/search-alt";
 import {
   DATA_PERIODS,
@@ -33,6 +34,7 @@ export function DataPlans({
 }) {
   const [period, setPeriod] = useState<DataPlanPeriod>("monthly");
   const [query, setQuery] = useState("");
+  const [error, setError] = useState<string>();
 
   const term = query.trim().toLowerCase();
   const plans = DATA_PLANS.filter(
@@ -94,7 +96,10 @@ export function DataPlans({
               <button
                 type="button"
                 aria-pressed={plan.id === selected?.id}
-                onClick={() => onSelect(plan)}
+                onClick={() => {
+                  setError(undefined);
+                  onSelect(plan);
+                }}
                 className={`tap flex w-full items-center gap-3 rounded-xl px-2 py-3.5 text-left ${
                   plan.id === selected?.id ? "bg-jumpa-primary-50" : ""
                 }`}
@@ -145,14 +150,20 @@ export function DataPlans({
           ))}
         </ul>
 
-        <button
-          type="button"
-          onClick={onContinue}
-          disabled={!selected}
-          className="tap mt-6 flex h-14 w-full shrink-0 items-center justify-center rounded-pill bg-jumpa-white text-base leading-4 font-semibold text-jumpa-primary-600 active:scale-[0.98] disabled:opacity-60"
-        >
-          Continue
-        </button>
+        <div className="mt-6 flex shrink-0 flex-col items-center gap-3">
+          <CanvasError>{error}</CanvasError>
+          <button
+            type="button"
+            onClick={() =>
+              selected
+                ? onContinue()
+                : setError("Select a data plan to continue.")
+            }
+            className="tap flex h-14 w-full items-center justify-center rounded-pill bg-jumpa-white text-base leading-4 font-semibold text-jumpa-primary-600 active:scale-[0.98]"
+          >
+            Continue
+          </button>
+        </div>
       </div>
     </div>
   );

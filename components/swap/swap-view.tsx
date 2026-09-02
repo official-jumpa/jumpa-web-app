@@ -11,6 +11,7 @@ import { TransferHeader } from "@/components/transfer/transfer-header";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { Button } from "@/components/ui/button";
+import { FieldError } from "@/components/ui/field-error";
 import { ArrowDownArrowUpIcon } from "@/components/ui/icons/arrow-down-arrow-up";
 import { PlusIcon } from "@/components/ui/icons/plus";
 import { DEMO_PIN, SWAP_PAIR, SWAP_QUOTE } from "@/lib/transfer";
@@ -25,6 +26,7 @@ export function SwapView({ promotions }: { promotions: Promotion[] }) {
   const [pinError, setPinError] = useState(false);
   const [pair, setPair] = useState(SWAP_PAIR);
   const [amount, setAmount] = useState("100");
+  const [error, setError] = useState<string>();
 
   const received = (Number(amount || 0) * SWAP_QUOTE.rate).toFixed(2);
   const rate = `1 ${pair.from.symbol} = ${SWAP_QUOTE.rate} ${pair.to.symbol}`;
@@ -89,9 +91,10 @@ export function SwapView({ promotions }: { promotions: Promotion[] }) {
               >
                 <input
                   value={amount}
-                  onChange={(event) =>
-                    setAmount(event.target.value.replace(/[^\d.]/g, ""))
-                  }
+                  onChange={(event) => {
+                    setError(undefined);
+                    setAmount(event.target.value.replace(/[^\d.]/g, ""));
+                  }}
                   inputMode="decimal"
                   aria-label="Amount to swap"
                   className="w-full min-w-0 bg-transparent text-base leading-4 font-medium text-jumpa-black caret-jumpa-primary-600 outline-none"
@@ -145,14 +148,20 @@ export function SwapView({ promotions }: { promotions: Promotion[] }) {
             />
           </DetailList>
 
-          <Button
-            variant="gradient"
-            size="lg"
-            disabled={!Number(amount)}
-            onClick={() => setStage("review")}
-          >
-            Review swap
-          </Button>
+          <div className="flex flex-col items-center gap-3">
+            <FieldError>{error}</FieldError>
+            <Button
+              variant="gradient"
+              size="lg"
+              onClick={() =>
+                Number(amount)
+                  ? setStage("review")
+                  : setError("Enter an amount to swap.")
+              }
+            >
+              Review swap
+            </Button>
+          </div>
 
           <p className="mx-auto w-42 text-center text-[10px] leading-3.5 text-jumpa-black">
             Your quote is locked for {SWAP_QUOTE.lockSeconds} seconds. After

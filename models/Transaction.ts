@@ -19,6 +19,7 @@ export interface ITransaction {
   toAddress: string;
   amount: string;
   token: string;
+  memo?: string;
 
   // Swap Details (if type === "SWAP")
   swapDetails?: {
@@ -90,6 +91,7 @@ const TransactionSchema = new Schema<ITransaction>(
     toAddress: { type: String, required: true },
     amount: { type: String, required: true },
     token: { type: String, required: true },
+    memo: { type: String, default: null },
 
     swapDetails: {
       fromToken: { type: String },

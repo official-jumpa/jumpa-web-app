@@ -53,6 +53,8 @@ export function BalanceSheet({
         <ul className="flex flex-col gap-4 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-6 py-5">
           {BALANCE_BUCKETS.map((bucket, index) => {
             const Glyph = GLYPH[bucket.id];
+            const amount =
+              bucket.id === "available" ? `$${balance}` : bucket.amount;
 
             return (
               <li key={bucket.id} className="flex flex-col gap-4">
@@ -78,12 +80,12 @@ export function BalanceSheet({
                   {/* A null amount is a product that has not launched yet. */}
                   <span
                     className={`shrink-0 text-right text-base font-semibold ${
-                      bucket.amount === null
+                      amount === null
                         ? "text-jumpa-neutral-300"
                         : "text-jumpa-black"
                     }`}
                   >
-                    {bucket.amount ?? "Coming Soon"}
+                    {amount ?? "Coming Soon"}
                   </span>
                 </div>
               </li>

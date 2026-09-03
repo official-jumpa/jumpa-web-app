@@ -1,5 +1,7 @@
 import type { ChainAccountState } from "../types";
 import {
+  STELLAR_MAINNET_HORIZON,
+  STELLAR_TESTNET_HORIZON,
   getHorizonServer,
   stellarMainnetServer,
   stellarTestnetServer,
@@ -20,7 +22,7 @@ export interface StellarMultiNetBalances {
 async function safeHorizonCall<T>(
   fn: () => Promise<T>,
   fallback: T,
-  timeoutMs = 4000,
+  timeoutMs = 15000,
 ): Promise<T> {
   try {
     const promise = fn();
@@ -34,12 +36,22 @@ async function safeHorizonCall<T>(
       ),
     ]);
   } catch (err: any) {
-    if (err?.response?.status === 404) {
+    if (err?.response?.status === 404 || err?.status === 404) {
       return fallback;
     }
     console.warn("[Stellar Horizon] Call warning:", err?.message || err);
     return fallback;
   }
+}
+
+async function loadHorizonAccount(baseUrl: string, publicKey: string) {
+  const res = await fetch(`${baseUrl}/accounts/${publicKey}`, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Horizon error HTTP ${res.status}`);
+  return await res.json();
 }
 
 function parseBalancesFromHorizonAccount(
@@ -69,11 +81,7 @@ function parseBalancesFromHorizonAccount(
 export async function fetchStellarBalances(
   publicKey: string,
 ): Promise<StellarMultiNetBalances> {
-  const fallback: StellarAssetBalances = {
-    native: "0.00",
-    usdc: "0.00",
-    usdt: "0.00",
-  };
+  const fallback = { native: "0.00", usdc: "0.00", usdt: "0.00" };
 
   if (
     !publicKey ||
@@ -83,15 +91,17 @@ export async function fetchStellarBalances(
     return { mainnet: fallback, testnet: fallback };
   }
 
-  const [mainnet, testnet] = await Promise.all([
+  const [testnet, mainnet] = await Promise.all([
     safeHorizonCall(async () => {
-      const acc = await stellarMainnetServer.loadAccount(publicKey);
-      return parseBalancesFromHorizonAccount(acc.balances);
-    }, fallback),
+      const data = await loadHorizonAccount(STELLAR_TESTNET_HORIZON, publicKey);
+      if (!data) return fallback;
+      return parseBalancesFromHorizonAccount(data.balances);
+    }, fallback, 15000),
     safeHorizonCall(async () => {
-      const acc = await stellarTestnetServer.loadAccount(publicKey);
-      return parseBalancesFromHorizonAccount(acc.balances);
-    }, fallback),
+      const data = await loadHorizonAccount(STELLAR_MAINNET_HORIZON, publicKey);
+      if (!data) return fallback;
+      return parseBalancesFromHorizonAccount(data.balances);
+    }, fallback, 3500),
   ]);
 
   return { mainnet, testnet };

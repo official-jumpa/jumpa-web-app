@@ -17,15 +17,12 @@ import { SearchAltIcon } from "@/components/ui/icons/search-alt";
 import { getAssetLogo } from "@/lib/assets";
 import {
   NETWORKS,
+  NETWORK_CONFIGS,
   RECENT_WALLETS,
-  SEND_ASSETS,
   shortenAddress,
   type WalletContact,
 } from "@/lib/transfer";
 import { revealFirstError } from "@/lib/validation";
-
-/** Short enough that no chain in the picker could produce it. */
-const ADDRESS_MIN = 26;
 
 export type WalletForm = {
   address: string;
@@ -38,17 +35,11 @@ export type WalletForm = {
 
 export const EMPTY_WALLET_FORM: WalletForm = {
   address: "",
-  asset: SEND_ASSETS[0],
+  asset: NETWORK_CONFIGS[NETWORKS[0]]?.assets[0] || "XLM",
   network: NETWORKS[0],
   memo: "",
   pasted: false,
 };
-
-const ASSET_OPTIONS = SEND_ASSETS.map((symbol) => ({
-  value: symbol,
-  label: symbol,
-  icon: getAssetLogo(symbol),
-}));
 
 const NETWORK_OPTIONS = NETWORKS.map((network) => ({
   value: network,
@@ -71,26 +62,67 @@ export function WalletAddressForm({
   const [error, setError] = useState<string>();
   const fields = useRef<HTMLDivElement>(null);
 
+  const currentConfig =
+    NETWORK_CONFIGS[form.network] || NETWORK_CONFIGS["Stellar Mainnet"];
+
+  const assetOptions = currentConfig.assets.map((symbol) => ({
+    value: symbol,
+    label: symbol,
+    icon: getAssetLogo(symbol),
+  }));
+
   const set = (patch: Partial<WalletForm>) => {
     if (patch.address !== undefined) setError(undefined);
     onChange({ ...form, ...patch });
+  };
+
+  const handleNetworkChange = (network: string) => {
+    const nextConfig = NETWORK_CONFIGS[network];
+    const validAssets = nextConfig ? nextConfig.assets : [];
+    const nextAsset = validAssets.includes(form.asset as any)
+      ? form.asset
+      : validAssets[0] || "XLM";
+    set({ network, asset: nextAsset });
   };
 
   const filled = form.address.length > 0;
 
   const submit = () => {
     const address = form.address.trim();
-    const message = !address
-      ? "Enter the wallet address you are sending to."
-      : /\s/.test(address)
-        ? "A wallet address cannot contain spaces."
-        : address.length < ADDRESS_MIN
-          ? "That address looks too short. Check it and try again."
-          : undefined;
+    if (!address) {
+      setError("Enter the wallet address you are sending to.");
+      revealFirstError(fields.current);
+      return;
+    }
+    if (/\s/.test(address)) {
+      setError("A wallet address cannot contain spaces.");
+      revealFirstError(fields.current);
+      return;
+    }
 
-    setError(message);
-    if (message) revealFirstError(fields.current);
-    else onProceed();
+    const chain = currentConfig.chain;
+    if (chain === "stellar") {
+      if (!address.startsWith("G") || address.length !== 56) {
+        setError("Invalid Stellar address");
+        revealFirstError(fields.current);
+        return;
+      }
+    } else if (chain === "solana") {
+      if (address.length < 32 || address.length > 44) {
+        setError("Invalid Solana address format.");
+        revealFirstError(fields.current);
+        return;
+      }
+    } else if (chain === "base" || chain === "eth") {
+      if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+        setError("Invalid EVM address");
+        revealFirstError(fields.current);
+        return;
+      }
+    }
+
+    setError(undefined);
+    onProceed();
   };
 
   return (
@@ -135,28 +167,30 @@ export function WalletAddressForm({
       {filled ? (
         <>
           <SelectField
-            label="Asset to send"
-            value={form.asset}
-            options={ASSET_OPTIONS}
-            onChange={(asset) => set({ asset })}
-          />
-
-          <SelectField
             label="Network"
             icon={<GlobeIcon aria-hidden="true" className="size-6 shrink-0" />}
             value={form.network}
             options={NETWORK_OPTIONS}
-            onChange={(network) => set({ network })}
+            onChange={handleNetworkChange}
           />
 
-          <Field label="Tag/Memo (Note/Remark)">
-            <input
-              value={form.memo}
-              onChange={(event) => set({ memo: event.target.value })}
-              placeholder="Add a memo"
-              className={FIELD_INPUT}
-            />
-          </Field>
+          <SelectField
+            label="Asset to send"
+            value={form.asset}
+            options={assetOptions}
+            onChange={(asset) => set({ asset })}
+          />
+
+          {currentConfig.supportsMemo ? (
+            <Field label="Tag/Memo (Required for exchanges, optional for personal)">
+              <input
+                value={form.memo}
+                onChange={(event) => set({ memo: event.target.value })}
+                placeholder="Add a memo"
+                className={FIELD_INPUT}
+              />
+            </Field>
+          ) : null}
         </>
       ) : (
         RECENT_WALLETS.length > 0 && (

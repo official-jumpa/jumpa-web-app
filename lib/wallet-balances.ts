@@ -120,8 +120,8 @@ async function safeFetchBalance<T>(
   fetchFn: () => Promise<T>,
   label: string,
   fallback: T,
+  timeoutMs = 12000,
 ): Promise<T> {
-  const timeoutMs = 3500;
   try {
     const promise = fetchFn();
     return await Promise.race([
@@ -344,6 +344,26 @@ export async function fetchWalletBalances(
     summary.USDC = `${xlmMainnet.usdc} USDC`;
     summary.USDT = `${xlmMainnet.usdt} USDT`;
 
+    // Stellar Testnet Tokens
+    tokens.push({
+      symbol: "XLM",
+      name: "Stellar (Testnet)",
+      icon: xlmCached.icon,
+      balance: xlmTestnet.native,
+      priceUsd: "0.00",
+      network: "Stellar Testnet",
+      isTestnet: true,
+    });
+    tokens.push({
+      symbol: "USDC",
+      name: "USD Coin (Stellar Testnet)",
+      icon: usdcCached.icon,
+      balance: xlmTestnet.usdc,
+      priceUsd: "0.00",
+      network: "Stellar Testnet",
+      isTestnet: true,
+    });
+
     testnetSummary["Stellar Testnet (XLM)"] = `${xlmTestnet.native} XLM`;
     testnetSummary["Stellar Testnet (USDC)"] = `${xlmTestnet.usdc} USDC`;
     testnetSummary["Stellar Testnet (USDT)"] = `${xlmTestnet.usdt} USDT`;
@@ -453,12 +473,13 @@ export async function fetchWalletBalances(
 export async function getCachedWalletBalances(
   userIdOrAddress: string,
   chains?: SupportedChain[],
+  forceRefresh = false,
 ): Promise<WalletBalancesResult | null> {
   const now = Date.now();
   const cached = balanceCache[userIdOrAddress.toLowerCase()];
 
-  // If we have full cached data and it's fresh, return immediately
-  if (cached && now - cached.timestamp < CACHE_TTL) {
+  // If we have full cached data and it's fresh and not forced, return immediately
+  if (!forceRefresh && cached && now - cached.timestamp < CACHE_TTL) {
     const ageSec = Math.round((now - cached.timestamp) / 1000);
     console.log(
       `[Balance Service] Cache HIT for "${userIdOrAddress}" (cached ${ageSec}s ago, TTL: ${Math.round((CACHE_TTL - (now - cached.timestamp)) / 1000)}s remaining)`,

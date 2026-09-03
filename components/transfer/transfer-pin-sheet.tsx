@@ -7,18 +7,20 @@ import { SheetPortal } from "@/components/ui/sheet-portal";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 
-const PIN_LENGTH = 4;
+const PIN_LENGTH = 6;
 
 /**
  * Authorises a transfer. The title carries the error — the design shows
  * "Incorrect PIN" with the slots in red, not a separate screen.
  */
 export function TransferPinSheet({
+  length = PIN_LENGTH,
   error,
   onComplete,
   onRetry,
   onClose,
 }: {
+  length?: number;
   error?: boolean;
   /** Fires on the last digit; the caller decides what happens next. */
   onComplete: (pin: string) => void;
@@ -26,7 +28,7 @@ export function TransferPinSheet({
   onRetry?: () => void;
   onClose: () => void;
 }) {
-  const pin = usePinInput(PIN_LENGTH);
+  const pin = usePinInput(length);
   const submitted = useRef<string | null>(null);
   const rejected = useRef(false);
 
@@ -79,7 +81,7 @@ export function TransferPinSheet({
 
       <div className="mt-4">
         <PinDisplay
-          length={PIN_LENGTH}
+          length={length}
           value={pin.value}
           tone="sheet"
           error={error}

@@ -257,7 +257,10 @@ const offrampNgn: DeepSeekTool = {
       "Supported Switch asset pairs: " +
       "USDC: 'base:usdc', 'solana:usdc', 'polygon:usdc', 'arbitrum:usdc', 'ethereum:usdc', 'bsc:usdc'. " +
       "USDT: 'solana:usdt', 'tron:usdt', 'polygon:usdt', 'arbitrum:usdt', 'ethereum:usdt', 'bsc:usdt'. " +
-      "MANDATORY: Do NOT call this tool if cryptoAmount, asset, bankName, or accountNumber are missing — ask the user in chat first.",
+      "Call this as soon as the user says they want to cash out, with WHATEVER they have given so far — " +
+      "omit anything they have not said. The tool returns the chooser for the next missing detail " +
+      "(which balance to sell, which account to pay, which bank holds that account), so the user taps " +
+      "instead of being asked in prose. Never invent an amount, token, network, account number or bank.",
     parameters: {
       type: "object",
       properties: {
@@ -290,13 +293,7 @@ const offrampNgn: DeepSeekTool = {
             "Optional account holder name. The system verifies and fetches the official registered name via Paystack automatically.",
         },
       },
-      required: [
-        "cryptoAmount",
-        "cryptoToken",
-        "asset",
-        "bankName",
-        "accountNumber",
-      ],
+      required: ["cryptoAmount"],
     },
   },
 };

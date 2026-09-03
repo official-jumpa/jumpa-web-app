@@ -7,13 +7,17 @@
  */
 
 import { fetchStellarBalances, fundTestnetAccount } from "@/lib/chains/stellar";
-import type { ChatOption } from "@/lib/chat";
+import type { AccountsCard, ChatOption } from "@/lib/chat";
 import { connectDB } from "@/lib/db";
 import { getSwapQuote } from "@/lib/dex";
 import type { SwapQuote } from "@/lib/dex/types";
 import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
 import { SwitchService } from "@/lib/switch";
 import { resolveBankCode } from "@/lib/switch-banks";
+import {
+  getCachedWalletBalances,
+  type TokenBalanceInfo,
+} from "@/lib/wallet-balances";
 import { Transaction } from "@/models/Transaction";
 import { User } from "@/models/User";
 import { Wallet } from "@/models/Wallet";
@@ -26,6 +30,7 @@ export type CardHint =
   | { type: "offramp"; data: Record<string, any> }
   | { type: "sep24"; data: Record<string, any> }
   | { type: "options"; data: { options: ChatOption[] } }
+  | { type: "accounts"; data: AccountsCard }
   | { type: "none" };
 
 export interface QuoteCardData {
@@ -68,6 +73,90 @@ function mapAssetToTxChain(
  * @param toolArgs  - The parsed arguments object
  * @param userCtx   - Runtime context (user addresses, authenticated userId, etc.)
  */
+/** Assets Switch can pay out to NGN. */
+const OFFRAMPABLE = new Set(["USDC", "USDT", "CNGN"]);
+
+/**
+ * Where the money comes from. The design draws a Savings/Balance split; there is
+ * no savings balance yet, so the rows are the holdings that can actually be sold
+ * — which is also what the offramp needs (token + network) and saves asking twice.
+ */
+function fundingOptions(tokens: TokenBalanceInfo[]): ChatOption[] {
+  return tokens
+    .filter(
+      (token) =>
+        OFFRAMPABLE.has(token.symbol.toUpperCase()) &&
+        Number(token.balance) > 0,
+    )
+    .map((token) => ({
+      label: token.network
+        ? `${token.symbol} on ${token.network}`
+        : token.symbol,
+      amount: `${Number(token.balance).toLocaleString("en-US", { maximumFractionDigits: 2 })}`,
+      icon: "balance",
+      reply: token.network
+        ? `Sell my ${token.symbol} on ${token.network}`
+        : `Sell my ${token.symbol}`,
+    }));
+}
+
+/** Banks that most often share a NUBAN, probed when only an account number is given. */
+const CANDIDATE_BANKS = [
+  "OPay",
+  "Moniepoint",
+  "PalmPay",
+  "Kuda",
+  "Guaranty Trust Bank",
+  "Access Bank",
+  "Zenith Bank",
+  "First Bank of Nigeria",
+  "United Bank For Africa",
+];
+
+/** Which of those actually hold the number — a NUBAN is not unique across banks. */
+async function resolveBankCandidates(accountNumber: string) {
+  const found = await Promise.all(
+    CANDIDATE_BANKS.map(async (bankName) => {
+      const bank = findPaystackBank(bankName);
+      if (!bank) return null;
+      try {
+        const res = await validateAccountNumber(accountNumber, bank.code);
+        const holder = res?.data?.account_name?.trim();
+        return res?.status && holder ? { bank: bank.name, holder } : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return found.filter((entry): entry is { bank: string; holder: string } =>
+    Boolean(entry),
+  );
+}
+
+/** The last account this user cashed out to, so the design's Saved Account row is real. */
+async function lastPayoutAccount(userId: string) {
+  await connectDB();
+  const previous = await Transaction.findOne({
+    userId,
+    "rampDetails.bankDetails.accountNumber": {
+      $exists: true,
+      $nin: [null, ""],
+    },
+  })
+    .sort({ createdAt: -1 })
+    .lean<{
+      rampDetails?: {
+        bankDetails?: {
+          bankName?: string;
+          accountNumber?: string;
+          accountName?: string;
+        };
+      };
+    }>();
+  const saved = previous?.rampDetails?.bankDetails;
+  return saved?.accountNumber && saved.bankName ? saved : null;
+}
+
 /** The savings choosers the design draws. A Custom row opens a field in the card. */
 const SAVINGS_AMOUNTS: ChatOption[] = [
   { label: "$1000" },
@@ -505,6 +594,101 @@ export async function executeTool(
         accountNumber,
         providedHolderName: holderName,
       });
+
+      // ── The designed cash-out conversation: one chooser per missing detail,
+      // so the user taps rather than being asked for token, network and bank in prose.
+      const cleanedAccount = String(accountNumber || "")
+        .trim()
+        .replace(/\D/g, "");
+
+      if (!asset?.trim() || !cryptoToken?.trim()) {
+        const balances = await getCachedWalletBalances(userId);
+        const sources = fundingOptions(balances?.tokens || []);
+
+        if (sources.length > 0) {
+          return {
+            toolName: name,
+            summaryForAI: "Which balance would you like to cash out from?",
+            cardHint: { type: "options", data: { options: sources } },
+            requiresConfirmation: false,
+          };
+        }
+        // No sellable balance — fall through and let the existing errors explain.
+      }
+
+      if (cleanedAccount.length !== 10) {
+        const saved = await lastPayoutAccount(userId).catch(() => null);
+        const enterRow: ChatOption = {
+          label: "Enter account number",
+          custom: true,
+          placeholder: "10-digit account number",
+        };
+
+        if (saved) {
+          return {
+            toolName: name,
+            summaryForAI: "Where should I send the money?",
+            cardHint: {
+              type: "accounts",
+              data: {
+                title: "Saved Account",
+                account: {
+                  lines: [
+                    { label: "Bank Name", value: saved.bankName || "" },
+                    { label: "Account Name", value: saved.accountName || "" },
+                  ],
+                  field: {
+                    caption: "ACCOUNT NUMBER",
+                    value: saved.accountNumber || "",
+                  },
+                  action: {
+                    label: "Confirm",
+                    kind: "reply",
+                    reply: `Send it to ${saved.accountNumber} at ${saved.bankName}`,
+                  },
+                },
+                options: [enterRow],
+              },
+            },
+            requiresConfirmation: false,
+          };
+        }
+
+        return {
+          toolName: name,
+          summaryForAI: "Where should I send the money?",
+          cardHint: { type: "options", data: { options: [enterRow] } },
+          requiresConfirmation: false,
+        };
+      }
+
+      if (!bankName?.trim()) {
+        const candidates = await resolveBankCandidates(cleanedAccount);
+
+        if (candidates.length > 0) {
+          const options: ChatOption[] = candidates.map((entry) => ({
+            label: entry.bank,
+            description: entry.holder,
+            reply: `${entry.bank}`,
+          }));
+          options.push({
+            label: "Enter bank name",
+            custom: true,
+            placeholder: "Bank name",
+          });
+
+          return {
+            toolName: name,
+            summaryForAI:
+              candidates.length === 1
+                ? `Found **${candidates[0].holder}** at **${candidates[0].bank}**. Ask the user to confirm the bank.`
+                : `I found ${candidates.length} banks with the same account number.`,
+            cardHint: { type: "options", data: { options } },
+            requiresConfirmation: false,
+          };
+        }
+        // Nothing matched — fall through to the existing "bank name is required" error.
+      }
 
       try {
         if (!bankName || !bankName.trim()) {

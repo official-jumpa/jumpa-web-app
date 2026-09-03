@@ -47,7 +47,7 @@ export type BankDetails = {
   lines: { label: string; value: string }[];
   field: CardRow;
   /** Copy / View details / Confirm / Change — the design varies it per screen. */
-  action?: { label: string; kind?: "copy" | "reply" };
+  action?: { label: string; kind?: "copy" | "reply"; reply?: string };
 };
 
 export type OnrampCard = {

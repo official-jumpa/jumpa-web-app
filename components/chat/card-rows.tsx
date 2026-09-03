@@ -295,7 +295,7 @@ function ActionPill({
       type="button"
       onClick={async () => {
         if (isCopy) setCopied(await copyText(value));
-        else onReply?.(action.label);
+        else onReply?.(action.reply ?? action.label);
       }}
       className={cn(
         "flex h-6 shrink-0 items-center gap-1 rounded-xl px-3 text-[11px] leading-4 tap active:scale-95",

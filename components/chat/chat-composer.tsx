@@ -1,11 +1,13 @@
 "use client";
 
+import Image from "next/image";
 import type React from "react";
 import { useEffect, useRef } from "react";
+import { VoiceTranscript, VoiceWave } from "@/components/chat/voice-bar";
 import { CirclePlusIcon } from "@/components/ui/icons/circle-plus";
 import { MicrophoneIcon } from "@/components/ui/icons/microphone";
+import { SendAltIcon } from "@/components/ui/icons/send-alt";
 import { useSpeechToText } from "@/hooks/use-speech-to-text";
-import Image from "next/image";
 
 /** How tall the field is allowed to grow before it starts scrolling. */
 const MAX_LINES = 3;
@@ -69,13 +71,42 @@ export function ChatComposer({
     toggleListening();
   };
 
+  // The recording pill replaces the field: bare waveform until the first words
+  // come back, then the transcript with its own discard and stop controls.
+  if (isListening) {
+    return (
+      <div className="flex items-end gap-2.5">
+        {hasText ? (
+          <VoiceTranscript
+            text={value}
+            onDiscard={() => {
+              toggleListening();
+              onChange?.("");
+            }}
+            onStop={toggleListening}
+          />
+        ) : (
+          <VoiceWave />
+        )}
+
+        <button
+          type="button"
+          onClick={() => {
+            toggleListening();
+            if (hasText && !disabled) onSend?.();
+          }}
+          aria-label={hasText ? "Send message" : "Stop recording"}
+          className="tap flex size-11.5 shrink-0 items-center justify-center rounded-pill bg-jumpa-alt-400 text-jumpa-primary-600 active:scale-95"
+        >
+          <SendAltIcon className="size-6" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-end gap-2.5">
-      <div
-        className={`flex min-h-13 flex-1 items-end gap-2.5 rounded-surface bg-jumpa-white p-1 transition-all ${
-          isListening ? "ring-2 ring-jumpa-primary-600/50 shadow-md" : ""
-        }`}
-      >
+      <div className="flex min-h-13 flex-1 items-end gap-2.5 rounded-surface bg-jumpa-white p-1">
         <button
           type="button"
           aria-label="Add an attachment"
@@ -92,16 +123,8 @@ export function ChatComposer({
           onKeyDown={handleKeyDown}
           disabled={disabled}
           aria-label="Message Jumpa"
-          placeholder={
-            isListening
-              ? "Listening... You can start taking now..."
-              : "Tap to start typing..."
-          }
-          className={`my-3 min-w-0 flex-1 resize-none overflow-y-auto pr-2.5 text-[13px] leading-5 font-medium outline-none [scrollbar-width:none] placeholder:text-jumpa-black/30 disabled:opacity-50 ${
-            isListening
-              ? "text-jumpa-primary-600 animate-pulse placeholder:text-jumpa-primary-600"
-              : "text-jumpa-black"
-          }`}
+          placeholder="Tap to start typing..."
+          className="my-3 min-w-0 flex-1 resize-none overflow-y-auto pr-2.5 text-[13px] leading-5 font-medium text-jumpa-black outline-none [scrollbar-width:none] placeholder:text-jumpa-black/30 disabled:opacity-50"
           autoFocus
         />
       </div>
@@ -109,33 +132,21 @@ export function ChatComposer({
       <button
         type="button"
         onClick={() => {
-          if (isListening) {
-            toggleListening();
-          } else if (hasText && !disabled) {
+          if (hasText && !disabled) {
             onSend?.();
           } else {
             handleMicClick();
           }
         }}
         disabled={disabled}
-        aria-label={
-          isListening
-            ? "Stop dictation"
-            : hasText
-              ? "Send message"
-              : "Dictate a message"
-        }
-        className={`mb-0.75 flex size-11.5 shrink-0 items-center justify-center rounded-pill transition-all active:scale-95 cursor-pointer relative overflow-hidden ${
-          isListening
-            ? "bg-red-500 text-jumpa-white animate-pulse shadow-lg ring-2 ring-red-400"
-            : hasText
-              ? "bg-jumpa-primary-600 text-jumpa-white hover:bg-jumpa-primary-700 shadow-xs"
-              : "bg-jumpa-alt-400 text-jumpa-secondary-600 hover:opacity-90"
+        aria-label={hasText ? "Send message" : "Dictate a message"}
+        className={`tap relative mb-0.75 flex size-11.5 shrink-0 items-center justify-center overflow-hidden rounded-pill active:scale-95 ${
+          hasText
+            ? "bg-jumpa-primary-600 text-jumpa-white shadow-xs hover:bg-jumpa-primary-700"
+            : "bg-jumpa-alt-400 text-jumpa-secondary-600 hover:opacity-90"
         } disabled:opacity-50`}
       >
-        {isListening ? (
-          <div className="size-6 rounded-xs bg-white" />
-        ) : hasText ? (
+        {hasText ? (
           <Image
             src="/images/chat/send_icon.svg"
             alt="send icon"

@@ -6,6 +6,10 @@ export function useSpeechToText(onTranscript: (text: string) => void) {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef<any>(null);
+  /** Whether the user still wants to record — `onend` restarts while this holds. */
+  const wantedRef = useRef(false);
+  /** Speech settled so far. The engine resets its results on every restart. */
+  const settledRef = useRef("");
 
   // Keep a ref to callback to prevent stale closures without re-initializing recognition
   const callbackRef = useRef(onTranscript);
@@ -23,15 +27,23 @@ export function useSpeechToText(onTranscript: (text: string) => void) {
       }
 
       const recognition = new SpeechRecognition();
-      recognition.continuous = false;
+      // Continuous, or the engine ends the session at the first pause — about a
+      // second of silence — and dictation dies mid-sentence.
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = "en-US";
 
       recognition.onresult = (event: any) => {
-        let transcript = "";
-        for (let i = 0; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
+        let interim = "";
+        // Only what changed: settled phrases are banked, interim ones are
+        // replaced on the next event.
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          if (result.isFinal) settledRef.current += result[0].transcript;
+          else interim += result[0].transcript;
         }
+
+        const transcript = settledRef.current + interim;
         if (transcript.trim() && callbackRef.current) {
           callbackRef.current(transcript);
         }
@@ -39,10 +51,30 @@ export function useSpeechToText(onTranscript: (text: string) => void) {
 
       recognition.onerror = (event: any) => {
         console.warn("[SpeechRecognition]", event.error);
-        setIsListening(false);
+        // Silence and dropped connections are recoverable — `onend` restarts
+        // them. A refused or missing microphone is not.
+        if (
+          event.error === "not-allowed" ||
+          event.error === "service-not-allowed" ||
+          event.error === "audio-capture"
+        ) {
+          wantedRef.current = false;
+          setIsListening(false);
+        }
       };
 
       recognition.onend = () => {
+        // Engines stop on their own long before the user is done, so keep going
+        // until they actually ask to stop.
+        if (wantedRef.current) {
+          try {
+            recognition.start();
+            return;
+          } catch (err) {
+            console.warn("[SpeechRecognition Restart Error]", err);
+          }
+        }
+        wantedRef.current = false;
         setIsListening(false);
       };
 
@@ -50,6 +82,7 @@ export function useSpeechToText(onTranscript: (text: string) => void) {
     }
 
     return () => {
+      wantedRef.current = false;
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
@@ -63,9 +96,12 @@ export function useSpeechToText(onTranscript: (text: string) => void) {
   const startListening = useCallback(() => {
     if (recognitionRef.current) {
       try {
+        settledRef.current = "";
+        wantedRef.current = true;
         recognitionRef.current.start();
         setIsListening(true);
       } catch (err) {
+        wantedRef.current = false;
         console.warn("[SpeechRecognition Start Error]", err);
       }
     }
@@ -74,6 +110,7 @@ export function useSpeechToText(onTranscript: (text: string) => void) {
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
       try {
+        wantedRef.current = false;
         recognitionRef.current.stop();
       } catch (err) {
         console.warn("[SpeechRecognition Stop Error]", err);

@@ -161,6 +161,8 @@
   --animate-typing: typing 1.3s ease-in-out infinite;
   /* Marks the slot the next digit lands in. */
   --animate-caret: caret 1.1s steps(1, end) infinite;
+  /* One bar of the voice waveform. Staggered by `.stagger-bar`. */
+  --animate-wave: wave 1000ms ease-in-out infinite;
 
   @keyframes rise {
     from {
@@ -199,6 +201,16 @@
       filter: blur(4px);
     }
   }
+  @keyframes wave {
+    0%,
+    100% {
+      transform: scaleY(0.55);
+    }
+    50% {
+      transform: scaleY(1);
+    }
+  }
+
   @keyframes caret {
     50% {
       opacity: 0;
@@ -380,6 +392,11 @@
      by a wide margin, so the sentence reads as one sweep, not as ticking words. */
   .stagger-word {
     animation-delay: calc(var(--i, 0) * 26ms);
+  }
+  /* Waveform bars. Negative, so every bar is already mid-cycle on the first
+     frame — the row reads as a travelling wave rather than starting flat. */
+  .stagger-bar {
+    animation-delay: calc(var(--i, 0) * -80ms);
   }
 
   /* Press feedback. Use instead of `transition-colors` on anything that also

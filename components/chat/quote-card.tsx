@@ -7,7 +7,9 @@ import {
   CardStats,
   CardTitle,
   ChatCard,
+  StatText,
 } from "@/components/chat/chat-card";
+import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
 import type { QuoteCard as Quote } from "@/lib/chat";
 
 interface QuoteCardProps {
@@ -16,7 +18,7 @@ interface QuoteCardProps {
   onUpdateQuote?: (updatedCard: Quote) => void;
 }
 
-/** Live interactive swap quote: editable pay amount and interactive asset toggle button with real DEX refetching. */
+/** Live swap quote: editable pay amount, a direction control on the seam. */
 export function QuoteCard({
   card,
   isEditable = true,
@@ -40,7 +42,6 @@ export function QuoteCard({
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch real live quote from backend
   const fetchLiveQuote = useCallback(
     async (amount: string, from: string, to: string) => {
       const num = Number.parseFloat(amount);
@@ -95,20 +96,20 @@ export function QuoteCard({
     [card, onUpdateQuote],
   );
 
-  // Handle pay amount input changes with debounce
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
   const handlePayChange = (newVal: string) => {
     setPayAmount(newVal);
-
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       fetchLiveQuote(newVal, fromToken, toToken);
     }, 450);
   };
 
-  // Handle asset toggle directly
   const handleToggle = () => {
     if (!isEditable) return;
     setRotated((prev) => !prev);
@@ -117,27 +118,20 @@ export function QuoteCard({
     setFromToken(newFrom);
     setToToken(newTo);
 
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     fetchLiveQuote(payAmount, newFrom, newTo);
   };
 
   return (
     <ChatCard>
       <CardTitle title={card.title}>
-        <p className="text-xs leading-4 text-jumpa-black/50">
-          {card.status.lead}
-          <span className="font-bold text-jumpa-black">
-            {card.status.value}
-          </span>
-        </p>
+        <StatText stat={card.status} />
       </CardTitle>
 
       <CardRule />
 
+      {/* The direction control sits on the seam between the two rows. */}
       <div className="relative flex w-full flex-col gap-2">
-        {/* You Pay row (Editable) */}
         <CardAmount
           row={{
             caption: card.pay.caption || "YOU PAY",
@@ -149,39 +143,26 @@ export function QuoteCard({
           onInputChange={handlePayChange}
         />
 
-        {/* You Receive row */}
         <CardAmount
           row={{
             caption: card.receive.caption || "YOU RECEIVE",
-            value: loadingQuote ? "Calculating..." : receiveAmount,
+            value: loadingQuote ? "Calculating…" : receiveAmount,
             badge: toToken,
           }}
         />
 
-        {/* Interactive Swap Button */}
         <button
           type="button"
           onClick={handleToggle}
           disabled={!isEditable}
-          aria-label="Toggle swap assets"
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex size-9 items-center justify-center rounded-full bg-jumpa-primary-600 shadow-md transition-transform hover:scale-110 active:scale-95 cursor-pointer disabled:cursor-default"
+          aria-label="Swap direction"
+          className="tap absolute top-1/2 left-1/2 z-10 flex size-7.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-jumpa-primary-600 text-jumpa-alt-400 shadow-md active:scale-90 disabled:cursor-default"
         >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#D5FF19"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={`transition-transform duration-300 ${
+          <ArrowUpRightIcon
+            className={`size-4 transition-transform duration-300 ${
               rotated ? "rotate-180" : ""
             }`}
-          >
-            <path d="M7 10l5-5 5 5" />
-            <path d="M17 14l-5 5-5-5" />
-          </svg>
+          />
         </button>
       </div>
 
@@ -189,14 +170,8 @@ export function QuoteCard({
 
       <CardStats
         stats={[
-          {
-            lead: "Rate ",
-            value: rateText,
-          },
-          {
-            lead: "Fee ",
-            value: feeText,
-          },
+          { lead: "Rate ", value: rateText },
+          { lead: "Fee ", value: feeText },
         ]}
       />
     </ChatCard>

@@ -1,14 +1,16 @@
+"use client";
+
 import { useState } from "react";
+import { DetailPanel } from "@/components/chat/card-rows";
 import {
-  ConversionBlock,
-  CopyField,
-  DetailBox,
-  DetailRow,
-  RampNotes,
-  RampNotice,
-  RampShell,
-  StepLabel,
-} from "@/components/chat/ramp-parts";
+  CardAmount,
+  CardRule,
+  CardStatusPill,
+  CardTitle,
+  ChatCard,
+  ReferenceLine,
+} from "@/components/chat/chat-card";
+import { RampNotes, RampNotice } from "@/components/chat/ramp-parts";
 import type { OnrampCard } from "@/lib/chat";
 
 interface OnrampCheckoutCardProps {
@@ -55,69 +57,92 @@ export function OnrampCheckoutCard({ card, onPaid }: OnrampCheckoutCardProps) {
   };
 
   return (
-    <RampShell
-      title={card.title || "Buy Crypto"}
-      status={isDone ? "Completed" : isError ? "Error" : "Awaiting transfer"}
-      tone={isDone ? "done" : isError ? "error" : "pending"}
-    >
-      <ConversionBlock
-        from={{
-          caption: "You send",
-          value: `₦${card.fiatAmount}`,
-          badge: card.fiatCurrency || "NGN",
-        }}
-        to={{
-          caption: "You receive",
-          value: card.cryptoAmount === "—" ? "Calculating…" : card.cryptoAmount,
-          badge: card.cryptoToken,
-        }}
-      />
+    <>
+      <ChatCard>
+        <CardTitle title={card.title || "Buy Crypto/Deposit"}>
+          <CardStatusPill
+            status={{
+              label: isDone
+                ? "Completed"
+                : isError
+                  ? "Error"
+                  : "Awaiting transfer",
+              tone: isDone ? "done" : "pending",
+            }}
+          />
+        </CardTitle>
 
-      {isError ? (
-        <RampNotice tone="error">
-          Could not load bank details. Please try again.
-        </RampNotice>
-      ) : (
-        <>
-          <div className="flex flex-col gap-2">
-            <StepLabel step={1}>Transfer to this account</StepLabel>
-            <DetailBox>
-              <DetailRow label="Bank" value={card.bankName} />
-              <DetailRow label="Account name" value={card.accountName} />
-              <CopyField label="Account number" value={card.accountNumber} />
-            </DetailBox>
-          </div>
+        <CardRule />
 
-          {card.notes && card.notes.length > 0 ? (
-            <RampNotes notes={card.notes} />
-          ) : null}
+        <CardAmount
+          row={{
+            caption: "YOU PAY",
+            value: card.fiatAmount,
+            badge: card.fiatCurrency || "NGN",
+          }}
+        />
+        <CardAmount
+          row={{
+            caption: "YOU RECEIVE",
+            value:
+              card.cryptoAmount === "—" ? "Calculating…" : card.cryptoAmount,
+            badge: card.cryptoToken,
+          }}
+        />
 
-          {statusError ? (
-            <RampNotice tone="pending">{statusError}</RampNotice>
-          ) : null}
+        {isError ? (
+          <RampNotice tone="error">
+            Could not load bank details. Please try again.
+          </RampNotice>
+        ) : (
+          <DetailPanel
+            details={{
+              lines: [
+                { label: "Bank Name", value: card.bankName },
+                { label: "Account Name", value: card.accountName },
+              ],
+              field: {
+                caption: "ACCOUNT NUMBER",
+                value: card.accountNumber,
+              },
+              action: { label: isDone ? "View details" : "Copy", kind: "copy" },
+            }}
+          />
+        )}
 
-          {isDone ? null : (
-            <div className="flex flex-col gap-2">
-              <StepLabel step={2}>Confirm once you have paid</StepLabel>
-              <button
-                type="button"
-                onClick={handleConfirmPaid}
-                disabled={verifying}
-                className="flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-pill bg-[image:var(--gradient-jumpa-cta)] text-[13px] leading-4 font-semibold text-jumpa-white shadow-xs tap active:scale-98 disabled:opacity-50"
-              >
-                {verifying ? (
-                  <>
-                    <span className="size-3 animate-spin rounded-full border-2 border-jumpa-white border-t-transparent" />
-                    Verifying…
-                  </>
-                ) : (
-                  "I have transferred the funds"
-                )}
-              </button>
-            </div>
+        {card.notes && card.notes.length > 0 ? (
+          <RampNotes notes={card.notes} />
+        ) : null}
+
+        {statusError ? (
+          <RampNotice tone="pending">{statusError}</RampNotice>
+        ) : null}
+
+        {card.reference ? (
+          <>
+            <CardRule />
+            <ReferenceLine reference={card.reference} />
+          </>
+        ) : null}
+      </ChatCard>
+
+      {isDone || isError ? null : (
+        <button
+          type="button"
+          onClick={handleConfirmPaid}
+          disabled={verifying}
+          className="tap mt-1.5 flex h-8 items-center justify-center gap-2 self-start rounded-panel bg-jumpa-primary-600 px-4 text-sm leading-4 font-medium text-jumpa-neutral-25 active:scale-95 disabled:opacity-50"
+        >
+          {verifying ? (
+            <>
+              <span className="size-3 animate-spin rounded-full border-2 border-jumpa-white border-t-transparent" />
+              Verifying…
+            </>
+          ) : (
+            "I've sent the money"
           )}
-        </>
+        </button>
       )}
-    </RampShell>
+    </>
   );
 }

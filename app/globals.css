@@ -38,6 +38,7 @@
   /* Secondary (magenta-purple) */
   --color-jumpa-secondary-50: #fbf5ff;
   --color-jumpa-secondary-100: #e8dff1; /* "Recent" filter pill in chat */
+  --color-jumpa-secondary-400: #c477ff; /* border of a bank-details block in chat */
   --color-jumpa-secondary-600: #a02eef;
   --color-jumpa-secondary-950: #410566; /* savings plan progress caption */
 
@@ -78,7 +79,6 @@
   --color-jumpa-secondary-200: #ecd4ff; /* placeholder inside a transfer field */
   --color-jumpa-secondary-300: #ddb2ff; /* balance line on the amount screen */
   --color-jumpa-grey-100: #f1f2f4; /* transfer field border */
-
 
   /* Semantic */
   --color-jumpa-verified: #47c2ff;

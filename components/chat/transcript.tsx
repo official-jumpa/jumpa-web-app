@@ -1,19 +1,24 @@
 import type { CSSProperties } from "react";
+import { AccountsCard } from "@/components/chat/accounts-card";
 import { ActionRow } from "@/components/chat/action-row";
 import { AgentAvatar } from "@/components/chat/agent-avatar";
+import { ContactsCard } from "@/components/chat/contacts-card";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { OfframpCheckoutCard } from "@/components/chat/offramp-checkout-card";
 import { OnrampCheckoutCard } from "@/components/chat/onramp-checkout-card";
+import { OptionsCard } from "@/components/chat/options-card";
 import { QuoteCard } from "@/components/chat/quote-card";
 import { ReceiptCard } from "@/components/chat/receipt-card";
-import { TransferCard } from "@/components/chat/transfer-card";
 import { Sep24Card } from "@/components/chat/sep24-card";
+import { TransferCard } from "@/components/chat/transfer-card";
 import type { ChatEntry, ChatItem, QuoteCard as Quote } from "@/lib/chat";
 
 type Handlers = {
   onConfirm: () => void;
   onCancel: () => void;
   onUpdateQuote?: (card: Quote) => void;
+  /** Picking a row in a chooser answers the agent as the next user message. */
+  onReply?: (reply: string) => void;
 };
 
 /** The conversation so far. Groups sit 20px apart, items within a group 8px. */
@@ -27,7 +32,7 @@ export function Transcript({
         entry.kind === "day" ? (
           <p
             key={entry.id}
-            className="text-center text-[8px] leading-2.5 text-jumpa-black/50"
+            className="text-center text-[11px] leading-4 text-jumpa-neutral-275"
           >
             {entry.label}
           </p>
@@ -100,6 +105,7 @@ function Item({
   onConfirm,
   onCancel,
   onUpdateQuote,
+  onReply,
 }: { item: ChatItem; from: "user" | "agent" } & Handlers) {
   switch (item.kind) {
     case "text":
@@ -127,10 +133,23 @@ function Item({
     case "onramp":
       return <OnrampCheckoutCard card={item.card} />;
     case "offramp":
-      return <OfframpCheckoutCard card={item.card} />;
+      return <OfframpCheckoutCard card={item.card} onReply={onReply} />;
+    case "options":
+      return <OptionsCard card={item.card} onReply={onReply} />;
+    case "contacts":
+      return <ContactsCard card={item.card} onReply={onReply} />;
+    case "accounts":
+      return <AccountsCard card={item.card} onReply={onReply} />;
     case "sep24":
       return <Sep24Card card={item.card} />;
     case "actions":
-      return <ActionRow onConfirm={onConfirm} onCancel={onCancel} />;
+      return (
+        <ActionRow
+          onConfirm={onConfirm}
+          onCancel={onCancel}
+          confirmLabel={item.confirmLabel}
+          cancelLabel={item.cancelLabel}
+        />
+      );
   }
 }

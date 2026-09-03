@@ -1,4 +1,4 @@
-import mongoose, { Schema, Model } from "mongoose";
+import mongoose, { type Model, Schema } from "mongoose";
 import { generateId } from "@/lib/schema-ids";
 
 export interface IChatMessage {
@@ -7,7 +7,17 @@ export interface IChatMessage {
   content: string;
   timestamp: Date;
   isTransaction?: boolean;
-  cardType?: "quote" | "transfer" | "receipt" | "onramp" | "offramp" | "sep24" | "text";
+  cardType?:
+    | "quote"
+    | "transfer"
+    | "receipt"
+    | "onramp"
+    | "offramp"
+    | "options"
+    | "contacts"
+    | "accounts"
+    | "sep24"
+    | "text";
   cardData?: Record<string, any>;
   status?: "pending" | "confirmed" | "cancelled";
   transactionParams?: Record<string, any>;
@@ -50,7 +60,18 @@ const ChatLogSchema = new Schema<IChatLog>(
         isTransaction: { type: Boolean, default: false },
         cardType: {
           type: String,
-          enum: ["quote", "transfer", "receipt", "onramp", "offramp", "sep24", "text"],
+          enum: [
+            "quote",
+            "transfer",
+            "receipt",
+            "onramp",
+            "offramp",
+            "options",
+            "contacts",
+            "accounts",
+            "sep24",
+            "text",
+          ],
           default: "text",
         },
         cardData: { type: Schema.Types.Mixed },

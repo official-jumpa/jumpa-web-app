@@ -45,13 +45,12 @@ export function MessageBubble({
     <div
       className={cn(
         "bg-jumpa-neutral-95 text-[15px] leading-5.5 text-jumpa-black break-words [overflow-wrap:anywhere] max-w-full overflow-hidden",
-        // Both variants share `rounded-xl`: a 44px-tall pill reads as a 22px
-        // corner, so leaving short replies capsule-shaped would mismatch.
+        // The design draws prose square-ish and a one-liner as a capsule.
         isMultiLineOrLong
           ? // The group in transcript.tsx sets the column width per role.
-            "w-full rounded-xl px-4.5 py-3.5 shadow-xs"
+            "w-full rounded-dock px-4.5 py-3.5"
           : cn(
-              "flex min-h-11 items-center rounded-xl py-2.5 max-w-full",
+              "flex min-h-11 items-center rounded-pill py-2.5 max-w-full",
               from === "user" ? "px-6.5 text-right" : "px-4.5",
             ),
       )}

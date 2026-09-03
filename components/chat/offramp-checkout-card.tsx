@@ -1,92 +1,103 @@
+import { DetailPanel } from "@/components/chat/card-rows";
 import {
-  ConversionBlock,
-  DetailBox,
-  DetailRow,
-  RampNotice,
-  RampShell,
-} from "@/components/chat/ramp-parts";
+  CardAmount,
+  CardRule,
+  CardStatusPill,
+  CardTitle,
+  ChatCard,
+  ReferenceLine,
+} from "@/components/chat/chat-card";
+import { RampNotice } from "@/components/chat/ramp-parts";
 import type { OfframpCard } from "@/lib/chat";
 
 interface OfframpCheckoutCardProps {
   card: OfframpCard;
+  onReply?: (reply: string) => void;
 }
 
-/**
- * Clean offramp proposal / review card.
- * Displays token, amount, receiving fiat amount, and verified bank account details.
- * The AI/sovereign wallet executes the transaction upon PIN confirmation.
- */
-export function OfframpCheckoutCard({ card }: OfframpCheckoutCardProps) {
+/** Cash-out quote: what leaves the wallet, what lands in the bank. */
+export function OfframpCheckoutCard({
+  card,
+  onReply,
+}: OfframpCheckoutCardProps) {
   const isDone = card.status === "confirmed";
   const isError = card.status === "error";
   const isCancelled = card.status === "cancelled";
-
-  const statusLabel = isDone
-    ? "Completed"
-    : isCancelled
-      ? "Cancelled"
-      : isError
-        ? "Error"
-        : "Pending Confirmation";
-
-  const tone = isDone
-    ? "done"
-    : isCancelled || isError
-      ? "error"
-      : "pending";
-
-  const networkName = card.asset
-    ? card.asset.split(":")[0]?.toUpperCase()
-    : "BASE";
+  // The design's quote state carries no pill, so only a settled or failed
+  // withdrawal shows one.
+  const settled = isDone || isError || isCancelled;
 
   return (
-    <RampShell
-      title={card.title || "Withdrawal"}
-      status={statusLabel}
-      tone={tone}
-    >
-      <ConversionBlock
-        from={{
-          caption: `You sell (${networkName})`,
+    <ChatCard>
+      <CardTitle title={card.title || "Withdrawal/Cashout"}>
+        {settled ? (
+          <CardStatusPill
+            status={{
+              label: isDone ? "Completed" : isCancelled ? "Cancelled" : "Error",
+              tone: isDone ? "done" : "pending",
+            }}
+          />
+        ) : null}
+      </CardTitle>
+
+      <CardRule />
+
+      <CardAmount
+        row={{
+          caption: "YOU PAY",
           value: card.cryptoAmount,
           badge: card.cryptoToken || "USDC",
         }}
-        to={{
-          caption: "You receive",
-          value:
-            card.fiatAmount === "—" ? "Calculating…" : `₦${card.fiatAmount}`,
+      />
+      <CardAmount
+        row={{
+          caption: "YOU RECEIVE",
+          value: card.fiatAmount === "—" ? "Calculating…" : card.fiatAmount,
           badge: card.fiatCurrency || "NGN",
         }}
       />
 
-      {isError ? (
+      {isError || isCancelled ? (
         <RampNotice tone="error">
-          Could not process withdrawal. Please try again.
-        </RampNotice>
-      ) : isCancelled ? (
-        <RampNotice tone="error">
-          This withdrawal has been cancelled.
+          {isCancelled
+            ? "This withdrawal has been cancelled."
+            : "Could not process withdrawal. Please try again."}
         </RampNotice>
       ) : (
-        <>
-          <div className="flex flex-col gap-2">
-            <DetailBox>
-              <DetailRow label="Bank" value={card.bankName} />
-              <DetailRow label="Account name" value={card.accountName} />
-              <DetailRow label="Account number" value={card.accountNumber} />
-              {card.asset ? (
-                <DetailRow label="Network" value={networkName} />
-              ) : null}
-            </DetailBox>
-          </div>
-
-          {isDone ? null : (
-            <RampNotice tone="pending">
-              Confirm with your PIN to complete this withdrawal
-            </RampNotice>
-          )}
-        </>
+        <DetailPanel
+          onReply={onReply}
+          details={{
+            lines: [
+              { label: "Bank Name", value: card.bankName },
+              { label: "Account Name", value: card.accountName },
+            ],
+            field: { caption: "ACCOUNT NUMBER", value: card.accountNumber },
+            action: settled ? undefined : { label: "Change", kind: "reply" },
+          }}
+        />
       )}
-    </RampShell>
+
+      {card.depositAddress ? (
+        <DetailPanel
+          details={{
+            lines: card.asset
+              ? [{ label: "Network", value: card.asset.split(":")[0] ?? "" }]
+              : [],
+            field: {
+              caption: "DEPOSIT ADDRESS",
+              value: card.depositAddress,
+            },
+            action: { label: "Copy", kind: "copy" },
+          }}
+        />
+      ) : null}
+
+      {card.reference ? (
+        <>
+          <CardRule />
+          <ReferenceLine reference={card.reference} />
+        </>
+      ) : null}
+    </ChatCard>
   );
 }

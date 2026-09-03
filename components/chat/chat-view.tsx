@@ -87,6 +87,12 @@ function messagesToChatEntries(
       if (isPending) {
         items.push({ kind: "actions" });
       }
+    } else if (msg.cardType === "options" && msg.cardData) {
+      items.push({ kind: "options", card: msg.cardData as any });
+    } else if (msg.cardType === "contacts" && msg.cardData) {
+      items.push({ kind: "contacts", card: msg.cardData as any });
+    } else if (msg.cardType === "accounts" && msg.cardData) {
+      items.push({ kind: "accounts", card: msg.cardData as any });
     } else if (msg.cardType === "sep24" && msg.cardData) {
       items.push({
         kind: "sep24",
@@ -539,6 +545,7 @@ export function ChatView() {
               onConfirm={handleOpenPin}
               onCancel={handleCancelTransaction}
               onUpdateQuote={setPendingQuoteCard}
+              onReply={handleSendMessage}
             />
 
             {isResponding && (

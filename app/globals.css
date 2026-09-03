@@ -103,14 +103,14 @@
   --color-jumpa-success: #11a929; /* positive 24h change on an asset card */
   --color-jumpa-pin-rule: #193d26; /* slot underline in the chat PIN sheet */
 
-  /* Typography. Host Grotesk carries all UI copy; the two aliases below stand in
-     for unlicensed faces — Gotham Ultra and Neue Montreal. See README.md. */
-  --font-sans: var(--font-host-grotesk), ui-sans-serif, system-ui, sans-serif;
+  /* Typography. Small copy is SF Pro Rounded — the real face on Apple devices
+     through `ui-rounded`, Nunito everywhere else. Big copy is Inter; the rule
+     that switches between the two lives in @layer base. See README.md. */
+  --font-sans:
+    ui-rounded, "SF Pro Rounded", var(--font-nunito), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --font-display:
-    var(--font-host-grotesk), ui-sans-serif, system-ui, sans-serif;
-  --font-numeric:
-    var(--font-host-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-numeric: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 
   /* Layout. The app is one centred column; this is how wide it is allowed to
      get. Everything that pins to the column edge reads `max-w-app` from here —
@@ -305,10 +305,31 @@
     background-color: var(--color-jumpa-white);
     color: var(--color-jumpa-black);
     font-family: var(--font-sans);
-    /* Host Grotesk's contextual alternates turn "0x82" into "0×82" — wrong for every address. */
+    /* Contextual alternates can turn "0x82" into "0×82" — wrong for every address. */
     font-feature-settings: "calt" 0;
     /* Disable the double-tap-to-zoom delay on touch targets. */
     touch-action: manipulation;
+  }
+
+  /* Big copy is Inter, everything under 20px is SF Pro Rounded — the client's
+     split. Keyed on the size utilities so a new heading needs no tagging; add
+     the selector here when you introduce a size above 20px. */
+  .text-xl,
+  .text-2xl,
+  .text-3xl,
+  .text-4xl,
+  .text-5xl,
+  .text-6xl,
+  [class~="text-[26px]"],
+  [class~="text-[28px]"],
+  [class~="text-[32px]"],
+  [class~="text-[36px]"],
+  [class~="text-[38px]"],
+  [class~="text-[40px]"],
+  [class~="text-[54px]"],
+  [class~="text-[56px]"],
+  [class~="text-[64px]"] {
+    font-family: var(--font-display);
   }
 
   /* The app is a full-bleed mobile surface; page-level scroll is opt-in. */

@@ -74,13 +74,14 @@ Every color, font, radius, shadow, and gradient is declared once in [`app/global
 - **Neutral & Surface Hierarchy:** `jumpa-neutral-25` through `jumpa-neutral-900` for hairline borders, card surfaces, and readable typography contrast.
 
 ### 3. Typography
-- **Primary UI Face:** **Host Grotesk** loaded as a single variable Google font (weights 300–800) in `app/layout.tsx`.
+- **Small Copy (under 20px):** **SF Pro Rounded**, reached through the `ui-rounded` generic so Apple devices use the real face; **Nunito** (variable, 200–1000) is the self-hosted fallback everywhere else.
+- **Big Copy (20px and up):** **Inter**, loaded as a single variable Google font in `app/layout.tsx`. The switch is one size-keyed rule in `@layer base` in `app/globals.css` — no component tags it by hand, so add a selector there when you introduce a size above 20px.
 - **Code Blocks & Monospace:** **Geist Mono** for developer logs, addresses, and transaction hashes.
 - **Semantic Tokens:**
   | Token | Utility | Usage |
   | :--- | :--- | :--- |
-  | `--font-sans` | `font-sans` | Default UI copy across all screens |
-  | `--font-display` | `font-display` | Oversized currency and hero numbers |
+  | `--font-sans` | `font-sans` | Small UI copy — labels, body, captions |
+  | `--font-display` | `font-display` | Headings, oversized currency and hero numbers |
   | `--font-numeric` | `font-numeric` | PIN digits, keypads, and counters |
   | `--font-mono` | `font-mono` | Explorer hashes, addresses, and code blocks |
 

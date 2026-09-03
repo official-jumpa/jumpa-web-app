@@ -21,7 +21,7 @@ export default function ImportWalletPage() {
             Import a Wallet
           </h1>
           <p className="max-w-69 text-sm leading-4 font-medium">
-            Bring in a wallet you already own — Jumpa never sees what you paste
+            Bring in a wallet you already own Jumpa never sees what you paste
           </p>
         </div>
 

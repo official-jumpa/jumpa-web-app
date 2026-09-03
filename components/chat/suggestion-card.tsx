@@ -18,8 +18,10 @@ const SUGGESTIONS = [
  * Opening prompts, shown until the conversation starts. Side padding is 8, not the
  * design's 10 — its first chip row is 3px wider than the card and would wrap early.
  *
- * The 10px chip label is load-bearing: at 12px row one measures 361 against a 333
- * content box on a 393 screen and wraps 2/2/1 instead of the design's 3/2.
+ * The 10px chip label is load-bearing: at 12px row one measures 361 against the
+ * content box on a 393 screen and wraps 2/2/1 instead of the design's 3/2. The
+ * card's px-1.5 is the same constraint — SF Pro Rounded puts row one at 333.6,
+ * which needs 337 of content.
  */
 export function SuggestionCard({
   onSelect,
@@ -27,7 +29,7 @@ export function SuggestionCard({
   onSelect?: (prompt: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-x-1 gap-y-2 rounded-surface bg-jumpa-white px-2 py-2.5">
+    <div className="flex flex-wrap gap-x-1 gap-y-2 rounded-surface bg-jumpa-white px-1.5 py-2.5">
       {SUGGESTIONS.map(({ label, Icon }) => (
         <button
           key={label}

@@ -2,24 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { AdBanner } from "@/components/home/ad-banner";
 import { AssetList } from "@/components/home/asset-list";
 import { BalancePanel } from "@/components/home/balance-panel";
 import { BottomNav } from "@/components/home/bottom-nav";
 import { HeroBackdrop } from "@/components/home/hero-backdrop";
 import { KycCard } from "@/components/home/kyc-card";
-import { PromotionList } from "@/components/home/promotion-list";
 import { QuickActions } from "@/components/home/quick-actions";
 import { TransactionHistory } from "@/components/home/transaction-history";
 import { WalletHeader } from "@/components/home/wallet-header";
 import { RiseIn } from "@/components/ui/rise-in";
 import { unifyTokens } from "@/lib/assets";
-import {
-  ACCOUNT,
-  ASSETS,
-  type Asset,
-  PROMOTIONS,
-  type Transaction,
-} from "@/lib/wallet";
+import { ACCOUNT, ASSETS, type Asset, type Transaction } from "@/lib/wallet";
 
 export default function HomePage() {
   const router = useRouter();
@@ -94,7 +88,7 @@ export default function HomePage() {
         </RiseIn>
         <RiseIn index={1}>
           {kycComplete ? (
-            <PromotionList promotions={PROMOTIONS} />
+            <AdBanner />
           ) : (
             <KycCard
               completed={ACCOUNT.kyc.completed}

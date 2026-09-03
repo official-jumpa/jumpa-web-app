@@ -1,5 +1,6 @@
 import { connectDB } from "@/lib/db";
 import { generateReferralCode } from "@/lib/schema-ids";
+import { detectUserCountry } from "@/lib/location";
 import { User, type IUser } from "@/models/User";
 
 /**
@@ -71,8 +72,8 @@ export async function generateUniqueReferralCode(): Promise<string> {
 }
 
 /**
- * Ensures that a user document has a jumpaTag and referralCode assigned.
- * Backfills if either is missing and saves to database.
+ * Ensures that a user document has a jumpaTag, referralCode, and country assigned.
+ * Backfills if any are missing and saves to database.
  */
 export async function ensureUserJumpaFields(
   userId: string,
@@ -93,10 +94,22 @@ export async function ensureUserJumpaFields(
     needsSave = true;
   }
 
+  if (!user.country) {
+    try {
+      const country = await detectUserCountry();
+      if (country) {
+        user.country = country;
+        needsSave = true;
+      }
+    } catch (err) {
+      console.error("[UserProfile] Error detecting country for backfill:", err);
+    }
+  }
+
   if (needsSave) {
     await user.save();
     console.log(
-      `[UserProfile] Backfilled jumpaTag (${user.jumpaTag}) and referralCode (${user.referralCode}) for user ${user._id}`,
+      `[UserProfile] updated missing fields (tag: ${user.jumpaTag}, referral: ${user.referralCode}, country: ${user.country}) for user ${user._id}`,
     );
   }
 

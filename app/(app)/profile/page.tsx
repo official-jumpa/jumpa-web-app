@@ -20,63 +20,51 @@ import { UserAlt1Icon } from "@/components/ui/icons/user-alt-1";
 import { UsersIcon } from "@/components/ui/icons/users";
 import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
 import { getAssetLogo } from "@/lib/assets";
+import { useSession } from "@/lib/auth-client";
 import { ACCOUNT } from "@/lib/wallet";
 
-interface UserProfileData {
-  id: string;
-  name: string | null;
-  email: string;
-  image: string | null;
-  jumpaTag: string | null;
-  referralCode: string | null;
-  referralLink: string | null;
-  wallet: {
-    address: string;
-    name: string;
-    addresses?: {
-      eth: string;
-      base: string;
-      sol: string;
-      xlm: string;
-      btc: string;
-    };
-  } | null;
-}
-
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<UserProfileData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: session, isPending } = useSession();
+  const [walletAddresses, setWalletAddresses] = useState<{
+    xlm?: string;
+    base?: string;
+    eth?: string;
+    sol?: string;
+    btc?: string;
+    [key: string]: string | undefined;
+  } | null>(null);
   const [showOtherChains, setShowOtherChains] = useState(false);
 
   useEffect(() => {
-    async function fetchStatus() {
+    async function fetchWallet() {
       try {
-        const res = await fetch("/api/auth/status");
+        const res = await fetch("/api/wallet/balance");
         if (res.ok) {
           const data = await res.json();
-          if (data.authenticated && data.user) {
-            setProfile(data.user);
+          if (data.addresses) {
+            setWalletAddresses(data.addresses);
+          } else if (data.address) {
+            setWalletAddresses({ xlm: data.address });
           }
         }
       } catch (err) {
-        console.error("[ProfilePage] Failed to fetch profile:", err);
-      } finally {
-        setLoading(false);
+        console.error("[ProfilePage] Failed to fetch wallet:", err);
       }
     }
-    fetchStatus();
+    fetchWallet();
   }, []);
 
   const { completed, total } = ACCOUNT.kyc;
 
-  // Fallbacks while loading or if data is empty
-  const displayName = profile?.name || profile?.jumpaTag || ACCOUNT.firstName;
-  const displayEmail = profile?.email || "";
-  const jumpaTag = profile?.jumpaTag || "user@jumpa";
-  const referralCode = profile?.referralCode || "JUMPA";
+  const user = session?.user as any;
 
-  const walletAddresses = profile?.wallet?.addresses;
-  const stellarAddress = walletAddresses?.xlm || profile?.wallet?.address || "";
+  // Fallbacks while loading or if data is empty
+  const displayName = user?.name || user?.jumpaTag || ACCOUNT.firstName;
+  const displayEmail = user?.email || "";
+  const jumpaTag = user?.jumpaTag || "user@jumpa";
+  const referralCode = user?.referralCode || "JUMPA";
+
+  const stellarAddress = walletAddresses?.xlm || "";
   const evmAddress = walletAddresses?.base || walletAddresses?.eth || "";
   const solanaAddress = walletAddresses?.sol || "";
   const btcAddress = walletAddresses?.btc || "";
@@ -106,7 +94,7 @@ export default function ProfilePage() {
       <div className="mt-7.25 flex flex-col items-center">
         <span className="relative">
           <Image
-            src={profile?.image || ACCOUNT.avatar}
+            src={user?.image || ACCOUNT.avatar}
             alt=""
             width={160}
             height={160}
@@ -172,7 +160,7 @@ export default function ProfilePage() {
             />
 
             {/* Toggle to expand other chain addresses */}
-            {profile?.wallet && (
+            {walletAddresses && (
               <>
                 <button
                   type="button"

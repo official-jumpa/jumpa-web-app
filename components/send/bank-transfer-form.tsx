@@ -174,14 +174,18 @@ export function BankTransferForm({
     if (digitsOf(reference).length < minimum || !holder) return;
 
     let live = true;
-    setResolving(true);
-    resolveAccountName(holder, reference)
-      .then((name) => {
+
+    async function runResolve() {
+      setResolving(true);
+      try {
+        const name = await resolveAccountName(holder, reference);
         if (live) onChange({ ...latest.current, name });
-      })
-      .finally(() => {
+      } finally {
         if (live) setResolving(false);
-      });
+      }
+    }
+
+    runResolve();
 
     return () => {
       live = false;

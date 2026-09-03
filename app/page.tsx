@@ -4,6 +4,8 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { authClient } from "@/lib/auth-client";
+
 /** How long the brand mark holds, measured from when the mark is actually on screen. */
 const SPLASH_DURATION_MS = 3000;
 
@@ -21,14 +23,28 @@ export default function SplashPage() {
   // Runs alongside the hold, so resolving the session costs no extra time.
   useEffect(() => {
     let active = true;
-    fetch("/api/auth/status")
-      .then((res) => res.json())
-      .then((status) => {
+
+    async function checkSession() {
+      try {
+        const { data: session } = await authClient.getSession();
         if (!active) return;
-        if (!status.authenticated) setNext("/onboarding");
-        else setNext(status.hasWallet ? "/home" : "/sign-up/pin");
-      })
-      .catch(() => active && setNext("/onboarding"));
+        if (!session?.user) {
+          setNext("/onboarding");
+          return;
+        }
+
+        const res = await fetch("/api/wallet/list");
+        if (!active) return;
+        const wallets = await res.json();
+        const hasWallet = Array.isArray(wallets) && wallets.length > 0;
+        setNext(hasWallet ? "/home" : "/sign-up/pin");
+      } catch {
+        if (active) setNext("/onboarding");
+      }
+    }
+
+    checkSession();
+
     return () => {
       active = false;
     };

@@ -30,7 +30,7 @@ export function TransactionHistory({
           <TransactionEmpty />
         ) : (
           transactions.map((transaction, index) => (
-            <Fragment key={transaction.id}>
+            <Fragment key={transaction.id || (transaction as any)._id || index}>
               {index > 0 ? <TransactionRule /> : null}
               <TransactionRow transaction={transaction} />
             </Fragment>

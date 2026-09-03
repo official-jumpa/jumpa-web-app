@@ -21,7 +21,10 @@ export function TransactionList({
         All Transactions
       </li>
       {transactions.map((transaction, index) => (
-        <li key={transaction.id} className="flex flex-col gap-4">
+        <li
+          key={transaction.id || (transaction as any)._id || index}
+          className="flex flex-col gap-4"
+        >
           {index > 0 ? <TransactionRule /> : null}
           <TransactionRow transaction={transaction} />
         </li>

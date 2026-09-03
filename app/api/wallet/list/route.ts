@@ -38,7 +38,19 @@ export async function GET(req: NextRequest) {
       : index === 0,
   }));
 
-  return NextResponse.json(result);
+  const response = NextResponse.json(result);
+
+  if (wallets.length > 0 && !selectedAddress) {
+    response.cookies.set("selected_wallet_address", wallets[0].address, {
+      path: "/",
+      httpOnly: true,
+      secure: environment.IS_PRODUCTION,
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+    });
+  }
+
+  return response;
 }
 
 /**

@@ -6,9 +6,10 @@ import { sendOtpEmail } from "./email-otp-mail";
 import { environment } from "./environment";
 import { generateId } from "./schema-ids";
 
-import { generateUniqueJumpaTag, generateUniqueReferralCode } from "./user-profile";
+import { generateUniqueJumpaTag, generateUniqueReferralCode, ensureUserJumpaFields } from "./user-profile";
 import { User } from "@/models/User";
 import { Referral } from "@/models/Referral";
+import { Wallet } from "@/models/Wallet";
 
 await connectDB();
 
@@ -31,6 +32,30 @@ export const auth = betterAuth({
     },
   },
   databaseHooks: {
+    session: {
+      create: {
+        after: async (session) => {
+          try {
+            const userId = session.userId;
+            const wallet = await Wallet.findOne({ userId });
+
+            await User.updateOne(
+              { _id: userId },
+              {
+                $set: {
+                  lastLoginAt: new Date(),
+                  ...(wallet ? { activeWalletId: wallet._id } : {}),
+                },
+              },
+            );
+
+            await ensureUserJumpaFields(userId);
+          } catch (e) {
+            console.error("[Auth Hook] Failed in session.create.after:", e);
+          }
+        },
+      },
+    },
     user: {
       create: {
         before: async (user) => {

@@ -20,19 +20,22 @@ export function RecoveryPhrase({ nextHref }: { nextHref: string }) {
     if (existing) {
       setGeneratedPhrase(existing);
     } else {
-      fetch("/api/wallet/generate-phrase")
-        .then((res) => res.json())
-        .then((data) => {
+      async function generatePhrase() {
+        try {
+          const res = await fetch("/api/wallet/generate-phrase");
+          const data = await res.json();
           if (data.phrase) {
             setGeneratedPhrase(data.phrase);
             if (typeof window !== "undefined") {
               sessionStorage.setItem("setupPhrase", data.phrase);
             }
           }
-        })
-        .catch((err) =>
-          console.error("[RecoveryPhrase] Error generating phrase:", err),
-        );
+        } catch (err) {
+          console.error("[RecoveryPhrase] Error generating phrase:", err);
+        }
+      }
+
+      generatePhrase();
     }
   }, []);
 

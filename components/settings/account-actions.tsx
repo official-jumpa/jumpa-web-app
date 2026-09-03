@@ -36,10 +36,14 @@ export function AccountActions() {
     setError(null);
     try {
       const res = await fetch(endpoint, { method: "POST" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error ?? fallback);
-      }
+        let errorMsg = fallback;
+        try {
+          const body = await res.json();
+          if (body?.error) errorMsg = body.error;
+        } catch {
+          // ignore json parse error
+        }
+        throw new Error(errorMsg);
       // A full load, not router.replace: it applies the cleared cookies, drops
       // Next's client router cache (which would otherwise serve the signed-in
       // tree until a manual refresh) and leaves no session state in memory.

@@ -17,9 +17,9 @@ export function TransactionEmpty({ className }: { className?: string }) {
         height={286}
         className="w-30"
       />
-      <p className="mt-3 text-xs leading-4 font-medium">No transactions yet</p>
+      <p className="mt-3 text-xs leading-4 font-medium">No transactions found</p>
       <p className="mt-1 text-[10px] leading-3 text-jumpa-neutral-350">
-        Your recent transfer and swap activities will appear here.
+        Your recent transfer and swap activities will appear here
       </p>
     </div>
   );

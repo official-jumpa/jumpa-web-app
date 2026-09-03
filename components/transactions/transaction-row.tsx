@@ -67,7 +67,7 @@ export function TransactionRow({ transaction }: { transaction: Transaction }) {
               : "text-jumpa-neutral-775",
           )}
         >
-          {STATUS_LABEL[status]}
+          {STATUS_LABEL[status] || status}
         </span>
       </span>
     </div>

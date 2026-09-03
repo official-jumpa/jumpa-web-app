@@ -71,9 +71,9 @@ export async function proxy(request: NextRequest) {
 
     // Redirect away from home/dashboard pages back to setup
     if (isProtectedRoute) {
-      console.log(`[Proxy] Authenticated user without wallet. Redirecting from ${pathname} to /sign-up/pin`,
+      console.log(`[Proxy] Authenticated user without wallet. Redirecting from ${pathname} to home page`,
       );
-      return NextResponse.redirect(new URL("/sign-up/pin", request.url));
+      return NextResponse.redirect(new URL("/", request.url));
     }
     return NextResponse.next();
   }

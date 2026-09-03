@@ -6,14 +6,36 @@ import type { TransactionFilter } from "@/lib/cards";
 /** Filter panel. Selections are local until the history query exists. */
 export function FilterSheet({
   filters,
+  selectedFilters,
+  onApply,
   onClose,
 }: {
   filters: TransactionFilter[];
+  selectedFilters?: Record<string, string>;
+  onApply?: (selected: Record<string, string>) => void;
   onClose: () => void;
 }) {
-  const [selected, setSelected] = useState(() =>
-    Object.fromEntries(filters.map((filter) => [filter.label, 0])),
+  const [selected, setSelected] = useState<Record<string, number>>(() =>
+    Object.fromEntries(
+      filters.map((filter) => {
+        const activeOption = selectedFilters?.[filter.label];
+        const idx = activeOption ? filter.options.indexOf(activeOption) : 0;
+        return [filter.label, idx >= 0 ? idx : 0];
+      }),
+    ),
   );
+
+  const handleApply = () => {
+    if (onApply) {
+      const result: Record<string, string> = {};
+      for (const filter of filters) {
+        const chosenIndex = selected[filter.label] ?? 0;
+        result[filter.label] = filter.options[chosenIndex] || "Show All";
+      }
+      onApply(result);
+    }
+    onClose();
+  };
 
   return (
     <BottomSheet onClose={onClose}>
@@ -58,7 +80,7 @@ export function FilterSheet({
         variant="gradientSheet"
         size="lg"
         className="mt-6"
-        onClick={onClose}
+        onClick={handleApply}
       >
         Apply Filters
       </Button>

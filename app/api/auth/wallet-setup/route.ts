@@ -13,6 +13,7 @@ import {
 } from "@/lib/derive-addresses";
 import { environment } from "@/lib/environment";
 import { Wallet } from "@/models/Wallet";
+import { User } from "@/models/User";
 import { UserActivityLog } from "@/models/UserActivityLog";
 
 const WALLET_PIN_REGEX = /^\d{6}$/;
@@ -222,6 +223,12 @@ export async function POST(req: NextRequest) {
     });
 
     console.log(`[WalletSetup] Wallet created for user "${session.user.id}": ${wallet.address} (method: ${setupMethod})`);
+
+    // Link active wallet to user
+    await User.updateOne(
+      { _id: session.user.id },
+      { $set: { activeWalletId: wallet._id } },
+    );
 
     // Log activity
     UserActivityLog.create({

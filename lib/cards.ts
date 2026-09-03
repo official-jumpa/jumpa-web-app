@@ -81,12 +81,23 @@ export type TransactionFilter = {
 export const TRANSACTION_FILTERS: TransactionFilter[] = [
   {
     label: "Transaction Type",
-    options: ["Show All", "Online", "ATM Machine", "Utility"],
+    options: ["Show All", "Transfer", "Swap", "Deposit", "Withdraw", "Utility"],
   },
-  { label: "Card", options: ["Show All", "**** 4392", "**** 2141"] },
+  {
+    label: "Card",
+    options: ["Show All", "**** 4392", "**** 2141"],
+  },
+  {
+    label: "Status",
+    options: ["Show All", "Completed", "Pending", "Failed"],
+  },
   {
     label: "Duration",
-    options: ["Show All", "7 Days Ago", "1 Month Ago", "3 Months Ago"],
+    options: ["Show All", "Last 7 Days", "Last 30 Days", "Last 90 Days"],
+  },
+  {
+    label: "Chain",
+    options: ["Show All", "Stellar", "Solana", "Base"],
   },
 ];
 

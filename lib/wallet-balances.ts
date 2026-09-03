@@ -248,10 +248,10 @@ export async function fetchWalletBalances(
     // 2. Solana (Mainnet only)
     fetchSolana && solAddr
       ? safeFetchBalance(
-          () =>
-            solMainnetConnection
-              .getBalance(new PublicKey(solAddr))
-              .then((b) => (b / LAMPORTS_PER_SOL).toFixed(4)),
+          async () => {
+            const b = await solMainnetConnection.getBalance(new PublicKey(solAddr));
+            return (b / LAMPORTS_PER_SOL).toFixed(4);
+          },
           "Solana Mainnet",
           "0.00",
         )

@@ -22,7 +22,9 @@ export function VerifyCodeForm({
   const code = usePinInput(CODE_LENGTH);
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState(false);
-  const [targetActionHref, setTargetActionHref] = useState(nextHref);
+  const [targetActionHref, setTargetActionHref] = useState(
+    nextHref || "/sign-up/pin",
+  );
   const [error, setError] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
   const attemptedCodeRef = useRef<string | null>(null);
@@ -66,12 +68,11 @@ export function VerifyCodeForm({
 
         // Check if user already has an existing wallet
         try {
-          const statusRes = await fetch("/api/auth/status");
-          const statusData = await statusRes.json();
-          if (statusData.hasWallet) {
+          const res = await fetch("/api/wallet/list");
+          const wallets = await res.json();
+          if (Array.isArray(wallets) && wallets.length > 0) {
             setTargetActionHref("/home");
           } else {
-            // New user without wallet: Route to set transaction PIN
             setTargetActionHref("/sign-up/pin");
           }
         } catch {

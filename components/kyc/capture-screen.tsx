@@ -6,7 +6,7 @@ import { CameraIcon } from "@/components/ui/icons/camera";
 
 /** Rectangle for a document, dashed oval for a face. */
 const FRAME = {
-  box: "min-h-45 rounded-surface bg-jumpa-neutral-50",
+  box: "h-46 rounded-surface bg-jumpa-neutral-50",
   oval: "min-h-100 rounded-[50%] border-2 border-dashed border-jumpa-neutral-200 bg-jumpa-neutral-50",
 } as const;
 
@@ -69,7 +69,7 @@ export function CaptureScreen({
         type="button"
         onClick={() => field.current?.click()}
         aria-label={preview ? "Replace photo" : "Choose a photo"}
-        className={`tap mt-6 flex flex-1 items-center justify-center overflow-hidden ${FRAME[shape]}`}
+        className={`tap mt-6 flex shrink-0 items-center justify-center overflow-hidden ${FRAME[shape]}`}
       >
         {preview ? (
           // biome-ignore lint/performance/noImgElement: a blob URL cannot go through next/image
@@ -83,7 +83,7 @@ export function CaptureScreen({
 
       {camera ? null : (
         <>
-          <p className="mt-6 flex items-center gap-3 text-xs leading-4 text-jumpa-neutral-350">
+          <p className="mt-8 flex items-center gap-3 text-xs leading-4 text-jumpa-neutral-350">
             <span className="h-px flex-1 bg-jumpa-neutral-100" />
             Or Continue to
             <span className="h-px flex-1 bg-jumpa-neutral-100" />
@@ -92,7 +92,7 @@ export function CaptureScreen({
           <button
             type="button"
             onClick={() => setMode("camera")}
-            className="tap mt-6 flex h-12 items-center justify-center gap-2 self-center rounded-pill bg-jumpa-primary-50 px-6 text-sm leading-4 font-medium text-jumpa-primary-600 active:scale-[0.98]"
+            className="tap mt-8 flex h-14 w-69 items-center justify-center gap-2.5 self-center rounded-pill bg-jumpa-primary-50 text-sm leading-4 font-medium text-jumpa-primary-600 active:scale-[0.98]"
           >
             <CameraIcon aria-hidden="true" className="size-6" />
             Open Camera and Take Photo

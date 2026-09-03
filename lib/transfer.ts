@@ -185,17 +185,76 @@ export function shortenAddress(address: string, lead = 5, tail = 4): string {
   return `${address.slice(0, lead)}...${address.slice(address.length - tail)}`;
 }
 
+export type NetworkConfig = {
+  id: string;
+  name: string;
+  chain: "stellar" | "solana" | "base" | "eth";
+  network: "mainnet" | "testnet";
+  assets: readonly string[];
+  supportsMemo: boolean;
+  feeLabel: string;
+  settlementTime: string;
+};
+
+// later derive the fee from blockchain
+export const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
+  "Stellar Mainnet": {
+    id: "stellar-mainnet",
+    name: "Stellar Mainnet",
+    chain: "stellar",
+    network: "mainnet",
+    assets: ["XLM", "USDC"],
+    supportsMemo: true,
+    feeLabel: "0.00001 XLM (~$0.0001)",
+    settlementTime: "3-5 seconds",
+  },
+  "Stellar Testnet": {
+    id: "stellar-testnet",
+    name: "Stellar Testnet",
+    chain: "stellar",
+    network: "testnet",
+    assets: ["XLM", "USDC"],
+    supportsMemo: true,
+    feeLabel: "0.00001 XLM (Free)",
+    settlementTime: "3-5 seconds",
+  },
+  Solana: {
+    id: "solana",
+    name: "Solana",
+    chain: "solana",
+    network: "mainnet",
+    assets: ["SOL", "USDC", "USDT"],
+    supportsMemo: false,
+    feeLabel: "0.000005 SOL (~$0.001)",
+    settlementTime: "1-2 seconds",
+  },
+  Base: {
+    id: "base",
+    name: "Base",
+    chain: "base",
+    network: "mainnet",
+    assets: ["ETH", "USDC"],
+    supportsMemo: false,
+    feeLabel: "0.00001 ETH (~$0.03)",
+    settlementTime: "2-3 seconds",
+  },
+  Ethereum: {
+    id: "ethereum",
+    name: "Ethereum",
+    chain: "eth",
+    network: "mainnet",
+    assets: ["ETH", "USDC", "USDT"],
+    supportsMemo: false,
+    feeLabel: "0.0005 ETH (~$1.50)",
+    settlementTime: "12-15 seconds",
+  },
+};
+
 /** Chains the wallet-address form offers. */
-export const NETWORKS = [
-  "Stellar Mainet",
-  "Solana",
-  "Base",
-  "Ethereum",
-  "Cosmos",
-] as const;
+export const NETWORKS = Object.keys(NETWORK_CONFIGS);
 
 /** Assets that can leave the wallet. */
-export const SEND_ASSETS = ["USDC", "USDT", "XLM"] as const;
+export const SEND_ASSETS = ["USDC", "USDT", "XLM", "SOL", "ETH"] as const;
 
 /** Rules the deposit screen lists under the QR, for the chain in play. */
 export function depositNotes(symbol: string, network: string): string[] {

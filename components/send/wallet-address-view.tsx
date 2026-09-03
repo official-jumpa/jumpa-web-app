@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   EMPTY_WALLET_FORM,
   WalletAddressForm,
@@ -17,9 +17,7 @@ import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { getAssetLogo } from "@/lib/assets";
 import {
-  DEMO_PIN,
-  SEND_BALANCE,
-  SWAP_QUOTE,
+  NETWORK_CONFIGS,
   shortenAddress,
 } from "@/lib/transfer";
 import type { Promotion } from "@/lib/wallet";
@@ -35,22 +33,124 @@ export function WalletAddressView({ promotions }: { promotions: Promotion[] }) {
   const [stage, setStage] = useState<Stage>("form");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [txResult, setTxResult] = useState<{
+    txHash: string;
+    explorerUrl: string;
+  } | null>(null);
   const [form, setForm] = useState<WalletForm>(EMPTY_WALLET_FORM);
   const [amount, setAmount] = useState("");
+  const [liveBalance, setLiveBalance] = useState("$0.00");
 
+  const currentConfig =
+    NETWORK_CONFIGS[form.network] || NETWORK_CONFIGS["Stellar Mainnet"];
   const network = form.network.replace(" ", " - ");
   const short = shortenAddress(form.address, 18, 0);
 
+  // Fetch live balance for current selected asset & chain
+  useEffect(() => {
+    let isMounted = true;
+    async function loadBalance() {
+      try {
+        const res = await fetch("/api/wallet/balance?refresh=true");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!isMounted) return;
+
+        const isTestnet = currentConfig.network === "testnet";
+
+        if (Array.isArray(data.tokens)) {
+          const matched = data.tokens.find(
+            (t: any) =>
+              t.symbol?.toUpperCase() === form.asset.toUpperCase() &&
+              (isTestnet ? Boolean(t.isTestnet) : !t.isTestnet) &&
+              (!t.network ||
+                t.network.toLowerCase().includes(currentConfig.chain.toLowerCase())),
+          );
+          if (matched) {
+            const tokenAmount = parseFloat(matched.balance) || 0;
+            setLiveBalance(`${tokenAmount} ${form.asset}`);
+            return;
+          }
+        }
+
+        if (isTestnet && data.testnetSummary) {
+          const key = `Stellar Testnet (${form.asset.toUpperCase()})`;
+          if (data.testnetSummary[key]) {
+            setLiveBalance(data.testnetSummary[key]);
+            return;
+          }
+        }
+
+        if (data.totalUsd) {
+          setLiveBalance(`$${data.totalUsd}`);
+        }
+      } catch {
+        // keep previous
+      }
+    }
+    loadBalance();
+    return () => {
+      isMounted = false;
+    };
+  }, [form.asset, form.network, currentConfig.chain, currentConfig.network]);
+
+  const handlePinSubmit = async (pin: string) => {
+    setIsSubmitting(true);
+    setPinError(false);
+    setErrorMessage(null);
+
+    try {
+      const res = await fetch("/api/wallet/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipient: form.address.trim(),
+          amount,
+          asset: form.asset,
+          network: form.network,
+          memo: form.memo,
+          pin,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 401 && data.error?.toLowerCase().includes("pin")) {
+          setPinError(true);
+        } else {
+          setErrorMessage(data.error || "Transfer failed on-chain.");
+        }
+        return;
+      }
+
+      setTxResult({
+        txHash: data.txHash,
+        explorerUrl: data.explorerUrl,
+      });
+      setSheet(null);
+      setStage("done");
+    } catch (err: any) {
+      setErrorMessage(err?.message || "Network request failed.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const details = (
     <DetailList>
-      <DetailRow label="Network" value={form.network.split(" ")[0]} />
+      <DetailRow label="Network" value={currentConfig.name} />
       <DetailRow label="Asset" value={form.asset} />
-      <DetailRow label="Network fee" value={SWAP_QUOTE.networkFee} />
+      <DetailRow label="Network fee" value={currentConfig.feeLabel} />
       <DetailRow
         label="Settlement time"
-        value={SWAP_QUOTE.settlement}
-        rule={false}
+        value={currentConfig.settlementTime}
       />
+      {form.memo?.trim() ? (
+        <DetailRow label="Memo" value={form.memo.trim()} rule={false} />
+      ) : null}
     </DetailList>
   );
 
@@ -60,10 +160,23 @@ export function WalletAddressView({ promotions }: { promotions: Promotion[] }) {
         back="/home"
         amount={`${amount} ${form.asset}`}
         note={
-          <>
-            Your money is on its way to{" "}
-            <b className="font-bold">{shortenAddress(form.address)}</b>
-          </>
+          <div className="flex flex-col items-center gap-2 pb-4">
+            <span>
+              Your money is on its way to{" "}
+              <b className="font-bold">{shortenAddress(form.address)}</b>
+            </span>
+            {/* i dont think the explorer link is needed since we are abstracting a lof from the users */}
+            {/* {txResult?.explorerUrl ? (
+              <a
+                href={txResult.explorerUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-semibold text-jumpa-primary-600 underline"
+              >
+                View on Explorer ({shortenAddress(txResult.txHash, 8, 6)})
+              </a>
+            ) : null} */}
+          </div>
         }
         details={details}
         promotions={promotions}
@@ -79,9 +192,9 @@ export function WalletAddressView({ promotions }: { promotions: Promotion[] }) {
           onClose={() => setStage("form")}
           amount={amount}
           symbol={form.asset}
-          balance={SEND_BALANCE.balance}
+          balance={liveBalance}
           chips={CHIPS}
-          rate={`1 ${form.asset} = ${SWAP_QUOTE.rate} XLM`}
+          rate=""
           caption="Always verify the address is correct. Payments to wrong addresses cannot be reversed."
           onAmountChange={setAmount}
           onReview={() => setSheet("review")}
@@ -128,13 +241,22 @@ export function WalletAddressView({ promotions }: { promotions: Promotion[] }) {
         {sheet === "pin" ? (
           <TransferPinSheet
             error={pinError}
-            onRetry={() => setPinError(false)}
-            onClose={() => setSheet("review")}
-            onComplete={(pin) => {
-              if (pin === DEMO_PIN) setStage("done");
-              else setPinError(true);
+            onRetry={() => {
+              setPinError(false);
+              setErrorMessage(null);
             }}
+            onClose={() => {
+              setSheet("review");
+              setErrorMessage(null);
+            }}
+            onComplete={handlePinSubmit}
           />
+        ) : null}
+
+        {errorMessage ? (
+          <div className="fixed bottom-6 left-4 right-4 z-50 rounded-lg bg-red-600 px-4 py-3 text-center text-sm font-medium text-white shadow-lg">
+            {errorMessage}
+          </div>
         ) : null}
       </>
     );

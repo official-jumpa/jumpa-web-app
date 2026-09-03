@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { AssetRow, AssetRule } from "@/components/assets/asset-row";
 import { NetworkSheet } from "@/components/assets/network-sheet";
-import { BottomNav } from "@/components/home/bottom-nav";
 import { SearchAltIcon } from "@/components/ui/icons/search-alt";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import {
@@ -39,10 +38,8 @@ export function AssetPicker({
     : assets;
 
   return (
-    // Receive is a step in the deposit flow, so it carries no tab bar.
-    <div
-      className={`flex min-h-dvh flex-col px-4.5 pt-6 ${receive ? "pb-[calc(env(safe-area-inset-bottom)+1.5rem)]" : "pb-27"}`}
-    >
+    // Neither mode carries the tab bar: both are a step inside a flow.
+    <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
       <ScreenHeader
         back={back}
         title={receive ? "Deposit Crypto" : "All Wallets"}
@@ -95,8 +92,6 @@ export function AssetPicker({
           onClose={network.cancel}
         />
       ) : null}
-
-      {receive ? null : <BottomNav />}
     </div>
   );
 }

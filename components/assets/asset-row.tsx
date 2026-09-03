@@ -1,5 +1,4 @@
 import Image from "next/image";
-import Link from "next/link";
 import { getAssetLogo } from "@/lib/assets";
 import type { Asset } from "@/lib/wallet";
 
@@ -11,11 +10,11 @@ export function AssetRow({
   onSelect,
 }: {
   asset: Asset;
-  /** Set on Receive, where the row raises the network sheet instead of navigating. */
-  onSelect?: () => void;
+  /** The row asks for a network rather than navigating, so it is a button. */
+  onSelect: () => void;
 }) {
-  const body = (
-    <>
+  return (
+    <button type="button" onClick={onSelect} className={ROW}>
       {/* Resolved from the symbol so the glyph can never disagree with it. */}
       <Image
         src={getAssetLogo(asset.symbol)}
@@ -27,17 +26,7 @@ export function AssetRow({
       <span className="truncate text-sm leading-4 font-semibold text-jumpa-black">
         {asset.label ?? asset.symbol}
       </span>
-    </>
-  );
-
-  return onSelect ? (
-    <button type="button" onClick={onSelect} className={ROW}>
-      {body}
     </button>
-  ) : (
-    <Link href={`/assets/${asset.symbol.toLowerCase()}`} className={ROW}>
-      {body}
-    </Link>
   );
 }
 

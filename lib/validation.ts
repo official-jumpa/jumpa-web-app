@@ -24,7 +24,7 @@ export function checkLength(
   const entered = digitsOf(value);
   if (entered.length === 0) return empty;
   if (entered.length < length) {
-    return `${noun} are ${length} digits — you have entered ${entered.length}.`;
+    return `${noun} are ${length} digits, you have entered ${entered.length}.`;
   }
   return undefined;
 }

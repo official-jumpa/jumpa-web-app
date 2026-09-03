@@ -7,19 +7,23 @@ import { getAssetLogo } from "@/lib/assets";
 import type { Chain } from "@/lib/networks";
 
 /**
- * Which chain to receive on. Asked before the deposit address appears, and
- * again from the address screen when the sender needs a different network.
+ * Which chain the asset is being used on. Asked before the deposit address
+ * appears, again from the address screen when the sender needs a different
+ * network, and once more from the wallet list.
  */
 export function NetworkSheet({
   symbol,
   chains,
   selected,
+  description,
   onSelect,
   onClose,
 }: {
   symbol: string;
   chains: Chain[];
   selected?: string;
+  /** Defaults to the deposit warning; the wallet list passes its own. */
+  description?: string;
   onSelect: (chain: Chain) => void;
   onClose: () => void;
 }) {
@@ -29,8 +33,8 @@ export function NetworkSheet({
         Select network
       </h2>
       <p className="mt-2 text-center text-xs leading-4.5 text-jumpa-neutral-400">
-        Choose the network the sender will use for {symbol}. Funds sent on any
-        other network cannot be recovered.
+        {description ??
+          `Choose the network the sender will use for ${symbol}. Funds sent on any other network cannot be recovered.`}
       </p>
 
       <ul className="mt-5 flex flex-col gap-2">

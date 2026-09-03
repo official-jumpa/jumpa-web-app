@@ -6,12 +6,16 @@ import { NetworkSheet } from "@/components/assets/network-sheet";
 import { BottomNav } from "@/components/home/bottom-nav";
 import { SearchAltIcon } from "@/components/ui/icons/search-alt";
 import { ScreenHeader } from "@/components/ui/screen-header";
-import { useReceiveNetwork } from "@/hooks/use-receive-network";
+import {
+  depositHref,
+  useAssetNetwork,
+  walletHref,
+} from "@/hooks/use-asset-network";
 import type { Asset } from "@/lib/wallet";
 
 /**
- * Every wallet, searchable. "See All" opens each one's detail screen; Receive
- * asks for the network and goes straight to the deposit address.
+ * Every wallet, searchable. Both modes ask which network first: Receive lands
+ * on the deposit address, "See All" on that chain's wallet screen.
  */
 export function AssetPicker({
   assets,
@@ -23,7 +27,7 @@ export function AssetPicker({
   back?: string;
 }) {
   const [query, setQuery] = useState("");
-  const network = useReceiveNetwork();
+  const network = useAssetNetwork(receive ? depositHref : walletHref);
 
   const term = query.trim().toLowerCase();
   const matches = term
@@ -71,9 +75,7 @@ export function AssetPicker({
               {index > 0 ? <AssetRule /> : null}
               <AssetRow
                 asset={asset}
-                onSelect={
-                  receive ? () => network.start(asset.symbol) : undefined
-                }
+                onSelect={() => network.start(asset.symbol)}
               />
             </li>
           ))}
@@ -84,6 +86,11 @@ export function AssetPicker({
         <NetworkSheet
           symbol={network.asking}
           chains={network.chains}
+          description={
+            receive
+              ? undefined
+              : `${network.asking} lives on more than one chain. Pick the one you want to see.`
+          }
           onSelect={network.choose}
           onClose={network.cancel}
         />

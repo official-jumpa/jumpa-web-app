@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { NetworkSheet } from "@/components/assets/network-sheet";
 import { TransactionEmpty } from "@/components/transactions/transaction-empty";
@@ -11,12 +12,14 @@ import {
 } from "@/components/transactions/transaction-row";
 import { ArrowDownRightIcon } from "@/components/ui/icons/arrow-down-right";
 import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
+import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { EyeIcon } from "@/components/ui/icons/eye";
 import { EyeOffIcon } from "@/components/ui/icons/eye-off";
 import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
 import { ScreenHeader } from "@/components/ui/screen-header";
-import { useReceiveNetwork } from "@/hooks/use-receive-network";
+import { depositHref, walletHref } from "@/hooks/use-asset-network";
 import { getAssetLogo } from "@/lib/assets";
+import type { Chain } from "@/lib/networks";
 import type { Asset, Transaction } from "@/lib/wallet";
 
 /** Stands in for the digits while the balance is hidden. */
@@ -24,20 +27,40 @@ const MASK = "*".repeat(9);
 
 const ACTION = "tap flex w-14 flex-col items-center gap-2 active:scale-95";
 
+const PILL =
+  "flex h-8 items-center gap-1 rounded-pill bg-jumpa-neutral-50 px-3 text-xs leading-4 font-medium text-jumpa-primary-950";
+
 /** One wallet: its balance, what you can do with it, and its history. */
 export function TokenDetailView({
   asset,
+  chains,
+  chain,
   transactions,
 }: {
   asset: Asset;
+  chains: Chain[];
+  /** The chain in view, once one has been picked. */
+  chain?: Chain;
   transactions: Transaction[];
 }) {
+  const router = useRouter();
   const [visible, setVisible] = useState(true);
+  const [asking, setAsking] = useState<"wallet" | "deposit">();
   const ToggleIcon = visible ? EyeOffIcon : EyeIcon;
-  const network = useReceiveNetwork();
+  const switchable = chains.length > 1;
 
-  // Add and Receive both end at the deposit address, via the network question.
-  const deposit = () => network.start(asset.symbol);
+  // Add and Receive both end at the deposit address. The chain is already
+  // known unless the screen was opened directly, so it rarely has to ask.
+  const deposit = () =>
+    chain
+      ? router.push(depositHref(asset.symbol, chain))
+      : setAsking("deposit");
+
+  const choose = (next: Chain) => {
+    const to = asking === "deposit" ? depositHref : walletHref;
+    router.push(to(asset.symbol, next));
+    setAsking(undefined);
+  };
 
   const actions = [
     { label: "Add", onClick: deposit, Icon: ArrowUpRightIcon },
@@ -47,7 +70,27 @@ export function TokenDetailView({
 
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-      <ScreenHeader back="/assets" title={asset.symbol} round />
+      <ScreenHeader
+        back="/assets"
+        title={asset.symbol}
+        round
+        action={
+          chain ? (
+            switchable ? (
+              <button
+                type="button"
+                onClick={() => setAsking("wallet")}
+                className={`tap ${PILL} active:scale-95`}
+              >
+                {chain.name}
+                <ChevronDownIcon className="size-4" />
+              </button>
+            ) : (
+              <span className={PILL}>{chain.name}</span>
+            )
+          ) : null
+        }
+      />
 
       <section className="relative isolate mt-4 flex h-30 flex-col items-center justify-center gap-3 overflow-hidden rounded-key bg-[image:var(--gradient-jumpa-hero)]">
         <Image
@@ -134,12 +177,18 @@ export function TokenDetailView({
         )}
       </div>
 
-      {network.asking ? (
+      {asking ? (
         <NetworkSheet
-          symbol={network.asking}
-          chains={network.chains}
-          onSelect={network.choose}
-          onClose={network.cancel}
+          symbol={asset.symbol}
+          chains={chains}
+          selected={asking === "wallet" ? chain?.id : undefined}
+          description={
+            asking === "wallet"
+              ? `${asset.symbol} lives on more than one chain. Pick the one you want to see.`
+              : undefined
+          }
+          onSelect={choose}
+          onClose={() => setAsking(undefined)}
         />
       ) : null}
     </div>

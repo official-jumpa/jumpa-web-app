@@ -11,12 +11,18 @@ import { User } from "@/models/User";
 import { Referral } from "@/models/Referral";
 import { Wallet } from "@/models/Wallet";
 
+import { detectUserCountry } from "./location";
+
 await connectDB();
 
 export const auth = betterAuth({
   database: mongodbAdapter(getDb()),
   user: {
     additionalFields: {
+      country: {
+        type: "string",
+        required: false,
+      },
       jumpaTag: {
         type: "string",
         required: false,
@@ -61,9 +67,11 @@ export const auth = betterAuth({
         before: async (user) => {
           const jumpaTag = await generateUniqueJumpaTag(user.name, user.email);
           const referralCode = await generateUniqueReferralCode();
+          const country = await detectUserCountry();
           return {
             data: {
               ...user,
+              country: (user as any).country || country,
               jumpaTag: (user as any).jumpaTag || jumpaTag,
               referralCode: (user as any).referralCode || referralCode,
             },

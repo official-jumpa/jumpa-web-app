@@ -6,8 +6,10 @@ import { CameraIcon } from "@/components/ui/icons/camera";
 
 /** Rectangle for a document, dashed oval for a face. */
 const FRAME = {
-  box: "h-46 rounded-surface bg-jumpa-neutral-50",
-  oval: "min-h-100 rounded-[50%] border-2 border-dashed border-jumpa-neutral-200 bg-jumpa-neutral-50",
+  box: "h-46 shrink-0 rounded-surface bg-jumpa-neutral-50",
+  // Capped at its design 400, but gives up height on a short screen rather
+  // than crowding the CTA. Unbounded flex-1 is what caused that in the first place.
+  oval: "min-h-50 max-h-100 flex-1 rounded-[50%] border-2 border-dashed border-jumpa-neutral-200 bg-jumpa-neutral-50",
 } as const;
 
 /**
@@ -69,7 +71,8 @@ export function CaptureScreen({
         type="button"
         onClick={() => field.current?.click()}
         aria-label={preview ? "Replace photo" : "Choose a photo"}
-        className={`tap mt-6 flex shrink-0 items-center justify-center overflow-hidden ${FRAME[shape]}`}
+        // mb-8 holds the gap to the CTA once mt-auto has no slack left to give.
+        className={`tap mt-6 flex items-center justify-center overflow-hidden ${camera ? "mb-8" : ""} ${FRAME[shape]}`}
       >
         {preview ? (
           // biome-ignore lint/performance/noImgElement: a blob URL cannot go through next/image
@@ -92,7 +95,7 @@ export function CaptureScreen({
           <button
             type="button"
             onClick={() => setMode("camera")}
-            className="tap mt-8 flex h-14 w-69 items-center justify-center gap-2.5 self-center rounded-pill bg-jumpa-primary-50 text-sm leading-4 font-medium text-jumpa-primary-600 active:scale-[0.98]"
+            className="tap mt-8 mb-8 flex h-14 w-69 items-center justify-center gap-2.5 self-center rounded-pill bg-jumpa-primary-50 text-sm leading-4 font-medium text-jumpa-primary-600 active:scale-[0.98]"
           >
             <CameraIcon aria-hidden="true" className="size-6" />
             Open Camera and Take Photo

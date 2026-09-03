@@ -100,6 +100,12 @@ export type ChatOption = {
   icon?: string;
   reply?: string;
   selected?: boolean;
+  /**
+   * A "Custom" row: opens an inline field in place of the row so the user can
+   * type their own value, which is then sent as the reply.
+   */
+  custom?: boolean;
+  placeholder?: string;
 };
 
 export type OptionsCard = { options: ChatOption[] };

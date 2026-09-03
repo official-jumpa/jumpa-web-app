@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { CardRule } from "@/components/chat/chat-card";
 import { BadgePercentIcon } from "@/components/ui/icons/badge-percent";
 import { BankIcon } from "@/components/ui/icons/bank";
@@ -26,8 +26,18 @@ const OPTION_ICONS = {
   moneybag: MoneybagIcon,
 } as const;
 
-const ROW =
-  "flex w-full items-center gap-2 rounded-xl border p-3 text-left tap active:scale-[0.99]";
+const BOX = "flex w-full items-center gap-2 rounded-xl border p-3 text-left";
+const ROW = `${BOX} tap active:scale-[0.99]`;
+const SELECTED = "border-jumpa-primary-600 bg-jumpa-primary-100";
+
+/**
+ * A "Custom" row asks for a value instead of answering with its own label. The
+ * label check is a fallback for a card that omits the flag — the designer's own
+ * copy is "Custom" / "Custom Amount".
+ */
+function isCustom(option: ChatOption) {
+  return option.custom ?? /^custom\b/i.test(option.label);
+}
 
 /**
  * One row of a chooser. Picking it answers the agent, so the row sends its
@@ -52,7 +62,7 @@ export function OptionRow({
       className={cn(
         ROW,
         option.selected
-          ? "border-jumpa-primary-600 bg-jumpa-primary-100"
+          ? SELECTED
           : "border-jumpa-primary-100 bg-jumpa-grey-100",
       )}
     >
@@ -88,6 +98,58 @@ export function OptionRow({
   );
 }
 
+/** The field a Custom row opens: type a value, send it as the reply. */
+function CustomField({
+  option,
+  numeric,
+  onCancel,
+  onSubmit,
+}: {
+  option: ChatOption;
+  numeric: boolean;
+  onCancel: () => void;
+  onSubmit: (value: string) => void;
+}) {
+  const field = useRef<HTMLInputElement>(null);
+  const [value, setValue] = useState("");
+  const entered = value.trim();
+
+  useEffect(() => {
+    field.current?.focus();
+  }, []);
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (entered) onSubmit(entered);
+      }}
+      className={cn(BOX, SELECTED)}
+    >
+      <input
+        ref={field}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") onCancel();
+        }}
+        inputMode={numeric ? "decimal" : "text"}
+        placeholder={option.placeholder ?? option.label}
+        aria-label={option.label}
+        className="min-w-0 flex-1 bg-transparent text-sm leading-4 font-medium text-jumpa-black outline-none placeholder:text-jumpa-primary-950"
+      />
+      <button
+        type="submit"
+        disabled={!entered}
+        aria-label={`Use this ${option.label.toLowerCase()}`}
+        className="tap shrink-0 text-jumpa-primary-600 active:scale-90 disabled:text-jumpa-primary-200"
+      >
+        <ChevronRightIcon aria-hidden="true" className="size-6" />
+      </button>
+    </form>
+  );
+}
+
 /** A chooser's rows, ruled apart only when the design draws them borderless. */
 export function OptionList({
   options,
@@ -96,15 +158,40 @@ export function OptionList({
   options: ChatOption[];
   onSelect?: (reply: string) => void;
 }) {
+  const [editing, setEditing] = useState<string | null>(null);
+  // Keyboard hint only: if the fixed choices are figures, so is the custom one.
+  const numeric = options.some(
+    (option) => !isCustom(option) && /^[^0-9A-Za-z]*\d/.test(option.label),
+  );
+
   return (
     <>
-      {options.map((option, index) => (
-        <OptionRow
-          key={option.id ?? `${option.label}-${index}`}
-          option={option}
-          onSelect={onSelect}
-        />
-      ))}
+      {options.map((option, index) => {
+        const key = option.id ?? `${option.label}-${index}`;
+
+        if (isCustom(option) && editing === key) {
+          return (
+            <CustomField
+              key={key}
+              option={option}
+              numeric={numeric}
+              onCancel={() => setEditing(null)}
+              onSubmit={(value) => {
+                setEditing(null);
+                onSelect?.(value);
+              }}
+            />
+          );
+        }
+
+        return (
+          <OptionRow
+            key={key}
+            option={option}
+            onSelect={isCustom(option) ? () => setEditing(key) : onSelect}
+          />
+        );
+      })}
     </>
   );
 }

@@ -336,12 +336,14 @@ const stellarSep24Sandbox: DeepSeekTool = {
         assetCode: {
           type: "string",
           enum: ["USDC", "XLM", "EURC"],
-          description: "Asset code to deposit or withdraw (e.g. 'USDC', 'XLM'). Defaults to 'USDC'.",
+          description:
+            "Asset code to deposit or withdraw (e.g. 'USDC', 'XLM'). Defaults to 'USDC'.",
         },
         type: {
           type: "string",
           enum: ["deposit", "withdraw"],
-          description: "Ramp direction: 'deposit' (onramp) or 'withdraw' (offramp). Defaults to 'deposit'.",
+          description:
+            "Ramp direction: 'deposit' (onramp) or 'withdraw' (offramp). Defaults to 'deposit'.",
         },
         amount: {
           type: "string",
@@ -350,6 +352,40 @@ const stellarSep24Sandbox: DeepSeekTool = {
         anchorName: {
           type: "string",
           description: "Anchor provider name (e.g. 'MoneyGram / TestAnchor').",
+        },
+      },
+      required: [],
+    },
+  },
+};
+
+const createSavingsGoal: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "create_savings_goal",
+    description:
+      "Set up a savings goal. Call this whenever the user wants to save towards something, " +
+      "create a savings target or plan, or asks about saving money (e.g. 'I want to save for a trip', " +
+      "'help me save', 'create a savings goal'). " +
+      "Call it with whatever the user has given so far and OMIT the rest — the tool returns the " +
+      "chooser the user needs next. Never invent a name, an amount or a duration.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description:
+            "What the user is saving for, in their own words, e.g. 'December trip'. Omit if not yet given.",
+        },
+        amount: {
+          type: "string",
+          description:
+            "Target amount in USD as the user expressed it, e.g. '10000' or '$10,000'. Omit if not yet given.",
+        },
+        durationDays: {
+          type: "number",
+          description:
+            "How many days until the goal date, e.g. 60. Omit if not yet given.",
         },
       },
       required: [],
@@ -370,6 +406,7 @@ export const JUMPA_TOOLS: DeepSeekTool[] = [
   onrampNgn,
   offrampNgn,
   claimFaucet,
+  createSavingsGoal,
 ];
 
 export type JumpaToolName =
@@ -382,7 +419,8 @@ export type JumpaToolName =
   | "send_funds"
   | "onramp_ngn"
   | "offramp_ngn"
-  | "claim_faucet";
+  | "claim_faucet"
+  | "create_savings_goal";
 
 /** Infer network from tool name — single source of truth */
 export function getNetworkFromToolName(

@@ -1,20 +1,20 @@
-import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
+import { type NextRequest, NextResponse } from "next/server";
+import {
+  buildSystemPrompt,
+  type ChatHistoryMessage,
+  runDeepSeekStep,
+} from "@/lib/ai/deepseek";
+import { executeTool } from "@/lib/ai/tool-executor";
 import { auth } from "@/lib/auth";
 import { connectDB } from "@/lib/db";
 import { generateId } from "@/lib/schema-ids";
-import { ChatLog, type IChatMessage } from "@/models/ChatLog";
-import { Wallet } from "@/models/Wallet";
-import {
-  buildSystemPrompt,
-  runDeepSeekStep,
-  type ChatHistoryMessage,
-} from "@/lib/ai/deepseek";
 import {
   getCachedWalletBalances,
   type SupportedChain,
 } from "@/lib/wallet-balances";
-import { executeTool } from "@/lib/ai/tool-executor";
+import { ChatLog, type IChatMessage } from "@/models/ChatLog";
+import { Wallet } from "@/models/Wallet";
 
 function detectTargetChains(prompt: string): SupportedChain[] | undefined {
   const p = prompt.toLowerCase();
@@ -76,8 +76,10 @@ export async function POST(req: NextRequest) {
 
     const stellarAddress =
       balanceData?.addresses?.xlm || wallet?.addresses?.xlm || walletAddress;
-    const solanaAddress = balanceData?.addresses?.sol || wallet?.addresses?.sol || "";
-    const baseAddress = balanceData?.addresses?.base || wallet?.addresses?.base || "";
+    const solanaAddress =
+      balanceData?.addresses?.sol || wallet?.addresses?.sol || "";
+    const baseAddress =
+      balanceData?.addresses?.base || wallet?.addresses?.base || "";
 
     const liveBalances = balanceData?.summary || {};
     const testnetBalances = balanceData?.testnetSummary || {};
@@ -138,17 +140,24 @@ export async function POST(req: NextRequest) {
     ];
 
     const hasNumericalAmount = /\b\d+(\.\d+)?\b/.test(message);
-    const isLookupAction = /\b(balance|balances|portfolio|holdings|net worth|history)\b/i.test(message);
-    const isTransactionalAction = /\b(send|transfer|pay|swap|convert|trade|exchange|buy|deposit|withdraw|onramp|offramp)\b/i.test(message);
+    const isLookupAction =
+      /\b(balance|balances|portfolio|holdings|net worth|history)\b/i.test(
+        message,
+      );
+    const isTransactionalAction =
+      /\b(send|transfer|pay|swap|convert|trade|exchange|buy|deposit|withdraw|onramp|offramp)\b/i.test(
+        message,
+      );
 
     // Only force tool execution if it's a pure lookup OR a transaction with a specific amount
-    const isActionPrompt = isLookupAction || (isTransactionalAction && hasNumericalAmount);
+    const isActionPrompt =
+      isLookupAction || (isTransactionalAction && hasNumericalAmount);
 
     const MAX_TURNS = 4;
     let turn = 0;
     let finalAssistantContent = "";
     let primaryCardHint: any = { type: "none" };
-    let primaryTransactionParams: any = undefined;
+    let primaryTransactionParams: any;
     let requiresConfirmation = false;
     const lastToolSummaries: string[] = [];
 
@@ -199,10 +208,7 @@ export async function POST(req: NextRequest) {
 
         lastToolSummaries.push(toolResult.summaryForAI);
 
-        if (
-          toolResult.cardHint?.type &&
-          toolResult.cardHint.type !== "none"
-        ) {
+        if (toolResult.cardHint?.type && toolResult.cardHint.type !== "none") {
           if (toolResult.requiresConfirmation) {
             requiresConfirmation = true;
           }
@@ -271,6 +277,15 @@ export async function POST(req: NextRequest) {
         cardType: "offramp",
         status: "pending",
         transactionParams: primaryTransactionParams,
+        cardData: primaryCardHint.data,
+        timestamp: new Date(),
+      };
+    } else if (primaryCardHint.type === "options") {
+      assistantMessage = {
+        id: generateId("MSG"),
+        role: "assistant",
+        content: finalAssistantContent,
+        cardType: "options",
         cardData: primaryCardHint.data,
         timestamp: new Date(),
       };

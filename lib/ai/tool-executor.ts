@@ -6,16 +6,17 @@
  * Returns both structured card data and a plain-text summary for the AI's follow-up response.
  */
 
-import { getSwapQuote } from "@/lib/dex";
 import { fetchStellarBalances, fundTestnetAccount } from "@/lib/chains/stellar";
+import type { ChatOption } from "@/lib/chat";
+import { connectDB } from "@/lib/db";
+import { getSwapQuote } from "@/lib/dex";
+import type { SwapQuote } from "@/lib/dex/types";
+import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
 import { SwitchService } from "@/lib/switch";
 import { resolveBankCode } from "@/lib/switch-banks";
-import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
-import { connectDB } from "@/lib/db";
 import { Transaction } from "@/models/Transaction";
-import { Wallet } from "@/models/Wallet";
 import { User } from "@/models/User";
-import type { SwapQuote } from "@/lib/dex/types";
+import { Wallet } from "@/models/Wallet";
 import { getNetworkFromToolName, type JumpaToolName } from "./tools";
 
 export type CardHint =
@@ -24,6 +25,7 @@ export type CardHint =
   | { type: "onramp"; data: Record<string, any> }
   | { type: "offramp"; data: Record<string, any> }
   | { type: "sep24"; data: Record<string, any> }
+  | { type: "options"; data: { options: ChatOption[] } }
   | { type: "none" };
 
 export interface QuoteCardData {
@@ -66,6 +68,22 @@ function mapAssetToTxChain(
  * @param toolArgs  - The parsed arguments object
  * @param userCtx   - Runtime context (user addresses, authenticated userId, etc.)
  */
+/** The savings choosers the design draws. A Custom row opens a field in the card. */
+const SAVINGS_AMOUNTS: ChatOption[] = [
+  { label: "$1000" },
+  { label: "$10,000" },
+  { label: "$25,000" },
+  { label: "$100,000" },
+  { label: "Custom Amount", custom: true, placeholder: "Enter an amount" },
+];
+
+const SAVINGS_DURATIONS: ChatOption[] = [
+  { label: "30 days" },
+  { label: "60 days" },
+  { label: "90 days" },
+  { label: "Custom", custom: true, placeholder: "Number of days" },
+];
+
 export async function executeTool(
   toolName: string,
   toolArgs: Record<string, any>,
@@ -279,7 +297,12 @@ export async function executeTool(
 
     // ── SEP-24 Hosted Anchor Sandbox
     case "stellar_sep24_sandbox": {
-      const { assetCode = "USDC", type = "deposit", amount = "50", anchorName = "MoneyGram / TestAnchor" } = toolArgs as {
+      const {
+        assetCode = "USDC",
+        type = "deposit",
+        amount = "50",
+        anchorName = "MoneyGram / TestAnchor",
+      } = toolArgs as {
         assetCode?: string;
         type?: "deposit" | "withdraw";
         amount?: string;
@@ -306,7 +329,8 @@ export async function executeTool(
       }
 
       if (!stellarAddress) {
-        stellarAddress = "GB25HBRJWZBPWKKGXW5BAOWYFUENSV5JHVDAS4TA43FULA4WU2QJDYMZ";
+        stellarAddress =
+          "GB25HBRJWZBPWKKGXW5BAOWYFUENSV5JHVDAS4TA43FULA4WU2QJDYMZ";
       }
 
       const cardData = {
@@ -484,12 +508,18 @@ export async function executeTool(
 
       try {
         if (!bankName || !bankName.trim()) {
-          throw new Error("Bank name is required. Please provide your bank name (e.g. GTBank, Kuda, Access Bank, OPay, Zenith).");
+          throw new Error(
+            "Bank name is required. Please provide your bank name (e.g. GTBank, Kuda, Access Bank, OPay, Zenith).",
+          );
         }
 
-        const cleanAccount = String(accountNumber || "").trim().replace(/\D/g, "");
+        const cleanAccount = String(accountNumber || "")
+          .trim()
+          .replace(/\D/g, "");
         if (cleanAccount.length !== 10) {
-          throw new Error(`Invalid account number "${accountNumber}". Nigerian bank account numbers must be exactly 10 digits.`);
+          throw new Error(
+            `Invalid account number "${accountNumber}". Nigerian bank account numbers must be exactly 10 digits.`,
+          );
         }
 
         // 1. Identify Paystack bank
@@ -505,8 +535,15 @@ export async function executeTool(
         );
 
         // 2. Validate account number with Paystack to retrieve verified name
-        const resolveRes = await validateAccountNumber(cleanAccount, paystackBank.code);
-        if (!resolveRes || !resolveRes.status || !resolveRes.data?.account_name) {
+        const resolveRes = await validateAccountNumber(
+          cleanAccount,
+          paystackBank.code,
+        );
+        if (
+          !resolveRes ||
+          !resolveRes.status ||
+          !resolveRes.data?.account_name
+        ) {
           console.warn(
             `[ToolExecutor] [User: ${userId}] Paystack verification failed:`,
             resolveRes?.message,
@@ -523,8 +560,7 @@ export async function executeTool(
 
         // 3. Resolve Switch bank code for Switch offramp (never use Paystack bank code for Switch!)
         const switchBank =
-          resolveBankCode(bankName) ||
-          resolveBankCode(paystackBank.name);
+          resolveBankCode(bankName) || resolveBankCode(paystackBank.name);
 
         if (!switchBank) {
           throw new Error(
@@ -604,7 +640,8 @@ export async function executeTool(
         const cardData = {
           title: "Withdrawal",
           cryptoAmount: String(deposit.amount),
-          cryptoToken: cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC",
+          cryptoToken:
+            cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC",
           fiatAmount: String(destination.amount),
           fiatCurrency: "NGN",
           bankName: paystackBank.name,
@@ -699,6 +736,62 @@ export async function executeTool(
         summaryForAI:
           `Successfully funded your Stellar testnet wallet (${targetAddress.slice(0, 6)}...${targetAddress.slice(-4)}) with 10,000 testnet XLM via Friendbot. ` +
           `Your active testnet balance is now **${newBalanceText}**. Your wallet is active and ready for testnet transactions!`,
+        cardHint: { type: "none" },
+        requiresConfirmation: false,
+      };
+    }
+
+    // ── Savings goal — a conversation, one chooser per missing detail
+    case "create_savings_goal": {
+      const {
+        name: goal,
+        amount,
+        durationDays,
+      } = toolArgs as {
+        name?: string;
+        amount?: string;
+        durationDays?: number;
+      };
+
+      if (!goal?.trim()) {
+        return {
+          toolName: name,
+          summaryForAI:
+            "Ask the user what they are saving for — a short name for the goal, like 'December trip'.",
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      if (!amount?.trim()) {
+        return {
+          toolName: name,
+          summaryForAI: `Got it, **${goal}**. How much would you like to save?`,
+          cardHint: { type: "options", data: { options: SAVINGS_AMOUNTS } },
+          requiresConfirmation: false,
+        };
+      }
+
+      if (!durationDays) {
+        return {
+          toolName: name,
+          summaryForAI: "When would you like to reach your goal?",
+          cardHint: { type: "options", data: { options: SAVINGS_DURATIONS } },
+          requiresConfirmation: false,
+        };
+      }
+
+      const target = Number(amount.replace(/[^0-9.]/g, ""));
+      const weekly =
+        Number.isFinite(target) && target > 0 && durationDays > 0
+          ? `about **$${Math.ceil((target / durationDays) * 7).toLocaleString("en-US")} a week**`
+          : "a steady amount each week";
+
+      return {
+        toolName: name,
+        summaryForAI:
+          `The **${goal}** goal is set: **$${target.toLocaleString("en-US")}** over **${durationDays} days** — ${weekly}. ` +
+          "Tell the user the goal is set up in this chat and that funding it is coming soon.",
         cardHint: { type: "none" },
         requiresConfirmation: false,
       };

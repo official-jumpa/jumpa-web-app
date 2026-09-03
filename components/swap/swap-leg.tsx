@@ -28,7 +28,7 @@ export function SwapLeg({
   return (
     <div className="flex items-center gap-2.5 rounded-xl bg-jumpa-white p-2.5">
       <span className="flex min-w-0 flex-1 flex-col gap-1 px-2.5">
-        <span className="text-[8px] leading-2.5 text-jumpa-black/50 uppercase">
+        <span className="text-[10px] leading-3 text-jumpa-black/50 uppercase">
           {label}
         </span>
         {children}
@@ -43,8 +43,11 @@ export function SwapLeg({
           onValueChange={onSymbolChange}
         />
 
-        <span className="flex items-center gap-1 text-[8px] leading-2.5 font-bold text-jumpa-primary-400">
-          <WalletIcon aria-hidden="true" className="size-2.5" />
+        <span className="flex items-center gap-1 text-[10px] leading-3 font-bold text-jumpa-primary-400">
+          <WalletIcon
+            aria-hidden="true"
+            className="size-3.5 text-jumpa-primary-600"
+          />
           Balance: {balance}
         </span>
       </span>

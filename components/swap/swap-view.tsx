@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field-error";
 import { ArrowDownArrowUpIcon } from "@/components/ui/icons/arrow-down-arrow-up";
 import { PlusIcon } from "@/components/ui/icons/plus";
+import { TriangleWarningIcon } from "@/components/ui/icons/triangle-warning";
 import { DEMO_PIN, SWAP_PAIR, SWAP_QUOTE } from "@/lib/transfer";
 import type { Promotion } from "@/lib/wallet";
 
@@ -97,7 +98,7 @@ export function SwapView({ promotions }: { promotions: Promotion[] }) {
                   }}
                   inputMode="decimal"
                   aria-label="Amount to swap"
-                  className="w-full min-w-0 bg-transparent text-base leading-4 font-medium text-jumpa-black caret-jumpa-primary-600 outline-none"
+                  className="w-full min-w-0 bg-transparent text-xl leading-6 font-medium text-jumpa-black caret-jumpa-primary-600 outline-none"
                 />
               </SwapLeg>
 
@@ -118,7 +119,7 @@ export function SwapView({ promotions }: { promotions: Promotion[] }) {
                   setPair({ ...pair, to: { ...pair.to, symbol } })
                 }
               >
-                <span className="text-base leading-4 font-medium text-jumpa-black">
+                <span className="text-xl leading-6 font-medium text-jumpa-black">
                   {received}
                 </span>
               </SwapLeg>
@@ -126,7 +127,7 @@ export function SwapView({ promotions }: { promotions: Promotion[] }) {
 
             <span className="-mb-px block h-px w-full bg-jumpa-neutral-200" />
 
-            <p className="flex items-center justify-between gap-3 px-2.5 text-[10px] leading-4 text-jumpa-black/50">
+            <p className="flex items-center justify-between gap-3 px-2.5 text-xs leading-4 text-jumpa-black/50">
               <span>
                 Rate <b className="font-bold text-jumpa-black">{rate}</b>
               </span>
@@ -163,9 +164,13 @@ export function SwapView({ promotions }: { promotions: Promotion[] }) {
             </Button>
           </div>
 
-          <p className="mx-auto w-42 text-center text-[10px] leading-3.5 text-jumpa-black">
-            Your quote is locked for {SWAP_QUOTE.lockSeconds} seconds. After
-            that, you&rsquo;ll need to get a new quote.
+          {/* max-w keeps it to the design's two lines at this size. */}
+          <p className="mx-auto flex max-w-72 items-start justify-center gap-1.5 text-xs leading-4 text-jumpa-black">
+            <TriangleWarningIcon className="mt-px size-4 shrink-0 text-jumpa-warning" />
+            <span>
+              Your quote is locked for {SWAP_QUOTE.lockSeconds} seconds. After
+              that, you&rsquo;ll need to get a new quote.
+            </span>
           </p>
         </div>
       ) : null}

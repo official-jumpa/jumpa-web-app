@@ -257,19 +257,45 @@ export const NETWORKS = Object.keys(NETWORK_CONFIGS);
 export const SEND_ASSETS = ["USDC", "USDT", "XLM", "SOL", "ETH"] as const;
 
 /** Rules the deposit screen lists under the QR, for the chain in play. */
-export function depositNotes(symbol: string, network: string): string[] {
+export function depositNotes(
+  symbol: string,
+  network: string,
+  /** Live USD price per 1 unit of `symbol`. Pass 0 or omit when unknown. */
+  priceUsd: number = 0,
+): string[] {
+  const upper = symbol.toUpperCase();
+
+  // Stablecoins: minimum is exactly $1 in the asset itself
+  const isStable = upper === "USDC" || upper === "USDT";
+
+  let minimumLine: string;
+  if (isStable) {
+    minimumLine = `Minimum deposit: 1 **${upper}**`;
+  } else if (priceUsd > 0) {
+    // Convert $1 into the asset's units then ceil UP to 1 significant figure.
+    // e.g. 5.566 → 6, 0.00559 → 0.006, 8.333 → 9, 0.000282 → 0.0003
+    const minUnits = 1 / priceUsd;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(minUnits)));
+    const ceiled = Math.ceil(minUnits / magnitude) * magnitude;
+    const decimals = magnitude >= 1 ? 0 : Math.round(-Math.log10(magnitude));
+    const formatted = ceiled.toFixed(decimals);
+    minimumLine = `Minimum deposit: ${formatted} **${upper}**`;
+  } else {
+    minimumLine = `Minimum deposit: $1 USD equivalent`;
+  }
+
   return [
-    "Minimum deposit: $2",
-    `Only send ${symbol} on the ${network} network — anything else is lost`,
-    "Funds arrive in ~1 minute after confirmation",
-    "Funds auto-convert to USDC and arrive in your Jumpa wallet",
+    minimumLine,
+    `Only send **${symbol}** on the **${network}** network. Anything else is lost`,
+    "Funds arrive in your Jumpa wallet few seconds after confirmation",
   ];
 }
 
-/** Spendable balance the transfer screens show until live balances land. */
+
+/**‼️ MOCK Spendable balance the transfer screens show until live balances land. */
 export const SEND_BALANCE = { symbol: "USDC", balance: "$450.50" };
 
-/** Pair the swap screen opens on. */
+/** ‼️ MOCK prices for the pair the swap screen opens on. */
 export const SWAP_PAIR = {
   from: { symbol: "USDC", balance: "$450.50" },
   to: { symbol: "XLM", balance: "0.00" },

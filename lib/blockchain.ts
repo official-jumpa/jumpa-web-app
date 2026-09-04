@@ -202,51 +202,79 @@ export type Chain = {
   id: string;
   name: string;
   caption: string;
+  /** Real wallet address injected at runtime, or "Unavailable" for unsupported chains. */
   address: string;
+  /** True when Jumpa does not yet support this chain. No copy button or QR will be shown. */
+  unavailable?: boolean;
 };
 
-export const CHAINS: Record<string, Chain> = {
+/** Internal shape used only within this file — consumers always receive `Chain`. */
+type ChainDef = Chain & { walletKey?: string };
+
+export const CHAINS: Record<string, ChainDef> = {
   stellar: {
     id: "stellar",
     name: "Stellar",
     caption: "Stellar network (XLM)",
-    address: "GDEMO7PLACEHOLDER4JUMPASTELLARADDRESSNOTLIVEYETQZK9",
+    address: "",
+    walletKey: "xlm",
   },
   solana: {
     id: "solana",
     name: "Solana",
     caption: "Solana network (SPL)",
-    address: "SoLDemoPlaceh0lderJumpaAddressNotLiveYet1111",
+    address: "",
+    walletKey: "sol",
   },
   ethereum: {
     id: "ethereum",
     name: "Ethereum",
     caption: "Ethereum network (ERC-20)",
-    address: "0xDEM0PLACEH0LDER0JUMPA0N0TLIVEYET000000001",
+    address: "",
+    walletKey: "eth",
   },
   base: {
     id: "base",
     name: "Base",
     caption: "Base network (ERC-20)",
-    address: "0xDEM0PLACEH0LDER0JUMPA0N0TLIVEYET000000001",
+    address: "",
+    walletKey: "base",
   },
+
+  // TODO: BNB support — when ready:
+  //   1. Add `bnb: string` to IWallet.addresses in models/Wallet.ts + WalletSchema
+  //   2. Set walletKey: "bnb" below and remove the `unavailable` flag
+  //   3. Add BNB address derivation in lib/derive-addresses.ts
   bnb: {
     id: "bnb",
     name: "BNB Smart Chain",
     caption: "BNB Smart Chain (BEP-20)",
-    address: "0xDEM0PLACEH0LDER0JUMPA0N0TLIVEYET000000001",
+    address: "Unavailable",
+    unavailable: true,
   },
+
+  // TODO: Tron support — when ready:
+  //   1. Add `trx: string` to IWallet.addresses in models/Wallet.ts + WalletSchema
+  //   2. Set walletKey: "trx" below and remove the `unavailable` flag
+  //   3. Add Tron address derivation in lib/derive-addresses.ts
   tron: {
     id: "tron",
     name: "Tron",
     caption: "Tron network (TRC-20)",
-    address: "TDem0Plac3h0lderJumpaAddressNotLiveYet00",
+    address: "Unavailable",
+    unavailable: true,
   },
+
+  // TODO: TON support — when ready:
+  //   1. Add `ton: string` to IWallet.addresses in models/Wallet.ts + WalletSchema
+  //   2. Set walletKey: "ton" below and remove the `unavailable` flag
+  //   3. Add TON address derivation in lib/derive-addresses.ts
   ton: {
     id: "ton",
     name: "TON",
     caption: "The Open Network",
-    address: "UQDem0placeh0lderJumpaAddressNotLiveYet0000",
+    address: "Unavailable",
+    unavailable: true,
   },
 };
 
@@ -276,7 +304,27 @@ export const NETWORKS = ["stellar", "base", "solana", "ethereum"].map((id) => ({
   label: CHAINS[id]?.name || id,
 }));
 
-// ─── AI PROMPT TARGET CHAIN DETECTION ─────────────────────────────────────
+/**
+ * Injects real wallet addresses into a chain list.
+ *
+ * Supported chains (stellar, solana, ethereum, base) get the user's actual
+ * address from their wallet record. Chains marked `unavailable` are passed
+ * through unchanged (address stays "Unavailable").
+ */
+export function resolveChainAddresses(
+  addresses: { eth: string; base: string; sol: string; xlm: string },
+  chains: Chain[],
+): Chain[] {
+  return chains.map((chain) => {
+    if (chain.unavailable) return chain;
+    const key = (CHAINS[chain.id] as ChainDef)?.walletKey as
+      | keyof typeof addresses
+      | undefined;
+    const addr = key ? addresses[key] : undefined;
+    return { ...chain, address: addr ?? "Unavailable" };
+  });
+}
+
 
 export type SupportedChain = "stellar" | "solana" | "evm" | "base";
 

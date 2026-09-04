@@ -7,6 +7,13 @@ import { connectDB } from "./db";
 export interface SessionPayload {
   address: string;
   userId?: string;
+  /** Full per-chain address map — mirrors IWallet.addresses. Populated when a wallet is found. */
+  addresses?: {
+    eth: string;
+    base: string;
+    sol: string;
+    xlm: string;
+  };
 }
 
 /** Verify the BetterAuth session from the incoming request or headers */
@@ -47,6 +54,7 @@ export async function getSession(
     return {
       address: wallet.address,
       userId: session.user.id,
+      addresses: wallet.addresses,
     };
   } catch (err) {
     console.warn("[Session] Failed to retrieve session:", err);

@@ -53,7 +53,7 @@ export function WalletAddressView({ promotions }: { promotions: Promotion[] }) {
     let isMounted = true;
     async function loadBalance() {
       try {
-        const res = await fetch("/api/wallet/balance?refresh=true");
+        const res = await fetch("/api/wallet/balance");
         if (!res.ok) return;
         const data = await res.json();
         if (!isMounted) return;

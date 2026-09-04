@@ -40,12 +40,18 @@ export interface WalletBalancesResult {
   testnetSummary: Record<string, string>;
 }
 
-// In-Memory Balance Cache (2-minute TTL)
+// In-Memory Balance Cache (3-minute TTL, preserved across Next.js dev reloads)
+declare global {
+  var _balanceCache: Record<
+    string,
+    { timestamp: number; data: WalletBalancesResult }
+  > | undefined;
+}
 const balanceCache: Record<
   string,
   { timestamp: number; data: WalletBalancesResult }
-> = {};
-const CACHE_TTL = 2 * 60 * 1000;
+> = (globalThis._balanceCache ??= {});
+const CACHE_TTL = 3 * 60 * 1000;
 
 interface CoinGeckoInfo {
   priceUsd: string;

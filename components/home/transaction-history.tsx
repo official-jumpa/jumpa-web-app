@@ -11,8 +11,10 @@ import { HomeSection } from "./home-section";
 /** Recent activity. Displays transactions or empty state for new wallets. */
 export function TransactionHistory({
   transactions,
+  loading = false,
 }: {
   transactions: Transaction[];
+  loading?: boolean;
 }) {
   return (
     <HomeSection
@@ -26,7 +28,12 @@ export function TransactionHistory({
     >
       {/* px-5, not the design's 24 — its own row is 13px wider than that padding allows. */}
       <div className="flex flex-col gap-4 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-5 py-5">
-        {transactions.length === 0 ? (
+        {loading ? (
+          <div className="flex flex-col gap-3 animate-pulse py-2">
+            <div className="h-10 w-full rounded-md bg-jumpa-neutral-200/50" />
+            <div className="h-10 w-full rounded-md bg-jumpa-neutral-200/50" />
+          </div>
+        ) : transactions.length === 0 ? (
           <TransactionEmpty />
         ) : (
           transactions.map((transaction, index) => (

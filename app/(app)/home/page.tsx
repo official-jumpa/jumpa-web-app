@@ -18,36 +18,92 @@ import { ACCOUNT, ASSETS, type Asset, type Transaction } from "@/lib/wallet";
 
 export default function HomePage() {
   const router = useRouter();
-  const [checkingAuth, setCheckingAuth] = useState(true);
   const [totalBalance, setTotalBalance] = useState<string>(ACCOUNT.balance);
   const [assets, setAssets] = useState<Asset[]>(ASSETS);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadingTransactions, setLoadingTransactions] = useState(true);
+
+  // Restore cached balance, assets, & transactions from localStorage immediately on mount
+  useEffect(() => {
+    try {
+      const savedBal = localStorage.getItem("jumpa_last_balance");
+      if (savedBal) setTotalBalance(savedBal);
+
+      const savedAssets = localStorage.getItem("jumpa_last_assets");
+      if (savedAssets) {
+        const parsed = JSON.parse(savedAssets);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setAssets(parsed);
+        }
+      }
+
+      const savedTx = localStorage.getItem("jumpa_last_transactions");
+      if (savedTx) {
+        const parsed = JSON.parse(savedTx);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setTransactions(parsed);
+          setLoadingTransactions(false);
+        }
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
-    async function loadDashboard() {
+    let isMounted = true;
+
+    // 1. Non-blocking session check
+    async function checkSession() {
       try {
-        const { data: session, error } = await authClient.getSession();
+        const { data: session } = await authClient.getSession();
         if (!session?.user) {
           router.replace("/onboarding");
-          return;
         }
+      } catch (err) {
+        console.warn("[Home] Session check failed:", err);
+      }
+    }
 
-        // Fetch live balances & 5 recent transactions
-        const [balanceRes, txRes] = await Promise.all([
-          fetch("/api/wallet/balance"),
-          fetch("/api/transactions?limit=5"),
-        ]);
+    //Fetch transactions independently
+    async function fetchTransactions() {
+      try {
+        const res = await fetch("/api/transactions?limit=5");
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          if (Array.isArray(data.transactions)) {
+            const list = data.transactions.slice(0, 5);
+            setTransactions(list);
+            try {
+              localStorage.setItem("jumpa_last_transactions", JSON.stringify(list));
+            } catch {}
+          }
+        }
+      } catch (err) {
+        console.warn("[Home] Error fetching transactions:", err);
+      } finally {
+        if (isMounted) {
+          setLoadingTransactions(false);
+        }
+      }
+    }
 
-        //assume the user has no wallet if the endpoint returns 404
-        if (balanceRes.status === 404) {
+    // Fetch live balances independently in the background
+    async function fetchBalances() {
+      try {
+        const res = await fetch("/api/wallet/balance");
+
+        // Assume the user has no wallet if the endpoint returns 404
+        if (res.status === 404) {
           router.replace("/sign-up/pin");
           return;
         }
 
-        if (balanceRes.ok) {
-          const balanceData = await balanceRes.json();
+        if (res.ok && isMounted) {
+          const balanceData = await res.json();
           if (balanceData.totalUsd) {
             setTotalBalance(balanceData.totalUsd);
+            try {
+              localStorage.setItem("jumpa_last_balance", balanceData.totalUsd);
+            } catch {}
           }
           if (
             balanceData.tokens &&
@@ -56,33 +112,24 @@ export default function HomePage() {
           ) {
             const unified = unifyTokens(balanceData.tokens);
             setAssets(unified);
+            try {
+              localStorage.setItem("jumpa_last_assets", JSON.stringify(unified));
+            } catch {}
           }
         }
-
-        if (txRes.ok) {
-          const txData = await txRes.json();
-          if (Array.isArray(txData.transactions)) {
-            setTransactions(txData.transactions.slice(0, 5));
-          }
-        }
-
-        setCheckingAuth(false);
       } catch (err) {
-        console.warn("[Home] Error loading dashboard:", err);
-        setCheckingAuth(false);
+        console.warn("[Home] Error fetching balances:", err);
       }
     }
 
-    loadDashboard();
-  }, [router]);
+    checkSession();
+    fetchTransactions();
+    fetchBalances();
 
-  if (checkingAuth) {
-    return (
-      <div className="flex h-screen w-full items-center justify-center bg-jumpa-neutral-50 text-jumpa-primary-950 font-medium text-sm animate-pulse">
-        Loading wallet...
-      </div>
-    );
-  }
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
 
   const kycComplete = ACCOUNT.kyc.completed >= ACCOUNT.kyc.total;
 
@@ -113,7 +160,10 @@ export default function HomePage() {
           <QuickActions />
         </RiseIn>
         <RiseIn index={3}>
-          <TransactionHistory transactions={transactions} />
+          <TransactionHistory
+            transactions={transactions}
+            loading={loadingTransactions}
+          />
         </RiseIn>
       </div>
 

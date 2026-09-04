@@ -10,7 +10,7 @@ import {
   SOROSWAP_PROTOCOLS,
   resolveSoroswapContract,
   resolveSoroswapSymbol,
-} from "./contracts";
+} from "@/lib/blockchain";
 import { getHorizonServer } from "@/lib/chains/stellar/client";
 
 const DECIMALS_FACTOR = 10_000_000;

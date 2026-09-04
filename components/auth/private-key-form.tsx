@@ -10,7 +10,7 @@ import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
 import { getAssetLogo } from "@/lib/assets";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/cn";
-import { NETWORKS } from "@/lib/networks";
+import { NETWORKS } from "@/lib/blockchain";
 
 function validatePrivateKeyFormat(key: string, chain: string): string | null {
   const trimmed = key.trim();

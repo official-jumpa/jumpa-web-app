@@ -43,33 +43,35 @@ const ERC20_ABI = [
   },
 ] as const;
 
+import { CONTRACT_ADDRESSES, getExplorerTxUrl } from "@/lib/blockchain";
+
 export interface OfframpAssetConfig {
   chain: "base" | "solana";
-  address?: string; // Token contract on EVM
-  mint?: string; // Token mint on Solana
+  address?: string; // For EVM
+  mint?: string; // For Solana
   decimals: number;
 }
 
 export const OFFRAMP_ASSETS: Record<string, OfframpAssetConfig> = {
   "base:usdc": {
     chain: "base",
-    address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-    decimals: 6,
+    address: CONTRACT_ADDRESSES.base.mainnet.USDC.address,
+    decimals: CONTRACT_ADDRESSES.base.mainnet.USDC.decimals,
   },
   "base:cngn": {
     chain: "base",
-    address: "0x2F7817441fcC56543b5C27C7f28243171887eD60",
-    decimals: 6,
+    address: CONTRACT_ADDRESSES.base.mainnet.cNGN.address,
+    decimals: CONTRACT_ADDRESSES.base.mainnet.cNGN.decimals,
   },
   "solana:usdc": {
     chain: "solana",
-    mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-    decimals: 6,
+    mint: CONTRACT_ADDRESSES.solana.mainnet.USDC.mint,
+    decimals: CONTRACT_ADDRESSES.solana.mainnet.USDC.decimals,
   },
   "solana:usdt": {
     chain: "solana",
-    mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
-    decimals: 6,
+    mint: CONTRACT_ADDRESSES.solana.mainnet.USDT.mint,
+    decimals: CONTRACT_ADDRESSES.solana.mainnet.USDT.decimals,
   },
 };
 
@@ -175,7 +177,7 @@ export async function executeOfframpTransfer(options: {
       return {
         success: true,
         txHash,
-        explorerUrl: `https://basescan.org/tx/${txHash}`,
+        explorerUrl: getExplorerTxUrl("base", txHash),
       };
     }
 
@@ -274,7 +276,7 @@ export async function executeOfframpTransfer(options: {
       return {
         success: true,
         txHash,
-        explorerUrl: `https://solscan.io/tx/${txHash}`,
+        explorerUrl: getExplorerTxUrl("solana", txHash),
       };
     }
 

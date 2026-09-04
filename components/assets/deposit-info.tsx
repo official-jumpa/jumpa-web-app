@@ -8,7 +8,7 @@ import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { GlobeIcon } from "@/components/ui/icons/globe";
 import { UsersIcon } from "@/components/ui/icons/users";
 import { ScreenHeader } from "@/components/ui/screen-header";
-import type { Chain } from "@/lib/networks";
+import type { Chain } from "@/lib/blockchain";
 import { depositNotes } from "@/lib/transfer";
 
 /** Where to send funds so they land in this wallet, on the chosen chain. */

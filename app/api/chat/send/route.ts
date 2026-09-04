@@ -13,28 +13,9 @@ import {
   getCachedWalletBalances,
   type SupportedChain,
 } from "@/lib/wallet-balances";
+import { detectTargetChains } from "@/lib/blockchain";
 import { ChatLog, type IChatMessage } from "@/models/ChatLog";
 import { Wallet } from "@/models/Wallet";
-
-function detectTargetChains(prompt: string): SupportedChain[] | undefined {
-  const p = prompt.toLowerCase();
-  const chains: SupportedChain[] = [];
-
-  if (p.includes("stellar") || p.includes("xlm")) chains.push("stellar");
-  if (p.includes("solana") || p.includes("sol")) chains.push("solana");
-  if (p.includes("bitcoin") || p.includes("btc")) chains.push("bitcoin");
-  if (p.includes("base") && !p.includes("ethereum")) chains.push("base");
-  else if (
-    p.includes("ethereum") ||
-    p.includes("evm") ||
-    p.includes("polygon") ||
-    p.includes("celo") ||
-    p.includes("bnb")
-  )
-    chains.push("evm");
-
-  return chains.length > 0 ? chains : undefined;
-}
 
 /**
  * POST /api/chat/send

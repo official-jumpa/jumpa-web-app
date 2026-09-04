@@ -24,20 +24,14 @@ export type Asset = {
   label?: string;
 };
 
-/** Every wallet the app supports, in the order the wallet list shows them. */
+/** Every wallet the app supports, in the order the wallet list shows them.
+ */
 export const SUPPORTED_ASSETS: Asset[] = [
   {
     symbol: "XLM",
     name: "Stellar",
     label: "STELLAR",
     icon: "/coins/xlm.webp",
-    balance: "$0.00",
-    change: "+$0.00",
-  },
-  {
-    symbol: "BTC",
-    name: "Bitcoin",
-    icon: "/coins/btc.webp",
     balance: "$0.00",
     change: "+$0.00",
   },
@@ -56,13 +50,6 @@ export const SUPPORTED_ASSETS: Asset[] = [
     change: "+$0.00",
   },
   {
-    symbol: "ETH",
-    name: "Ethereum",
-    icon: "/coins/eth.webp",
-    balance: "$0.00",
-    change: "+$0.00",
-  },
-  {
     symbol: "SOL",
     name: "Solana",
     icon: "/coins/sol.webp",
@@ -70,23 +57,9 @@ export const SUPPORTED_ASSETS: Asset[] = [
     change: "+$0.00",
   },
   {
-    symbol: "TRX",
-    name: "Tron",
-    icon: "/coins/trx.webp",
-    balance: "$0.00",
-    change: "+$0.00",
-  },
-  {
-    symbol: "TON",
-    name: "Toncoin",
-    icon: "/coins/ton.webp",
-    balance: "$0.00",
-    change: "+$0.00",
-  },
-  {
-    symbol: "SUI",
-    name: "Sui",
-    icon: "/coins/sui.webp",
+    symbol: "ETH",
+    name: "Ethereum",
+    icon: "/coins/eth.webp",
     balance: "$0.00",
     change: "+$0.00",
   },

@@ -2,8 +2,7 @@ export type SupportedChainId =
   | "stellar"
   | "solana"
   | "evm"
-  | "base"
-  | "bitcoin";
+  | "base";
 
 export type NetworkType = "mainnet" | "testnet";
 

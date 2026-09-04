@@ -214,8 +214,8 @@ const onrampNgn: DeepSeekTool = {
     description:
       "Generate bank transfer details to deposit Nigerian Naira (NGN) and receive crypto via Switch. " +
       "Supported Switch asset pairs: " +
-      "USDC: 'base:usdc', 'solana:usdc', 'polygon:usdc', 'arbitrum:usdc', 'optimism:usdc', 'avalanche:usdc', 'ethereum:usdc', 'bsc:usdc'. " +
-      "USDT: 'solana:usdt', 'tron:usdt', 'polygon:usdt', 'arbitrum:usdt', 'optimism:usdt', 'ethereum:usdt', 'bsc:usdt'. " +
+      "USDC: 'base:usdc', 'solana:usdc', 'avalanche:usdc', 'ethereum:usdc', 'bsc:usdc'. " +
+      "USDT: 'solana:usdt', 'tron:usdt', 'ethereum:usdt', 'bsc:usdt'. " +
       "cNGN: 'base:cngn', 'bsc:cngn'. " +
       "(USDT on Base and all assets on Stellar are NOT supported for NGN onramp). " +
       "MANDATORY: Do NOT call this tool if fiatAmount or target network/chain has not been explicitly provided by the user — ask them in chat first.",
@@ -234,7 +234,7 @@ const onrampNgn: DeepSeekTool = {
         asset: {
           type: "string",
           description:
-            "Switch asset identifier (e.g. 'base:usdc', 'solana:usdt', 'polygon:usdt', 'arbitrum:usdt', 'tron:usdt').",
+            "Switch asset identifier (e.g. 'base:usdc', 'solana:usdt', 'tron:usdt').",
         },
         walletAddress: {
           type: "string",
@@ -255,8 +255,8 @@ const offrampNgn: DeepSeekTool = {
       "Initiate a withdrawal via Switch to sell crypto for Nigerian Naira (NGN) to a user's bank account. " +
       "The system automatically verifies the account number and bank with Paystack to ensure accuracy. " +
       "Supported Switch asset pairs: " +
-      "USDC: 'base:usdc', 'solana:usdc', 'polygon:usdc', 'arbitrum:usdc', 'ethereum:usdc', 'bsc:usdc'. " +
-      "USDT: 'solana:usdt', 'tron:usdt', 'polygon:usdt', 'arbitrum:usdt', 'ethereum:usdt', 'bsc:usdt'. " +
+      "USDC: 'base:usdc', 'solana:usdc', 'ethereum:usdc', 'bsc:usdc'. " +
+      "USDT: 'solana:usdt', 'tron:usdt', 'ethereum:usdt', 'bsc:usdt'. " +
       "Call this as soon as the user says they want to cash out, with WHATEVER they have given so far — " +
       "omit anything they have not said. The tool returns the chooser for the next missing detail " +
       "(which balance to sell, which account to pay, which bank holds that account), so the user taps " +
@@ -276,7 +276,7 @@ const offrampNgn: DeepSeekTool = {
         asset: {
           type: "string",
           description:
-            "Switch asset string (e.g. 'base:usdc', 'solana:usdt', 'polygon:usdt').",
+            "Switch asset string (e.g. 'base:usdc', 'solana:usdt').",
         },
         bankName: {
           type: "string",

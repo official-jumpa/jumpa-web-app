@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { type Chain, chainsFor } from "@/lib/networks";
+import { type Chain, chainsFor } from "@/lib/blockchain";
 
 /** Where the asset's screens live, for one asset on one chain. */
 type Destination = (symbol: string, chain: Chain) => string;

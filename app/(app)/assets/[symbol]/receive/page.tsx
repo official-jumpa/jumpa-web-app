@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { DepositInfo } from "@/components/assets/deposit-info";
-import { chainsFor } from "@/lib/networks";
+import { chainsFor } from "@/lib/blockchain";
 import { SUPPORTED_ASSETS } from "@/lib/wallet";
 
 export const metadata: Metadata = { title: "Receive" };

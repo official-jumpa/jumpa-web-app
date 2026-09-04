@@ -1,6 +1,6 @@
 import { formatEther, formatUnits, erc20Abi } from "viem";
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { EVM_CHAINS, EVM_CLIENTS } from "@/lib/evm-chains";
+import { EVM_CHAINS, EVM_CLIENTS } from "@/lib/blockchain";
 import { environment } from "@/lib/environment";
 import { Wallet } from "@/models/Wallet";
 import { connectDB } from "@/lib/db";
@@ -13,7 +13,7 @@ const solMainnetConnection = new Connection(
   "confirmed",
 );
 
-export type SupportedChain = "stellar" | "solana" | "evm" | "base" | "bitcoin";
+export type SupportedChain = "stellar" | "solana" | "evm" | "base";
 
 export interface TokenBalanceInfo {
   symbol: string;
@@ -32,7 +32,6 @@ export interface WalletBalancesResult {
     base: string;
     sol: string;
     xlm: string;
-    btc: string;
   };
   totalUsd: string;
   tokens: TokenBalanceInfo[];
@@ -59,13 +58,10 @@ interface CoinGeckoInfo {
 }
 
 const coinGeckoCache: Record<string, CoinGeckoInfo> = {
-  BTC: { priceUsd: "65000.00", icon: "/images/home/coin-bitcoin.svg" },
   SOL: { priceUsd: "150.00", icon: "/images/home/coin-generic.svg" },
   XLM: { priceUsd: "0.12", icon: "/images/home/coin-generic.svg" },
   ETH: { priceUsd: "3540.21", icon: "/images/home/coin-generic.svg" },
   BNB: { priceUsd: "580.00", icon: "/images/home/coin-generic.svg" },
-  POL: { priceUsd: "0.55", icon: "/images/home/coin-generic.svg" },
-  CELO: { priceUsd: "0.65", icon: "/images/home/coin-generic.svg" },
   USDC: { priceUsd: "1.00", icon: "/coins/usdc.webp" },
   USDT: { priceUsd: "1.00", icon: "/images/home/coin-generic.svg" },
 };
@@ -80,8 +76,7 @@ async function updateCoinGeckoData() {
   }
 
   try {
-    const ids =
-      "bitcoin,ethereum,binancecoin,polygon-ecosystem,celo,solana,stellar,usd-coin,tether";
+    const ids = "ethereum,binancecoin,solana,stellar,usd-coin,tether";
     const res = await fetch(
       `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}`,
     );
@@ -90,11 +85,8 @@ async function updateCoinGeckoData() {
     const data = await res.json();
     if (Array.isArray(data)) {
       const map: Record<string, string> = {
-        bitcoin: "BTC",
         ethereum: "ETH",
         binancecoin: "BNB",
-        "polygon-ecosystem": "POL",
-        celo: "CELO",
         solana: "SOL",
         stellar: "XLM",
         "usd-coin": "USDC",
@@ -160,7 +152,6 @@ export async function fetchWalletBalances(
   const fetchSolana = shouldFetchAll || chains?.includes("solana");
   const fetchBaseOnly = chains?.includes("base") && !chains?.includes("evm");
   const fetchEvm = shouldFetchAll || chains?.includes("evm") || fetchBaseOnly;
-  const fetchBitcoin = shouldFetchAll || chains?.includes("bitcoin");
 
   console.log(
     `[Balance Service] Fetching balances for chains: [${
@@ -168,7 +159,7 @@ export async function fetchWalletBalances(
     }] (Testnet: Stellar only)`,
   );
 
-  const { eth: ethAddr, sol: solAddr, xlm: xlmAddr, btc: btcAddr } = addresses;
+  const { eth: ethAddr, sol: solAddr, xlm: xlmAddr } = addresses;
   await updateCoinGeckoData();
 
   // Fetch all chain ecosystems concurrently in parallel with isolated error fallbacks
@@ -176,7 +167,6 @@ export async function fetchWalletBalances(
     evmResults,
     solMainnetBal,
     { mainnet: xlmMainnet, testnet: xlmTestnet },
-    btcBal,
   ] = await Promise.all([
     // 1. EVM Chains (Mainnet only)
     fetchEvm
@@ -277,37 +267,8 @@ export async function fetchWalletBalances(
           mainnet: { native: "0.00", usdc: "0.00", usdt: "0.00" },
           testnet: { native: "0.00", usdc: "0.00", usdt: "0.00" },
         }),
-
-    // 4. Bitcoin (Mainnet only)
-    fetchBitcoin && btcAddr
-      ? safeFetchBalance(
-          async () => {
-            const ALCHEMY_KEY = environment.ALCHEMY_API_KEY || "demo";
-            const res = await fetch(
-              `https://bitcoin-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  jsonrpc: "2.0",
-                  id: 1,
-                  method: "bb_getaddress",
-                  params: [btcAddr, { details: "basic" }],
-                }),
-              },
-            );
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const json = await res.json();
-            const satoshis = parseInt(json.result?.balance || "0", 10);
-            return (satoshis / 100000000).toFixed(8);
-          },
-          "Bitcoin Mainnet",
-          "0.00000000",
-        )
-      : Promise.resolve("0.00000000"),
   ]);
 
-  const btcCached = coinGeckoCache.BTC;
   const solCached = coinGeckoCache.SOL;
   const xlmCached = coinGeckoCache.XLM;
   const usdcCached = coinGeckoCache.USDC;
@@ -386,19 +347,6 @@ export async function fetchWalletBalances(
       isTestnet: false,
     });
     summary.SOL = `${solMainnetBal} SOL`;
-  }
-
-  if (fetchBitcoin) {
-    tokens.push({
-      symbol: "BTC",
-      name: "Bitcoin",
-      icon: btcCached.icon,
-      balance: btcBal,
-      priceUsd: btcCached.priceUsd,
-      network: "Bitcoin",
-      isTestnet: false,
-    });
-    summary.BTC = `${btcBal} BTC`;
   }
 
   if (fetchEvm) {

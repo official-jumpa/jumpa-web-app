@@ -19,7 +19,7 @@ import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { depositHref, walletHref } from "@/hooks/use-asset-network";
 import { getAssetLogo } from "@/lib/assets";
-import type { Chain } from "@/lib/networks";
+import type { Chain } from "@/lib/blockchain";
 import type { Asset, Transaction } from "@/lib/wallet";
 
 /** Stands in for the digits while the balance is hidden. */

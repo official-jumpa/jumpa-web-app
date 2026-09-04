@@ -31,42 +31,29 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base, mainnet as ethMainnet } from "viem/chains";
 import { getHorizonServer } from "./stellar/client";
 import { environment } from "@/lib/environment";
+import { CONTRACT_ADDRESSES, getExplorerTxUrl } from "@/lib/blockchain";
 
 // Stellar USDC Issuers
 const STELLAR_USDC_ISSUERS = {
-  mainnet: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
-  testnet: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+  mainnet: CONTRACT_ADDRESSES.stellar.mainnet.USDC,
+  testnet: CONTRACT_ADDRESSES.stellar.testnet.USDC,
 };
 
 // Solana SPL Token Mints (Mainnet)
-const SOLANA_MINTS: Record<string, { mint: string; decimals: number }> = {
-  USDC: {
-    mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-    decimals: 6,
-  },
-  USDT: {
-    mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
-    decimals: 6,
-  },
-};
+const SOLANA_MINTS: Record<string, { mint: string; decimals: number }> =
+  CONTRACT_ADDRESSES.solana.mainnet;
 
 // Base & Ethereum Token Contracts
-const EVM_CONTRACTS: Record<string, Record<string, { address: `0x${string}`; decimals: number }>> = {
+const EVM_CONTRACTS: Record<
+  string,
+  Record<string, { address: `0x${string}`; decimals: number }>
+> = {
   base: {
-    USDC: {
-      address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-      decimals: 6,
-    },
+    USDC: CONTRACT_ADDRESSES.base.mainnet.USDC,
   },
   eth: {
-    USDC: {
-      address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-      decimals: 6,
-    },
-    USDT: {
-      address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
-      decimals: 6,
-    },
+    USDC: CONTRACT_ADDRESSES.ethereum.mainnet.USDC,
+    USDT: CONTRACT_ADDRESSES.ethereum.mainnet.USDT,
   },
 };
 
@@ -196,7 +183,7 @@ export async function sendStellar(params: {
   const horizonRes = await server.submitTransaction(tx);
 
   const txHash = horizonRes.hash;
-  const explorerUrl = `https://stellar.expert/explorer/${network}/tx/${txHash}`;
+  const explorerUrl = getExplorerTxUrl("stellar", txHash, network === "testnet");
 
   return {
     success: true,
@@ -292,7 +279,7 @@ export async function sendSolana(params: {
 
   console.log(`[Transfer Service] Submitting Solana transfer...`);
   const txHash = await sendAndConfirmTransaction(connection, tx, [keypair]);
-  const explorerUrl = `https://solscan.io/tx/${txHash}`;
+  const explorerUrl = getExplorerTxUrl("solana", txHash);
 
   return {
     success: true,
@@ -361,10 +348,7 @@ export async function sendEvm(params: {
   console.log(`[Transfer Service] Waiting for EVM receipt on ${chain}...`);
   await publicClient.waitForTransactionReceipt({ hash: txHash });
 
-  const explorerUrl =
-    chain === "base"
-      ? `https://basescan.org/tx/${txHash}`
-      : `https://etherscan.io/tx/${txHash}`;
+  const explorerUrl = getExplorerTxUrl(chain, txHash);
 
   return {
     success: true,

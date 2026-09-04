@@ -10,6 +10,7 @@ import { UserActivityLog } from "@/models/UserActivityLog";
 import { buildSwapTransaction } from "@/lib/dex";
 import { executeOfframpTransfer } from "@/lib/chains/offramp-transfer";
 import { SwitchService } from "@/lib/switch";
+import { getExplorerTxUrl } from "@/lib/blockchain";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { decryptMnemonic } from "@/lib/crypto";
 import {
@@ -287,7 +288,7 @@ export async function POST(req: NextRequest) {
             const horizonRes = await server.submitTransaction(tx);
 
             txHash = horizonRes.hash;
-            explorerUrl = `https://stellar.expert/explorer/${network}/tx/${txHash}`;
+            explorerUrl = getExplorerTxUrl("stellar", txHash, network === "testnet");
             console.log("[Chat Confirm] SUCCESS! Hash:", txHash);
             console.log("[Chat Confirm] Explorer URL:", explorerUrl);
 
@@ -560,7 +561,7 @@ export async function POST(req: NextRequest) {
         const horizonRes = await server.submitTransaction(tx);
 
         txHash = horizonRes.hash;
-        explorerUrl = `https://stellar.expert/explorer/${network}/tx/${txHash}`;
+        explorerUrl = getExplorerTxUrl("stellar", txHash, network === "testnet");
         console.log("[Chat Confirm] Payment SUCCESS! Tx Hash:", txHash);
         console.log("[Chat Confirm] Explorer URL:", explorerUrl);
 

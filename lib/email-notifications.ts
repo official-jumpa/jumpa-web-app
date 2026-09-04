@@ -38,18 +38,18 @@ function formatChainName(chain: string): string {
   }
 }
 
+import { getExplorerTxUrl } from "@/lib/blockchain";
+
 function getExplorerUrl(tokenSymbol: string, hash: string): string {
   const sym = tokenSymbol.toUpperCase();
   if (sym.includes("SOL")) {
-    const isDev = sym.includes("DEV") || sym.includes("TEST");
-    return `https://solscan.io/tx/${hash}?cluster=${isDev ? "devnet" : "mainnet"}`;
+    return getExplorerTxUrl("solana", hash);
   } else if (sym.includes("XLM")) {
     const isTest = sym.includes("TEST") || sym.includes("DEV");
-    return `https://stellar.expert/explorer/${isTest ? "testnet" : "public"}/tx/${hash}`;
+    return getExplorerTxUrl("stellar", hash, isTest);
   } else {
-    const isSepolia =
-      sym.includes("SEP") || sym.includes("TEST") || sym.includes("DEV");
-    return `https://${isSepolia ? "sepolia." : ""}basescan.org/tx/${hash}`;
+    const isSepolia = sym.includes("SEP") || sym.includes("TEST") || sym.includes("DEV");
+    return getExplorerTxUrl("base", hash, isSepolia);
   }
 }
 

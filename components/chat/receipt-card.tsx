@@ -6,12 +6,13 @@ import {
   ChatCard,
 } from "@/components/chat/chat-card";
 import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
+import { getExplorerTxUrl } from "@/lib/blockchain";
 import type { ReceiptCard as Receipt } from "@/lib/chat";
 
 function explorerHref(card: Receipt) {
   if (card.explorerUrl) return card.explorerUrl;
   if (card.txHash) {
-    return `https://stellar.expert/explorer/testnet/tx/${card.txHash}`;
+    return getExplorerTxUrl("stellar", card.txHash, true);
   }
   return null;
 }

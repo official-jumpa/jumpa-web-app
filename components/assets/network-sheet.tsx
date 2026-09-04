@@ -4,7 +4,7 @@ import Image from "next/image";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { CheckIcon } from "@/components/ui/icons/check";
 import { getAssetLogo } from "@/lib/assets";
-import type { Chain } from "@/lib/networks";
+import type { Chain } from "@/lib/blockchain";
 
 /**
  * Which chain the asset is being used on. Asked before the deposit address

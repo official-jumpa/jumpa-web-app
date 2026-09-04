@@ -1,2 +1,8 @@
 export * from "./client";
-export * from "./contracts";
+export {
+  SOROSWAP_TESTNET_CONTRACTS,
+  SOROSWAP_MAINNET_CONTRACTS,
+  SOROSWAP_PROTOCOLS,
+  resolveSoroswapContract,
+  resolveSoroswapSymbol,
+} from "@/lib/blockchain";

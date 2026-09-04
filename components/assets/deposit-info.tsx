@@ -11,20 +11,35 @@ import { ScreenHeader } from "@/components/ui/screen-header";
 import type { Chain } from "@/lib/blockchain";
 import { depositNotes } from "@/lib/transfer";
 
+/** Renders a note string, turning **word** markers into bold <strong> spans. */
+function renderNote(note: string) {
+  const parts = note.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) =>
+    part.startsWith("**") && part.endsWith("**")
+      ? <strong key={i}>{part.slice(2, -2)}</strong>
+      : part,
+  );
+}
+
 /** Where to send funds so they land in this wallet, on the chosen chain. */
 export function DepositInfo({
   symbol,
   chains,
   initialChain,
+  priceUsd,
 }: {
   symbol: string;
   chains: Chain[];
   initialChain: Chain;
+  /** Live USD price per 1 unit of symbol, used to compute the minimum deposit. */
+  priceUsd: number;
 }) {
   const [chain, setChain] = useState(initialChain);
   const [picking, setPicking] = useState(false);
 
   const switchable = chains.length > 1;
+  const isAvailable = !chain.unavailable;
+
 
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
@@ -81,12 +96,18 @@ export function DepositInfo({
               {chain.address}
             </dd>
           </span>
-          <CopyButton value={chain.address} />
+          {isAvailable && <CopyButton value={chain.address} />}
         </div>
       </dl>
 
       <div className="mt-4 flex h-73.5 items-center justify-center rounded-surface bg-jumpa-neutral-50">
-        <DepositQr value={chain.address} />
+        {isAvailable ? (
+          <DepositQr value={chain.address} />
+        ) : (
+          <p className="text-sm text-jumpa-neutral-400 text-center px-6">
+            This network is not yet available
+          </p>
+        )}
       </div>
 
       <h2 className="mt-4 text-sm leading-4.5 font-medium text-jumpa-black">
@@ -94,10 +115,10 @@ export function DepositInfo({
       </h2>
 
       <ul className="mt-3 flex flex-col gap-1 rounded-surface bg-jumpa-primary-50 px-4 py-4 text-xs leading-5 font-medium text-jumpa-black">
-        {depositNotes(symbol, chain.name).map((note) => (
-          <li key={note} className="flex gap-1.5">
+        {depositNotes(symbol, chain.name, priceUsd).map((note, i) => (
+          <li key={i} className="flex gap-1.5">
             <span aria-hidden="true">&bull;</span>
-            {note}
+            <span>{renderNote(note)}</span>
           </li>
         ))}
       </ul>

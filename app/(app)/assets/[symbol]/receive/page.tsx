@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { DepositInfo } from "@/components/assets/deposit-info";
-import { chainsFor } from "@/lib/blockchain";
+import { chainsFor, resolveChainAddresses } from "@/lib/blockchain";
+import { getSession } from "@/lib/session";
+import { getAssetPriceUsd } from "@/lib/wallet-balances";
 import { SUPPORTED_ASSETS } from "@/lib/wallet";
 
 export const metadata: Metadata = { title: "Receive" };
@@ -18,10 +20,23 @@ export default async function DepositPage({
   );
   if (!asset) notFound();
 
-  const chains = chainsFor(asset.symbol);
+  const session = await getSession();
+  if (!session?.userId || !session.addresses) redirect("/auth/login");
+
+  const [chains, priceUsd] = await Promise.all([
+    Promise.resolve(resolveChainAddresses(session.addresses, chainsFor(asset.symbol))),
+    getAssetPriceUsd(asset.symbol),
+  ]);
+
   const chosen = chains.find((chain) => chain.id === network) ?? chains[0];
 
   return (
-    <DepositInfo symbol={asset.symbol} chains={chains} initialChain={chosen} />
+    <DepositInfo
+      symbol={asset.symbol}
+      chains={chains}
+      initialChain={chosen}
+      priceUsd={priceUsd}
+    />
   );
 }
+

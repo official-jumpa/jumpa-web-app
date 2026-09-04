@@ -114,6 +114,18 @@ async function updateCoinGeckoData() {
   }
 }
 
+/**
+ * Returns the cached USD price for a given symbol (e.g. "SOL", "XLM").
+ * Falls back to 1.00 for stablecoins and 0 if unknown.
+ * Triggers a background cache refresh so subsequent calls stay fresh.
+ */
+export async function getAssetPriceUsd(symbol: string): Promise<number> {
+  // Kick off a refresh in the background (won't block if cache is still fresh)
+  void updateCoinGeckoData();
+  const info = coinGeckoCache[symbol.toUpperCase()];
+  return info ? parseFloat(info.priceUsd) || 0 : 0;
+}
+
 async function safeFetchBalance<T>(
   fetchFn: () => Promise<T>,
   label: string,

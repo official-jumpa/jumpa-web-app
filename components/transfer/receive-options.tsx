@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { ComponentType, SVGProps } from "react";
 import { BankIcon } from "@/components/ui/icons/bank";
-import { BitcoinCircleIcon } from "@/components/ui/icons/bitcoin-circle";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
+import { CoinFrontIcon } from "@/components/ui/icons/coin-front";
 
 type ReceiveOption = {
   id: string;
@@ -16,7 +16,7 @@ export const RECEIVE_OPTIONS: ReceiveOption[] = [
   { id: "fiat", Icon: BankIcon, title: "Deposit Fiat", href: "/receive/fiat" },
   {
     id: "crypto",
-    Icon: BitcoinCircleIcon,
+    Icon: CoinFrontIcon,
     title: "Deposit Crypto",
     href: "/receive/crypto",
   },

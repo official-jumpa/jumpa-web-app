@@ -2,7 +2,6 @@ import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 import * as bip39 from "bip39";
 import { derivePath } from "ed25519-hd-key";
 import { Keypair as SolanaKeypair } from "@solana/web3.js";
-import { HDKey } from "@scure/bip32";
 import {
   deriveStellarKeypairFromMnemonic,
   deriveStellarKeypairFromPrivateKey,
@@ -14,19 +13,17 @@ export interface DerivedWallet {
     base: string;
     sol: string;
     xlm: string;
-    btc: string;
   };
   publicKeys: {
     eth: string;
     base: string;
     sol: string;
     xlm: string;
-    btc: string;
   };
 }
 
 /**
- * Derives public addresses and raw public keys for ETH, SOL, XLM, BTC
+ * Derives public addresses and raw public keys for ETH, SOL, XLM
  * from a BIP39 mnemonic using viem and standard derivation paths.
  */
 export function deriveAddresses(phrase: string): DerivedWallet {
@@ -44,27 +41,18 @@ export function deriveAddresses(phrase: string): DerivedWallet {
   const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
   const xlmAddress = stellarKeys.publicKey;
 
-  // Bitcoin Derivation m/84'/0'/0'/0/0
-  const btcRoot = HDKey.fromMasterSeed(seed);
-  const btcChild = btcRoot.derive("m/84'/0'/0'/0/0");
-  const btcPubKeyHex = btcChild.publicKey
-    ? Buffer.from(btcChild.publicKey).toString("hex")
-    : "";
-
   return {
     addresses: {
       eth: ethAddress,
       base: ethAddress,
       sol: solAddress,
       xlm: xlmAddress,
-      btc: btcPubKeyHex,
     },
     publicKeys: {
       eth: account.publicKey,
       base: account.publicKey,
       sol: solKeypair.publicKey.toBase58(),
       xlm: xlmAddress,
-      btc: btcPubKeyHex,
     },
   };
 }
@@ -81,7 +69,6 @@ export function deriveFromPrivateKey(
   let ethAddress = "";
   let solAddress = "";
   let xlmAddress = "";
-  const btcAddress = "";
 
   const chainLower = chain.toLowerCase();
 
@@ -124,7 +111,7 @@ export function deriveFromPrivateKey(
       throw new Error("Invalid Solana private key");
     }
   } else {
-    // EVM (Base, Ethereum, Polygon, Arbitrum, Celo, BNB, etc.)
+    // EVM (Base, Ethereum, BNB, etc.)
     try {
       const hexKey = (
         trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`
@@ -136,7 +123,7 @@ export function deriveFromPrivateKey(
     }
   }
 
-  const primaryAddress = ethAddress || solAddress || xlmAddress || btcAddress;
+  const primaryAddress = ethAddress || solAddress || xlmAddress;
 
   return {
     addresses: {
@@ -144,14 +131,12 @@ export function deriveFromPrivateKey(
       base: ethAddress || primaryAddress,
       sol: solAddress || primaryAddress,
       xlm: xlmAddress || primaryAddress,
-      btc: btcAddress || primaryAddress,
     },
     publicKeys: {
       eth: ethAddress || primaryAddress,
       base: ethAddress || primaryAddress,
       sol: solAddress || primaryAddress,
       xlm: xlmAddress || primaryAddress,
-      btc: btcAddress || primaryAddress,
     },
   };
 }

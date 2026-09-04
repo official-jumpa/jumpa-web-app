@@ -11,14 +11,12 @@ export interface IWallet {
     base: string;
     sol: string;
     xlm: string;
-    btc: string;
   };
   publicKeys: {
     eth: string;
     base: string;
     sol: string;
     xlm: string;
-    btc: string;
   };
   encryptedMnemonic: string;
   iv: string;
@@ -43,14 +41,12 @@ const WalletSchema = new Schema<IWallet>(
       sol: { type: String, required: true },
       base: { type: String, required: true },
       xlm: { type: String, required: true },
-      btc: { type: String, required: true },
     },
     publicKeys: {
       eth: { type: String, required: true },
       sol: { type: String, required: true },
       base: { type: String, required: true },
       xlm: { type: String, required: true },
-      btc: { type: String, required: true },
     },
     encryptedMnemonic: { type: String, required: true },
     iv: { type: String, required: true },

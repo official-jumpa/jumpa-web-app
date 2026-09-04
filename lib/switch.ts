@@ -69,7 +69,7 @@ export const SUPPORTED_SWITCH_ASSETS = [
   "arbitrum:usdt", "optimism:usdc", "optimism:usdt", "avalanche:usdc", "avalanche:usdt",
   "gnosis:usdc", "gnosis:usdt", "tron:usdt", "assetchain:usdc", "assetchain:usdt",
   "monad:usdc", "monad:usdt", "linea:usdc", "linea:usdt", "berachain:usdc", "berachain:usdt",
-  "sonic:usdc", "plasma:usdt", "bitcoin:btc"
+  "sonic:usdc", "plasma:usdt"
 ];
 
 /** Human-readable labels for each supported Switch asset — use these when presenting assets to users */
@@ -104,7 +104,6 @@ export const SWITCH_ASSET_LABELS: Record<string, string> = {
   "berachain:usdt": "USDT on Berachain",
   "sonic:usdc": "USDC on Sonic",
   "plasma:usdt": "USDT on Plasma",
-  "bitcoin:btc": "BTC on Bitcoin",
 };
 
 function parseSwitchError(errorMsg: string): string {

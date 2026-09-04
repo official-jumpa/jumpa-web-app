@@ -39,7 +39,7 @@ This guide provides step-by-step instructions for testing Jumpa's core features 
 ### Step 2: Set Transaction PIN & Access Dashboard
 1. Set a **6-digit transaction PIN** (e.g. `123456`)
 2. Once confirmed, you will be redirected to the **Home Screen** (`/home`).
-3. View your unified balance panel across supported chains (Stellar, Base, Solana, Bitcoin).
+3. View your unified balance panel across supported chains (Stellar, Base, Solana).
 4. Click the **Chat** icon in the bottom navigation bar to open the conversational interface.
 
 ---

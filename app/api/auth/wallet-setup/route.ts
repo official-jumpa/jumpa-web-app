@@ -175,8 +175,7 @@ export async function POST(req: NextRequest) {
     const primaryAddress =
       derived.addresses.eth ||
       derived.addresses.sol ||
-      derived.addresses.xlm ||
-      derived.addresses.btc;
+      derived.addresses.xlm;
 
     console.log(`[WalletSetup] Primary address: ${primaryAddress}`);
 

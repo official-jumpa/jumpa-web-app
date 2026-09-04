@@ -5,7 +5,6 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { CardRule } from "@/components/chat/chat-card";
 import { BadgePercentIcon } from "@/components/ui/icons/badge-percent";
 import { BankIcon } from "@/components/ui/icons/bank";
-import { BitcoinCircleIcon } from "@/components/ui/icons/bitcoin-circle";
 import { CheckIcon } from "@/components/ui/icons/check";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
 import { CircleUserIcon } from "@/components/ui/icons/circle-user";
@@ -19,7 +18,7 @@ import { cn } from "@/lib/cn";
 /** Glyphs a chooser row can name. Anything unknown simply renders no icon. */
 const OPTION_ICONS = {
   savings: BadgePercentIcon,
-  balance: BitcoinCircleIcon,
+  balance: CoinFrontIcon,
   bank: BankIcon,
   wallet: WalletIcon,
   crypto: CoinFrontIcon,

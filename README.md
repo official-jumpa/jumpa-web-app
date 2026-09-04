@@ -35,9 +35,9 @@
 
 ### Key Capabilities
 - **Conversational Financial Engine:** Process intents such as *"Swap 10 XLM to USDC on testnet"*, *"What's my balance?"*, or *"Claim test tokens"* into on-chain actions.
-- **Sovereign Non-Custodial Security:** BIP-39 mnemonic seeds generated in the background, encrypted locally via AES-256-GCM + PIN, deriving standardized Stellar (`m/44'/148'/0'`), EVM, Solana, and Bitcoin addresses.
+- **Sovereign Non-Custodial Security:** BIP-39 mnemonic seeds generated in the background, encrypted locally via AES-256-GCM + PIN, deriving standardized Stellar (`m/44'/148'/0'`), EVM, and Solana addresses.
 - **Soroswap DEX Liquidity Aggregation:** Real-time quote routing (`/quote`) and unsigned transaction XDR construction (`/quote/build`) across Stellar Soroban liquidity pools.
-- **Multi-Chain Portfolio Aggregation:** Concurrent balance synchronization across Stellar Horizon (Testnet & Mainnet), Base/EVM, Solana, and Bitcoin.
+- **Multi-Chain Portfolio Aggregation:** Concurrent balance synchronization across Stellar Horizon (Testnet & Mainnet), Base/EVM, and Solana.
 - **Integrated Hosted Ramps:** Responsive checkout bottom sheets for fiat deposit and withdrawal gateways (Switch, MoneyGram, Mercuryo).
 
 ---
@@ -184,7 +184,7 @@ jumpa-web-app/
 │   └── TRANCHE_1_COMPLETE.md # Tranche 1 architecture & verification proofs
 ├── lib/                      # Core business logic & blockchain integration
 │   ├── ai/                   # AI intent engine, tool schemas, and tool execution dispatcher
-│   ├── chains/               # Chain integrations (Stellar Horizon, Solana, EVM, Bitcoin)
+│   ├── chains/               # Chain integrations (Stellar Horizon, Solana, EVM)
 │   │   └── stellar/          # BIP-39 m/44'/148'/0' key derivation, Horizon client, state sync
 │   ├── dex/                  # Decentralized exchange connectors (Soroswap REST API client)
 │   └── crypto.ts             # AES-256-GCM encryption & secure mnemonic hashing

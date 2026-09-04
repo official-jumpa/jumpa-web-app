@@ -153,7 +153,7 @@ const checkPortfolio: DeepSeekTool = {
   function: {
     name: "check_portfolio",
     description:
-      "Fetch the user's balances across ALL supported chains and networks (Stellar mainnet and testnet, Solana, Base/EVM, Bitcoin). " +
+      "Fetch the user's balances across ALL supported chains and networks (Stellar mainnet and testnet, Solana, Base/EVM). " +
       "Call this when the user asks about their overall portfolio, net worth, or balances without specifying a chain.",
     parameters: {
       type: "object",

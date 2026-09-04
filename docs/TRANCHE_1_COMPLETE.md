@@ -90,9 +90,8 @@ Client-side sovereign key derivation strictly adheres to the standard Stellar de
   1. Converts the 12/24-word BIP-39 mnemonic phrase to a binary seed via `bip39.mnemonicToSeedSync(phrase)`.
   2. Derives the 32-byte Ed25519 seed key using `derivePath("m/44'/148'/0'", seedHex)`.
   3. Instantiates `@stellar/stellar-sdk.Keypair.fromRawEd25519Seed(derivedSeed)`.
-  4. Returns the sovereign Stellar `publicKey` (`G...`) and `secretKey` (`S...`).
 - **Private Key Import:** `deriveStellarKeypairFromPrivateKey(key)` supports imported Stellar secret keys (`S...`) and raw 64-character hex seeds.
-- **Multi-Chain Aggregation:** Integrated into [`lib/derive-addresses.ts`](../lib/derive-addresses.ts) to automatically derive Stellar alongside Ethereum/Base, Solana, and Bitcoin addresses upon user onboarding or wallet restoration.
+- **Multi-Chain Aggregation:** Integrated into [`lib/derive-addresses.ts`](../lib/derive-addresses.ts) to automatically derive Stellar alongside Ethereum/Base, and Solana addresses upon user onboarding or wallet restoration.
 
 ### 3.2 Horizon Client Singletons & Account State Sync
 - **Source Files:**

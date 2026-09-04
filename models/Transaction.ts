@@ -11,7 +11,7 @@ export interface ITransaction {
   type: "TRANSFER" | "SWAP" | "ONRAMP" | "OFFRAMP" | "FAUCET";
   status: "PENDING" | "CONFIRMED" | "FAILED" | "CANCELLED";
 
-  chain: "stellar" | "solana" | "base" | "eth" | "btc";
+  chain: "stellar" | "solana" | "base" | "eth";
   network: "mainnet" | "testnet";
 
   // Transfer & Faucet Details
@@ -78,7 +78,7 @@ const TransactionSchema = new Schema<ITransaction>(
 
     chain: {
       type: String,
-      enum: ["stellar", "solana", "base", "eth", "btc"],
+      enum: ["stellar", "solana", "base", "eth"],
       default: "stellar",
     },
     network: {

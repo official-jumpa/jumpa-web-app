@@ -143,7 +143,7 @@ export async function fetchWalletBalances(
     base: string;
     sol: string;
     xlm: string;
-    btc: string;
+    [key: string]: any;
   },
   chains?: SupportedChain[],
 ): Promise<WalletBalancesResult> {

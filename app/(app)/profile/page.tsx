@@ -30,7 +30,6 @@ export default function ProfilePage() {
     base?: string;
     eth?: string;
     sol?: string;
-    btc?: string;
     [key: string]: string | undefined;
   } | null>(null);
   const [showOtherChains, setShowOtherChains] = useState(false);
@@ -67,7 +66,6 @@ export default function ProfilePage() {
   const stellarAddress = walletAddresses?.xlm || "";
   const evmAddress = walletAddresses?.base || walletAddresses?.eth || "";
   const solanaAddress = walletAddresses?.sol || "";
-  const btcAddress = walletAddresses?.btc || "";
 
   const formatAddress = (addr: string) => {
     if (!addr) return "";
@@ -202,39 +200,19 @@ export default function ProfilePage() {
                     )}
 
                     {solanaAddress && (
-                      <>
-                        <SettingRow
-                          icon={
-                            <Image
-                              src={getAssetLogo("SOL")}
-                              alt="Solana"
-                              width={24}
-                              height={24}
-                              className="size-6 shrink-0 rounded-full object-contain"
-                            />
-                          }
-                          label="Solana Address"
-                          value={formatAddress(solanaAddress)}
-                          action={<CopyButton value={solanaAddress} />}
-                        />
-                        <SettingRule />
-                      </>
-                    )}
-
-                    {btcAddress && (
                       <SettingRow
                         icon={
                           <Image
-                            src={getAssetLogo("BTC")}
-                            alt="Bitcoin"
+                            src={getAssetLogo("SOL")}
+                            alt="Solana"
                             width={24}
                             height={24}
                             className="size-6 shrink-0 rounded-full object-contain"
                           />
                         }
-                        label="Bitcoin Address"
-                        value={formatAddress(btcAddress)}
-                        action={<CopyButton value={btcAddress} />}
+                        label="Solana Address"
+                        value={formatAddress(solanaAddress)}
+                        action={<CopyButton value={solanaAddress} />}
                       />
                     )}
                   </div>

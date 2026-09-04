@@ -12,7 +12,6 @@ const LOGOS: Record<string, string> = {
   USDC: "/coins/usdc.webp",
   USDT: "/coins/usdt.webp",
   SOL: "/coins/sol.webp",
-  BTC: "/coins/btc.webp",
   BNB: "/coins/bnb.webp",
   POL: "/coins/pol.webp",
   CELO: "/coins/celo.webp",
@@ -23,11 +22,10 @@ const LOGOS: Record<string, string> = {
   SUI: "/coins/sui.webp",
 };
 
-/** Longest alias first — "STELLAR" must beat a bare "SOL" inside it. */
+/** Alias list */
 const ALIASES: [string, string][] = [
   ["STELLAR", "XLM"],
   ["TETHER", "USDT"],
-  ["BITCOIN", "BTC"],
   ["ETHEREUM", "ETH"],
   ["POLYGON", "POL"],
   ["BINANCE", "BNB"],
@@ -40,7 +38,6 @@ const ALIASES: [string, string][] = [
   ["BASE", "BASE"],
   ["CELO", "CELO"],
   ["XLM", "XLM"],
-  ["BTC", "BTC"],
   ["BNB", "BNB"],
   ["POL", "POL"],
   ["SOL", "SOL"],
@@ -90,8 +87,6 @@ export function unifyTokens(tokens: any[]): Asset[] {
     if (s.includes("SOL")) return { symbol: "SOL", name: "Solana" };
     if (s.includes("XLM") || s.includes("STELLAR"))
       return { symbol: "XLM", name: "Stellar" };
-    if (s.includes("BTC") || s.includes("BITCOIN"))
-      return { symbol: "BTC", name: "Bitcoin" };
     if (s.includes("BNB")) return { symbol: "BNB", name: "BNB" };
     if (s.includes("POL") || s.includes("MATIC"))
       return { symbol: "POL", name: "Polygon" };

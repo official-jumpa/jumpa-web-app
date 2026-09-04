@@ -98,9 +98,6 @@ export async function POST(req: NextRequest) {
   } else if (selectedChain === "xlm") {
     const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
     privateKey = stellarKeys.secretKey;
-  } else if (selectedChain === "btc") {
-    const btcChild = masterKey.derive("m/84'/0'/0'/0/0");
-    privateKey = Buffer.from(btcChild.privateKey!).toString("hex");
   } else {
     return NextResponse.json({ error: "Unsupported chain" }, { status: 400 });
   }

@@ -18,6 +18,7 @@ import { RecipientTag } from "@/components/transfer/recipient-tag";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
+import { DateField } from "@/components/ui/date-field";
 import { FieldError } from "@/components/ui/field-error";
 import { Select } from "@/components/ui/select";
 import {
@@ -188,7 +189,7 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
               <SavingsRule />
               <div className="flex flex-col gap-3">
                 <SavingsLabel>Start date</SavingsLabel>
-                <DateInput
+                <DateField
                   label="Start date"
                   value={start}
                   invalid={Boolean(errors.dates)}
@@ -202,7 +203,7 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
 
               <div className="flex flex-col gap-3">
                 <SavingsLabel>End date</SavingsLabel>
-                <DateInput
+                <DateField
                   label="End date"
                   value={endDate}
                   invalid={false}
@@ -345,27 +346,3 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
 }
 
 /** Bordered date field, matching the savings form shell. */
-function DateInput({
-  label,
-  value,
-  invalid,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  invalid: boolean;
-  onChange: (next: string) => void;
-}) {
-  return (
-    <input
-      type="date"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      aria-label={label}
-      aria-invalid={invalid}
-      className={`h-11.5 w-full rounded-surface border bg-jumpa-white px-3 text-xs leading-4 font-medium text-jumpa-primary-950 outline-none ${
-        invalid ? "border-jumpa-danger" : "border-jumpa-grey-100"
-      }`}
-    />
-  );
-}

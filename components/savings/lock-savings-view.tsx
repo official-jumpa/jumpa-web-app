@@ -18,6 +18,7 @@ import { RecipientTag } from "@/components/transfer/recipient-tag";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
+import { DateField } from "@/components/ui/date-field";
 import { FieldError } from "@/components/ui/field-error";
 import { CaretDownIcon } from "@/components/ui/icons/caret-down";
 import { GlobeIcon } from "@/components/ui/icons/globe";
@@ -154,7 +155,8 @@ export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
             <div className="flex flex-col gap-3">
               <SavingsLabel>Lock period</SavingsLabel>
               <div className="flex items-center gap-2">
-                <DateInput
+                <DateField
+                  className="min-w-0 flex-1"
                   label="Start date"
                   value={from}
                   invalid={Boolean(errors.range)}
@@ -166,7 +168,8 @@ export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
                 <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-jumpa-primary-600 text-[8px] leading-none font-semibold text-jumpa-white">
                   to
                 </span>
-                <DateInput
+                <DateField
+                  className="min-w-0 flex-1"
                   label="End date"
                   value={until}
                   invalid={Boolean(errors.range)}
@@ -247,27 +250,3 @@ export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
 }
 
 /** One half of the custom lock range. */
-function DateInput({
-  label,
-  value,
-  invalid,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  invalid: boolean;
-  onChange: (next: string) => void;
-}) {
-  return (
-    <input
-      type="date"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      aria-label={label}
-      aria-invalid={invalid}
-      className={`h-11.5 min-w-0 flex-1 rounded-surface border bg-jumpa-white px-3 text-xs leading-4 font-medium text-jumpa-primary-950 outline-none ${
-        invalid ? "border-jumpa-danger" : "border-jumpa-grey-100"
-      }`}
-    />
-  );
-}

@@ -11,6 +11,7 @@ import {
 import { SavingsForm, SavingsPanel } from "@/components/savings/savings-form";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
+import { DateField } from "@/components/ui/date-field";
 import { FieldError } from "@/components/ui/field-error";
 import { UsersIcon } from "@/components/ui/icons/users";
 import {
@@ -137,18 +138,14 @@ export function CreateCircleView({ promotions }: { promotions: Promotion[] }) {
       <SavingsPanel>
         <div className="flex flex-col gap-3">
           <SavingsLabel>Target date</SavingsLabel>
-          <input
-            type="date"
+          <DateField
+            label="Target date"
             value={date}
-            onChange={(event) => {
-              setDate(event.target.value);
+            invalid={Boolean(errors.date)}
+            onChange={(next) => {
+              setDate(next);
               clear("date");
             }}
-            aria-label="Target date"
-            aria-invalid={Boolean(errors.date)}
-            className={`h-11.5 w-full rounded-surface border bg-jumpa-white px-3 text-xs leading-4 font-medium text-jumpa-primary-950 outline-none ${
-              errors.date ? "border-jumpa-danger" : "border-jumpa-grey-100"
-            }`}
           />
           <FieldError>{errors.date}</FieldError>
         </div>

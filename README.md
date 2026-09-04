@@ -89,6 +89,8 @@ Every color, font, radius, shadow, and gradient is declared once in [`app/global
 - **Bottom Sheets:** [`components/ui/bottom-sheet.tsx`](components/ui/bottom-sheet.tsx) provides animated spring overlays (`animate-sheet-up`, `animate-fade`) with safe-area inset padding for PIN verification and balance breakdowns.
 - **Conversational Cards:** Interactive components in [`components/chat/`](components/chat/) for live quotes ([`quote-card.tsx`](components/chat/quote-card.tsx)), payment checkouts ([`onramp-checkout-card.tsx`](components/chat/onramp-checkout-card.tsx)), and confirmed receipts ([`receipt-card.tsx`](components/chat/receipt-card.tsx)).
 - **Staggered Entry Transitions:** [`components/ui/rise-in.tsx`](components/ui/rise-in.tsx) animates dashboard sections sequentially from top to bottom.
+- **Drag-to-Dismiss Sheets:** [`hooks/use-sheet-drag.ts`](hooks/use-sheet-drag.ts) backs both sheet primitives — pull the handle (or the panel, when its content is scrolled to the top) past 96px, or flick it, to close. The scrim, Escape and tap-out are unchanged.
+- **Date Picker:** [`components/ui/date-field.tsx`](components/ui/date-field.tsx) replaces the native `<input type="date">`, which each platform draws differently. It opens the app's own calendar (`react-day-picker`) in a sheet and keeps the value as `YYYY-MM-DD`.
 
 ---
 

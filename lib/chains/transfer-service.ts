@@ -161,7 +161,7 @@ export async function sendStellar(params: {
     networkPassphrase: passphrase,
   }).addOperation(paymentOp);
 
-  // Attach memo if provided
+  // Attach memo if provided, otherwise brand with Jumpa on-chain
   if (memo && memo.trim()) {
     const trimmedMemo = memo.trim();
     // If digits only and fits in uint64, use Memo.id, else Memo.text
@@ -174,6 +174,8 @@ export async function sendStellar(params: {
     } else {
       txBuilder.addMemo(StellarSdk.Memo.text(trimmedMemo.slice(0, 28)));
     }
+  } else {
+    txBuilder.addMemo(StellarSdk.Memo.text("Jumpa: Transfer"));
   }
 
   const tx = txBuilder.setTimeout(60).build();

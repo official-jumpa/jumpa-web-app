@@ -6,8 +6,6 @@ import { generateId } from "@/lib/schema-ids";
 import { ChatLog, type IChatMessage } from "@/models/ChatLog";
 import { Wallet } from "@/models/Wallet";
 import { Transaction } from "@/models/Transaction";
-import { UserActivityLog } from "@/models/UserActivityLog";
-import { buildSwapTransaction } from "@/lib/dex";
 import { executeOfframpTransfer } from "@/lib/chains/offramp-transfer";
 import { SwitchService } from "@/lib/switch";
 import { getExplorerTxUrl } from "@/lib/blockchain";
@@ -17,7 +15,8 @@ import {
   deriveStellarKeypairFromMnemonic,
   getHorizonServer,
 } from "@/lib/chains/stellar";
-import bcrypt from "bcryptjs";
+import { verifyWalletPin } from "@/lib/execution/verify-pin";
+import { executeSwap } from "@/lib/execution/stellar-swap";
 
 const WALLET_PIN_REGEX = /^\d{6}$/;
 
@@ -77,51 +76,13 @@ export async function POST(req: NextRequest) {
 
     // Verify PIN against user's wallet
     const wallet = await Wallet.findOne({ userId });
-    if (wallet?.pinHash) {
-      const pinValid = await bcrypt.compare(pin, wallet.pinHash);
-      if (!pinValid) {
-        console.warn("[Chat Confirm] Incorrect PIN for user:", userId);
+    if (!wallet) {
+      return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
+    }
 
-        // Track PIN attempt failure
-        const attempts = (wallet.pinAttempts || 0) + 1;
-        const isLocked = attempts >= 5;
-        const pinLockedUntil = isLocked
-          ? new Date(Date.now() + 15 * 60 * 1000)
-          : null;
-
-        await Wallet.updateOne(
-          { _id: wallet._id },
-          { $set: { pinAttempts: attempts, pinLockedUntil } },
-        );
-
-        UserActivityLog.create({
-          userId,
-          action: isLocked ? "PIN_LOCKED" : "PIN_FAILED",
-          details: { attempts, walletId: wallet._id },
-        }).catch((e) => console.error("[Chat Confirm] ActivityLog error:", e));
-
-        return NextResponse.json({ error: "Incorrect PIN" }, { status: 401 });
-      }
-
-      // Reset attempts on successful PIN match
-      if (wallet.pinAttempts !== 0) {
-        await Wallet.updateOne(
-          { _id: wallet._id },
-          { $set: { pinAttempts: 0, pinLockedUntil: null } },
-        );
-      }
-
-      UserActivityLog.create({
-        userId,
-        action: "PIN_VERIFIED",
-        details: { walletId: wallet._id, sessionId },
-      }).catch((e) => console.error("[Chat Confirm] ActivityLog error:", e));
-
-      console.log("[Chat Confirm] PIN verified");
-    } else {
-      console.log(
-        "[Chat Confirm] No wallet PIN hash found on account, skipping hash check",
-      );
+    const pinResult = await verifyWalletPin(wallet, pin, { userId, sessionId });
+    if (!pinResult.ok) {
+      return NextResponse.json({ error: pinResult.error }, { status: pinResult.status });
     }
 
     const chatLog = await ChatLog.findOne({ _id: sessionId, userId });
@@ -209,190 +170,41 @@ export async function POST(req: NextRequest) {
         effectiveCardData?._rawQuote?.protocol ||
         "Soroswap Testnet";
       const network = txParams?.network || "testnet";
+      const rawQuote = effectiveCardData?._rawQuote;
 
-      // Decrypt user sovereign keypair first to obtain source address & signing key
-      if (!wallet?.encryptedMnemonic || !pin) {
+      if (!wallet.encryptedMnemonic || !pin) {
         return NextResponse.json(
           { error: "Wallet mnemonic or PIN missing" },
           { status: 400 },
         );
       }
 
-      let sourceKeypair: StellarSdk.Keypair;
-      try {
-        const phrase = decryptMnemonic(
-          wallet.encryptedMnemonic,
-          wallet.iv,
-          wallet.salt,
-          pin,
-        );
-        const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
-        sourceKeypair = StellarSdk.Keypair.fromSecret(stellarKeys.secretKey);
-      } catch (err) {
+      if (!rawQuote) {
+        console.warn("[Chat Confirm] No rawQuote found");
+      }
+
+      const swapResult = await executeSwap({
+        wallet,
+        pin,
+        rawQuote: rawQuote || {},
+        network,
+        fromToken: payBadge,
+        toToken: receiveBadge,
+        fromAmount: payVal,
+        toAmount: receiveVal,
+        userId,
+        sessionId,
+        messageId: targetMsg?.id,
+      });
+
+      if (!swapResult.ok) {
         return NextResponse.json(
-          { error: "Failed to decrypt wallet with provided PIN." },
-          { status: 401 },
+          { error: swapResult.error },
+          { status: swapResult.status },
         );
       }
 
-      const userStellarAddr =
-        sourceKeypair.publicKey() || wallet?.addresses?.xlm || wallet?.address;
-
-      console.log(
-        `[Chat Confirm] Processing Swap: ${payVal} ${payBadge} -> ${receiveVal} ${receiveBadge} on ${protocolName}`,
-      );
-      console.log(`[Chat Confirm] User Stellar Address: ${userStellarAddr}`);
-
-      let txHash = "";
-      let explorerUrl = "";
-
-      // Build and sign on-chain transaction
-      const rawQuote = effectiveCardData?._rawQuote;
-      if (rawQuote) {
-        try {
-          console.log(
-            "[Chat Confirm] Invoking buildSwapTransaction on Soroswap...",
-          );
-          const buildResult = await buildSwapTransaction({
-            quote: rawQuote,
-            fromAddress: userStellarAddr,
-            network,
-          });
-          builtXdr = buildResult.xdr;
-          console.log(
-            "[Chat Confirm] Soroswap Transaction XDR generated (Length:",
-            builtXdr.length,
-            "bytes)",
-          );
-
-          try {
-            console.log(
-              "[Chat Confirm] Signing transaction with keypair:",
-              userStellarAddr,
-            );
-            const passphrase =
-              network === "mainnet"
-                ? StellarSdk.Networks.PUBLIC
-                : StellarSdk.Networks.TESTNET;
-
-            const tx = StellarSdk.TransactionBuilder.fromXDR(
-              builtXdr,
-              passphrase,
-            );
-            tx.sign(sourceKeypair);
-
-            console.log(
-              "[Chat Confirm] Submitting signed transaction to Stellar...",
-            );
-            const server = getHorizonServer(network);
-            const horizonRes = await server.submitTransaction(tx);
-
-            txHash = horizonRes.hash;
-            explorerUrl = getExplorerTxUrl("stellar", txHash, network === "testnet");
-            console.log("[Chat Confirm] SUCCESS! Hash:", txHash);
-            console.log("[Chat Confirm] Explorer URL:", explorerUrl);
-
-            // Record transaction in ledger
-            Transaction.create({
-              userId,
-              walletId: wallet._id,
-              sessionId,
-              messageId: targetMsg?.id,
-              type: "SWAP",
-              status: "CONFIRMED",
-              chain: "stellar",
-              network,
-              fromAddress: userStellarAddr,
-              toAddress: userStellarAddr,
-              amount: payVal,
-              token: payBadge,
-              swapDetails: {
-                fromToken: payBadge,
-                toToken: receiveBadge,
-                fromAmount: payVal,
-                toAmount: receiveVal,
-                protocol: protocolName,
-              },
-              txHash,
-              explorerUrl,
-              feePaid: "0.00001 XLM",
-              executedAt: new Date(),
-            }).catch((e) =>
-              console.error("[Chat Confirm] Transaction log error:", e),
-            );
-
-            Wallet.updateOne(
-              { _id: wallet._id },
-              { $set: { lastUsedAt: new Date() } },
-            ).catch(() => { });
-          } catch (signErr: any) {
-            const resultCodes =
-              signErr?.response?.data?.extras?.result_codes ||
-              signErr?.message ||
-              String(signErr);
-            console.error(
-              "[Chat Confirm] Horizon submission ERROR:",
-              resultCodes,
-            );
-
-            let userErrorMsg = "Transaction failed on Stellar network.";
-            if (
-              resultCodes?.operations?.includes("op_too_few_offers") ||
-              JSON.stringify(resultCodes).includes("op_too_few_offers")
-            ) {
-              userErrorMsg =
-                "Swap failed on-chain: Insufficient liquidity/offers in the testnet orderbook for this swap size. Please try a smaller amount (e.g. 5-10 XLM).";
-            } else if (
-              resultCodes?.operations?.includes("op_underfunded") ||
-              JSON.stringify(resultCodes).includes("op_underfunded")
-            ) {
-              userErrorMsg =
-                "Swap failed on-chain: Insufficient account balance for transaction fee.";
-            } else if (typeof resultCodes === "string") {
-              userErrorMsg = `Swap failed on-chain: ${resultCodes}`;
-            }
-
-            Transaction.create({
-              userId,
-              walletId: wallet._id,
-              sessionId,
-              messageId: targetMsg?.id,
-              type: "SWAP",
-              status: "FAILED",
-              chain: "stellar",
-              network,
-              fromAddress: userStellarAddr,
-              toAddress: userStellarAddr,
-              amount: payVal,
-              token: payBadge,
-              errorMessage: userErrorMsg,
-              executedAt: new Date(),
-            }).catch((e) =>
-              console.error("[Chat Confirm] Transaction log error:", e),
-            );
-
-            return NextResponse.json(
-              { error: userErrorMsg, details: resultCodes },
-              { status: 400 },
-            );
-          }
-        } catch (buildErr: any) {
-          console.error(
-            "[Chat Confirm] Swap build failed:",
-            buildErr?.message || buildErr,
-          );
-          return NextResponse.json(
-            {
-              error: `Swap transaction build failed: ${buildErr?.message || "Internal error"}`,
-            },
-            { status: 400 },
-          );
-        }
-      } else {
-        console.warn(
-          "[Chat Confirm] No _rawQuote attached on message cardData",
-        );
-      }
+      const { txHash, explorerUrl } = swapResult;
 
       receiptCardData = {
         title: `Swapped (${protocolName})`,
@@ -415,7 +227,6 @@ export async function POST(req: NextRequest) {
         ],
         txHash: txHash || undefined,
         explorerUrl: explorerUrl || undefined,
-        xdr: builtXdr ? `${builtXdr.slice(0, 36)}...` : undefined,
       };
     } else if (cardType === "transfer") {
       const amount = String(txParams?.amount || "0");
@@ -552,6 +363,7 @@ export async function POST(req: NextRequest) {
           networkPassphrase: passphrase,
         })
           .addOperation(paymentOp)
+          .addMemo(StellarSdk.Memo.text("Jumpa: Transfer"))
           .setTimeout(60)
           .build();
 

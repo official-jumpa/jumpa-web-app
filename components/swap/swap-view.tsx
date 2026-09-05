@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
-import { SwapLeg } from "@/components/swap/swap-leg";
+import { SwapLeg, formatBalance } from "@/components/swap/swap-leg";
+import { SwapSettingsSheet } from "@/components/swap/swap-settings-sheet";
 import { CloseButton } from "@/components/transfer/close-button";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { PairPill } from "@/components/transfer/pair-pill";
@@ -15,42 +15,152 @@ import { FieldError } from "@/components/ui/field-error";
 import { ArrowDownArrowUpIcon } from "@/components/ui/icons/arrow-down-arrow-up";
 import { PlusIcon } from "@/components/ui/icons/plus";
 import { TriangleWarningIcon } from "@/components/ui/icons/triangle-warning";
-import { DEMO_PIN, SWAP_PAIR, SWAP_QUOTE } from "@/lib/transfer";
+import { useSwapQuote } from "@/hooks/use-swap-quote";
 import type { Promotion } from "@/lib/wallet";
+
+/** Assets available on each chain/network. Extend when new chains are integrated. */
+const CHAIN_ASSETS = {
+  "stellar:testnet": ["XLM", "USDC"] as const,
+  "stellar:mainnet": ["XLM", "USDC"] as const,
+} as const;
 
 type Stage = "quote" | "review" | "done";
 
-/** Swap, end to end: quote, review, PIN, receipt. */
-export function SwapView({ promotions }: { promotions: Promotion[] }) {
+interface TxResult {
+  txHash: string;
+  explorerUrl: string;
+  received: string;
+  receivedToken: string;
+}
+
+export interface StellarTestnetBalances {
+  xlm: string;
+  usdc: string;
+}
+
+export function SwapView({
+  promotions,
+  stellarTestnetBalances,
+}: {
+  promotions: Promotion[];
+  stellarTestnetBalances: StellarTestnetBalances;
+}) {
+  // ── Settings ──
+  const [network, setNetwork] = useState<"testnet" | "mainnet">("testnet");
+  const [slippage, setSlippage] = useState(0.5);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // ── Swap pair ──
+  const assets = CHAIN_ASSETS[`stellar:${network}`];
+  const [fromToken, setFromToken] = useState<string>(assets[0]);
+  const [toToken, setToToken] = useState<string>(assets[1]);
+  const [amount, setAmount] = useState("");
+
+  // ── Flow ──
   const [stage, setStage] = useState<Stage>("quote");
   const [pinOpen, setPinOpen] = useState(false);
   const [pinError, setPinError] = useState(false);
-  const [pair, setPair] = useState(SWAP_PAIR);
-  const [amount, setAmount] = useState("100");
   const [error, setError] = useState<string>();
+  const [txResult, setTxResult] = useState<TxResult | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const received = (Number(amount || 0) * SWAP_QUOTE.rate).toFixed(2);
-  const rate = `1 ${pair.from.symbol} = ${SWAP_QUOTE.rate} ${pair.to.symbol}`;
+  // ── Live quote ──
+  const { quote, loading: quoteLoading, error: quoteError } = useSwapQuote({
+    fromToken,
+    toToken,
+    amount,
+    network,
+    slippage,
+  });
 
-  if (stage === "done") {
+  const received = quote?.amountOut ?? "—";
+  const rate = quote?.rate ?? (quoteLoading ? "Fetching…" : "—");
+  const estimatedFee = quote?.estimatedFee ?? "0.00001 XLM";
+  const quoteSlippage = quote?.slippage ?? `${slippage}%`;
+
+  // ── Balance lookup ──
+  function balanceFor(token: string): string {
+    const t = token.toUpperCase();
+    if (t === "XLM") return formatBalance(stellarTestnetBalances.xlm);
+    if (t === "USDC") return formatBalance(stellarTestnetBalances.usdc);
+    return "0";
+  }
+
+  // ── Direction flip ──
+  function flipPair() {
+    setFromToken(toToken);
+    setToToken(fromToken);
+    setAmount("");
+  }
+
+  // ── PIN submission — calls /api/swap/execute ──
+  async function handlePinSubmit(pin: string) {
+    if (!quote) {
+      setPinError(true);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/swap/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pin,
+          rawQuote: quote.rawQuote,
+          network,
+          fromToken,
+          toToken,
+          fromAmount: amount,
+          toAmount: quote.amountOut,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        console.error("[SwapView] Execute error:", json?.error);
+        setPinError(true);
+      } else {
+        setTxResult({
+          txHash: json.txHash,
+          explorerUrl: json.explorerUrl,
+          received: quote.amountOut,
+          receivedToken: toToken,
+        });
+        setStage("done");
+        setPinOpen(false);
+      }
+    } catch (e) {
+      console.error("[SwapView] Network error:", e);
+      setPinError(true);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // ── Success screen ──
+  if (stage === "done" && txResult) {
     return (
       <TransferSuccess
         back="/home"
         title="Swap successful"
-        amount={`+${received} ${pair.to.symbol}`}
+        amount={`+${txResult.received} ${txResult.receivedToken}`}
         titleFirst
         actionsFirst
         promotions={promotions}
         ctaLabel="Back to home"
         details={
           <DetailList tone="secondary">
-            <DetailRow label="Provider" value={SWAP_QUOTE.provider} />
-            <DetailRow label="Network fee" value={SWAP_QUOTE.networkFee} />
-            <DetailRow
-              label="Slippage"
-              value={SWAP_QUOTE.slippage}
-              rule={false}
-            />
+            <DetailRow label="Network fee" value={estimatedFee} />
+            <DetailRow label="Slippage" value={quoteSlippage} />
+            {txResult.txHash && (
+              <DetailRow
+                label="Tx Hash"
+                value={`${txResult.txHash.slice(0, 6)}…${txResult.txHash.slice(-6)}`}
+                rule={false}
+              />
+            )}
           </DetailList>
         }
       />
@@ -59,6 +169,7 @@ export function SwapView({ promotions }: { promotions: Promotion[] }) {
 
   return (
     <div className="flex min-h-dvh flex-col px-4 pt-3.25 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      {/* ── Header ── */}
       {stage === "review" ? (
         <TransferHeader back="/swap" title="Review swap" />
       ) : (
@@ -67,44 +178,62 @@ export function SwapView({ promotions }: { promotions: Promotion[] }) {
           <h1 className="pointer-events-none absolute inset-x-24 text-center text-lg leading-4 font-medium text-jumpa-black">
             Swap
           </h1>
-          <Link
-            href="/home/chat"
-            aria-label="Swap with Jumpa chat"
+          <button
+            type="button"
+            aria-label="Swap settings"
+            onClick={() => setSettingsOpen(true)}
             className="tap flex size-9.5 items-center justify-center rounded-full border border-jumpa-primary-600 bg-jumpa-secondary-150 text-jumpa-primary-600 active:scale-90"
           >
             <PlusIcon className="size-5.25" />
-          </Link>
+          </button>
         </header>
       )}
 
+      {/* ── Settings sheet (network + slippage) ── */}
+      {settingsOpen && (
+        <SwapSettingsSheet
+          network={network}
+          slippage={slippage}
+          onNetworkChange={(n) => {
+            setNetwork(n);
+            setAmount("");
+          }}
+          onSlippageChange={setSlippage}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
+      {/* ── Quote stage ── */}
       {stage === "quote" ? (
         <div className="mt-6 flex flex-col gap-6">
           <div className="flex flex-col gap-4 rounded-surface bg-jumpa-neutral-95 px-2.5 pt-3 pb-2.5">
-            {/* The direction button sits on the seam between the two legs. */}
             <div className="relative flex flex-col gap-1">
               <SwapLeg
                 label="You send"
-                symbol={pair.from.symbol}
-                balance={pair.from.balance}
-                onSymbolChange={(symbol) =>
-                  setPair({ ...pair, from: { ...pair.from, symbol } })
-                }
+                symbol={fromToken}
+                balance={balanceFor(fromToken)}
+                assets={assets}
+                onSymbolChange={(s) => {
+                  if (s === toToken) flipPair();
+                  else setFromToken(s);
+                }}
               >
                 <input
                   value={amount}
-                  onChange={(event) => {
+                  onChange={(e) => {
                     setError(undefined);
-                    setAmount(event.target.value.replace(/[^\d.]/g, ""));
+                    setAmount(e.target.value.replace(/[^\d.]/g, ""));
                   }}
                   inputMode="decimal"
                   aria-label="Amount to swap"
                   className="w-full min-w-0 bg-transparent text-xl leading-6 font-medium text-jumpa-black caret-jumpa-primary-600 outline-none"
+                  placeholder="0"
                 />
               </SwapLeg>
 
               <button
                 type="button"
-                onClick={() => setPair({ from: pair.to, to: pair.from })}
+                onClick={flipPair}
                 aria-label="Swap direction"
                 className="tap absolute top-1/2 left-1/2 flex size-8.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[0.66px] border-jumpa-black/10 bg-jumpa-primary-525 text-jumpa-alt-400 shadow-[0_0_16px_rgba(0,0,0,0.35)] active:scale-90"
               >
@@ -113,14 +242,20 @@ export function SwapView({ promotions }: { promotions: Promotion[] }) {
 
               <SwapLeg
                 label="You receive"
-                symbol={pair.to.symbol}
-                balance={pair.to.balance}
-                onSymbolChange={(symbol) =>
-                  setPair({ ...pair, to: { ...pair.to, symbol } })
-                }
+                symbol={toToken}
+                balance={balanceFor(toToken)}
+                assets={assets}
+                onSymbolChange={(s) => {
+                  if (s === fromToken) flipPair();
+                  else setToToken(s);
+                }}
               >
                 <span className="text-xl leading-6 font-medium text-jumpa-black">
-                  {received}
+                  {quoteLoading ? (
+                    <span className="animate-pulse text-jumpa-black/40">…</span>
+                  ) : (
+                    received
+                  )}
                 </span>
               </SwapLeg>
             </div>
@@ -129,59 +264,67 @@ export function SwapView({ promotions }: { promotions: Promotion[] }) {
 
             <p className="flex items-center justify-between gap-3 px-2.5 text-xs leading-4 text-jumpa-black/50">
               <span>
-                Rate <b className="font-bold text-jumpa-black">{rate}</b>
+                Rate{" "}
+                <b className="font-bold text-jumpa-black">
+                  {quoteLoading ? "…" : rate}
+                </b>
               </span>
               <span>
                 Fee{" "}
-                <b className="font-bold text-jumpa-black">
-                  0.3 {pair.to.symbol}
-                </b>
+                <b className="font-bold text-jumpa-black">{estimatedFee}</b>
               </span>
             </p>
           </div>
 
           <DetailList tone="secondary">
-            <DetailRow label="Network fee" value={SWAP_QUOTE.networkFee} />
+            <DetailRow label="Network fee" value={estimatedFee} />
             <DetailRow
               label="Slippage"
-              value={SWAP_QUOTE.slippage}
+              value={quoteSlippage}
               rule={false}
             />
           </DetailList>
+
+          {quoteError && (
+            <FieldError>{quoteError}</FieldError>
+          )}
 
           <div className="flex flex-col items-center gap-3">
             <FieldError>{error}</FieldError>
             <Button
               variant="gradient"
               size="lg"
-              onClick={() =>
-                Number(amount)
-                  ? setStage("review")
-                  : setError("Enter an amount to swap.")
-              }
+              onClick={() => {
+                if (!Number(amount)) {
+                  setError("Enter an amount to swap.");
+                } else if (!quote) {
+                  setError("Waiting for a quote. Please try again in a moment.");
+                } else {
+                  setStage("review");
+                }
+              }}
             >
               Review swap
             </Button>
           </div>
 
-          {/* max-w keeps it to the design's two lines at this size. */}
-          <p className="mx-auto flex max-w-72 items-start justify-center gap-1.5 text-xs leading-4 text-jumpa-black">
+          <p className="mx-auto flex max-w-72 items-start justify-center text-xs leading-4 text-jumpa-black text-center">
             <TriangleWarningIcon className="mt-px size-4 shrink-0 text-jumpa-warning" />
             <span>
-              Your quote is locked for {SWAP_QUOTE.lockSeconds} seconds. After
-              that, you&rsquo;ll need to get a new quote.
+              Your quote is locked for 30 seconds. After that, you'll need to get a new quote
             </span>
           </p>
         </div>
       ) : null}
 
+      {/* ── Review sheet ── */}
       {stage === "review" && !pinOpen ? (
         <ReviewSheet
           summary={
             <div className="flex items-center justify-between gap-3">
               <PairPill
-                left={pair.from.symbol}
-                right={pair.to.symbol}
+                left={fromToken}
+                right={toToken}
                 media={<ArrowDownArrowUpIcon className="size-4 -rotate-90" />}
               />
               <span className="shrink-0 text-[10px] leading-4 text-jumpa-black/50">
@@ -190,33 +333,33 @@ export function SwapView({ promotions }: { promotions: Promotion[] }) {
             </div>
           }
           headlineLabel="YOU RECEIVE"
-          headline={`${received} ${pair.to.symbol}`}
+          headline={`${received} ${toToken}`}
           confirmLabel="Confirm swap"
           onConfirm={() => setPinOpen(true)}
           onClose={() => setStage("quote")}
         >
           <DetailList tone="secondary">
-            <DetailRow label="Provider" value={SWAP_QUOTE.provider} />
-            <DetailRow label="Network fee" value={SWAP_QUOTE.networkFee} />
-            <DetailRow label="Slippage" value={SWAP_QUOTE.slippage} />
+            <DetailRow label="Network fee" value={estimatedFee} />
+            <DetailRow label="Slippage" value={quoteSlippage} />
             <DetailRow
-              label="Settlement time"
-              value={SWAP_QUOTE.settlement}
+              label="Network"
+              value={`Stellar ${network}`}
               rule={false}
             />
           </DetailList>
         </ReviewSheet>
       ) : null}
 
+      {/* ── PIN sheet ── */}
       {pinOpen ? (
         <TransferPinSheet
           error={pinError}
           onRetry={() => setPinError(false)}
-          onClose={() => setPinOpen(false)}
-          onComplete={(pin) => {
-            if (pin === DEMO_PIN) setStage("done");
-            else setPinError(true);
+          onClose={() => {
+            setPinOpen(false);
+            setPinError(false);
           }}
+          onComplete={handlePinSubmit}
         />
       ) : null}
     </div>

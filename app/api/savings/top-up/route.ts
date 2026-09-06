@@ -9,11 +9,12 @@ import { decryptMnemonic } from "@/lib/crypto";
 import {
   deriveStellarKeypairFromMnemonic,
   deriveStellarKeypairFromPrivateKey,
+  ensureStellarTrustline,
 } from "@/lib/chains/stellar";
 import { DefindexClient } from "@/lib/chains/stellar/defindex-client";
 import { environment } from "@/lib/environment";
 import { formatPlanForUI } from "@/lib/savings-service";
-import { getExplorerTxUrl } from "@/lib/blockchain";
+import { getExplorerTxUrl, CONTRACT_ADDRESSES } from "@/lib/blockchain";
 
 const defindexClient = new DefindexClient(
   environment.DEFINDEX_API_KEY,
@@ -135,6 +136,13 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
     const userKeypair = StellarSdk.Keypair.fromSecret(keys.secretKey);
     const stellarAddress = wallet.addresses?.xlm || wallet.address;
     const amountStroops = Math.round(amount * 10_000_000);
+
+    // Auto-ensure Circle USDC trustline is active on the account
+    await ensureStellarTrustline(
+      userKeypair,
+      new StellarSdk.Asset("USDC", CONTRACT_ADDRESSES.stellar.testnet.USDC),
+      "testnet",
+    );
 
     console.log(`[POST /api/savings/top-up] Requesting DeFindex deposit for ${amountStroops} stroops ($${amount.toFixed(2)}) into vault ${plan.vaultAddress} from ${stellarAddress}...`);
 

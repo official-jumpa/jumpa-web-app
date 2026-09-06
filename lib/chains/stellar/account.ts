@@ -6,6 +6,7 @@ import {
   stellarMainnetServer,
   stellarTestnetServer,
 } from "./client";
+import { CONTRACT_ADDRESSES } from "@/lib/blockchain";
 
 export interface StellarAssetBalances {
   native: string;
@@ -56,16 +57,23 @@ async function loadHorizonAccount(baseUrl: string, publicKey: string) {
 
 function parseBalancesFromHorizonAccount(
   balances: any[],
+  isTestnet = false,
 ): StellarAssetBalances {
   let native = "0.00";
   let usdc = "0.00";
   let usdt = "0.00";
 
+  const targetUsdcIssuer = isTestnet
+    ? CONTRACT_ADDRESSES.stellar.testnet.USDC
+    : CONTRACT_ADDRESSES.stellar.mainnet.USDC;
+
   for (const b of balances || []) {
     if (b.asset_type === "native") {
       native = b.balance || "0.00";
     } else if (b.asset_code === "USDC") {
-      usdc = b.balance || "0.00";
+      if (!b.asset_issuer || b.asset_issuer === targetUsdcIssuer) {
+        usdc = b.balance || "0.00";
+      }
     } else if (b.asset_code === "USDT") {
       usdt = b.balance || "0.00";
     }
@@ -95,12 +103,12 @@ export async function fetchStellarBalances(
     safeHorizonCall(async () => {
       const data = await loadHorizonAccount(STELLAR_TESTNET_HORIZON, publicKey);
       if (!data) return fallback;
-      return parseBalancesFromHorizonAccount(data.balances);
+      return parseBalancesFromHorizonAccount(data.balances, true);
     }, fallback, 15000),
     safeHorizonCall(async () => {
       const data = await loadHorizonAccount(STELLAR_MAINNET_HORIZON, publicKey);
       if (!data) return fallback;
-      return parseBalancesFromHorizonAccount(data.balances);
+      return parseBalancesFromHorizonAccount(data.balances, false);
     }, fallback, 3500),
   ]);
 
@@ -117,7 +125,10 @@ export async function fetchStellarAccountState(
   const server = getHorizonServer(network);
   try {
     const acc = await server.loadAccount(publicKey);
-    const balances = parseBalancesFromHorizonAccount(acc.balances);
+    const balances = parseBalancesFromHorizonAccount(
+      acc.balances,
+      network === "testnet",
+    );
 
     return {
       address: publicKey,

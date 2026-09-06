@@ -50,3 +50,60 @@ export async function fundTestnetAccount(
     };
   }
 }
+
+/**
+ * Ensures a Stellar account has an active trustline for the given asset.
+ * If missing, submits a changeTrust transaction on-chain automatically.
+ */
+export async function ensureStellarTrustline(
+  keypair: StellarSdk.Keypair,
+  asset: StellarSdk.Asset,
+  network: "testnet" | "mainnet" = "testnet",
+): Promise<boolean> {
+  if (asset.isNative()) return true;
+
+  const server = getHorizonServer(network);
+  try {
+    const account = await server.loadAccount(keypair.publicKey());
+    const hasTrustline = account.balances.some(
+      (b: any) =>
+        b.asset_code === asset.getCode() &&
+        b.asset_issuer === asset.getIssuer(),
+    );
+
+    if (hasTrustline) {
+      return true;
+    }
+
+    console.log(
+      `[Stellar Trustline] Creating missing trustline for ${asset.getCode()}:${asset.getIssuer()} on ${keypair.publicKey()}...`,
+    );
+
+    const passphrase =
+      network === "mainnet"
+        ? StellarSdk.Networks.PUBLIC
+        : StellarSdk.Networks.TESTNET;
+
+    const tx = new StellarSdk.TransactionBuilder(account, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: passphrase,
+    })
+      .addOperation(
+        StellarSdk.Operation.changeTrust({
+          asset,
+        }),
+      )
+      .setTimeout(60)
+      .build();
+
+    tx.sign(keypair);
+    const result = await server.submitTransaction(tx);
+    console.log(
+      `[Stellar Trustline] Trustline established! TxHash: ${result.hash}`,
+    );
+    return true;
+  } catch (err) {
+    console.warn("[Stellar Trustline] Error ensuring trustline:", err);
+    return false;
+  }
+}

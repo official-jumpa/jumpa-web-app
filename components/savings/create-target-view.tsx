@@ -20,7 +20,9 @@ import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { DateField } from "@/components/ui/date-field";
 import { FieldError } from "@/components/ui/field-error";
+import { ResultSheet } from "@/components/ui/result-sheet";
 import { Select } from "@/components/ui/select";
+import { useWalletBalance } from "@/hooks/use-wallet-balance";
 import {
   addDays,
   displayDate,
@@ -31,13 +33,20 @@ import {
   TARGET_TERMS,
   WEEKDAYS,
 } from "@/lib/savings";
+import { friendlySavingsError, type SavingsError } from "@/lib/savings-errors";
 import { formatAmount } from "@/lib/transfer";
 import { revealFirstError } from "@/lib/validation";
 import type { Promotion } from "@/lib/wallet";
 
 type Stage = "goal" | "money" | "done";
 type Sheet = "wallet" | "review" | "pin" | null;
-type Errors = { goal?: string; target?: string; dates?: string; day?: string };
+type Errors = {
+  goal?: string;
+  target?: string;
+  dates?: string;
+  day?: string;
+  deposit?: string;
+};
 
 const MONTH_DAYS = Array.from({ length: 28 }, (_, index) => `${index + 1}`);
 
@@ -55,11 +64,19 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
   const [frequency, setFrequency] = useState(SAVINGS_FREQUENCIES[1]);
   const [day, setDay] = useState("");
   const [errors, setErrors] = useState<Errors>({});
+  const balance = useWalletBalance();
   const [source, setSource] = useState<FundingSource>();
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
+  const [failure, setFailure] = useState<SavingsError>();
+
+  // Provider errors read like "[DeFindex POST /vault/deposit] Failed (403)";
+  // the sheet shows plain copy instead and the raw text goes to the console.
+  const fail = (raw?: string) => {
+    setFailure(friendlySavingsError(raw));
+    setSheet(null);
+  };
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [apiError, setApiError] = useState<string>();
   const [createdTx, setCreatedTx] = useState<string>();
 
   const days = TARGET_TERMS.find((option) => option.label === term)?.days;
@@ -86,11 +103,15 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
 
   const submitMoney = () => {
     const next: Errors = {};
+    // Caught here rather than by the vault, which answers a 403 that says nothing.
+    const depositing = Number.parseFloat(deposit) || 0;
+    if (balance.ready && depositing > balance.usdc)
+      next.deposit = `You have ${balance.formatted} available. Lower the amount or add funds first.`;
     if (frequency !== "Daily" && !day)
       next.day = `Pick the ${frequency === "Weekly" ? "day" : "date"} we should debit you`;
 
     setErrors(next);
-    if (next.day) {
+    if (next.deposit || next.day) {
       revealFirstError(fields.current);
       return;
     }
@@ -229,14 +250,16 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
         fields={fields}
         onSubmit={submitMoney}
       >
-        <SavingsField label="Amount (optional)">
+        <SavingsField label="Amount (optional)" error={errors.deposit}>
           <input
             value={deposit}
-            onChange={(event) =>
-              setDeposit(event.target.value.replace(/[^\d.]/g, ""))
-            }
+            onChange={(event) => {
+              setDeposit(event.target.value.replace(/[^\d.]/g, ""));
+              clear("deposit");
+            }}
             inputMode="decimal"
             placeholder="Enter amount e.g $1000"
+            aria-invalid={Boolean(errors.deposit)}
             className={SAVINGS_INPUT}
           />
         </SavingsField>
@@ -256,7 +279,9 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
               <div className="flex items-center justify-between text-[10px] leading-3.5 font-medium text-jumpa-black">
                 <span>
                   Initial deposit:{" "}
-                  <span className="font-bold">${formatAmount(depNum.toFixed(2))}</span>
+                  <span className="font-bold">
+                    ${formatAmount(depNum.toFixed(2))}
+                  </span>
                   {pct > 0 ? ` (${pct}%)` : ""}
                 </span>
                 <span>
@@ -353,15 +378,12 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
       {sheet === "pin" ? (
         <TransferPinSheet
           error={pinError}
-          onRetry={() => {
-            setPinError(false);
-            setApiError(undefined);
-          }}
+          pending={isSubmitting}
+          onRetry={() => setPinError(false)}
           onClose={() => setSheet("review")}
           onComplete={async (pin) => {
             try {
               setIsSubmitting(true);
-              setApiError(undefined);
               const res = await fetch("/api/savings/create", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -383,10 +405,13 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
 
               const data = await res.json();
               if (!res.ok) {
-                if (res.status === 401 && data.error?.toLowerCase().includes("pin")) {
+                if (
+                  res.status === 401 &&
+                  data.error?.toLowerCase().includes("pin")
+                ) {
                   setPinError(true);
                 } else {
-                  alert(data.error || "Failed to create target");
+                  fail(data.error || "Failed to create target");
                 }
                 return;
               }
@@ -394,11 +419,27 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
               setCreatedTx(data.txHash);
               setStage("done");
             } catch (err: any) {
-              alert(err.message || "Network error occurred");
+              fail(err?.message);
             } finally {
               setIsSubmitting(false);
             }
           }}
+        />
+      ) : null}
+
+      {failure ? (
+        <ResultSheet
+          title={failure.title}
+          message={failure.message}
+          onRetry={
+            failure.retry
+              ? () => {
+                  setFailure(undefined);
+                  setSheet("review");
+                }
+              : undefined
+          }
+          onClose={() => setFailure(undefined)}
         />
       ) : null}
     </>

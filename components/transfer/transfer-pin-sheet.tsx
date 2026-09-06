@@ -9,19 +9,29 @@ import { usePinInput } from "@/hooks/use-pin-input";
 
 const PIN_LENGTH = 6;
 
+/** Stable, so the sheet's Escape listener is not rebound on every render. */
+const NOOP = () => {};
+
 /**
  * Authorises a transfer. The title carries the error — the design shows
- * "Incorrect PIN" with the slots in red, not a separate screen.
+ * "Incorrect PIN" with the slots in red, not a separate screen. Once the last
+ * digit is in, `pending` turns the sheet into a progress state that cannot be
+ * dismissed, so nobody walks away from a transaction mid-flight.
  */
 export function TransferPinSheet({
   length = PIN_LENGTH,
   error,
+  pending,
+  pendingLabel = "Processing your transaction",
   onComplete,
   onRetry,
   onClose,
 }: {
   length?: number;
   error?: boolean;
+  /** The transaction is in flight: pad locked, progress shown, no way out. */
+  pending?: boolean;
+  pendingLabel?: string;
   /** Fires on the last digit; the caller decides what happens next. */
   onComplete: (pin: string) => void;
   /** Fires on the first keypress after a rejection, to clear `error`. */
@@ -67,16 +77,25 @@ export function TransferPinSheet({
     pin.set(next);
   };
 
-  useKeypadKeys({ push, backspace, set });
+  useKeypadKeys({ push, backspace, set, enabled: !pending });
+
+  const title = pending
+    ? pendingLabel
+    : error
+      ? "Incorrect PIN"
+      : "Enter your PIN";
 
   return (
-    <SheetPortal onClose={onClose} className="px-6 pt-6 pb-7.5">
+    <SheetPortal
+      onClose={pending ? NOOP : onClose}
+      className="px-6 pt-6 pb-7.5"
+    >
       <h2
         className={`text-center text-base leading-4.5 font-semibold ${
-          error ? "text-jumpa-danger" : "text-jumpa-black"
+          error && !pending ? "text-jumpa-danger" : "text-jumpa-black"
         }`}
       >
-        {error ? "Incorrect PIN" : "Enter your PIN"}
+        {title}
       </h2>
 
       <div className="mt-4">
@@ -84,13 +103,34 @@ export function TransferPinSheet({
           length={length}
           value={pin.value}
           tone="sheet"
-          error={error}
-          autoFocus
+          error={error && !pending}
+          autoFocus={!pending}
           onValueChange={set}
         />
       </div>
 
-      <NumericKeypad onDigit={push} onBackspace={backspace} className="mt-5" />
+      {pending ? <PinProgress /> : null}
+
+      <NumericKeypad
+        onDigit={push}
+        onBackspace={backspace}
+        disabled={pending}
+        className="mt-5"
+      />
     </SheetPortal>
+  );
+}
+
+/** Indeterminate, because nothing here knows how long the chain will take. */
+function PinProgress() {
+  return (
+    <output className="mt-4 flex flex-col items-center gap-2.5">
+      <span className="block h-1 w-full overflow-hidden rounded-pill bg-jumpa-primary-50">
+        <span className="progress-band block h-full w-1/3 animate-progress rounded-pill bg-jumpa-primary-600" />
+      </span>
+      <p className="text-center text-xs leading-4 text-jumpa-neutral-700">
+        This takes a few seconds. Please keep this screen open.
+      </p>
+    </output>
   );
 }

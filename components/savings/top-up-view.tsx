@@ -8,7 +8,9 @@ import { RecipientTag } from "@/components/transfer/recipient-tag";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
+import { ResultSheet } from "@/components/ui/result-sheet";
 import type { SavingsPlan } from "@/lib/savings";
+import { friendlySavingsError, type SavingsError } from "@/lib/savings-errors";
 import { formatAmount } from "@/lib/transfer";
 import type { Promotion } from "@/lib/wallet";
 
@@ -31,6 +33,14 @@ export function TopUpView({
   const [amount, setAmount] = useState("");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
+  const [failure, setFailure] = useState<SavingsError>();
+
+  // Provider errors read like "[DeFindex POST /vault/deposit] Failed (403)";
+  // the sheet shows plain copy instead and the raw text goes to the console.
+  const fail = (raw?: string) => {
+    setFailure(friendlySavingsError(raw));
+    setSheet(null);
+  };
   const [done, setDone] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdTx, setCreatedTx] = useState<string>();
@@ -59,7 +69,8 @@ export function TopUpView({
         const data = await res.json();
         const totalUsd = parseFloat(data.totalUsd) || 0;
         const usdcTokens =
-          data.tokens?.filter((t: any) => t.symbol?.toUpperCase() === "USDC") || [];
+          data.tokens?.filter((t: any) => t.symbol?.toUpperCase() === "USDC") ||
+          [];
         const usdcTotal = usdcTokens.reduce(
           (sum: number, t: any) => sum + (parseFloat(t.balance) || 0),
           0,
@@ -148,6 +159,7 @@ export function TopUpView({
       {sheet === "pin" ? (
         <TransferPinSheet
           error={pinError}
+          pending={isSubmitting}
           onRetry={() => setPinError(false)}
           onClose={() => setSheet("review")}
           onComplete={async (pin) => {
@@ -164,10 +176,13 @@ export function TopUpView({
 
               const data = await res.json();
               if (!res.ok) {
-                if (res.status === 401 && data.error?.toLowerCase().includes("pin")) {
+                if (
+                  res.status === 401 &&
+                  data.error?.toLowerCase().includes("pin")
+                ) {
                   setPinError(true);
                 } else {
-                  alert(data.error || "Failed to process top-up");
+                  fail(data.error || "Failed to process top-up");
                 }
                 return;
               }
@@ -176,7 +191,9 @@ export function TopUpView({
                 setCurrentPlan(data.plan);
               } else {
                 const prevNum =
-                  parseFloat(String(currentPlan.saved).replace(/[^0-9.-]+/g, "")) || 0;
+                  parseFloat(
+                    String(currentPlan.saved).replace(/[^0-9.-]+/g, ""),
+                  ) || 0;
                 const newTotal = prevNum + Number(amount);
                 setCurrentPlan((prev) => ({
                   ...prev,
@@ -190,11 +207,27 @@ export function TopUpView({
               setCreatedTx(data.txHash);
               setDone(true);
             } catch (err: any) {
-              alert(err.message || "Network error occurred");
+              fail(err?.message);
             } finally {
               setIsSubmitting(false);
             }
           }}
+        />
+      ) : null}
+
+      {failure ? (
+        <ResultSheet
+          title={failure.title}
+          message={failure.message}
+          onRetry={
+            failure.retry
+              ? () => {
+                  setFailure(undefined);
+                  setSheet("review");
+                }
+              : undefined
+          }
+          onClose={() => setFailure(undefined)}
         />
       ) : null}
     </>

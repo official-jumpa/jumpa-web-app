@@ -46,13 +46,14 @@ export function PinSheet({
       <button
         type="button"
         aria-label="Dismiss"
-        onClick={onClose}
+        onClick={processing ? undefined : onClose}
+        disabled={processing}
         className="absolute inset-0 animate-fade bg-jumpa-black/40 backdrop-blur-xs cursor-default"
       />
 
       <div className="absolute inset-x-2.5 bottom-[calc(env(safe-area-inset-bottom)+10px)] animate-sheet-up rounded-sheet border border-jumpa-black/4 bg-jumpa-white px-6 pt-6 pb-7.5 shadow-2xl z-50">
         <h2 className="text-center text-base leading-4.5 font-semibold text-jumpa-black">
-          Enter your PIN
+          {processing ? "Processing your transaction" : "Enter your PIN"}
         </h2>
 
         {error && (
@@ -62,9 +63,15 @@ export function PinSheet({
         )}
 
         {processing && (
-          <p className="mt-2 text-center text-xs font-medium text-jumpa-primary-600 animate-pulse">
-            Processing transaction...
-          </p>
+          // Indeterminate: nothing here knows how long the chain will take.
+          <output className="mt-4 flex flex-col items-center gap-2.5">
+            <span className="block h-1 w-full overflow-hidden rounded-pill bg-jumpa-primary-50">
+              <span className="progress-band block h-full w-1/3 animate-progress rounded-pill bg-jumpa-primary-600" />
+            </span>
+            <p className="text-center text-xs leading-4 text-jumpa-neutral-700">
+              This takes a few seconds. Please keep this screen open.
+            </p>
+          </output>
         )}
 
         <div className="mt-4">

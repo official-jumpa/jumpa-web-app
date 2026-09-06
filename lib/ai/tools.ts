@@ -433,7 +433,53 @@ const bridgeTokens: DeepSeekTool = {
   },
 };
 
+/**
+ * Step-wise entry to a swap. The quote tools need every detail up front, so a
+ * bare "swap tokens" used to be answered in prose; this returns one chooser per
+ * missing piece instead, then hands over to the quote tool for that network.
+ */
+const swapTokens: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "swap_tokens",
+    description:
+      "Start a token swap when the user has NOT already given the network, both tokens and the amount. " +
+      "Call this for any open-ended swap request — 'swap tokens', 'I want to swap', 'swap my XLM'. " +
+      "Pass only what the user has actually told you and omit the rest: the tool answers with the chooser " +
+      "for whatever is still missing, so never ask for the network, the tokens or the amount in prose. " +
+      "Call it again after each answer with that detail added. Once it reports every detail is known, " +
+      "call the matching stellar_testnet_swap_quote or stellar_mainnet_swap_quote tool.",
+    parameters: {
+      type: "object",
+      properties: {
+        network: {
+          type: "string",
+          enum: ["testnet", "mainnet"],
+          description: "Stellar network the swap runs on. Omit if unstated.",
+        },
+        fromToken: {
+          type: "string",
+          enum: ["XLM", "USDC"],
+          description: "Token to swap FROM. Omit if the user has not said.",
+        },
+        toToken: {
+          type: "string",
+          enum: ["XLM", "USDC"],
+          description: "Token to swap TO. Omit if the user has not said.",
+        },
+        amount: {
+          type: "string",
+          description:
+            "Amount of fromToken as a decimal string. Omit if unstated — never assume one.",
+        },
+      },
+      required: [],
+    },
+  },
+};
+
 export const JUMPA_TOOLS: DeepSeekTool[] = [
+  swapTokens,
   stellarTestnetSwapQuote,
   stellarTestnetBalance,
   stellarMainnetSwapQuote,
@@ -449,6 +495,7 @@ export const JUMPA_TOOLS: DeepSeekTool[] = [
 ];
 
 export type JumpaToolName =
+  | "swap_tokens"
   | "stellar_testnet_swap_quote"
   | "stellar_testnet_balance"
   | "stellar_mainnet_swap_quote"

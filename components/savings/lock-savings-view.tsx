@@ -23,6 +23,8 @@ import { FieldError } from "@/components/ui/field-error";
 import { CaretDownIcon } from "@/components/ui/icons/caret-down";
 import { GlobeIcon } from "@/components/ui/icons/globe";
 import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
+import { ResultSheet } from "@/components/ui/result-sheet";
+import { useWalletBalance } from "@/hooks/use-wallet-balance";
 import {
   addDays,
   displayDate,
@@ -31,6 +33,7 @@ import {
   LOCK_TERMS,
   shortDate,
 } from "@/lib/savings";
+import { friendlySavingsError, type SavingsError } from "@/lib/savings-errors";
 import { formatAmount } from "@/lib/transfer";
 import { revealFirstError } from "@/lib/validation";
 import type { Promotion } from "@/lib/wallet";
@@ -47,9 +50,18 @@ export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
   const [from, setFrom] = useState("");
   const [until, setUntil] = useState("");
   const [errors, setErrors] = useState<Errors>({});
+  const balance = useWalletBalance();
   const [source, setSource] = useState<FundingSource>();
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
+  const [failure, setFailure] = useState<SavingsError>();
+
+  // Provider errors read like "[DeFindex POST /vault/deposit] Failed (403)";
+  // the sheet shows plain copy instead and the raw text goes to the console.
+  const fail = (raw?: string) => {
+    setFailure(friendlySavingsError(raw));
+    setSheet(null);
+  };
   const [done, setDone] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdTx, setCreatedTx] = useState<string>();
@@ -62,7 +74,10 @@ export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
         const res = await fetch("/api/savings?type=lock");
         if (res.ok && isMounted) {
           const data = await res.json();
-          if (typeof data.summary?.apyValue === "number" && data.summary.apyValue > 0) {
+          if (
+            typeof data.summary?.apyValue === "number" &&
+            data.summary.apyValue > 0
+          ) {
             setApyRate(data.summary.apyValue);
           } else if (data.summary?.apy) {
             const parsed = parseFloat(data.summary.apy);
@@ -102,14 +117,18 @@ export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
   const total = `$${formatAmount(amount)}`;
 
   const principal = parseFloat(amount) || 0;
-  const estimatedYield = lockDays > 0 ? (principal * (apyRate / 100) * lockDays) / 365 : 0;
+  const estimatedYield =
+    lockDays > 0 ? (principal * (apyRate / 100) * lockDays) / 365 : 0;
 
   const clear = (field: keyof Errors) =>
     setErrors((current) => ({ ...current, [field]: undefined }));
 
   const submit = () => {
     const next: Errors = {};
+    // Caught here rather than by the vault, which answers a 403 that says nothing.
     if (!Number(amount)) next.amount = "Enter the amount you want to lock";
+    else if (balance.ready && Number(amount) > balance.usdc)
+      next.amount = `You have ${balance.formatted} available. Lower the amount or add funds first.`;
     if (!goal.trim()) next.goal = "Tell us what you are saving for";
     if (custom && (!from || !until))
       next.range = "Pick the start and end of your lock";
@@ -264,7 +283,11 @@ export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
                 </span>
               ) : null}
             </span>
-            <span>{maturity ? `Unlocks ${shortDate(maturity)}` : "Select lock period"}</span>
+            <span>
+              {maturity
+                ? `Unlocks ${shortDate(maturity)}`
+                : "Select lock period"}
+            </span>
           </div>
         </SavingsPanel>
 
@@ -303,6 +326,7 @@ export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
       {sheet === "pin" ? (
         <TransferPinSheet
           error={pinError}
+          pending={isSubmitting}
           onRetry={() => setPinError(false)}
           onClose={() => setSheet("review")}
           onComplete={async (pin) => {
@@ -327,10 +351,13 @@ export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
 
               const data = await res.json();
               if (!res.ok) {
-                if (res.status === 401 && data.error?.toLowerCase().includes("pin")) {
+                if (
+                  res.status === 401 &&
+                  data.error?.toLowerCase().includes("pin")
+                ) {
                   setPinError(true);
                 } else {
-                  alert(data.error || "Failed to lock savings");
+                  fail(data.error || "Failed to lock savings");
                 }
                 return;
               }
@@ -338,11 +365,27 @@ export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
               setCreatedTx(data.txHash);
               setDone(true);
             } catch (err: any) {
-              alert(err.message || "Network error occurred");
+              fail(err?.message);
             } finally {
               setIsSubmitting(false);
             }
           }}
+        />
+      ) : null}
+
+      {failure ? (
+        <ResultSheet
+          title={failure.title}
+          message={failure.message}
+          onRetry={
+            failure.retry
+              ? () => {
+                  setFailure(undefined);
+                  setSheet("review");
+                }
+              : undefined
+          }
+          onClose={() => setFailure(undefined)}
         />
       ) : null}
     </>

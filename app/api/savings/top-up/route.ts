@@ -11,6 +11,7 @@ import {
   deriveStellarKeypairFromPrivateKey,
   ensureStellarTrustline,
 } from "@/lib/chains/stellar";
+import { fetchStellarBalances } from "@/lib/chains/stellar/account";
 import { DefindexClient } from "@/lib/chains/stellar/defindex-client";
 import { environment } from "@/lib/environment";
 import { formatPlanForUI } from "@/lib/savings-service";
@@ -136,6 +137,24 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
     const userKeypair = StellarSdk.Keypair.fromSecret(keys.secretKey);
     const stellarAddress = wallet.addresses?.xlm || wallet.address;
     const amountStroops = Math.round(amount * 10_000_000);
+
+    // The vault answers an underfunded deposit with a bare 403, which tells
+    // nobody anything. Read the balance first and say what is actually wrong.
+    const balances = await fetchStellarBalances(stellarAddress);
+    const availableUsdc = Number(balances.testnet.usdc) || 0;
+    if (availableUsdc < amount) {
+      console.warn(
+        `[POST /api/savings/top-up] Insufficient USDC: has ${availableUsdc}, needs ${amount}`,
+      );
+      return NextResponse.json(
+        {
+          error:
+            `Insufficient balance — you have $${availableUsdc.toFixed(2)} USDC ` +
+            `and this top-up needs $${amount.toFixed(2)}.`,
+        },
+        { status: 400 },
+      );
+    }
 
     // Auto-ensure Circle USDC trustline is active on the account
     await ensureStellarTrustline(

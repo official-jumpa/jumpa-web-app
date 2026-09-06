@@ -167,6 +167,47 @@ const SAVINGS_AMOUNTS: ChatOption[] = [
   { label: "Custom Amount", custom: true, placeholder: "Enter an amount" },
 ];
 
+/** The two networks a Stellar swap can run on. */
+const SWAP_NETWORKS: ChatOption[] = [
+  {
+    label: "Stellar Testnet",
+    description: "Test tokens — nothing real moves",
+    icon: "crypto",
+    reply: "Swap on Stellar Testnet",
+  },
+  {
+    label: "Stellar Mainnet",
+    description: "Live funds from your wallet",
+    icon: "crypto",
+    reply: "Swap on Stellar Mainnet",
+  },
+];
+
+/** Soroswap trades XLM against USDC; there is no third asset to offer. */
+const SWAP_ASSETS = ["XLM", "USDC"] as const;
+
+const swapFromOptions = (): ChatOption[] =>
+  SWAP_ASSETS.map((token) => ({
+    label: token,
+    icon: "crypto",
+    reply: `Swap from ${token}`,
+  }));
+
+const swapToOptions = (from: string): ChatOption[] =>
+  SWAP_ASSETS.filter((token) => token !== from).map((token) => ({
+    label: token,
+    icon: "crypto",
+    reply: `Receive ${token}`,
+  }));
+
+const swapAmountOptions = (token: string): ChatOption[] => [
+  { label: `10 ${token}` },
+  { label: `25 ${token}` },
+  { label: `50 ${token}` },
+  { label: `100 ${token}` },
+  { label: "Custom Amount", custom: true, placeholder: `Amount in ${token}` },
+];
+
 const SAVINGS_DURATIONS: ChatOption[] = [
   { label: "30 days" },
   { label: "60 days" },
@@ -258,6 +299,78 @@ export async function executeTool(
           currency: quote.fromToken,
         },
         requiresConfirmation: true,
+      };
+    }
+
+    // Walks the user through network, pair and amount, one card per answer,
+    // then hands over to the quote tool for the network they picked.
+    case "swap_tokens": {
+      const { network, fromToken, toToken, amount } = toolArgs as {
+        network?: string;
+        fromToken?: string;
+        toToken?: string;
+        amount?: string;
+      };
+
+      const chosen = network?.toLowerCase().trim();
+      if (chosen !== "testnet" && chosen !== "mainnet") {
+        return {
+          toolName: name,
+          summaryForAI: "Which network should the swap run on?",
+          cardHint: { type: "options", data: { options: SWAP_NETWORKS } },
+          requiresConfirmation: false,
+        };
+      }
+
+      const asset = (value?: string) => {
+        const upper = value?.toUpperCase().trim();
+        return SWAP_ASSETS.find((token) => token === upper);
+      };
+
+      const from = asset(fromToken);
+      if (!from) {
+        return {
+          toolName: name,
+          summaryForAI: "Which token are they swapping from?",
+          cardHint: { type: "options", data: { options: swapFromOptions() } },
+          requiresConfirmation: false,
+        };
+      }
+
+      const to = asset(toToken);
+      if (!to || to === from) {
+        return {
+          toolName: name,
+          summaryForAI: `Swapping **${from}** — which token should they receive?`,
+          cardHint: {
+            type: "options",
+            data: { options: swapToOptions(from) },
+          },
+          requiresConfirmation: false,
+        };
+      }
+
+      const size = Number(amount?.replace(/[^0-9.]/g, ""));
+      if (!Number.isFinite(size) || size <= 0) {
+        return {
+          toolName: name,
+          summaryForAI: `How much **${from}** should be swapped for **${to}**?`,
+          cardHint: {
+            type: "options",
+            data: { options: swapAmountOptions(from) },
+          },
+          requiresConfirmation: false,
+        };
+      }
+
+      return {
+        toolName: name,
+        summaryForAI:
+          `Every detail is known: ${size} ${from} to ${to} on Stellar ${chosen}. ` +
+          `Now call stellar_${chosen}_swap_quote with fromToken "${from}", ` +
+          `toToken "${to}" and fromAmount "${size}". Say nothing to the user first.`,
+        cardHint: { type: "none" },
+        requiresConfirmation: false,
       };
     }
 

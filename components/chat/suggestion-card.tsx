@@ -6,12 +6,19 @@ import { MoneyBillIcon } from "@/components/ui/icons/money-bill";
 import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
 import { WalletPlusIcon } from "@/components/ui/icons/wallet-plus";
 
+/** `prompt` is what gets sent when the label is not a request on its own. */
 const SUGGESTIONS = [
   { label: "Add funds", Icon: WalletPlusIcon },
   { label: "Cash In", Icon: EuroCircleIcon },
   { label: "Check Balance", Icon: MoneyBillIcon },
   { label: "Create Savings", Icon: BadgePercentIcon },
-  { label: "Swap 20 USD to XLM", Icon: SwitchHorizontalIcon },
+  {
+    label: "Swap tokens",
+    Icon: SwitchHorizontalIcon,
+    // The design's "Swap 20 USD to XLM" names the pair and the amount, so it
+    // quoted immediately and there was nothing left to choose.
+    prompt: "I want to swap tokens",
+  },
 ];
 
 /**
@@ -30,11 +37,11 @@ export function SuggestionCard({
 }) {
   return (
     <div className="flex flex-wrap gap-x-1 gap-y-2 rounded-surface bg-jumpa-white px-1.5 py-2.5">
-      {SUGGESTIONS.map(({ label, Icon }) => (
+      {SUGGESTIONS.map(({ label, Icon, prompt }) => (
         <button
           key={label}
           type="button"
-          onClick={() => onSelect?.(label)}
+          onClick={() => onSelect?.(prompt ?? label)}
           className="flex items-center gap-2 rounded-pill bg-jumpa-neutral-95 px-3 py-2 text-[10px] font-medium whitespace-nowrap text-jumpa-black tap hover:bg-jumpa-neutral-100 active:scale-95 cursor-pointer"
         >
           <Icon className="size-6 text-jumpa-primary-600" />

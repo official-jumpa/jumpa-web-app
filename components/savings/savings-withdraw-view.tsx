@@ -2,18 +2,20 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { EmptyPlans } from "@/components/savings/empty-plans";
+import { PlanCard } from "@/components/savings/plan-card";
 import { AmountScreen } from "@/components/transfer/amount-screen";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { RecipientTag } from "@/components/transfer/recipient-tag";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
+import { TransferHeader } from "@/components/transfer/transfer-header";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
-import { TransferHeader } from "@/components/transfer/transfer-header";
-import { PlanCard } from "@/components/savings/plan-card";
-import { EmptyPlans } from "@/components/savings/empty-plans";
+import { ResultSheet } from "@/components/ui/result-sheet";
+import type { SavingsPlan } from "@/lib/savings";
+import { friendlySavingsError, type SavingsError } from "@/lib/savings-errors";
 import { formatAmount } from "@/lib/transfer";
 import { PROMOTIONS } from "@/lib/wallet";
-import type { SavingsPlan } from "@/lib/savings";
 
 type Sheet = "review" | "pin" | null;
 
@@ -52,6 +54,14 @@ export function SavingsWithdrawView() {
   const [amount, setAmount] = useState("");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
+  const [failure, setFailure] = useState<SavingsError>();
+
+  // Provider errors read like "[DeFindex POST /vault/deposit] Failed (403)";
+  // the sheet shows plain copy instead and the raw text goes to the console.
+  const fail = (raw?: string) => {
+    setFailure(friendlySavingsError(raw));
+    setSheet(null);
+  };
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [createdTx, setCreatedTx] = useState<string>();
@@ -178,7 +188,9 @@ export function SavingsWithdrawView() {
       <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         <TransferHeader back="/savings" title="Select plan to withdraw" />
         <section className="mt-4 flex flex-col gap-3">
-          <h2 className="text-xs font-medium text-jumpa-black">Available plans</h2>
+          <h2 className="text-xs font-medium text-jumpa-black">
+            Available plans
+          </h2>
           {plans.map((p) => (
             <div
               key={p.id}
@@ -200,7 +212,9 @@ export function SavingsWithdrawView() {
         recipient={
           <RecipientTag
             primary="Jumpa wallet"
-            secondary={selectedPlan ? `From: ${selectedPlan.name}` : "From savings"}
+            secondary={
+              selectedPlan ? `From: ${selectedPlan.name}` : "From savings"
+            }
           />
         }
         onClose={() => router.push(backUrl)}
@@ -222,7 +236,9 @@ export function SavingsWithdrawView() {
             />
           }
           headline={payoutTotal}
-          headlineLabel={penaltyFee > 0 ? "ESTIMATED NET PAYOUT" : "YOU ARE WITHDRAWING"}
+          headlineLabel={
+            penaltyFee > 0 ? "ESTIMATED NET PAYOUT" : "YOU ARE WITHDRAWING"
+          }
           confirmLabel="Confirm withdrawal"
           onConfirm={() => setSheet("pin")}
           onClose={() => setSheet(null)}
@@ -234,26 +250,33 @@ export function SavingsWithdrawView() {
       {sheet === "pin" && selectedPlan ? (
         <TransferPinSheet
           error={pinError}
+          pending={isSubmitting}
           onRetry={() => setPinError(false)}
           onClose={() => setSheet("review")}
           onComplete={async (pin) => {
             try {
               setIsSubmitting(true);
-              const res = await fetch(`/api/savings/withdraw?id=${selectedPlan.id}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  amount: numAmount,
-                  pin,
-                }),
-              });
+              const res = await fetch(
+                `/api/savings/withdraw?id=${selectedPlan.id}`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    amount: numAmount,
+                    pin,
+                  }),
+                },
+              );
 
               const data = await res.json();
               if (!res.ok) {
-                if (res.status === 401 && data.error?.toLowerCase().includes("pin")) {
+                if (
+                  res.status === 401 &&
+                  data.error?.toLowerCase().includes("pin")
+                ) {
                   setPinError(true);
                 } else {
-                  alert(data.error || "Failed to process withdrawal");
+                  fail(data.error || "Failed to process withdrawal");
                 }
                 return;
               }
@@ -261,11 +284,27 @@ export function SavingsWithdrawView() {
               setCreatedTx(data.txHash);
               setDone(true);
             } catch (err: any) {
-              alert(err.message || "Network error occurred");
+              fail(err?.message);
             } finally {
               setIsSubmitting(false);
             }
           }}
+        />
+      ) : null}
+
+      {failure ? (
+        <ResultSheet
+          title={failure.title}
+          message={failure.message}
+          onRetry={
+            failure.retry
+              ? () => {
+                  setFailure(undefined);
+                  setSheet("review");
+                }
+              : undefined
+          }
+          onClose={() => setFailure(undefined)}
         />
       ) : null}
     </>

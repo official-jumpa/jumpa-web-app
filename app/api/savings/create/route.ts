@@ -12,6 +12,7 @@ import {
   deriveStellarKeypairFromPrivateKey,
   ensureStellarTrustline,
 } from "@/lib/chains/stellar";
+import { fetchStellarBalances } from "@/lib/chains/stellar/account";
 import { DefindexClient } from "@/lib/chains/stellar/defindex-client";
 import { environment } from "@/lib/environment";
 import { formatPlanForUI } from "@/lib/savings-service";
@@ -123,6 +124,24 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
 
     // 3. Execute initial deposit on Stellar Testnet if depositAmount > 0
     if (numDeposit > 0) {
+      // The vault answers an underfunded deposit with a bare 403, which tells
+      // nobody anything. Read the balance first and say what is actually wrong.
+      const balances = await fetchStellarBalances(stellarAddress);
+      const availableUsdc = Number(balances.testnet.usdc) || 0;
+      if (availableUsdc < numDeposit) {
+        console.warn(
+          `[POST /api/savings/create] Insufficient USDC: has ${availableUsdc}, needs ${numDeposit}`,
+        );
+        return NextResponse.json(
+          {
+            error:
+              `Insufficient balance — you have $${availableUsdc.toFixed(2)} USDC ` +
+              `and this deposit needs $${numDeposit.toFixed(2)}.`,
+          },
+          { status: 400 },
+        );
+      }
+
       let secret: string;
       try {
         secret = decryptMnemonic(

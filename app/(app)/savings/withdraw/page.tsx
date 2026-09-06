@@ -1,5 +1,10 @@
-import { ComingSoon } from "@/components/ui/coming-soon";
+import { Suspense } from "react";
+import { SavingsWithdrawView } from "@/components/savings/savings-withdraw-view";
 
 export default function SavingsWithdrawPage() {
-  return <ComingSoon feature="Withdraw from savings" />;
+  return (
+    <Suspense fallback={null}>
+      <SavingsWithdrawView />
+    </Suspense>
+  );
 }

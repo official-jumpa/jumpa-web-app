@@ -13,6 +13,12 @@ export interface IUser {
   lastLoginAt?: Date | null;
   loginMethod?: "google" | "email" | "anonymous";
   activeWalletId?: string | null;
+  hasCreatedSavings?: boolean;
+  seenSavingsIntros?: {
+    individual?: boolean;
+    lock?: boolean;
+    circle?: boolean;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,6 +37,12 @@ const UserSchema = new Schema<IUser>(
     lastLoginAt: { type: Date, default: null },
     loginMethod: { type: String, enum: ["google", "email", "anonymous"], default: "email" },
     activeWalletId: { type: String, default: null },
+    hasCreatedSavings: { type: Boolean, default: false },
+    seenSavingsIntros: {
+      individual: { type: Boolean, default: false },
+      lock: { type: Boolean, default: false },
+      circle: { type: Boolean, default: false },
+    },
   },
   {
     timestamps: true,

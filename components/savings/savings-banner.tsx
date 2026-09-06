@@ -1,6 +1,15 @@
 import Image from "next/image";
 import { SAVINGS_SUMMARY } from "@/lib/savings";
 
+export interface SavingsSummaryData {
+  goals: number;
+  saved: string;
+  target: string;
+  percent: number;
+  remaining: string;
+  apy?: string;
+}
+
 /**
  * Purple masthead on the savings landing. With goals in play it reports the
  * total; empty, it shows the artwork instead. The two notches curve the sheet
@@ -9,10 +18,14 @@ import { SAVINGS_SUMMARY } from "@/lib/savings";
 export function SavingsBanner({
   title,
   progress,
+  summary,
 }: {
   title: string;
   progress?: boolean;
+  summary?: SavingsSummaryData;
 }) {
+  const currentSummary = summary || SAVINGS_SUMMARY;
+
   return (
     <div className="-mx-4.5">
       <div className="relative flex h-38.75 flex-col justify-center overflow-hidden bg-[linear-gradient(to_bottom,var(--color-jumpa-primary-600),var(--color-jumpa-primary-400))] p-6">
@@ -42,20 +55,20 @@ export function SavingsBanner({
         {progress ? (
           <div className="relative mt-4 flex flex-col gap-1.5 text-jumpa-secondary-50">
             <div className="flex items-center justify-between text-[10px] leading-3.5 font-medium">
-              <span>{SAVINGS_SUMMARY.goals} active goals</span>
+              <span>{currentSummary.goals} active goals</span>
               <span>
-                {SAVINGS_SUMMARY.saved}/{SAVINGS_SUMMARY.target}
+                {currentSummary.saved}/{currentSummary.target}
               </span>
             </div>
             <div className="h-1 w-full overflow-hidden rounded-pill bg-jumpa-white/30">
               <div
                 className="h-full rounded-pill bg-jumpa-alt-400"
-                style={{ width: `${SAVINGS_SUMMARY.percent}%` }}
+                style={{ width: `${currentSummary.percent}%` }}
               />
             </div>
             <div className="flex items-center justify-between text-[8px] leading-2.5 font-semibold">
-              <span>{SAVINGS_SUMMARY.percent}%</span>
-              <span>{SAVINGS_SUMMARY.remaining} left</span>
+              <span>{currentSummary.percent}%</span>
+              <span>{currentSummary.remaining} left</span>
             </div>
           </div>
         ) : null}

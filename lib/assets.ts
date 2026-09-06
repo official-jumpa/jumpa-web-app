@@ -46,6 +46,7 @@ const ALIASES: [string, string][] = [
   ["TON", "TON"],
   ["SUI", "SUI"],
   ["USD", "USDC"],
+  ["$", "USDC"],
 ];
 
 /** Resolve an asset, chain or network name to its logo. */

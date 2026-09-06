@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { EmptyPlans } from "@/components/savings/empty-plans";
 import { PlanCard } from "@/components/savings/plan-card";
@@ -19,7 +22,7 @@ export function ProductScreen({
   listLabel,
   emptyTitle,
   emptyCaption,
-  plans,
+  plans: initialPlans = [],
 }: {
   kind: SavingsKind;
   title: string;
@@ -28,9 +31,45 @@ export function ProductScreen({
   listLabel: string;
   emptyTitle: string;
   emptyCaption?: string;
-  plans: SavingsPlan[];
+  plans?: SavingsPlan[];
 }) {
-  const balance = SAVINGS_BALANCE[kind];
+  const [plans, setPlans] = useState<SavingsPlan[]>(initialPlans);
+  const defaultBalance = SAVINGS_BALANCE[kind];
+  const [balance, setBalance] = useState<{
+    badge: string;
+    amount: string;
+    rate?: string;
+  }>(defaultBalance);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadPlans() {
+      try {
+        setLoading(true);
+        const res = await fetch(`/api/savings?type=${kind}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.plans)) {
+            setPlans(data.plans);
+          }
+          if (data.summary) {
+            setBalance({
+              badge: defaultBalance.badge,
+              amount: data.summary.saved || "0",
+              rate:
+                data.summary.apy ||
+                ("rate" in defaultBalance ? defaultBalance.rate : undefined),
+            });
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to load plans for ${kind}:`, err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadPlans();
+  }, [kind]);
 
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">

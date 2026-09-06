@@ -66,7 +66,7 @@ export function SavingsTypes({
 
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-xs font-medium text-jumpa-black">Loan types</h2>
+      <h2 className="text-xs font-medium text-jumpa-black">Savings types</h2>
 
       <div className="flex items-start gap-3">
         {[individual, lock].map(({ kind, label, caption, Icon }) => (

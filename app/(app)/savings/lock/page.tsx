@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { ProductScreen } from "@/components/savings/product-screen";
-import { plansOf } from "@/lib/savings";
 
 export const metadata: Metadata = { title: "Locked savings" };
 
@@ -12,8 +11,9 @@ export default function LockSavingsPage() {
       cta="Create new"
       newHref="/savings/lock/new"
       listLabel="Recent Plans"
-      emptyTitle="No recent plans"
-      plans={plansOf("lock")}
+      emptyTitle="No locked savings plans"
+      emptyCaption="Lock funds away to earn guaranteed APY"
+      plans={[]}
     />
   );
 }

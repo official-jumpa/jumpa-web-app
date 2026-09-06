@@ -296,7 +296,7 @@ export function SwapView({
               size="lg"
               onClick={() => {
                 if (!Number(amount)) {
-                  setError("Enter an amount to swap.");
+                  setError("Enter an amount to swap");
                 } else if (!quote) {
                   setError("Waiting for a quote. Please try again in a moment.");
                 } else {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChoiceChips } from "@/components/savings/choice-chips";
 import { FundingSheet } from "@/components/savings/funding-sheet";
 import {
@@ -31,7 +31,7 @@ import {
   LOCK_TERMS,
   shortDate,
 } from "@/lib/savings";
-import { DEMO_PIN, formatAmount } from "@/lib/transfer";
+import { formatAmount } from "@/lib/transfer";
 import { revealFirstError } from "@/lib/validation";
 import type { Promotion } from "@/lib/wallet";
 
@@ -51,11 +51,58 @@ export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
   const [done, setDone] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdTx, setCreatedTx] = useState<string>();
+  const [apyRate, setApyRate] = useState<number>(0);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadApy() {
+      try {
+        const res = await fetch("/api/savings?type=lock");
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          if (typeof data.summary?.apyValue === "number" && data.summary.apyValue > 0) {
+            setApyRate(data.summary.apyValue);
+          } else if (data.summary?.apy) {
+            const parsed = parseFloat(data.summary.apy);
+            if (!isNaN(parsed) && parsed > 0) {
+              setApyRate(parsed);
+            } else {
+              setApyRate(0);
+            }
+          } else {
+            setApyRate(0);
+          }
+        }
+      } catch (err) {
+        if (isMounted) setApyRate(0);
+      }
+    }
+    loadApy();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const custom = term === "Custom";
   const days = LOCK_TERMS.find((option) => option.label === term)?.days ?? null;
+  const customDays =
+    custom && from && until
+      ? Math.max(
+          1,
+          Math.round(
+            (new Date(until).getTime() - new Date(from).getTime()) /
+              (1000 * 60 * 60 * 24),
+          ),
+        )
+      : 0;
+  const lockDays = custom ? customDays : (days ?? 30);
   const maturity = custom ? until : days ? addDays(days) : "";
   const total = `$${formatAmount(amount)}`;
+
+  const principal = parseFloat(amount) || 0;
+  const estimatedYield = lockDays > 0 ? (principal * (apyRate / 100) * lockDays) / 365 : 0;
 
   const clear = (field: keyof Errors) =>
     setErrors((current) => ({ ...current, [field]: undefined }));
@@ -80,8 +127,19 @@ export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
   const details = (
     <DetailList>
       <DetailRow label="Goal" value={goal} />
-      <DetailRow label="Duration" value={custom ? "Custom" : term} />
+      <DetailRow
+        label="Duration"
+        value={custom ? `${lockDays} days (Custom)` : term}
+      />
       <DetailRow label="Maturity date" value={displayDate(maturity)} />
+      <DetailRow
+        label="Estimated yield"
+        value={
+          apyRate > 0
+            ? `+$${formatAmount(estimatedYield.toFixed(2))} (${apyRate.toFixed(1)}% p.a.)`
+            : "$0.00"
+        }
+      />
       <DetailRow label="From" value={source?.label ?? ""} rule={false} />
     </DetailList>
   );
@@ -196,9 +254,17 @@ export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
 
           <div className="flex items-center justify-between text-[10px] leading-3.5 font-medium text-jumpa-primary-950">
             <span>
-              Estimated yield: <span className="font-bold">+$Interest</span>
+              Estimated yield:{" "}
+              <span className="font-bold text-jumpa-success">
+                +${formatAmount(estimatedYield.toFixed(2))}
+              </span>
+              {apyRate > 0 ? (
+                <span className="ml-1 text-jumpa-grey-600 font-normal">
+                  ({apyRate.toFixed(1)}% p.a.)
+                </span>
+              ) : null}
             </span>
-            <span>Unlocks {shortDate(maturity)}</span>
+            <span>{maturity ? `Unlocks ${shortDate(maturity)}` : "Select lock period"}</span>
           </div>
         </SavingsPanel>
 
@@ -239,9 +305,43 @@ export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
           error={pinError}
           onRetry={() => setPinError(false)}
           onClose={() => setSheet("review")}
-          onComplete={(pin) => {
-            if (pin === DEMO_PIN) setDone(true);
-            else setPinError(true);
+          onComplete={async (pin) => {
+            try {
+              setIsSubmitting(true);
+              const res = await fetch("/api/savings/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  kind: "lock",
+                  name: goal,
+                  targetAmount: Number(amount),
+                  depositAmount: Number(amount),
+                  term: custom ? "Custom" : term,
+                  startDate: custom ? from : new Date().toISOString(),
+                  endDate: maturity,
+                  frequency: "Manual",
+                  fundingSource: source?.id || "crypto",
+                  pin,
+                }),
+              });
+
+              const data = await res.json();
+              if (!res.ok) {
+                if (res.status === 401 && data.error?.toLowerCase().includes("pin")) {
+                  setPinError(true);
+                } else {
+                  alert(data.error || "Failed to lock savings");
+                }
+                return;
+              }
+
+              setCreatedTx(data.txHash);
+              setDone(true);
+            } catch (err: any) {
+              alert(err.message || "Network error occurred");
+            } finally {
+              setIsSubmitting(false);
+            }
           }}
         />
       ) : null}

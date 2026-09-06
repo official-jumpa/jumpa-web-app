@@ -20,7 +20,7 @@ export function ChoiceChips({
             type="button"
             aria-pressed={active}
             onClick={() => onChange(option)}
-            className={`tap flex h-9 min-w-0 flex-1 items-center justify-center rounded-pill px-2 text-xs leading-4 font-medium active:scale-95 ${
+            className={`tap flex h-9 min-w-0 flex-1 whitespace-nowrap items-center justify-center rounded-pill px-2 text-xs leading-4 font-medium active:scale-95 ${
               active
                 ? "bg-jumpa-primary-600 text-jumpa-primary-50"
                 : "border-[1.32px] border-jumpa-primary-100 bg-jumpa-primary-50 text-jumpa-primary-950"

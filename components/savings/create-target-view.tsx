@@ -31,7 +31,7 @@ import {
   TARGET_TERMS,
   WEEKDAYS,
 } from "@/lib/savings";
-import { DEMO_PIN, formatAmount } from "@/lib/transfer";
+import { formatAmount } from "@/lib/transfer";
 import { revealFirstError } from "@/lib/validation";
 import type { Promotion } from "@/lib/wallet";
 
@@ -58,6 +58,9 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
   const [source, setSource] = useState<FundingSource>();
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [apiError, setApiError] = useState<string>();
+  const [createdTx, setCreatedTx] = useState<string>();
 
   const days = TARGET_TERMS.find((option) => option.label === term)?.days;
   const openEnded = days === null;
@@ -238,14 +241,31 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
           />
         </SavingsField>
 
-        <div className="flex flex-col gap-2">
-          <div className="h-1 w-full overflow-hidden bg-jumpa-primary-200">
-            <div className="h-full w-1/4 bg-jumpa-primary-400" />
-          </div>
-          <p className="text-[10px] leading-3.5 font-medium text-jumpa-black">
-            Target - <span className="font-bold">{total}</span>
-          </p>
-        </div>
+        {(() => {
+          const depNum = parseFloat(deposit) || 0;
+          const tgtNum = parseFloat(target) || 1;
+          const pct = Math.min(100, Math.round((depNum / tgtNum) * 100));
+          return (
+            <div className="flex flex-col gap-2">
+              <div className="h-1 w-full overflow-hidden bg-jumpa-primary-200">
+                <div
+                  className="h-full bg-jumpa-primary-400 transition-all duration-300"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[10px] leading-3.5 font-medium text-jumpa-black">
+                <span>
+                  Initial deposit:{" "}
+                  <span className="font-bold">${formatAmount(depNum.toFixed(2))}</span>
+                  {pct > 0 ? ` (${pct}%)` : ""}
+                </span>
+                <span>
+                  Target: <span className="font-bold">{total}</span>
+                </span>
+              </div>
+            </div>
+          );
+        })()}
 
         <SavingsPanel>
           <div className="flex flex-col gap-3">
@@ -333,11 +353,51 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
       {sheet === "pin" ? (
         <TransferPinSheet
           error={pinError}
-          onRetry={() => setPinError(false)}
+          onRetry={() => {
+            setPinError(false);
+            setApiError(undefined);
+          }}
           onClose={() => setSheet("review")}
-          onComplete={(pin) => {
-            if (pin === DEMO_PIN) setStage("done");
-            else setPinError(true);
+          onComplete={async (pin) => {
+            try {
+              setIsSubmitting(true);
+              setApiError(undefined);
+              const res = await fetch("/api/savings/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  kind: "individual",
+                  name: goal,
+                  category,
+                  targetAmount: Number(target),
+                  depositAmount: Number(deposit) || 0,
+                  term,
+                  startDate: start || new Date().toISOString(),
+                  endDate: openEnded ? null : endDate,
+                  frequency,
+                  debitDay: day || null,
+                  fundingSource: source?.id || "crypto",
+                  pin,
+                }),
+              });
+
+              const data = await res.json();
+              if (!res.ok) {
+                if (res.status === 401 && data.error?.toLowerCase().includes("pin")) {
+                  setPinError(true);
+                } else {
+                  alert(data.error || "Failed to create target");
+                }
+                return;
+              }
+
+              setCreatedTx(data.txHash);
+              setStage("done");
+            } catch (err: any) {
+              alert(err.message || "Network error occurred");
+            } finally {
+              setIsSubmitting(false);
+            }
           }}
         />
       ) : null}

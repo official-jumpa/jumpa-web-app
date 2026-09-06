@@ -23,7 +23,8 @@ export type IdPrefix =
   | "VRFY"
   | "CARD"
   | "CARDREF"
-  | "REFR";
+  | "REFR"
+  | "PLAN";
 
 export const generateId = (prefix: IdPrefix | string) => {
   return `${prefix}_${generateNanoid(8)}`;

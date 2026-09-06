@@ -75,7 +75,7 @@ export function AmountStep({
     change(sanitise(amount === "0" ? digit : amount + digit));
 
   const review = () => {
-    if (!Number(amount)) return setError("Enter an amount to continue.");
+    if (!Number(amount)) return setError("Enter an amount greater than 0");
     if (low)
       return setError(`Your balance is ${balance}. Enter less than that.`);
     onReview();

@@ -1,5 +1,10 @@
 import type { SavingsIntro } from "@/components/savings/savings-intro-sheet";
-import { CIRCLE_TERMS, SAVINGS_TERMS, type SavingsKind } from "@/lib/savings";
+import {
+  CIRCLE_TERMS,
+  INDIVIDUAL_SAVINGS_TERMS,
+  LOCK_SAVINGS_TERMS,
+  type SavingsKind,
+} from "@/lib/savings";
 
 /** Copy is the design's own, including the CTA wording. */
 export const SAVINGS_INTROS: Record<SavingsKind, SavingsIntro> = {
@@ -9,7 +14,7 @@ export const SAVINGS_INTROS: Record<SavingsKind, SavingsIntro> = {
     height: 127,
     title: "Individual Savings",
     body: "Save at your own pace. Set a personal target and work towards it consistently.",
-    terms: SAVINGS_TERMS,
+    terms: INDIVIDUAL_SAVINGS_TERMS,
     cta: "Create a new target",
     href: "/savings/individual",
   },
@@ -19,7 +24,7 @@ export const SAVINGS_INTROS: Record<SavingsKind, SavingsIntro> = {
     height: 134,
     title: "Lock savings",
     body: "Build towards your future. Keep your money secured until you reach your goal.",
-    terms: SAVINGS_TERMS,
+    terms: LOCK_SAVINGS_TERMS,
     cta: "Proceed to lock",
     href: "/savings/lock",
   },

@@ -30,23 +30,45 @@ export function PlanDetail({
         <PlanCard plan={plan} />
       </div>
 
-      <div className="mt-4 flex items-center gap-2">
-        <Link href={topUpHref} className={ACTION}>
-          <ArrowUpRightIcon className="size-5 text-jumpa-primary-600" />
-          Top up
-        </Link>
-        <Link href="/savings/withdraw" className={ACTION}>
-          <ArrowDownRightIcon className="size-5 text-jumpa-primary-600" />
-          Withdraw
-        </Link>
-      </div>
+      {plan.status === "Closed" ? (
+        <div className="mt-4 flex items-center justify-center rounded-tile bg-jumpa-neutral-50 py-3 text-xs font-medium text-jumpa-neutral-400">
+          This savings plan has ended
+        </div>
+      ) : (
+        <div className="mt-4 flex items-center gap-2">
+          {plan.kind !== "lock" && (
+            <Link href={topUpHref} className={ACTION}>
+              <ArrowUpRightIcon className="size-5 text-jumpa-primary-600" />
+              Top up
+            </Link>
+          )}
+          <Link
+            href={`/savings/withdraw?id=${plan.id}&name=${encodeURIComponent(plan.name)}&saved=${encodeURIComponent(plan.saved)}&kind=${plan.kind}&daysLeft=${plan.daysLeft}`}
+            className={ACTION}
+          >
+            <ArrowDownRightIcon className="size-5 text-jumpa-primary-600" />
+            {plan.kind === "lock" ? "Withdraw savings" : "Withdraw"}
+          </Link>
+        </div>
+      )}
 
       <div className="mt-5">
         <DetailList>
           <DetailRow label="Name" value={plan.name} />
           <DetailRow label="Start date" value={plan.startDate} />
-          <DetailRow label="End date" value={plan.endDateLong} />
-          <DetailRow label="Frequency" value={plan.frequency} rule={false} />
+          <DetailRow
+            label={plan.kind === "lock" ? "Maturity date" : "End date"}
+            value={plan.endDateLong}
+          />
+          {plan.kind === "lock" ? (
+            <DetailRow
+              label="Lock status"
+              value={plan.status === "Closed" ? "Closed" : plan.daysLeft > 0 ? `${plan.daysLeft} days until maturity` : "Matured"}
+            />
+          ) : (
+            <DetailRow label="Frequency" value={plan.frequency} />
+          )}
+          <DetailRow label="Status" value={plan.status} rule={false} />
         </DetailList>
       </div>
 

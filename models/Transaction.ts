@@ -8,7 +8,14 @@ export interface ITransaction {
   sessionId?: string;
   messageId?: string;
 
-  type: "TRANSFER" | "SWAP" | "ONRAMP" | "OFFRAMP" | "FAUCET";
+  type:
+    | "TRANSFER"
+    | "SWAP"
+    | "ONRAMP"
+    | "OFFRAMP"
+    | "FAUCET"
+    | "SAVINGS_DEPOSIT"
+    | "SAVINGS_WITHDRAW";
   status: "PENDING" | "CONFIRMED" | "FAILED" | "CANCELLED";
 
   chain: "stellar" | "solana" | "base" | "eth";
@@ -45,6 +52,14 @@ export interface ITransaction {
     };
   };
 
+  // Savings Details (if type === "SAVINGS_DEPOSIT" | "SAVINGS_WITHDRAW")
+  savingsDetails?: {
+    planId?: string;
+    vaultAddress?: string;
+    shares?: string;
+    penaltyFee?: string;
+  };
+
   // On-Chain Execution & Accounting
   txHash?: string;
   explorerUrl?: string;
@@ -66,7 +81,15 @@ const TransactionSchema = new Schema<ITransaction>(
 
     type: {
       type: String,
-      enum: ["TRANSFER", "SWAP", "ONRAMP", "OFFRAMP", "FAUCET"],
+      enum: [
+        "TRANSFER",
+        "SWAP",
+        "ONRAMP",
+        "OFFRAMP",
+        "FAUCET",
+        "SAVINGS_DEPOSIT",
+        "SAVINGS_WITHDRAW",
+      ],
       required: true,
     },
     status: {

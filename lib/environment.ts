@@ -54,6 +54,17 @@ export const environment = {
   SOROSWAP_API_KEY: process.env.SOROSWAP_API_KEY || "",
   SOROSWAP_API_URL: process.env.SOROSWAP_API_URL || "https://api.soroswap.finance",
 
+  // DeFindex Yield Protocol
+  //Currently both use the same address. Might change later
+  DEFINDEX_API_KEY: process.env.DEFINDEX_API_KEY || "",
+  DEFINDEX_BASE_URL: process.env.DEFINDEX_BASE_URL || "https://api.defindex.io",
+  DEFINDEX_INDIVIDUAL_VAULT_ADDRESS:
+    process.env.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS ||
+    "CBUEZTX2U7GBOOAWIFQW2QOYW6DVQJNCMSLR2I6JCD3RJQLW67VJ5ZNV",
+  DEFINDEX_LOCK_VAULT_ADDRESS:
+    process.env.DEFINDEX_LOCK_VAULT_ADDRESS ||
+    "CBUEZTX2U7GBOOAWIFQW2QOYW6DVQJNCMSLR2I6JCD3RJQLW67VJ5ZNV",
+
   // Paystack & Encryption Keys
   ENCRYPTION_KEY: process.env.ENCRYPTION_KEY || "",
   PAYSTACK_BEARER_KEY: process.env.PAYSTACK_BEARER_KEY || "",

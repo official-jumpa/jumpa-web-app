@@ -4,6 +4,8 @@ import Image from "next/image";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 
+import type { SavingsKind } from "@/lib/savings";
+
 /** What each product promises, raised over the landing before you commit. */
 export type SavingsIntro = {
   art: string;
@@ -17,11 +19,15 @@ export type SavingsIntro = {
 };
 
 export function SavingsIntroSheet({
+  kind,
   intro,
   onClose,
+  onCta,
 }: {
+  kind?: SavingsKind;
   intro: SavingsIntro;
   onClose: () => void;
+  onCta?: (kind: SavingsKind) => void;
 }) {
   return (
     <BottomSheet onClose={onClose} pb="pb-7.5">
@@ -43,15 +49,31 @@ export function SavingsIntroSheet({
           </p>
         </div>
 
-        <ul className="flex list-disc flex-col gap-2 rounded-surface bg-jumpa-primary-50 py-4 pr-4 pl-8 text-xs leading-4.5 font-medium text-jumpa-black">
+        <ul className="flex list-disc flex-col gap-2 rounded-surface bg-jumpa-primary-50 py-4 pr-4 pl-8 text-xs leading-4.5 font-medium text-jumpa-black w-full">
           {intro.terms.map((term) => (
             <li key={term}>{term}</li>
           ))}
         </ul>
 
-        <Button href={intro.href} variant="gradient" size="lg" className="mt-2">
-          {intro.cta}
-        </Button>
+        {onCta && kind ? (
+          <Button
+            onClick={() => onCta(kind)}
+            variant="gradient"
+            size="lg"
+            className="mt-2"
+          >
+            {intro.cta}
+          </Button>
+        ) : (
+          <Button
+            href={intro.href}
+            variant="gradient"
+            size="lg"
+            className="mt-2"
+          >
+            {intro.cta}
+          </Button>
+        )}
       </div>
     </BottomSheet>
   );

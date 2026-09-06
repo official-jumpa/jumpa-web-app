@@ -28,11 +28,11 @@ export type SavingsPlan = {
 
 /** What the masthead reports across every product. */
 export const SAVINGS_SUMMARY = {
-  goals: 3,
-  saved: "67,000",
-  target: "100,000",
-  percent: 67,
-  remaining: "3,300",
+  goals: 0,
+  saved: "0.00",
+  target: "0.00",
+  percent: 0,
+  remaining: "0.00",
 };
 
 const MEMBERS: SavingsMember[] = [
@@ -63,19 +63,17 @@ const DECEMBER_TRIP = {
   name: "December Trip",
   endDate: "September 27",
   status: "Active" as const,
-  saved: "$250",
+  saved: "$0.00",
   target: "$1000",
   daysLeft: 43,
-  percent: 25,
+  percent: 0,
   startDate: "September 27, 2026",
   endDateLong: "November 27, 2026",
   frequency: "Wednesday, Weekly",
 };
 
-/** Placeholder plans; the savings service replaces them. */
+/** Placeholder plans; only circles (groups) has a placeholder until implemented. */
 export const SAVINGS_PLANS: SavingsPlan[] = [
-  { ...DECEMBER_TRIP, id: "december-trip", kind: "individual" },
-  { ...DECEMBER_TRIP, id: "december-lock", kind: "lock" },
   {
     ...DECEMBER_TRIP,
     id: "december-hangout",
@@ -95,11 +93,11 @@ export function findPlan(kind: SavingsKind, id: string) {
 /** Balance the masthead shows on a product's own landing. */
 export const SAVINGS_BALANCE = {
   individual: {
-    badge: "Referral Earnings",
-    amount: "144,760.21",
-    rate: "1.5% p.a.",
+    badge: "Personal savings",
+    amount: "0.00",
+    rate: "0.0% p.a.",
   },
-  lock: { badge: "Locked savings", amount: "144,760.21", rate: "Rate% p.a." },
+  lock: { badge: "Locked savings", amount: "0.00", rate: "0.0% p.a." },
   circle: { badge: "Group savings", amount: "0.00" },
 };
 
@@ -143,30 +141,40 @@ export type FundingSource = {
   id: string;
   label: string;
   balance: string;
-  icon: "dollar" | "naira" | "crypto" | "stocks";
+  icon: "dollar" | "naira" | "crypto";
 };
 
 /** Wallets the lock flow can draw from. */
 export const LOCK_SOURCES: FundingSource[] = [
-  { id: "usd", label: "USD Balance", balance: "$1,800", icon: "dollar" },
-  { id: "ngn", label: "NGN Balance", balance: "$500", icon: "naira" },
+  { id: "usd", label: "USD Balance", balance: "$0.00", icon: "dollar" },
+  { id: "ngn", label: "NGN Balance", balance: "₦0.00", icon: "naira" },
 ];
 
-/** The individual flow draws from the investment wallets instead. */
+/** The individual flow draws from crypto or NGN wallets. */
 export const TARGET_SOURCES: FundingSource[] = [
-  { id: "crypto", label: "Crypto", balance: "$1,800", icon: "crypto" },
-  { id: "stocks", label: "Stocks", balance: "$500", icon: "stocks" },
+  { id: "crypto", label: "Crypto", balance: "$0.00", icon: "crypto" },
+  { id: "ngn", label: "NGN Balance", balance: "₦0.00", icon: "naira" },
 ];
 
-/** Terms every intro sheet repeats, in the design's own words. */
-export const SAVINGS_TERMS = [
-  "Earn 0.6% daily on your Savings",
-  "You can only make withdrawal after you crossed 50% on your saving goal",
-  "You will pay a break fee of 5% if you want to withdraw before the maturity date",
+/** Terms for Individual / Target savings (relaxed terms with no early break fee). */
+export const INDIVIDUAL_SAVINGS_TERMS = [
+  "Earn interest daily on your Savings",
+  "Deposit at your own pace to reach your goal",
+  "Withdraw anytime with no break fees",
 ];
+
+/** Terms for Locked savings (fixed commitment with early break fee). */
+export const LOCK_SAVINGS_TERMS = [
+  "Earn interest daily on your locked funds",
+  "Funds remain locked until your selected maturity date",
+  "You will pay an early break fee of 5% if you withdraw before maturity",
+];
+
+/** Backwards-compatible alias */
+export const SAVINGS_TERMS = INDIVIDUAL_SAVINGS_TERMS;
 
 export const CIRCLE_TERMS = [
-  "Earn 0.6% daily on your Savings",
+  "Earn interest daily on your Savings",
   "Withdrawals require group consensus after 50% of goal",
   "You will pay a break fee of 5% if you withdraw before the maturity date",
 ];

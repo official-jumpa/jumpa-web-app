@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CardKindRow } from "@/components/cards/card-kind-row";
 import { CardPinSheet } from "@/components/cards/card-pin-sheet";
@@ -19,6 +20,7 @@ export function CreateCardView() {
   const [category, setCategory] = useState<CardCategory>("debit");
   const [kind, setKind] = useState<CardKind>("virtual");
   const [issued, setIssued] = useState(false);
+  const router = useRouter();
 
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+2.5rem)]">
@@ -63,7 +65,12 @@ export function CreateCardView() {
       </Button>
 
       {issued ? (
-        <CardPinSheet pin={NEW_CARD_PIN} onClose={() => setIssued(false)} />
+        // The card exists now, so dismissing lands on the wallet rather than
+        // the form that made it — `replace`, so Back cannot issue a second one.
+        <CardPinSheet
+          pin={NEW_CARD_PIN}
+          onClose={() => router.replace("/cards")}
+        />
       ) : null}
     </div>
   );

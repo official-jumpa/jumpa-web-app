@@ -243,8 +243,11 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
 
   return (
     <>
+      {/* Stage 2 lives at the same URL as stage 1, so plain history would leave
+          the flow and re-entering would restart it with the fields blank. */}
       <SavingsForm
         back="/savings/individual"
+        onBack={() => setStage("goal")}
         title="Add Money"
         cta="Continue"
         fields={fields}

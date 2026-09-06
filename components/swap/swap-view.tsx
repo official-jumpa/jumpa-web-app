@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { SwapLeg, formatBalance } from "@/components/swap/swap-leg";
+import { formatBalance, SwapLeg } from "@/components/swap/swap-leg";
 import { SwapSettingsSheet } from "@/components/swap/swap-settings-sheet";
 import { CloseButton } from "@/components/transfer/close-button";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
@@ -65,7 +65,11 @@ export function SwapView({
   const [submitting, setSubmitting] = useState(false);
 
   // ── Live quote ──
-  const { quote, loading: quoteLoading, error: quoteError } = useSwapQuote({
+  const {
+    quote,
+    loading: quoteLoading,
+    error: quoteError,
+  } = useSwapQuote({
     fromToken,
     toToken,
     amount,
@@ -171,7 +175,13 @@ export function SwapView({
     <div className="flex min-h-dvh flex-col px-4 pt-3.25 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
       {/* ── Header ── */}
       {stage === "review" ? (
-        <TransferHeader back="/swap" title="Review swap" />
+        // Review is a stage at the same URL, so plain history would leave the
+        // flow instead of returning to the quote the user just built.
+        <TransferHeader
+          back="/swap"
+          onBack={() => setStage("quote")}
+          title="Review swap"
+        />
       ) : (
         <header className="relative flex h-9.5 items-center justify-between">
           <CloseButton onClick={() => history.back()} label="Close swap" />
@@ -270,24 +280,17 @@ export function SwapView({
                 </b>
               </span>
               <span>
-                Fee{" "}
-                <b className="font-bold text-jumpa-black">{estimatedFee}</b>
+                Fee <b className="font-bold text-jumpa-black">{estimatedFee}</b>
               </span>
             </p>
           </div>
 
           <DetailList tone="secondary">
             <DetailRow label="Network fee" value={estimatedFee} />
-            <DetailRow
-              label="Slippage"
-              value={quoteSlippage}
-              rule={false}
-            />
+            <DetailRow label="Slippage" value={quoteSlippage} rule={false} />
           </DetailList>
 
-          {quoteError && (
-            <FieldError>{quoteError}</FieldError>
-          )}
+          {quoteError && <FieldError>{quoteError}</FieldError>}
 
           <div className="flex flex-col items-center gap-3">
             <FieldError>{error}</FieldError>
@@ -298,7 +301,9 @@ export function SwapView({
                 if (!Number(amount)) {
                   setError("Enter an amount to swap");
                 } else if (!quote) {
-                  setError("Waiting for a quote. Please try again in a moment.");
+                  setError(
+                    "Waiting for a quote. Please try again in a moment.",
+                  );
                 } else {
                   setStage("review");
                 }
@@ -311,7 +316,8 @@ export function SwapView({
           <p className="mx-auto flex max-w-72 items-start justify-center text-xs leading-4 text-jumpa-black text-center">
             <TriangleWarningIcon className="mt-px size-4 shrink-0 text-jumpa-warning" />
             <span>
-              Your quote is locked for 30 seconds. After that, you'll need to get a new quote
+              Your quote is locked for 30 seconds. After that, you'll need to
+              get a new quote
             </span>
           </p>
         </div>

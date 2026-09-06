@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BackLink } from "@/components/ui/back-link";
+import { BackButton, BackLink } from "@/components/ui/back-link";
 
 /**
  * "Back" arrow with the word beside it and an optionally centred title — the
@@ -8,17 +8,24 @@ import { BackLink } from "@/components/ui/back-link";
  */
 export function TransferHeader({
   back,
+  onBack,
   title,
   action,
 }: {
   back: string;
+  /** Steps back inside a multi-stage screen instead of leaving the route. */
+  onBack?: () => void;
   title?: string;
   /** Trailing slot: the wordmark, a close button, or nothing. */
   action?: ReactNode;
 }) {
   return (
     <header className="relative flex h-11 items-center justify-between gap-2">
-      <BackLink href={back} variant="corner" label="Back" />
+      {onBack ? (
+        <BackButton onClick={onBack} variant="corner" label="Back" />
+      ) : (
+        <BackLink href={back} variant="corner" label="Back" />
+      )}
 
       {title ? (
         <h1 className="pointer-events-none absolute inset-x-24 text-center text-lg leading-4 font-medium text-jumpa-black">

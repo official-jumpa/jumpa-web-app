@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 /** Header, fields and a bottom-anchored CTA — the shell both create flows use. */
 export function SavingsForm({
   back,
+  onBack,
   title,
   cta,
   fields,
@@ -12,6 +13,8 @@ export function SavingsForm({
   children,
 }: {
   back: string;
+  /** Steps back inside a multi-stage flow instead of leaving the route. */
+  onBack?: () => void;
   title: string;
   cta: string;
   /** Scope `revealFirstError` scrolls within. */
@@ -27,7 +30,7 @@ export function SavingsForm({
       }}
       className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
     >
-      <TransferHeader back={back} title={title} />
+      <TransferHeader back={back} onBack={onBack} title={title} />
 
       <div ref={fields} className="mt-6 flex flex-col gap-5">
         {children}

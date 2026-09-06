@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { PromotionList } from "@/components/home/promotion-list";
@@ -49,6 +50,7 @@ export function TransferSuccess({
   actions?: ReactNode;
   onShare?: () => void;
 }) {
+  const router = useRouter();
   const [showDetails, setShowDetails] = useState(false);
 
   const heading = (
@@ -89,8 +91,11 @@ export function TransferSuccess({
 
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      {/* `replace`, never a history step: stepping back from a receipt would
+          re-enter the form that was just submitted. */}
       <TransferHeader
         back={back}
+        onBack={() => router.replace(back)}
         action={
           <Image
             src="/logo/wordmark/purple.png"

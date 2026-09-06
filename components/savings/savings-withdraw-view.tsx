@@ -217,7 +217,9 @@ export function SavingsWithdrawView() {
             }
           />
         }
-        onClose={() => router.push(backUrl)}
+        // Picked in the selector? Go back to it. The plan detail page it would
+        // otherwise land on is one this route never came from.
+        onClose={() => (planId ? router.push(backUrl) : setSelectedPlan(null))}
         amount={amount}
         symbol="USDC"
         balance={selectedPlan?.saved || "$0.00"}

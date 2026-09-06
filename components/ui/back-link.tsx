@@ -63,18 +63,29 @@ export function BackLink({
 export function BackButton({
   onClick,
   variant = "arrow",
+  label,
 }: {
   onClick: () => void;
   variant?: keyof typeof GLYPH;
+  /** Word beside the glyph, as the transfer screens draw it. */
+  label?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label="Go back"
-      className="tap flex size-11 items-center justify-center active:scale-90"
+      aria-label={label ? undefined : "Go back"}
+      className={cn(
+        "tap flex items-center active:scale-90",
+        label ? "h-11 gap-2 pr-2" : "size-11 justify-center",
+      )}
     >
       {GLYPH[variant]}
+      {label ? (
+        <span className="text-base leading-4.5 font-medium text-jumpa-primary-950">
+          {label}
+        </span>
+      ) : null}
     </button>
   );
 }

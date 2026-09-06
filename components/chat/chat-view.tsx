@@ -62,6 +62,13 @@ function messagesToChatEntries(
       if (isPending) {
         items.push({ kind: "actions" });
       }
+    } else if (msg.cardType === "bridge" && msg.cardData) {
+      const isPending = msg.status === "pending";
+      items.push({ kind: "bridge", card: msg.cardData as any });
+
+      if (isPending) {
+        items.push({ kind: "actions" });
+      }
     } else if (msg.cardType === "transfer" && msg.cardData) {
       const isPending = msg.status === "pending";
       items.push({

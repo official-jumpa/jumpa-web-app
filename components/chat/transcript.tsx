@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { AccountsCard } from "@/components/chat/accounts-card";
 import { ActionRow } from "@/components/chat/action-row";
 import { AgentAvatar } from "@/components/chat/agent-avatar";
+import { BridgeCard } from "@/components/chat/bridge-card";
 import { ContactsCard } from "@/components/chat/contacts-card";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { OfframpCheckoutCard } from "@/components/chat/offramp-checkout-card";
@@ -126,6 +127,8 @@ function Item({
           onUpdateQuote={onUpdateQuote}
         />
       );
+    case "bridge":
+      return <BridgeCard card={item.card} />;
     case "receipt":
       return <ReceiptCard card={item.card} />;
     case "transfer":

@@ -9,6 +9,7 @@ export interface IChatMessage {
   isTransaction?: boolean;
   cardType?:
     | "quote"
+    | "bridge"
     | "transfer"
     | "receipt"
     | "onramp"
@@ -62,6 +63,7 @@ const ChatLogSchema = new Schema<IChatLog>(
           type: String,
           enum: [
             "quote",
+            "bridge",
             "transfer",
             "receipt",
             "onramp",

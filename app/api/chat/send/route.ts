@@ -7,13 +7,13 @@ import {
 } from "@/lib/ai/deepseek";
 import { executeTool } from "@/lib/ai/tool-executor";
 import { auth } from "@/lib/auth";
+import { detectTargetChains } from "@/lib/blockchain";
 import { connectDB } from "@/lib/db";
 import { generateId } from "@/lib/schema-ids";
 import {
   getCachedWalletBalances,
   type SupportedChain,
 } from "@/lib/wallet-balances";
-import { detectTargetChains } from "@/lib/blockchain";
 import { ChatLog, type IChatMessage } from "@/models/ChatLog";
 import { Wallet } from "@/models/Wallet";
 
@@ -220,6 +220,18 @@ export async function POST(req: NextRequest) {
         content: finalAssistantContent,
         isTransaction: true,
         cardType: "quote",
+        status: "pending",
+        transactionParams: primaryTransactionParams,
+        cardData: primaryCardHint.data,
+        timestamp: new Date(),
+      };
+    } else if (primaryCardHint.type === "bridge" && requiresConfirmation) {
+      assistantMessage = {
+        id: generateId("MSG"),
+        role: "assistant",
+        content: finalAssistantContent,
+        isTransaction: true,
+        cardType: "bridge",
         status: "pending",
         transactionParams: primaryTransactionParams,
         cardData: primaryCardHint.data,

@@ -127,12 +127,17 @@ export function CardStats({ stats }: { stats: Stat[] }) {
   );
 }
 
-/** Currency chip on an amount row: brand mark and ticker, or the naira glyph. */
+/**
+ * Currency chip on an amount row: brand mark and ticker, or the naira glyph.
+ * A bridge names the chain too, so the chip reads "USDC on <mark>".
+ */
 export function AssetBadge({
   symbol,
+  chain,
   tone = "default",
 }: {
   symbol: string;
+  chain?: string;
   tone?: "default" | "brand";
 }) {
   const isNaira = /^(ngn|naira)$/i.test(symbol.trim());
@@ -159,6 +164,19 @@ export function AssetBadge({
         />
       ) : null}
       <span>{symbol}</span>
+
+      {chain ? (
+        <>
+          <span className="text-[10px] font-normal">on</span>
+          <Image
+            src={getAssetLogo(chain)}
+            alt={chain}
+            width={16}
+            height={16}
+            className="size-4 shrink-0 rounded-full object-contain"
+          />
+        </>
+      ) : null}
     </span>
   );
 }
@@ -199,7 +217,9 @@ export function CardAmount({
         )}
       </span>
 
-      {row.badge ? <AssetBadge symbol={row.badge} tone={badgeTone} /> : null}
+      {row.badge ? (
+        <AssetBadge symbol={row.badge} chain={row.chain} tone={badgeTone} />
+      ) : null}
     </div>
   );
 }

@@ -6,8 +6,9 @@
  * Returns both structured card data and a plain-text summary for the AI's follow-up response.
  */
 
+import { getBridgeQuote } from "@/lib/bridge";
 import { fetchStellarBalances, fundTestnetAccount } from "@/lib/chains/stellar";
-import type { AccountsCard, ChatOption } from "@/lib/chat";
+import type { AccountsCard, BridgeCard, ChatOption } from "@/lib/chat";
 import { connectDB } from "@/lib/db";
 import { getSwapQuote } from "@/lib/dex";
 import type { SwapQuote } from "@/lib/dex/types";
@@ -25,6 +26,7 @@ import { getNetworkFromToolName, type JumpaToolName } from "./tools";
 
 export type CardHint =
   | { type: "quote"; data: QuoteCardData }
+  | { type: "bridge"; data: BridgeCard }
   | { type: "transfer"; data: Record<string, any> }
   | { type: "onramp"; data: Record<string, any> }
   | { type: "offramp"; data: Record<string, any> }
@@ -185,6 +187,80 @@ export async function executeTool(
 
   switch (name) {
     // ── Stellar Testnet Swap Quote
+    case "bridge_tokens": {
+      const { fromToken, toToken, amount, fromChain, toChain } = toolArgs as {
+        fromToken: string;
+        toToken: string;
+        amount: string;
+        fromChain?: string;
+        toChain?: string;
+      };
+
+      let quote: ReturnType<typeof getBridgeQuote>;
+      try {
+        quote = getBridgeQuote({
+          fromToken,
+          toToken,
+          amount,
+          fromChain,
+          toChain,
+        });
+      } catch (err: any) {
+        return {
+          toolName: name,
+          summaryForAI:
+            err?.message || "That bridge route is not available right now.",
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      const cardData: BridgeCard = {
+        title: "Bridge",
+        status: { lead: "Slippage ", value: quote.slippage },
+        pay: {
+          caption: "YOU PAY",
+          value: quote.amountIn,
+          badge: quote.fromToken,
+          chain: quote.fromChain,
+        },
+        receive: {
+          caption: "YOU RECEIVE",
+          value: quote.amountOut,
+          badge: quote.toToken,
+          chain: quote.toChain,
+        },
+        stats: [
+          { lead: "Rate ", value: quote.rate },
+          { lead: "Fee ", value: quote.fee },
+        ],
+      };
+
+      return {
+        toolName: name,
+        summaryForAI: [
+          "Bridge quote ready:",
+          `- ${quote.amountIn} ${quote.fromToken} on ${quote.fromChainName} → ${quote.amountOut} ${quote.toToken} on ${quote.toChainName}`,
+          `- Rate: ${quote.rate}`,
+          `- Fee: ${quote.fee}`,
+          `- Slippage: ${quote.slippage}`,
+          "The bridge card is on screen. Ask them to confirm. Do NOT use emojis or tell them to press buttons or enter a PIN.",
+        ].join("\n"),
+        cardHint: { type: "bridge", data: cardData },
+        transactionParams: {
+          type: "bridge",
+          fromToken: quote.fromToken,
+          toToken: quote.toToken,
+          fromAmount: quote.amountIn,
+          toAmount: quote.amountOut,
+          fromChain: quote.fromChain,
+          toChain: quote.toChain,
+          currency: quote.fromToken,
+        },
+        requiresConfirmation: true,
+      };
+    }
+
     case "stellar_testnet_swap_quote":
     case "stellar_mainnet_swap_quote": {
       const network = getNetworkFromToolName(name);

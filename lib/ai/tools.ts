@@ -275,8 +275,7 @@ const offrampNgn: DeepSeekTool = {
         },
         asset: {
           type: "string",
-          description:
-            "Switch asset string (e.g. 'base:usdc', 'solana:usdt').",
+          description: "Switch asset string (e.g. 'base:usdc', 'solana:usdt').",
         },
         bankName: {
           type: "string",
@@ -392,6 +391,48 @@ const createSavingsGoal: DeepSeekTool = {
 
 // ─── Exported Tool Registry
 
+const bridgeTokens: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "bridge_tokens",
+    description:
+      "Quote moving a token from one chain to another (bridging), e.g. 'bridge 20 USDC to XLM' " +
+      "or 'move my USDC from Base to Stellar'. Call it as soon as the user asks to bridge, with " +
+      "whatever they have given — omit a chain you have not been told and it resolves to where " +
+      "the asset lives. Bridging is cross-chain; use the swap tools when both sides sit on Stellar.",
+    parameters: {
+      type: "object",
+      properties: {
+        fromToken: {
+          type: "string",
+          description: "Token symbol leaving the wallet, e.g. 'USDC'.",
+        },
+        toToken: {
+          type: "string",
+          description:
+            "Token symbol the user wants to end up with, e.g. 'XLM'.",
+        },
+        amount: {
+          type: "string",
+          description:
+            "Amount to bridge as a decimal string. Must come from the user, never assumed.",
+        },
+        fromChain: {
+          type: "string",
+          description:
+            "Chain the funds leave from: stellar, solana, ethereum, base. Omit if not stated.",
+        },
+        toChain: {
+          type: "string",
+          description:
+            "Chain the funds arrive on: stellar, solana, ethereum, base. Omit if not stated.",
+        },
+      },
+      required: ["fromToken", "toToken", "amount"],
+    },
+  },
+};
+
 export const JUMPA_TOOLS: DeepSeekTool[] = [
   stellarTestnetSwapQuote,
   stellarTestnetBalance,
@@ -404,6 +445,7 @@ export const JUMPA_TOOLS: DeepSeekTool[] = [
   offrampNgn,
   claimFaucet,
   createSavingsGoal,
+  bridgeTokens,
 ];
 
 export type JumpaToolName =
@@ -417,7 +459,8 @@ export type JumpaToolName =
   | "onramp_ngn"
   | "offramp_ngn"
   | "claim_faucet"
-  | "create_savings_goal";
+  | "create_savings_goal"
+  | "bridge_tokens";
 
 /** Infer network from tool name — single source of truth */
 export function getNetworkFromToolName(

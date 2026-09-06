@@ -4,7 +4,13 @@
 export type Stat = { lead?: string; value: string };
 
 /** White row inside a card: caption above a value, with an optional badge. */
-export type CardRow = { caption: string; value: string; badge?: string };
+export type CardRow = {
+  caption: string;
+  value: string;
+  badge?: string;
+  /** Names the chain the asset sits on — the badge reads "USDC on <mark>". */
+  chain?: string;
+};
 
 /** Pill opposite a card title. `done` is lime, `pending` purple. */
 export type CardStatus = { label: string; tone?: "pending" | "done" };
@@ -33,6 +39,15 @@ export type AssetOption = {
   balance: string;
   amount: string;
   selected?: boolean;
+};
+
+/** Cross-chain move: a swap quote whose two sides name different chains. */
+export type BridgeCard = {
+  title: string;
+  status: Stat;
+  pay: CardRow;
+  receive: CardRow;
+  stats: [Stat, Stat];
 };
 
 export type TransferCard = {
@@ -136,6 +151,7 @@ export type ChatItem =
    */
   | { kind: "text"; text: string; paragraph?: boolean; reveal?: boolean }
   | { kind: "quote"; card: QuoteCard; isEditable?: boolean }
+  | { kind: "bridge"; card: BridgeCard }
   | { kind: "receipt"; card: ReceiptCard }
   | { kind: "transfer"; card: TransferCard }
   | { kind: "onramp"; card: OnrampCard }

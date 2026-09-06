@@ -1,22 +1,22 @@
-import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
-import { generateId } from "@/lib/schema-ids";
-import { ChatLog, type IChatMessage } from "@/models/ChatLog";
-import { Wallet } from "@/models/Wallet";
-import { Transaction } from "@/models/Transaction";
-import { executeOfframpTransfer } from "@/lib/chains/offramp-transfer";
-import { SwitchService } from "@/lib/switch";
-import { getExplorerTxUrl } from "@/lib/blockchain";
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { decryptMnemonic } from "@/lib/crypto";
+import { headers } from "next/headers";
+import { type NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { getExplorerTxUrl } from "@/lib/blockchain";
+import { executeOfframpTransfer } from "@/lib/chains/offramp-transfer";
 import {
   deriveStellarKeypairFromMnemonic,
   getHorizonServer,
 } from "@/lib/chains/stellar";
-import { verifyWalletPin } from "@/lib/execution/verify-pin";
+import { decryptMnemonic } from "@/lib/crypto";
+import { connectDB } from "@/lib/db";
 import { executeSwap } from "@/lib/execution/stellar-swap";
+import { verifyWalletPin } from "@/lib/execution/verify-pin";
+import { generateId } from "@/lib/schema-ids";
+import { SwitchService } from "@/lib/switch";
+import { ChatLog, type IChatMessage } from "@/models/ChatLog";
+import { Transaction } from "@/models/Transaction";
+import { Wallet } from "@/models/Wallet";
 
 const WALLET_PIN_REGEX = /^\d{6}$/;
 
@@ -82,7 +82,10 @@ export async function POST(req: NextRequest) {
 
     const pinResult = await verifyWalletPin(wallet, pin, { userId, sessionId });
     if (!pinResult.ok) {
-      return NextResponse.json({ error: pinResult.error }, { status: pinResult.status });
+      return NextResponse.json(
+        { error: pinResult.error },
+        { status: pinResult.status },
+      );
     }
 
     const chatLog = await ChatLog.findOne({ _id: sessionId, userId });
@@ -98,8 +101,8 @@ export async function POST(req: NextRequest) {
     const targetMsg = messageId
       ? chatLog.messages.find((m) => m.id === messageId)
       : [...chatLog.messages]
-        .reverse()
-        .find((m) => m.isTransaction && m.status === "pending");
+          .reverse()
+          .find((m) => m.isTransaction && m.status === "pending");
 
     if (!targetMsg) {
       console.warn(
@@ -149,12 +152,17 @@ export async function POST(req: NextRequest) {
     const userAuthMsg: IChatMessage = {
       id: generateId("MSG"),
       role: "user",
-      content: cardType === "quote" ? "Swap approved" : "Transfer approved",
+      content:
+        cardType === "quote"
+          ? "Swap approved"
+          : cardType === "bridge"
+            ? "Bridge authorised"
+            : "Transfer approved",
       timestamp: new Date(),
     };
 
     let receiptCardData: any;
-    let builtXdr = "";
+    const builtXdr = "";
 
     if (cardType === "quote") {
       const payVal =
@@ -228,6 +236,34 @@ export async function POST(req: NextRequest) {
         txHash: txHash || undefined,
         explorerUrl: explorerUrl || undefined,
       };
+    } else if (cardType === "bridge") {
+      // No bridge provider is wired up yet, so this records the authorisation
+      // and hands back the receipt. Nothing moves on-chain.
+      const payVal =
+        effectiveCardData?.pay?.value || txParams?.fromAmount || "0";
+      const payBadge =
+        effectiveCardData?.pay?.badge || txParams?.fromToken || "USDC";
+      const receiveVal =
+        effectiveCardData?.receive?.value || txParams?.toAmount || "0";
+      const receiveBadge =
+        effectiveCardData?.receive?.badge || txParams?.toToken || "XLM";
+      const feeStat = effectiveCardData?.stats?.find(
+        (stat: { lead?: string; value: string }) => stat?.lead?.includes("Fee"),
+      );
+
+      receiptCardData = {
+        title: "Bridged",
+        status: "Successful",
+        balance: {
+          caption: "RECEIVED",
+          value: receiveVal,
+          badge: receiveBadge,
+        },
+        stats: [
+          { value: `+ ${receiveVal} ${receiveBadge}` },
+          feeStat ?? { lead: "Fee ", value: `- ${payVal} ${payBadge}` },
+        ],
+      };
     } else if (cardType === "transfer") {
       const amount = String(txParams?.amount || "0");
       const token = (txParams?.token || "XLM").toUpperCase();
@@ -243,7 +279,7 @@ export async function POST(req: NextRequest) {
       let txHash = "";
       let explorerUrl = "";
 
-      let destAddress = recipient.trim();
+      const destAddress = recipient.trim();
       if (
         !destAddress ||
         !destAddress.startsWith("G") ||
@@ -349,14 +385,14 @@ export async function POST(req: NextRequest) {
 
         const paymentOp = destExists
           ? StellarSdk.Operation.payment({
-            destination: destAddress,
-            asset: StellarSdk.Asset.native(),
-            amount: amount,
-          })
+              destination: destAddress,
+              asset: StellarSdk.Asset.native(),
+              amount: amount,
+            })
           : StellarSdk.Operation.createAccount({
-            destination: destAddress,
-            startingBalance: amount,
-          });
+              destination: destAddress,
+              startingBalance: amount,
+            });
 
         const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
           fee: StellarSdk.BASE_FEE,
@@ -373,7 +409,11 @@ export async function POST(req: NextRequest) {
         const horizonRes = await server.submitTransaction(tx);
 
         txHash = horizonRes.hash;
-        explorerUrl = getExplorerTxUrl("stellar", txHash, network === "testnet");
+        explorerUrl = getExplorerTxUrl(
+          "stellar",
+          txHash,
+          network === "testnet",
+        );
         console.log("[Chat Confirm] Payment SUCCESS! Tx Hash:", txHash);
         console.log("[Chat Confirm] Explorer URL:", explorerUrl);
 
@@ -402,7 +442,7 @@ export async function POST(req: NextRequest) {
         Wallet.updateOne(
           { _id: wallet._id },
           { $set: { lastUsedAt: new Date() } },
-        ).catch(() => { });
+        ).catch(() => {});
       } catch (payErr: any) {
         const resultCodes =
           payErr?.response?.data?.extras?.result_codes ||
@@ -489,7 +529,8 @@ export async function POST(req: NextRequest) {
       const asset = effectiveCardData?.asset || txParams?.asset || "base:usdc";
       const depositAddress =
         effectiveCardData?.depositAddress || txParams?.depositAddress;
-      const reference = effectiveCardData?.reference || txParams?.reference || "";
+      const reference =
+        effectiveCardData?.reference || txParams?.reference || "";
       const bankName =
         effectiveCardData?.bankName || txParams?.bankName || "Bank";
       const accountNumber =
@@ -500,7 +541,10 @@ export async function POST(req: NextRequest) {
 
       if (!depositAddress) {
         return NextResponse.json(
-          { error: "Switch deposit address missing. Please initiate a new offramp." },
+          {
+            error:
+              "Switch deposit address missing. Please initiate a new offramp.",
+          },
           { status: 400 },
         );
       }
@@ -589,7 +633,7 @@ export async function POST(req: NextRequest) {
       Wallet.updateOne(
         { _id: wallet._id },
         { $set: { lastUsedAt: new Date() } },
-      ).catch(() => { });
+      ).catch(() => {});
 
       receiptCardData = {
         title: "Withdrawal Sent",
@@ -627,7 +671,11 @@ export async function POST(req: NextRequest) {
       receiptCardData = {
         title: "Deposit Order Created",
         status: "Pending",
-        balance: { caption: "STATUS", value: "Awaiting Bank Transfer", badge: "" },
+        balance: {
+          caption: "STATUS",
+          value: "Awaiting Bank Transfer",
+          badge: "",
+        },
         stats: [{ lead: "Type ", value: cardType }],
       };
     }
@@ -639,7 +687,11 @@ export async function POST(req: NextRequest) {
       id: generateId("MSG"),
       role: "assistant",
       content:
-        cardType === "quote" ? `✓ Swap confirmed` : `✓ Transfer successful`,
+        cardType === "quote"
+          ? `✓ Swap confirmed`
+          : cardType === "bridge"
+            ? `✓ Bridge confirmed in ${elapsedSeconds} seconds`
+            : `✓ Transfer successful`,
       isTransaction: true,
       cardType: "receipt",
       status: "confirmed",

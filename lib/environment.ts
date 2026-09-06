@@ -13,8 +13,8 @@ export const environment = {
 
   // BetterAuth Config
   AUTH_SECRET: process.env.AUTH_SECRET || "",
-  AUTH_URL: process.env.AUTH_URL || "http://localhost:3000",
-  BETTER_AUTH_URL: process.env.BETTER_AUTH_URL || "http://localhost:3000",
+  AUTH_URL: process.env.AUTH_URL,
+  BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
   WALLET_PEPPER_SECRET:
     process.env.WALLET_PEPPER_SECRET ||
     "default_jumpa_secure_wallet_pepper_secret_2026_key",

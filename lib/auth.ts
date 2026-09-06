@@ -16,6 +16,7 @@ import { detectUserCountry } from "./location";
 await connectDB();
 
 export const auth = betterAuth({
+  baseURL: environment.BETTER_AUTH_URL || environment.AUTH_URL,
   database: mongodbAdapter(getDb()),
   user: {
     additionalFields: {

@@ -12,7 +12,8 @@ import { environment } from "@/lib/environment";
  * - New user without wallet -> /sign-up/pin (Set Transaction PIN)
  */
 export async function GET(req: NextRequest) {
-  const origin = req.nextUrl.origin;
+  const origin = environment.BETTER_AUTH_URL || environment.AUTH_URL ||
+    req.nextUrl.origin;
 
   try {
     const session = await auth.api.getSession({

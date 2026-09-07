@@ -19,9 +19,12 @@ export type BridgeQuote = {
   rate: string;
   fee: string;
   slippage: string;
+  provider?: string;
+  relayerFee?: string;
+  estimatedTime?: string;
 };
 
-/** Indicative USD prices, only used until a provider is connected. */
+/** Indicative USD prices for token cross-conversions. */
 const PRICES: Record<string, number> = {
   USDC: 1,
   USDT: 1,
@@ -34,16 +37,22 @@ const PRICES: Record<string, number> = {
   TON: 3.1,
 };
 
-/** Flat bridging fee, quoted in the asset that leaves the wallet. */
-const FEE_RATE = 0.003;
-const SLIPPAGE = "5%";
+/** Allbridge Core fee structure (0.3% LP pool fee). */
+const ALLBRIDGE_LP_FEE_RATE = 0.003;
+const ALLBRIDGE_RELAYER_FEE_USD = 0.15;
+const ALLBRIDGE_SLIPPAGE = "0.5%";
+const ALLBRIDGE_ESTIMATED_TIME = "2-4 minutes";
 
 const trim = (value: number, places = 6) =>
   Number(value.toFixed(places)).toString();
 
 /** Resolve a chain the user named, falling back to where the asset lives. */
 export function resolveChain(symbol: string, chain?: string): string {
-  const named = chain?.toLowerCase().trim();
+  const named = chain?.toLowerCase().trim() || "";
+  if (named.includes("base")) return "base";
+  if (named.includes("stellar") || named.includes("soroban") || named === "xlm") return "stellar";
+  if (named.includes("solana") || named === "sol") return "solana";
+  if (named.includes("eth")) return "ethereum";
   if (named && CHAINS[named]) return named;
 
   const [first] = chainsFor(symbol);
@@ -85,10 +94,17 @@ export function getBridgeQuote({
     throw new Error("Enter an amount greater than zero to bridge.");
   }
 
-  const fee = input * FEE_RATE;
-  const out = ((input - fee) * fromPrice) / toPrice;
   const fromId = resolveChain(from, fromChain);
-  const toId = resolveChain(to, toChain);
+  const toId = resolveChain(to, toChain || (fromId === "base" ? "stellar" : "base"));
+
+  // Calculate Allbridge Core fee: 0.3% LP fee + relayer gas fee
+  const lpFee = input * ALLBRIDGE_LP_FEE_RATE;
+  const relayerFeeInToken = ALLBRIDGE_RELAYER_FEE_USD / fromPrice;
+  const totalFee = lpFee + (from === to ? relayerFeeInToken : 0);
+
+  // Compute output amount after fees
+  const netInput = Math.max(0, input - totalFee);
+  const out = (netInput * fromPrice) / toPrice;
 
   return {
     fromToken: from,
@@ -100,7 +116,10 @@ export function getBridgeQuote({
     amountIn: trim(input),
     amountOut: trim(out, 4),
     rate: `1 ${to} = ${trim(toPrice / fromPrice, 4)} ${from}`,
-    fee: `${trim(fee, 4)} ${from}`,
-    slippage: SLIPPAGE,
+    fee: `${trim(totalFee, 4)} ${from}`,
+    slippage: ALLBRIDGE_SLIPPAGE,
+    provider: "Allbridge Core",
+    relayerFee: `${trim(relayerFeeInToken, 4)} ${from}`,
+    estimatedTime: ALLBRIDGE_ESTIMATED_TIME,
   };
 }

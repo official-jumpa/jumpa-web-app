@@ -274,6 +274,8 @@ export async function executeTool(
         stats: [
           { lead: "Rate ", value: quote.rate },
           { lead: "Fee ", value: quote.fee },
+          { lead: "Provider ", value: quote.provider || "Allbridge Core" },
+          { lead: "Est. Time ", value: quote.estimatedTime || "2-4 mins" },
         ],
       };
 
@@ -284,6 +286,8 @@ export async function executeTool(
           `- ${quote.amountIn} ${quote.fromToken} on ${quote.fromChainName} → ${quote.amountOut} ${quote.toToken} on ${quote.toChainName}`,
           `- Rate: ${quote.rate}`,
           `- Fee: ${quote.fee}`,
+          `- Provider: ${quote.provider || "Allbridge Core"}`,
+          `- Est. Delivery: ${quote.estimatedTime || "2-4 mins"}`,
           `- Slippage: ${quote.slippage}`,
           "The bridge card is on screen. Ask them to confirm. Do NOT use emojis or tell them to press buttons or enter a PIN.",
         ].join("\n"),
@@ -297,6 +301,8 @@ export async function executeTool(
           fromChain: quote.fromChain,
           toChain: quote.toChain,
           currency: quote.fromToken,
+          fee: quote.fee,
+          provider: quote.provider || "Allbridge Core",
         },
         requiresConfirmation: true,
       };

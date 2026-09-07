@@ -47,7 +47,7 @@ export type BridgeCard = {
   status: Stat;
   pay: CardRow;
   receive: CardRow;
-  stats: [Stat, Stat];
+  stats: Stat[];
 };
 
 export type TransferCard = {

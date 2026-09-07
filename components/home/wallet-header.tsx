@@ -4,17 +4,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { BellIcon } from "@/components/ui/icons/bell";
 import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
-import { useSession } from "@/lib/auth-client";
+import { useAuthContext } from "@/components/auth/AuthGuard";
 import { ACCOUNT } from "@/lib/wallet";
 
 export function WalletHeader() {
-  const { data: session } = useSession();
+  const auth = useAuthContext();
+  const user = auth?.user;
 
   let displayName = ACCOUNT.firstName;
-  if (session?.user?.name) {
-    displayName = session.user.name.split(" ")[0];
-  } else if (session?.user?.email) {
-    const rawName = session.user.email.split("@")[0];
+  if (user?.name) {
+    displayName = user.name.split(" ")[0];
+  } else if (user?.email) {
+    const rawName = user.email.split("@")[0];
     displayName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
   }
 
@@ -26,7 +27,7 @@ export function WalletHeader() {
       >
         <span className="relative justify-center items-center block size-10 shrink-0 bg-jumpa-primary-100 rounded-full p-1">
           <Image
-            src={session?.user?.image || ACCOUNT.avatar}
+            src={user?.image || ACCOUNT.avatar}
             alt=""
             width={40}
             height={40}

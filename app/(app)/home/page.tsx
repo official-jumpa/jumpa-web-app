@@ -13,7 +13,6 @@ import { TransactionHistory } from "@/components/home/transaction-history";
 import { WalletHeader } from "@/components/home/wallet-header";
 import { RiseIn } from "@/components/ui/rise-in";
 import { unifyTokens } from "@/lib/assets";
-import { authClient } from "@/lib/auth-client";
 import { ACCOUNT, ASSETS, type Asset, type Transaction } from "@/lib/wallet";
 
 export default function HomePage() {
@@ -51,19 +50,7 @@ export default function HomePage() {
   useEffect(() => {
     let isMounted = true;
 
-    // 1. Non-blocking session check
-    async function checkSession() {
-      try {
-        const { data: session } = await authClient.getSession();
-        if (!session?.user) {
-          router.replace("/onboarding");
-        }
-      } catch (err) {
-        console.warn("[Home] Session check failed:", err);
-      }
-    }
-
-    //Fetch transactions independently
+    // Fetch transactions independently
     async function fetchTransactions() {
       try {
         const res = await fetch("/api/transactions?limit=5");
@@ -122,7 +109,6 @@ export default function HomePage() {
       }
     }
 
-    checkSession();
     fetchTransactions();
     fetchBalances();
 

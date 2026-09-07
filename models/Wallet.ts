@@ -32,7 +32,7 @@ export interface IWallet {
 
 const WalletSchema = new Schema<IWallet>(
   {
-    _id: { type: String, default: () => generateId("WALL") },
+    _id: { type: String, default: () => generateId("wall") },
     userId: { type: String, default: null, index: true },
     name: { type: String, required: true, default: "Wallet" },
     address: { type: String, required: true, unique: true, lowercase: true },

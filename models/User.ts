@@ -1,7 +1,7 @@
 import mongoose, { Schema, model, models } from "mongoose";
 
 export interface IUser {
-  _id: string; // Better-Auth uses custom generated string IDs (e.g. USER_...)
+  _id: string; // Better-Auth uses custom generated string IDs (e.g. user_...)
   name: string | null;
   country: string | null;
   email: string;
@@ -32,7 +32,7 @@ const UserSchema = new Schema<IUser>(
     emailVerified: { type: Boolean, required: true, default: false },
     image: { type: String, default: null },
     jumpaTag: { type: String, unique: true, sparse: true, lowercase: true },
-    referralCode: { type: String, unique: true, sparse: true, uppercase: true },
+    referralCode: { type: String, unique: true, sparse: true, lowercase: true },
     referredBy: { type: String, default: null },
     lastLoginAt: { type: Date, default: null },
     loginMethod: { type: String, enum: ["google", "email", "anonymous"], default: "email" },

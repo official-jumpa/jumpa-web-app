@@ -47,14 +47,14 @@ export interface IChatLog {
 
 const ChatLogSchema = new Schema<IChatLog>(
   {
-    _id: { type: String, default: () => generateId("CHAT") },
+    _id: { type: String, default: () => generateId("chat") },
     userId: { type: String, required: true, index: true },
     walletAddress: { type: String, default: "", index: true },
     type: { type: String, enum: ["personal", "group"], default: "personal" },
     title: { type: String, default: "New Chat" },
     messages: [
       {
-        id: { type: String, default: () => generateId("MSG") },
+        id: { type: String, default: () => generateId("msg") },
         role: { type: String, enum: ["user", "assistant"], required: true },
         content: { type: String, default: "" },
         timestamp: { type: Date, default: Date.now },

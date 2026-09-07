@@ -14,7 +14,7 @@ export interface IReferral {
 
 const ReferralSchema = new Schema<IReferral>(
   {
-    _id: { type: String, default: () => generateId("REFR") },
+    _id: { type: String, default: () => generateId("refr") },
     referrerId: { type: String, required: true, index: true },
     referrerCode: { type: String, required: true, index: true },
     referredUserId: { type: String, required: true, unique: true, index: true },

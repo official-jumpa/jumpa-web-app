@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
 
     // Append cancellation notification message
     const cancelMsg: IChatMessage = {
-      id: generateId("MSG"),
+      id: generateId("msg"),
       role: "assistant",
       content: "Transaction cancelled.",
       timestamp: new Date(),

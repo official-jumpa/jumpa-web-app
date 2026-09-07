@@ -83,12 +83,12 @@ export const auth = betterAuth({
           if (referredBy) {
             try {
               const referrer = await User.findOne({
-                referralCode: String(referredBy).toUpperCase(),
+                referralCode: String(referredBy).toLowerCase(),
               });
               if (referrer && referrer._id !== user.id) {
                 await Referral.create({
                   referrerId: referrer._id,
-                  referrerCode: String(referredBy).toUpperCase(),
+                  referrerCode: String(referredBy).toLowerCase(),
                   referredUserId: user.id,
                   points: 1,
                   status: "joined",
@@ -105,13 +105,13 @@ export const auth = betterAuth({
   advanced: {
     database: {
       generateId: ({ model }: { model: string }) => {
-        const map: Record<string, "USER" | "SESS" | "ACCT" | "VRFY"> = {
-          user: "USER",
-          session: "SESS",
-          account: "ACCT",
-          verification: "VRFY",
+        const map: Record<string, "user" | "sess" | "acct" | "vrfy"> = {
+          user: "user",
+          session: "sess",
+          account: "acct",
+          verification: "vrfy",
         };
-        return generateId(map[model] ?? "USER");
+        return generateId(map[model] ?? "user");
       },
     },
   },

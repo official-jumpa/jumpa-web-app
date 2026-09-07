@@ -150,7 +150,7 @@ export async function POST(req: NextRequest) {
 
     // User authorization message
     const userAuthMsg: IChatMessage = {
-      id: generateId("MSG"),
+      id: generateId("msg"),
       role: "user",
       content:
         cardType === "quote"
@@ -684,7 +684,7 @@ export async function POST(req: NextRequest) {
 
     // Assistant receipt message
     const receiptMsg: IChatMessage = {
-      id: generateId("MSG"),
+      id: generateId("msg"),
       role: "assistant",
       content:
         cardType === "quote"

@@ -75,7 +75,17 @@ export const ASSETS: Asset[] = SUPPORTED_ASSETS.filter((asset) =>
 export type TransactionStatus = "completed" | "pending" | "failed";
 
 /** Picks the glyph on the row's tile. */
-export type TransactionKind = "send" | "receive" | "card";
+export type TransactionKind =
+  | "send"
+  | "receive"
+  | "card"
+  | "swap"
+  | "airtime"
+  | "data"
+  | "invest";
+
+/** One line of the "Transaction details" card. */
+export type TransactionDetailRow = { label: string; value: string };
 
 export type Transaction = {
   id: string;
@@ -87,6 +97,17 @@ export type Transaction = {
   status: TransactionStatus;
   /** Network badge on the tile; omit for none. */
   chain?: string;
+
+  /** Asset whose mark heads the detail screen, e.g. "SOL". */
+  token?: string;
+  /** Detail screen hero, e.g. "0.4 SOL". */
+  headline?: string;
+  /** Detail screen heading, e.g. "Swap complete". */
+  heading?: string;
+  /** Detail screen date line, e.g. "May 26, 2026 |  02:34pm". */
+  timestamp?: string;
+  /** The rows under "Transaction details". */
+  rows?: TransactionDetailRow[];
 };
 
 export const TRANSACTIONS: Transaction[] = [];

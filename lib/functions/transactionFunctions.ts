@@ -1,5 +1,9 @@
 import { connectDB } from "@/lib/db";
 import { Transaction, type ITransaction } from "@/models/Transaction";
+import type {
+  TransactionDetailRow,
+  TransactionKind,
+} from "@/lib/wallet";
 
 /**
  * Creates a new transaction record in MongoDB.
@@ -94,11 +98,21 @@ export function formatDbTransaction(tx: any) {
     tx.rampDetails?.provider === "mercuryo" ||
     tx.kind === "card";
 
-  const kind: "send" | "receive" | "card" = isCard
-    ? "card"
-    : isIncoming
-      ? "receive"
-      : "send";
+  const token = (tx.token || "").toUpperCase();
+  const kind: TransactionKind =
+    tx.type === "SWAP"
+      ? "swap"
+      : token === "AIRTIME"
+        ? "airtime"
+        : token === "DATA"
+          ? "data"
+          : tx.type === "SAVINGS_DEPOSIT" || tx.type === "SAVINGS_WITHDRAW"
+            ? "invest"
+            : isCard
+              ? "card"
+              : isIncoming
+                ? "receive"
+                : "send";
 
   let title = tx.title;
   if (!title) {
@@ -161,7 +175,119 @@ export function formatDbTransaction(tx: any) {
     amount,
     status,
     chain: tx.chain,
+    token: tx.swapDetails?.fromToken || tx.token,
+    headline: `${formatDecimal(tx.swapDetails?.fromAmount ?? rawAmount, 4)} ${
+      tx.swapDetails?.fromToken || tokenPart
+    }`.trim(),
+    heading: `${SUBJECT[kind] ?? "Transaction"} ${OUTCOME[status]}`,
+    timestamp: formatTxTimestamp(tx.executedAt || tx.createdAt),
+    rows: detailRows(tx, status),
   };
+}
+
+/** What the detail screen calls the transaction, above the date. */
+const SUBJECT: Partial<Record<TransactionKind, string>> = {
+  send: "Transfer",
+  receive: "Deposit",
+  card: "Card deposit",
+  swap: "Swap",
+  airtime: "Airtime",
+  data: "Data",
+  invest: "Savings",
+};
+
+const OUTCOME = {
+  completed: "complete",
+  pending: "pending",
+  failed: "failed",
+} as const;
+
+/** "May 26, 2026 |  02:34pm", the form the detail screen draws. */
+function formatTxTimestamp(dateVal?: Date | string): string {
+  if (!dateVal) return "";
+  const date = new Date(dateVal);
+  if (isNaN(date.getTime())) return "";
+
+  const day = date.toLocaleDateString([], {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  const time = date
+    .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true })
+    .replace(/\s?([AP])M/i, (_m, half) => `${half.toLowerCase()}m`);
+
+  return `${day} |  ${time}`;
+}
+
+/** Only rows the record can actually answer — an empty value is left out. */
+function detailRows(tx: any, status: string): TransactionDetailRow[] {
+  const rows: [string, unknown][] = [];
+  const swap = tx.swapDetails;
+  const ramp = tx.rampDetails;
+
+  if (tx.type === "SWAP" && swap) {
+    const bridged = /bridge|wormhole|squid/i.test(swap.protocol || "");
+    rows.push(
+      ["Amount sent", `${formatDecimal(swap.fromAmount, 4)} ${swap.fromToken}`],
+      ["Amount received", `${formatDecimal(swap.toAmount, 4)} ${swap.toToken}`],
+      ["Exchange rate", exchangeRate(swap.fromAmount, swap.toAmount)],
+      ["Slippage", swap.slippage ? `${swap.slippage}%` : ""],
+      [bridged ? "Bridge Provider" : "Provider", swap.protocol],
+    );
+  } else {
+    rows.push(["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`]);
+    if (ramp) {
+      rows.push(
+        ["Provider", ramp.provider],
+        [
+          "Fiat amount",
+          ramp.fiatAmount ? `${ramp.fiatCurrency} ${ramp.fiatAmount}` : "",
+        ],
+        ["Bank", ramp.bankDetails?.bankName],
+        ["Reference", ramp.reference],
+      );
+    } else {
+      rows.push(
+        ["To", shortenKey(tx.toAddress)],
+        ["From", shortenKey(tx.fromAddress)],
+      );
+    }
+  }
+
+  rows.push(
+    ["Network", tx.chain ? `${tx.chain} ${tx.network || ""}`.trim() : ""],
+    ["Network fee", tx.feePaid],
+    ["TXN HASH", shortenKey(tx.txHash)],
+    ["Time taken", timeTaken(tx)],
+  );
+
+  if (status === "failed") rows.push(["Reason", tx.errorMessage]);
+
+  return rows
+    .filter(([, value]) => value !== undefined && value !== null && `${value}`.trim() !== "")
+    .map(([label, value]) => ({ label, value: `${value}`.trim() }));
+}
+
+function exchangeRate(from?: string, to?: string): string {
+  const a = parseFloat(String(from || ""));
+  const b = parseFloat(String(to || ""));
+  if (!a || !b) return "";
+  return formatDecimal(b / a, 4);
+}
+
+/** Between the record being written and the chain confirming it. */
+function timeTaken(tx: any): string {
+  if (!tx.executedAt || !tx.createdAt) return "";
+  const ms = new Date(tx.executedAt).getTime() - new Date(tx.createdAt).getTime();
+  if (!isFinite(ms) || ms <= 0) return "";
+  return ms < 60000 ? `${Math.round(ms / 1000)} secs` : `${Math.round(ms / 60000)} mins`;
+}
+
+/** Addresses and hashes render as GB25HB…QJDYMZ, never truncated mid-string. */
+function shortenKey(value?: string): string {
+  if (!value || value.length <= 18) return value || "";
+  return `${value.slice(0, 8)}…${value.slice(value.length - 6)}`;
 }
 
 /**

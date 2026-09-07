@@ -59,6 +59,20 @@ export function BackLink({
   );
 }
 
+/**
+ * The back convention as a callback, for a close button that leaves the screen.
+ * Pushing `href` instead would put the screen being left *ahead* of its own
+ * parent, so the parent's own Back would return to it — a loop.
+ */
+export function useGoBack(href: string): () => void {
+  const router = useRouter();
+
+  return () => {
+    if (hasInAppHistory()) router.back();
+    else router.replace(href);
+  };
+}
+
 /** Same glyph as `BackLink`, for stepping back inside a multi-stage screen. */
 export function BackButton({
   onClick,

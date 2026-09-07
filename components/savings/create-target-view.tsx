@@ -23,6 +23,7 @@ import { FieldError } from "@/components/ui/field-error";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { Select } from "@/components/ui/select";
 import { useWalletBalance } from "@/hooks/use-wallet-balance";
+import { type FriendlyError, friendlyError } from "@/lib/errors";
 import {
   addDays,
   displayDate,
@@ -33,7 +34,6 @@ import {
   TARGET_TERMS,
   WEEKDAYS,
 } from "@/lib/savings";
-import { friendlySavingsError, type SavingsError } from "@/lib/savings-errors";
 import { formatAmount } from "@/lib/transfer";
 import { revealFirstError } from "@/lib/validation";
 import type { Promotion } from "@/lib/wallet";
@@ -68,12 +68,12 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
   const [source, setSource] = useState<FundingSource>();
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
-  const [failure, setFailure] = useState<SavingsError>();
+  const [failure, setFailure] = useState<FriendlyError>();
 
   // Provider errors read like "[DeFindex POST /vault/deposit] Failed (403)";
   // the sheet shows plain copy instead and the raw text goes to the console.
   const fail = (raw?: string) => {
-    setFailure(friendlySavingsError(raw));
+    setFailure(friendlyError(raw, "deposit"));
     setSheet(null);
   };
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AmountScreen } from "@/components/transfer/amount-screen";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
@@ -8,9 +7,10 @@ import { RecipientTag } from "@/components/transfer/recipient-tag";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
+import { useGoBack } from "@/components/ui/back-link";
 import { ResultSheet } from "@/components/ui/result-sheet";
+import { type FriendlyError, friendlyError } from "@/lib/errors";
 import type { SavingsPlan } from "@/lib/savings";
-import { friendlySavingsError, type SavingsError } from "@/lib/savings-errors";
 import { formatAmount } from "@/lib/transfer";
 import type { Promotion } from "@/lib/wallet";
 
@@ -28,17 +28,17 @@ export function TopUpView({
   back: string;
   promotions: Promotion[];
 }) {
-  const router = useRouter();
+  const goBack = useGoBack(back);
   const [currentPlan, setCurrentPlan] = useState<SavingsPlan>(plan);
   const [amount, setAmount] = useState("");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
-  const [failure, setFailure] = useState<SavingsError>();
+  const [failure, setFailure] = useState<FriendlyError>();
 
   // Provider errors read like "[DeFindex POST /vault/deposit] Failed (403)";
   // the sheet shows plain copy instead and the raw text goes to the console.
   const fail = (raw?: string) => {
-    setFailure(friendlySavingsError(raw));
+    setFailure(friendlyError(raw, "deposit"));
     setSheet(null);
   };
   const [done, setDone] = useState(false);
@@ -131,7 +131,7 @@ export function TopUpView({
         recipient={
           <RecipientTag primary={plan.name} secondary={plan.frequency} />
         }
-        onClose={() => router.push(back)}
+        onClose={goBack}
         amount={amount}
         symbol="USDC"
         balance={walletBalance}

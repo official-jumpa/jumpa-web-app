@@ -15,7 +15,9 @@ import { FieldError } from "@/components/ui/field-error";
 import { ArrowDownArrowUpIcon } from "@/components/ui/icons/arrow-down-arrow-up";
 import { PlusIcon } from "@/components/ui/icons/plus";
 import { TriangleWarningIcon } from "@/components/ui/icons/triangle-warning";
+import { ResultSheet } from "@/components/ui/result-sheet";
 import { useSwapQuote } from "@/hooks/use-swap-quote";
+import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import type { Promotion } from "@/lib/wallet";
 
 /** Assets available on each chain/network. Extend when new chains are integrated. */
@@ -63,6 +65,7 @@ export function SwapView({
   const [error, setError] = useState<string>();
   const [txResult, setTxResult] = useState<TxResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [failure, setFailure] = useState<FriendlyError>();
 
   // ── Live quote ──
   const {
@@ -97,10 +100,18 @@ export function SwapView({
     setAmount("");
   }
 
+  // A rejected PIN stays in the sheet, where it can be retyped. Anything else
+  // ended the attempt, so it leaves the sheet and says so in plain copy — the
+  // swap failing is not the user mistyping their PIN.
+  function fail(raw?: string) {
+    setFailure(friendlyError(raw, "swap"));
+    setPinOpen(false);
+  }
+
   // ── PIN submission — calls /api/swap/execute ──
   async function handlePinSubmit(pin: string) {
     if (!quote) {
-      setPinError(true);
+      fail("Quote expired");
       return;
     }
 
@@ -123,8 +134,11 @@ export function SwapView({
       const json = await res.json();
 
       if (!res.ok) {
-        console.error("[SwapView] Execute error:", json?.error);
-        setPinError(true);
+        if (res.status === 401 && json?.error?.toLowerCase().includes("pin")) {
+          setPinError(true);
+        } else {
+          fail(json?.error);
+        }
       } else {
         setTxResult({
           txHash: json.txHash,
@@ -136,8 +150,7 @@ export function SwapView({
         setPinOpen(false);
       }
     } catch (e) {
-      console.error("[SwapView] Network error:", e);
-      setPinError(true);
+      fail(errorMessage(e));
     } finally {
       setSubmitting(false);
     }
@@ -360,12 +373,29 @@ export function SwapView({
       {pinOpen ? (
         <TransferPinSheet
           error={pinError}
+          pending={submitting}
           onRetry={() => setPinError(false)}
           onClose={() => {
             setPinOpen(false);
             setPinError(false);
           }}
           onComplete={handlePinSubmit}
+        />
+      ) : null}
+
+      {failure ? (
+        <ResultSheet
+          title={failure.title}
+          message={failure.message}
+          onRetry={
+            failure.retry
+              ? () => {
+                  setFailure(undefined);
+                  setStage("quote");
+                }
+              : undefined
+          }
+          onClose={() => setFailure(undefined)}
         />
       ) : null}
     </div>

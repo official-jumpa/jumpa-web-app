@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
-import bcrypt from "bcryptjs";
 import * as bip39 from "bip39";
 import { derivePath } from "ed25519-hd-key";
 import { Keypair as SolanaKeypair } from "@solana/web3.js";
@@ -11,6 +10,7 @@ import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
 import { sendTokenSchema } from "@/lib/validations/wallet.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { decryptMnemonic } from "@/lib/crypto";
+import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { deriveStellarKeypairFromMnemonic } from "@/lib/chains/stellar";
 import { NETWORK_CONFIGS } from "@/lib/transfer";
 import {
@@ -99,12 +99,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Verify PIN
-  const isPinValid = await bcrypt.compare(pin, wallet.pinHash);
-  if (!isPinValid) {
+  // Shared with every other signing route, so this one also counts failed
+  // attempts and honours the lockout. A bare bcrypt compare did neither.
+  const pinCheck = await verifyWalletPin(wallet, pin, {
+    userId: session.user.id,
+  });
+  if (!pinCheck.ok) {
     return NextResponse.json(
-      { error: "Incorrect PIN. Please try again." },
-      { status: 401 },
+      { error: pinCheck.error },
+      { status: pinCheck.status },
     );
   }
 

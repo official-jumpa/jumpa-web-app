@@ -13,7 +13,11 @@ import { UserActivityLog } from "@/models/UserActivityLog";
 
 export type PinVerifyResult =
   | { ok: true }
-  | { ok: false; error: string; status: 401 };
+  | { ok: false; error: string; status: 401 | 423 };
+
+/** Wrong PINs before the wallet is locked, and for how long. */
+const MAX_ATTEMPTS = 5;
+const LOCK_MS = 15 * 60 * 1000;
 
 /**
  * Verify a 6-digit PIN against the wallet's stored bcrypt hash.
@@ -34,14 +38,27 @@ export async function verifyWalletPin(
     return { ok: true };
   }
 
+  // The lock was being written and never read, so five wrong PINs marked the
+  // wallet locked and the sixth attempt still went through. 423 rather than
+  // 401 so the client can tell a locked wallet from a mistyped PIN.
+  const lockedUntil = wallet.pinLockedUntil
+    ? new Date(wallet.pinLockedUntil).getTime()
+    : 0;
+  if (lockedUntil > Date.now()) {
+    const minutes = Math.max(1, Math.ceil((lockedUntil - Date.now()) / 60000));
+    return {
+      ok: false,
+      error: `Too many incorrect PIN attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+      status: 423,
+    };
+  }
+
   const pinValid = await bcrypt.compare(pin, wallet.pinHash);
 
   if (!pinValid) {
     const attempts = (wallet.pinAttempts || 0) + 1;
-    const isLocked = attempts >= 5;
-    const pinLockedUntil = isLocked
-      ? new Date(Date.now() + 15 * 60 * 1000)
-      : null;
+    const isLocked = attempts >= MAX_ATTEMPTS;
+    const pinLockedUntil = isLocked ? new Date(Date.now() + LOCK_MS) : null;
 
     await Wallet.updateOne(
       { _id: wallet._id },
@@ -57,6 +74,14 @@ export async function verifyWalletPin(
     console.warn(
       `[verifyWalletPin] Incorrect PIN for wallet ${wallet._id} (attempt ${attempts}${isLocked ? " — locked" : ""})`,
     );
+
+    if (isLocked) {
+      return {
+        ok: false,
+        error: `Too many incorrect PIN attempts. Try again in ${LOCK_MS / 60000} minutes.`,
+        status: 423,
+      };
+    }
 
     return { ok: false, error: "Incorrect PIN", status: 401 };
   }

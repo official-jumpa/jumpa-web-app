@@ -15,11 +15,10 @@ import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
+import { ResultSheet } from "@/components/ui/result-sheet";
 import { getAssetLogo } from "@/lib/assets";
-import {
-  NETWORK_CONFIGS,
-  shortenAddress,
-} from "@/lib/transfer";
+import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
+import { NETWORK_CONFIGS, shortenAddress } from "@/lib/transfer";
 import type { Promotion } from "@/lib/wallet";
 
 type Stage = "form" | "amount" | "done";
@@ -34,7 +33,7 @@ export function WalletAddressView({ promotions }: { promotions: Promotion[] }) {
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [failure, setFailure] = useState<FriendlyError>();
   const [txResult, setTxResult] = useState<{
     txHash: string;
     explorerUrl: string;
@@ -66,7 +65,9 @@ export function WalletAddressView({ promotions }: { promotions: Promotion[] }) {
               t.symbol?.toUpperCase() === form.asset.toUpperCase() &&
               (isTestnet ? Boolean(t.isTestnet) : !t.isTestnet) &&
               (!t.network ||
-                t.network.toLowerCase().includes(currentConfig.chain.toLowerCase())),
+                t.network
+                  .toLowerCase()
+                  .includes(currentConfig.chain.toLowerCase())),
           );
           if (matched) {
             const tokenAmount = parseFloat(matched.balance) || 0;
@@ -96,10 +97,16 @@ export function WalletAddressView({ promotions }: { promotions: Promotion[] }) {
     };
   }, [form.asset, form.network, currentConfig.chain, currentConfig.network]);
 
+  // A rejected PIN stays in the sheet, where it can be retyped. Anything else
+  // ended the attempt, so it leaves the sheet and says so in plain copy.
+  const fail = (raw?: string) => {
+    setFailure(friendlyError(raw, "transfer"));
+    setSheet(null);
+  };
+
   const handlePinSubmit = async (pin: string) => {
     setIsSubmitting(true);
     setPinError(false);
-    setErrorMessage(null);
 
     try {
       const res = await fetch("/api/wallet/send", {
@@ -121,7 +128,7 @@ export function WalletAddressView({ promotions }: { promotions: Promotion[] }) {
         if (res.status === 401 && data.error?.toLowerCase().includes("pin")) {
           setPinError(true);
         } else {
-          setErrorMessage(data.error || "Transfer failed on-chain.");
+          fail(data.error);
         }
         return;
       }
@@ -132,8 +139,8 @@ export function WalletAddressView({ promotions }: { promotions: Promotion[] }) {
       });
       setSheet(null);
       setStage("done");
-    } catch (err: any) {
-      setErrorMessage(err?.message || "Network request failed.");
+    } catch (err) {
+      fail(errorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -144,10 +151,7 @@ export function WalletAddressView({ promotions }: { promotions: Promotion[] }) {
       <DetailRow label="Network" value={currentConfig.name} />
       <DetailRow label="Asset" value={form.asset} />
       <DetailRow label="Network fee" value={currentConfig.feeLabel} />
-      <DetailRow
-        label="Settlement time"
-        value={currentConfig.settlementTime}
-      />
+      <DetailRow label="Settlement time" value={currentConfig.settlementTime} />
       {form.memo?.trim() ? (
         <DetailRow label="Memo" value={form.memo.trim()} rule={false} />
       ) : null}
@@ -241,22 +245,27 @@ export function WalletAddressView({ promotions }: { promotions: Promotion[] }) {
         {sheet === "pin" ? (
           <TransferPinSheet
             error={pinError}
-            onRetry={() => {
-              setPinError(false);
-              setErrorMessage(null);
-            }}
-            onClose={() => {
-              setSheet("review");
-              setErrorMessage(null);
-            }}
+            pending={isSubmitting}
+            onRetry={() => setPinError(false)}
+            onClose={() => setSheet("review")}
             onComplete={handlePinSubmit}
           />
         ) : null}
 
-        {errorMessage ? (
-          <div className="fixed bottom-6 left-4 right-4 z-50 rounded-lg bg-red-600 px-4 py-3 text-center text-sm font-medium text-white shadow-lg">
-            {errorMessage}
-          </div>
+        {failure ? (
+          <ResultSheet
+            title={failure.title}
+            message={failure.message}
+            onRetry={
+              failure.retry
+                ? () => {
+                    setFailure(undefined);
+                    setSheet("review");
+                  }
+                : undefined
+            }
+            onClose={() => setFailure(undefined)}
+          />
         ) : null}
       </>
     );

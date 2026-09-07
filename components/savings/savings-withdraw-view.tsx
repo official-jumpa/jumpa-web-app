@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { EmptyPlans } from "@/components/savings/empty-plans";
 import { PlanCard } from "@/components/savings/plan-card";
@@ -11,9 +11,10 @@ import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
+import { useGoBack } from "@/components/ui/back-link";
 import { ResultSheet } from "@/components/ui/result-sheet";
+import { type FriendlyError, friendlyError } from "@/lib/errors";
 import type { SavingsPlan } from "@/lib/savings";
-import { friendlySavingsError, type SavingsError } from "@/lib/savings-errors";
 import { formatAmount } from "@/lib/transfer";
 import { PROMOTIONS } from "@/lib/wallet";
 
@@ -22,7 +23,6 @@ type Sheet = "review" | "pin" | null;
 const WITHDRAW_AMOUNTS = [25, 50, 100] as const;
 
 export function SavingsWithdrawView() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const planId = searchParams.get("id");
   const paramName = searchParams.get("name");
@@ -54,12 +54,12 @@ export function SavingsWithdrawView() {
   const [amount, setAmount] = useState("");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
-  const [failure, setFailure] = useState<SavingsError>();
+  const [failure, setFailure] = useState<FriendlyError>();
 
   // Provider errors read like "[DeFindex POST /vault/deposit] Failed (403)";
   // the sheet shows plain copy instead and the raw text goes to the console.
   const fail = (raw?: string) => {
-    setFailure(friendlySavingsError(raw));
+    setFailure(friendlyError(raw, "withdrawal"));
     setSheet(null);
   };
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -151,6 +151,8 @@ export function SavingsWithdrawView() {
     ? `/savings/${selectedPlan.kind === "circle" ? "circles" : selectedPlan.kind}/${selectedPlan.id}`
     : "/savings";
 
+  const goBack = useGoBack(backUrl);
+
   if (done) {
     return (
       <TransferSuccess
@@ -219,7 +221,7 @@ export function SavingsWithdrawView() {
         }
         // Picked in the selector? Go back to it. The plan detail page it would
         // otherwise land on is one this route never came from.
-        onClose={() => (planId ? router.push(backUrl) : setSelectedPlan(null))}
+        onClose={() => (planId ? goBack() : setSelectedPlan(null))}
         amount={amount}
         symbol="USDC"
         balance={selectedPlan?.saved || "$0.00"}

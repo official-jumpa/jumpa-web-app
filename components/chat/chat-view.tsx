@@ -7,11 +7,13 @@ import { ChatDock } from "@/components/chat/chat-dock";
 import { ChatHeader, type SessionSummary } from "@/components/chat/chat-header";
 import { ChatIntro } from "@/components/chat/chat-intro";
 import { ChatTopFade } from "@/components/chat/chat-top-fade";
-import { PinSheet } from "@/components/chat/pin-sheet";
 import { SuggestionCard } from "@/components/chat/suggestion-card";
 import { Transcript } from "@/components/chat/transcript";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
+import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
+import { ResultSheet } from "@/components/ui/result-sheet";
 import type { ChatEntry, ChatItem, QuoteCard as Quote } from "@/lib/chat";
+import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import type { IChatMessage } from "@/models/ChatLog";
 
 /**
@@ -144,7 +146,8 @@ export function ChatView() {
   const [loadingEarlier, setLoadingEarlier] = useState(false);
   const [isResponding, setIsResponding] = useState(false);
   const [pinOpen, setPinOpen] = useState(false);
-  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinError, setPinError] = useState(false);
+  const [failure, setFailure] = useState<FriendlyError>();
   const [pinProcessing, setPinProcessing] = useState(false);
   const [pendingActionMsgId, setPendingActionMsgId] = useState<string | null>(
     null,
@@ -298,7 +301,7 @@ export function ChatView() {
     setInputValue("");
     setIsResponding(false);
     setPinOpen(false);
-    setPinError(null);
+    setPinError(false);
     setPendingQuoteCard(null);
     setRevealId(null);
   }, []);
@@ -379,13 +382,21 @@ export function ChatView() {
       .reverse()
       .find((m) => m.isTransaction && m.status === "pending");
     setPendingActionMsgId(pendingMsg?.id || null);
-    setPinError(null);
+    setPinError(false);
     setPinOpen(true);
   }, [messages]);
 
   const handleClosePin = useCallback(() => {
     setPinOpen(false);
-    setPinError(null);
+    setPinError(false);
+    setPinProcessing(false);
+  }, []);
+
+  // A rejected PIN stays in the sheet, where it can be retyped. Anything else
+  // ended the attempt, so it leaves the sheet and says so in plain copy.
+  const fail = useCallback((raw?: string) => {
+    setFailure(friendlyError(raw, "transaction"));
+    setPinOpen(false);
     setPinProcessing(false);
   }, []);
 
@@ -395,7 +406,7 @@ export function ChatView() {
       if (!activeSessionId) return;
 
       setPinProcessing(true);
-      setPinError(null);
+      setPinError(false);
 
       const latestPendingMsg = [...messages]
         .reverse()
@@ -417,8 +428,12 @@ export function ChatView() {
         const data = await res.json();
 
         if (!res.ok) {
-          setPinError(data.error || "PIN verification failed");
-          setPinProcessing(false);
+          if (res.status === 401) {
+            setPinError(true);
+            setPinProcessing(false);
+          } else {
+            fail(data.error);
+          }
           return;
         }
 
@@ -431,9 +446,7 @@ export function ChatView() {
         setPinOpen(false);
         refreshSessionsList();
       } catch (err) {
-        console.error("[ChatView] Error confirming transaction:", err);
-        setPinError("Network error during transaction verification");
-        setPinProcessing(false);
+        fail(errorMessage(err));
       }
     },
     [
@@ -441,13 +454,14 @@ export function ChatView() {
       pendingActionMsgId,
       pendingQuoteCard,
       refreshSessionsList,
+      fail,
     ],
   );
 
   // Cancel pending transaction proposal
   const handleCancelTransaction = useCallback(async () => {
     setPinOpen(false);
-    setPinError(null);
+    setPinError(false);
     setPinProcessing(false);
 
     if (!activeSessionId) return;
@@ -584,11 +598,28 @@ export function ChatView() {
 
       {/* 6-Digit PIN Sheet Overlay */}
       {pinOpen ? (
-        <PinSheet
+        <TransferPinSheet
+          error={pinError}
+          pending={pinProcessing}
+          onRetry={() => setPinError(false)}
           onClose={handleClosePin}
           onComplete={handlePinComplete}
-          error={pinError}
-          processing={pinProcessing}
+        />
+      ) : null}
+
+      {failure ? (
+        <ResultSheet
+          title={failure.title}
+          message={failure.message}
+          onRetry={
+            failure.retry
+              ? () => {
+                  setFailure(undefined);
+                  handleOpenPin();
+                }
+              : undefined
+          }
+          onClose={() => setFailure(undefined)}
         />
       ) : null}
     </div>

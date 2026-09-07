@@ -4,8 +4,9 @@ import { auth } from "@/lib/auth";
 import { SwitchService } from "@/lib/switch";
 import { resolveBankCode } from "@/lib/switch-banks";
 import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
-import { connectDB } from "@/lib/db";
-import { Transaction } from "@/models/Transaction";
+import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
+import { switchOfframpSchema } from "@/lib/validations/switch.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,115 +20,89 @@ export async function POST(req: NextRequest) {
 
     const userId = session.user.id;
 
-    let body: any = {};
-    try {
-      body = await req.json();
-    } catch {
-      return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
+    const body = await req.json().catch(() => ({}));
+    const validation = switchOfframpSchema.safeParse(body);
+    if (!validation.success) {
+      const err = formatZodError(validation.error);
+      return NextResponse.json({ success: false, error: err.error }, { status: 400 });
     }
 
-    const { cryptoAmount, cryptoToken, asset, holderName, accountNumber, bankName, isExactOut = false } = body;
-
-    console.log(`[Switch Offramp API] [User: ${userId}] → Request:`, {
+    const {
       cryptoAmount,
       cryptoToken,
       asset,
       holderName,
       accountNumber,
       bankName,
-      isExactOut,
-    });
-
-    if (!cryptoAmount || !asset || !holderName || !accountNumber || !bankName) {
-      console.warn(`[Switch Offramp API] [User: ${userId}] ✗ Missing required fields`);
-      return NextResponse.json(
-        { success: false, error: "Incomplete payload" },
-        { status: 400 }
-      );
-    }
+      isExactOut = false,
+    } = validation.data;
 
     // Resolve bank code and verify account via Paystack
     const paystackBank = findPaystackBank(bankName);
     if (!paystackBank) {
-      console.error(`[Switch Offramp API] [User: ${userId}] ✗ Could not resolve bank code for: "${bankName}"`);
       return NextResponse.json(
         {
           success: false,
           error: `Bank "${bankName}" not found. Please check the bank name and try again.`,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const cleanAccount = String(accountNumber || "").trim().replace(/\D/g, "");
-    const resolveRes = await validateAccountNumber(cleanAccount, paystackBank.code);
-    if (!resolveRes || !resolveRes.status || !resolveRes.data?.account_name) {
+    const isAccountValid = await validateAccountNumber(accountNumber, paystackBank.code);
+    if (!isAccountValid) {
       return NextResponse.json(
         {
           success: false,
-          error: `Could not verify account number ${cleanAccount} with ${paystackBank.name}. Please ensure the details are correct.`,
+          error: `Account number "${accountNumber}" could not be verified for ${paystackBank.name}.`,
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    const verifiedHolderName = resolveRes.data.account_name.trim();
-    const bankMatch = resolveBankCode(bankName) || resolveBankCode(paystackBank.name);
-    if (!bankMatch) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Bank "${paystackBank.name}" is not supported by Switch for offramp.`,
-        },
-        { status: 400 }
-      );
-    }
+    const switchBank = resolveBankCode(paystackBank.name);
+    const bankMatch = {
+      name: switchBank?.name || paystackBank.name,
+      code: switchBank?.code || paystackBank.code,
+    };
 
-    console.log(`[Switch Offramp API] [User: ${userId}] Bank lookup: "${bankName}" → "${bankMatch.name}" (${bankMatch.code})`);
+    const recipient = {
+      holder_name: holderName.trim(),
+      account_number: accountNumber.trim(),
+      bank_code: bankMatch.code,
+    };
 
-    const amount = Number(cryptoAmount);
-    if (isNaN(amount) || amount <= 0) {
-      return NextResponse.json({ success: false, error: "Invalid cryptoAmount" }, { status: 400 });
-    }
 
     const result = await SwitchService.initiateOfframp(
-      amount,
+      cryptoAmount,
       asset,
-      {
-        holder_name: verifiedHolderName,
-        account_number: cleanAccount,
-        bank_code: bankMatch.code,
-      },
-      isExactOut
+      recipient,
+      isExactOut,
     );
 
-    console.log(`[Switch Offramp API] [User: ${userId}] ← Switch response:`, result);
 
     if (!result.success || !result.data) {
-      console.error(`[Switch Offramp API] [User: ${userId}] ✗ Switch API error:`, result.message);
       return NextResponse.json(
         { success: false, error: result.message || "Offramp initiation failed" },
-        { status: result.status || 500 }
+        { status: result.status || 500 },
       );
     }
 
     const { deposit, reference, destination, rate } = result.data;
 
-    // Record in Transaction ledger tied to authenticated user
+    // Record in Transaction ledger tied to authenticated user via transactionFunctions
     try {
-      await connectDB();
-      await Transaction.create({
+      await createTransactionRecord({
         userId,
         type: "OFFRAMP",
         status: "PENDING",
-        chain: asset.split(":")[0] || "base",
+        chain: (asset.split(":")[0] || "base") as any,
         network: "mainnet",
         fromAddress: "USER_WALLET",
         toAddress: `${bankMatch.name} / ${accountNumber}`,
         amount: String(deposit.amount),
         token: cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC",
         txHash: reference,
-        feePaid: "0",
         rampDetails: {
           provider: "switch",
           fiatCurrency: "NGN",
@@ -136,7 +111,6 @@ export async function POST(req: NextRequest) {
         },
         executedAt: new Date(),
       });
-      console.log(`[Switch Offramp API] [User: ${userId}] Transaction record saved: ${reference}`);
     } catch (dbErr: any) {
       console.warn(`[Switch Offramp API] [User: ${userId}] DB record notice:`, dbErr.message);
     }

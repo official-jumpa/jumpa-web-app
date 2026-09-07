@@ -21,7 +21,7 @@ export default async function DepositPage({
   if (!asset) notFound();
 
   const session = await getSession();
-  if (!session?.userId || !session.addresses) redirect("/auth/login");
+  if (!session?.userId || !session.addresses) redirect("/onboarding");
 
   const [chains, priceUsd] = await Promise.all([
     Promise.resolve(resolveChainAddresses(session.addresses, chainsFor(asset.symbol))),

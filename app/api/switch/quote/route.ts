@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { SwitchService } from "@/lib/switch";
+import { switchQuoteSchema } from "@/lib/validations/switch.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,48 +15,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = session.user.id;
-
-    let body: any = {};
-    try {
-      body = await req.json();
-    } catch {
-      return NextResponse.json({ success: false, error: "Invalid JSON body" }, { status: 400 });
+    const body = await req.json().catch(() => ({}));
+    const validation = switchQuoteSchema.safeParse(body);
+    if (!validation.success) {
+      const err = formatZodError(validation.error);
+      return NextResponse.json({ success: false, error: err.error }, { status: 400 });
     }
 
-    const { amount, asset, direction = "onramp", isExactOut = false } = body;
-
-    console.log(`[Switch Quote API] [User: ${userId}] → Request:`, {
-      amount,
-      asset,
-      direction,
-      isExactOut,
-    });
-
-    if (!amount || !asset) {
-      return NextResponse.json(
-        { success: false, error: "amount and asset are required" },
-        { status: 400 }
-      );
-    }
-
-    const numAmount = Number(amount);
-    if (isNaN(numAmount) || numAmount <= 0) {
-      return NextResponse.json({ success: false, error: "Invalid amount" }, { status: 400 });
-    }
+    const { amount, asset, direction = "onramp", isExactOut = false } =
+      validation.data;
 
     const result =
       direction === "offramp"
-        ? await SwitchService.getOfframpQuote(numAmount, asset, isExactOut)
-        : await SwitchService.getQuote(numAmount, asset, isExactOut);
-
-    console.log(`[Switch Quote API] [User: ${userId}] ← Raw response:`, result);
+        ? await SwitchService.getOfframpQuote(amount, asset, isExactOut)
+        : await SwitchService.getQuote(amount, asset, isExactOut);
 
     if (!result.success) {
-      console.error(`[Switch Quote API] [User: ${userId}] ✗ Error:`, result.message);
       return NextResponse.json(
         { success: false, error: result.message || "Quote failed" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 

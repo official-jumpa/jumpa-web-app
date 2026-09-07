@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
 import { environment } from "@/lib/environment";
-import { Wallet } from "@/models/Wallet";
+import {
+  listWalletsByUserId,
+  findWalletForUser,
+  renameUserWallet,
+} from "@/lib/functions/walletFunctions";
+import {
+  renameWalletSchema,
+  selectWalletSchema,
+} from "@/lib/validations/wallet.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 /**
  * GET /api/wallet/list
@@ -18,13 +26,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await connectDB();
-
-  const wallets = await Wallet.find(
-    { userId: session.user.id },
-    "address name addresses publicKeys createdAt",
-  );
-
+  const wallets = await listWalletsByUserId(session.user.id);
   const selectedAddress = req.cookies.get("selected_wallet_address")?.value;
 
   const result = wallets.map((w, index) => ({
@@ -67,52 +69,22 @@ export async function PATCH(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { address, name: newName } = body as {
-    address?: string;
-    name?: string;
-  };
-
-  if (!address || !newName || !newName.trim()) {
-    return NextResponse.json(
-      { error: "Address and new name are required" },
-      { status: 400 },
-    );
+  const validation = renameWalletSchema.safeParse(body);
+  if (!validation.success) {
+    return NextResponse.json(formatZodError(validation.error), { status: 400 });
   }
 
-  const trimmedName = newName.trim();
+  const { address, name } = validation.data;
+  const result = await renameUserWallet(session.user.id, address, name);
 
-  await connectDB();
-
-  const wallet = await Wallet.findOne({
-    userId: session.user.id,
-    address: address.toLowerCase(),
-  });
-  if (!wallet) {
-    return NextResponse.json(
-      { error: "Wallet not found or not owned by user" },
-      { status: 404 },
-    );
+  if (!result.success) {
+    const status = result.error?.includes("not found") ? 404 : 400;
+    return NextResponse.json({ error: result.error }, { status });
   }
-
-  const duplicate = await Wallet.findOne({
-    userId: session.user.id,
-    name: { $regex: new RegExp(`^${trimmedName}$`, "i") },
-    address: { $ne: address.toLowerCase() },
-  });
-
-  if (duplicate) {
-    return NextResponse.json(
-      { error: "A wallet with this name already exists" },
-      { status: 400 },
-    );
-  }
-
-  wallet.name = trimmedName;
-  await wallet.save();
 
   return NextResponse.json({
     message: "Wallet renamed successfully",
-    name: wallet.name,
+    name: result.wallet?.name,
   });
 }
 
@@ -131,18 +103,13 @@ export async function PUT(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { address } = body as { address?: string };
-
-  if (!address) {
-    return NextResponse.json({ error: "Address is required" }, { status: 400 });
+  const validation = selectWalletSchema.safeParse(body);
+  if (!validation.success) {
+    return NextResponse.json(formatZodError(validation.error), { status: 400 });
   }
 
-  await connectDB();
-
-  const wallet = await Wallet.findOne({
-    userId: session.user.id,
-    address: address.toLowerCase(),
-  });
+  const { address } = validation.data;
+  const wallet = await findWalletForUser(session.user.id, address);
   if (!wallet) {
     return NextResponse.json(
       { error: "Wallet not found or not owned by user" },

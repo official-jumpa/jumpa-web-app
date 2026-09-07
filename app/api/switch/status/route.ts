@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { SwitchService } from "@/lib/switch";
+import { switchStatusQuerySchema } from "@/lib/validations/switch.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,24 +15,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = session.user.id;
     const reference = req.nextUrl.searchParams.get("reference");
-
-    console.log(`[Switch Status API] [User: ${userId}] → Checking status for reference:`, reference);
-
-    if (!reference) {
-      return NextResponse.json({ success: false, error: "reference is required" }, { status: 400 });
+    const validation = switchStatusQuerySchema.safeParse({ reference });
+    if (!validation.success) {
+      const err = formatZodError(validation.error);
+      return NextResponse.json({ success: false, error: err.error }, { status: 400 });
     }
 
-    const result = await SwitchService.getTransactionStatus(reference);
-
-    console.log(`[Switch Status API] [User: ${userId}] ← Raw response:`, result);
+    const result = await SwitchService.getTransactionStatus(validation.data.reference);
 
     if (!result.success) {
-      console.error(`[Switch Status API] [User: ${userId}] ✗ Error:`, result.message);
       return NextResponse.json(
         { success: false, error: result.message || "Failed to fetch transaction status" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -58,15 +55,11 @@ export async function GET(req: NextRequest) {
 
     let humanMessage = "Awaiting deposit. Waiting for a few seconds before trying again.";
     if (isCompleted) {
-      humanMessage = "Payment confirmed and completed successfully!";
-    } else if (rawStatus === "AWAITING_DEPOSIT") {
-      humanMessage = "Awaiting deposit. If you have already sent the funds, wait a few seconds and try again.";
-    } else if (rawStatus === "PROCESSING" || rawStatus === "IN_PROGRESS" || rawStatus === "CONFIRMING") {
-      humanMessage = "Deposit received! Verifying and updating your balances...";
-    } else if (rawStatus === "EXPIRED") {
-      humanMessage = "This transfer session has expired. Please initiate a new deposit.";
+      humanMessage = "Transaction completed successfully.";
     } else if (isFailed) {
-      humanMessage = "Transaction failed or was cancelled.";
+      humanMessage = "Transaction failed or expired. Please initiate a new transaction.";
+    } else if (isAwaiting) {
+      humanMessage = "Deposit received. Processing payout...";
     }
 
     return NextResponse.json({
@@ -75,8 +68,6 @@ export async function GET(req: NextRequest) {
       isCompleted,
       isAwaiting,
       isFailed,
-      type: result.data?.type,
-      reference,
       message: humanMessage,
       data: result.data,
     });

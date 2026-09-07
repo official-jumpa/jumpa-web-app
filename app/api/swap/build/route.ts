@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { buildSwapTransaction, type SwapBuildRequest } from "@/lib/dex";
+import { buildSwapTransaction } from "@/lib/dex";
+import { swapBuildSchema } from "@/lib/validations/swap.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 /**
  * POST /api/swap/build
@@ -8,20 +10,20 @@ import { buildSwapTransaction, type SwapBuildRequest } from "@/lib/dex";
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json().catch(() => ({}))) as SwapBuildRequest;
-
-    if (!body.quote || !body.fromAddress) {
-      return NextResponse.json(
-        { error: "quote and fromAddress are required" },
-        { status: 400 },
-      );
+    const body = await req.json().catch(() => ({}));
+    const validation = swapBuildSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), { status: 400 });
     }
 
+    const { quote, fromAddress, toAddress, network = "testnet" } =
+      validation.data;
+
     const result = await buildSwapTransaction({
-      quote: body.quote,
-      fromAddress: body.fromAddress,
-      toAddress: body.toAddress || body.fromAddress,
-      network: body.network || "testnet",
+      quote,
+      fromAddress,
+      toAddress: toAddress || fromAddress,
+      network,
     });
 
     return NextResponse.json({

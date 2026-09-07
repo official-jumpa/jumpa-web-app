@@ -8,14 +8,17 @@ import {
 import { executeTool } from "@/lib/ai/tool-executor";
 import { auth } from "@/lib/auth";
 import { detectTargetChains } from "@/lib/blockchain";
-import { connectDB } from "@/lib/db";
 import { generateId } from "@/lib/schema-ids";
 import {
   getCachedWalletBalances,
   type SupportedChain,
 } from "@/lib/wallet-balances";
-import { ChatLog, type IChatMessage } from "@/models/ChatLog";
-import { Wallet } from "@/models/Wallet";
+import { findWalletForUser } from "@/lib/functions/walletFunctions";
+import { getOrCreateChatLog } from "@/lib/functions/chatFunctions";
+import { sendMessageSchema } from "@/lib/validations/chat.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
+import { type IChatMessage } from "@/models/ChatLog";
+
 
 /**
  * POST /api/chat/send
@@ -32,23 +35,16 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { sessionId, message } = body as {
-      sessionId?: string;
-      message?: string;
-    };
-
-    if (!message || typeof message !== "string" || !message.trim()) {
-      return NextResponse.json(
-        { error: "Message content is required" },
-        { status: 400 },
-      );
+    const validation = sendMessageSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), { status: 400 });
     }
 
-    await connectDB();
+    const { sessionId, message } = validation.data;
     const userId = session.user.id;
 
-    // Fetch wallet
-    const wallet = await Wallet.findOne({ userId }).lean();
+    // Fetch wallet via walletFunctions
+    const wallet = await findWalletForUser(userId);
     const walletAddress = wallet?.address || "";
 
     // Fetch live balances (only chains mentioned in the message)
@@ -67,22 +63,13 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Chat Send] "${userId}" sent: "${message.trim()}"`);
 
-    // Load or create chat session
-    let chatLog: any = null;
-    if (sessionId) {
-      chatLog = await ChatLog.findOne({ _id: sessionId, userId });
-    }
-    if (!chatLog) {
-      const derivedTitle =
-        message.trim().slice(0, 35) + (message.trim().length > 35 ? "…" : "");
-      chatLog = new ChatLog({
-        userId,
-        walletAddress,
-        type: "personal",
-        title: derivedTitle || "New Chat",
-        messages: [],
-      });
-    }
+    // Load or create chat session via chatFunctions
+    const chatLog = await getOrCreateChatLog({
+      userId,
+      sessionId,
+      walletAddress,
+    });
+
 
     const userMessage: IChatMessage = {
       id: generateId("msg"),

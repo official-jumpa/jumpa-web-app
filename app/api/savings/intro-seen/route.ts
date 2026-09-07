@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/withAuth";
-import { User } from "@/models/User";
-import { connectDB } from "@/lib/db";
+import { markSavingsIntroSeen } from "@/lib/functions/userFunctions";
+import { savingsIntroSeenSchema } from "@/lib/validations/savings.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 export const POST = withAuth(async (req: NextRequest, { userId }) => {
   try {
@@ -15,25 +16,14 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
       } catch {}
     }
 
-    console.log("[POST /api/savings/intro-seen] Received request:", { userId, kind });
-
-    if (!kind || !["individual", "lock", "circle"].includes(kind)) {
-      console.warn(`[POST /api/savings/intro-seen] Invalid kind: '${kind}' for user ${userId}`);
-      return NextResponse.json(
-        { error: "Valid kind ('individual', 'lock', 'circle') is required" },
-        { status: 400 },
-      );
+    const validation = savingsIntroSeenSchema.safeParse({ kind });
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), { status: 400 });
     }
 
-    await connectDB();
-    await User.updateOne(
-      { _id: userId },
-      { $set: { [`seenSavingsIntros.${kind}`]: true } },
-    );
+    await markSavingsIntroSeen(userId, validation.data.kind);
 
-    console.log(`[POST /api/savings/intro-seen] User ${userId} marked intro for '${kind}' as seen.`);
-
-    return NextResponse.json({ ok: true, kind, seen: true });
+    return NextResponse.json({ ok: true, kind: validation.data.kind, seen: true });
   } catch (err: any) {
     console.error("[POST /api/savings/intro-seen] Unexpected Error:", err);
     return NextResponse.json(

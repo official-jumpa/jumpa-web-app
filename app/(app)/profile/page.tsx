@@ -20,11 +20,11 @@ import { UserAlt1Icon } from "@/components/ui/icons/user-alt-1";
 import { UsersIcon } from "@/components/ui/icons/users";
 import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
 import { getAssetLogo } from "@/lib/assets";
-import { useSession } from "@/lib/auth-client";
+import { useAuthContext } from "@/components/auth/AuthGuard";
 import { ACCOUNT } from "@/lib/wallet";
 
 export default function ProfilePage() {
-  const { data: session, isPending } = useSession();
+  const auth = useAuthContext();
   const [walletAddresses, setWalletAddresses] = useState<{
     xlm?: string;
     base?: string;
@@ -55,7 +55,7 @@ export default function ProfilePage() {
 
   const { completed, total } = ACCOUNT.kyc;
 
-  const user = session?.user as any;
+  const user = auth?.user as any;
 
   // Fallbacks while loading or if data is empty
   const displayName = user?.name || user?.jumpaTag || ACCOUNT.firstName;

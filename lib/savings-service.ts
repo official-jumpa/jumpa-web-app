@@ -147,15 +147,16 @@ export async function getLiveVaultApy(vaultAddress: string): Promise<number> {
 }
 
 /**
- * Loads a plan by ID from MongoDB.
+ * Loads a plan by ID from the DB.
  */
 export async function getPlanById(
   id: string,
+  userId: string,
   kind?: SavingsKind,
 ): Promise<UISavingsPlan | null> {
   try {
     await connectDB();
-    const query: Record<string, any> = { _id: id };
+    const query: Record<string, any> = { _id: id, userId };
     if (kind) query.kind = kind;
     const dbPlan = await SavingsPlan.findOne(query);
     if (dbPlan) {

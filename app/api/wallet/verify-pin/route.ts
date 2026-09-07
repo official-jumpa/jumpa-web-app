@@ -1,20 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
-import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
-import { Wallet } from "@/models/Wallet";
-
-const WALLET_PIN_REGEX = /^\d{6}$/;
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
-
-interface AttemptRecord {
-  count: number;
-  lockedUntil?: number;
-}
-
-const pinAttempts = new Map<string, AttemptRecord>();
+import { verifyWalletPinAndLockout } from "@/lib/functions/walletFunctions";
+import { verifyPinSchema } from "@/lib/validations/user.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 /**
  * POST /api/wallet/verify-pin
@@ -31,95 +20,33 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { pin, address: targetAddress } = body as {
-    pin?: string;
-    address?: string;
-  };
+  const validation = verifyPinSchema.safeParse(body);
+  if (!validation.success) {
+    return NextResponse.json(formatZodError(validation.error), { status: 400 });
+  }
 
-  const lockKey = `${session.user.id}:${targetAddress || "default"}`;
-  const now = Date.now();
-  const attempt = pinAttempts.get(lockKey);
+  const { pin, address } = validation.data;
+  const cookieAddress = req.cookies.get("selected_wallet_address")?.value;
+  const targetAddress = address || cookieAddress;
 
-  if (attempt?.lockedUntil && attempt.lockedUntil > now) {
-    const remainingMinutes = Math.ceil((attempt.lockedUntil - now) / 60000);
+  const result = await verifyWalletPinAndLockout(
+    session.user.id,
+    pin,
+    targetAddress,
+  );
+
+  if (!result.valid) {
     return NextResponse.json(
       {
         valid: false,
-        error: `Too many failed attempts. Try again in ${remainingMinutes} minute(s).`,
+        error: result.error,
       },
-      { status: 429 },
+      { status: result.statusCode || 400 },
     );
   }
-
-  if (!pin || !WALLET_PIN_REGEX.test(pin)) {
-    return NextResponse.json({ error: "Valid PIN required" }, { status: 400 });
-  }
-
-  await connectDB();
-
-  let wallet = null;
-  if (targetAddress) {
-    wallet = await Wallet.findOne({
-      userId: session.user.id,
-      address: targetAddress.toLowerCase(),
-    });
-  }
-
-  if (!wallet) {
-    const selectedCookie = req.cookies.get("selected_wallet_address")?.value;
-    if (selectedCookie) {
-      wallet = await Wallet.findOne({
-        userId: session.user.id,
-        address: selectedCookie.toLowerCase(),
-      });
-    }
-  }
-
-  if (!wallet) {
-    wallet = await Wallet.findOne({ userId: session.user.id });
-  }
-
-  if (!wallet) {
-    return NextResponse.json(
-      { error: "No wallet found for user" },
-      { status: 404 },
-    );
-  }
-
-  const isValid = await bcrypt.compare(pin, wallet.pinHash);
-
-  if (!isValid) {
-    const currentCount = (attempt?.count || 0) + 1;
-    if (currentCount >= MAX_ATTEMPTS) {
-      pinAttempts.set(lockKey, {
-        count: currentCount,
-        lockedUntil: now + LOCKOUT_MS,
-      });
-      return NextResponse.json(
-        {
-          valid: false,
-          error: "Too many failed attempts. Try again in 15 minutes.",
-        },
-        { status: 429 },
-      );
-    }
-
-    pinAttempts.set(lockKey, { count: currentCount });
-    const remaining = MAX_ATTEMPTS - currentCount;
-    return NextResponse.json(
-      {
-        valid: false,
-        error: `Incorrect PIN`,
-      },
-      { status: 401 },
-    );
-  }
-
-  // Clear attempts on success
-  pinAttempts.delete(lockKey);
 
   return NextResponse.json({
     valid: true,
-    address: wallet.address,
+    address: result.wallet?.address,
   });
 }

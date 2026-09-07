@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getSwapQuote, type SwapQuoteRequest } from "@/lib/dex";
+import { getSwapQuote } from "@/lib/dex";
+import { swapQuoteSchema } from "@/lib/validations/swap.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 /**
  * POST /api/swap/quote
@@ -8,24 +10,32 @@ import { getSwapQuote, type SwapQuoteRequest } from "@/lib/dex";
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json().catch(() => ({}))) as SwapQuoteRequest;
-
-    if (!body.assetIn || !body.assetOut || !body.amount) {
-      return NextResponse.json(
-        { error: "assetIn, assetOut, and amount are required" },
-        { status: 400 },
-      );
+    const body = await req.json().catch(() => ({}));
+    const validation = swapQuoteSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), { status: 400 });
     }
 
+    const {
+      chain = "stellar",
+      assetIn,
+      assetOut,
+      amount,
+      tradeType = "EXACT_IN",
+      slippageTolerance = 0.5,
+      network = "testnet",
+    } = validation.data;
+
     const quote = await getSwapQuote({
-      chain: body.chain || "stellar",
-      assetIn: body.assetIn,
-      assetOut: body.assetOut,
-      amount: String(body.amount),
-      tradeType: body.tradeType || "EXACT_IN",
-      slippageTolerance: body.slippageTolerance ?? 0.5,
-      network: body.network || "testnet",
+      chain,
+      assetIn,
+      assetOut,
+      amount,
+      tradeType: (tradeType as any) || "EXACT_IN",
+      slippageTolerance,
+      network,
     });
+
 
     return NextResponse.json({
       success: true,

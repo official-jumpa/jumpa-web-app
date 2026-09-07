@@ -6,9 +6,10 @@ import { derivePath } from "ed25519-hd-key";
 import { Keypair as SolanaKeypair } from "@solana/web3.js";
 import { HDKey } from "@scure/bip32";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
-import { Wallet } from "@/models/Wallet";
-import { Transaction } from "@/models/Transaction";
+import { findWalletForUser } from "@/lib/functions/walletFunctions";
+import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
+import { sendTokenSchema } from "@/lib/validations/wallet.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 import { decryptMnemonic } from "@/lib/crypto";
 import { deriveStellarKeypairFromMnemonic } from "@/lib/chains/stellar";
 import { NETWORK_CONFIGS } from "@/lib/transfer";
@@ -65,14 +66,13 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { recipient, amount, asset, network: networkName, memo, pin } = body;
-
-  if (!recipient || !amount || !asset || !networkName || !pin) {
-    return NextResponse.json(
-      { error: "Recipient, amount, asset, network, and PIN are required." },
-      { status: 400 },
-    );
+  const validation = sendTokenSchema.safeParse(body);
+  if (!validation.success) {
+    return NextResponse.json(formatZodError(validation.error), { status: 400 });
   }
+
+  const { recipient, amount, asset, network: networkName, memo, pin } =
+    validation.data;
 
   const config = NETWORK_CONFIGS[networkName];
   if (!config) {
@@ -82,30 +82,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // If asset is not in config.assets
-  if (!config.assets.includes(asset.toUpperCase())) {
+  if (!config.assets.includes(asset)) {
     return NextResponse.json(
       { error: `Asset "${asset}" is not supported on ${networkName}` },
       { status: 400 },
     );
   }
 
-  await connectDB();
-
-  // Load user's wallet
   const selectedCookie = req.cookies.get("selected_wallet_address")?.value;
-  let wallet = null;
-
-  if (selectedCookie) {
-    wallet = await Wallet.findOne({
-      userId: session.user.id,
-      address: selectedCookie.toLowerCase(),
-    });
-  }
-
-  if (!wallet) {
-    wallet = await Wallet.findOne({ userId: session.user.id });
-  }
+  const wallet = await findWalletForUser(session.user.id, selectedCookie);
 
   if (!wallet) {
     return NextResponse.json(
@@ -118,38 +103,48 @@ export async function POST(req: NextRequest) {
   const isPinValid = await bcrypt.compare(pin, wallet.pinHash);
   if (!isPinValid) {
     return NextResponse.json(
-      { error: "Incorrect PIN" },
+      { error: "Incorrect PIN. Please try again." },
       { status: 401 },
     );
   }
 
-  let secret: string;
+  // Decrypt secret
+  let rawSecret: string;
   try {
-    secret = decryptMnemonic(
+    rawSecret = decryptMnemonic(
       wallet.encryptedMnemonic,
       wallet.iv,
       wallet.salt,
       pin,
     );
-  } catch (decErr) {
-    console.error("[Wallet Send] Decryption failure:", decErr);
+  } catch (err) {
+    console.error("[Wallet Send] Failed to decrypt mnemonic:", err);
     return NextResponse.json(
-      { error: "Invalid or incorrect pin" },
-      { status: 401 },
+      { error: "Failed to decrypt wallet credentials." },
+      { status: 500 },
     );
   }
 
-  // Execute transfer based on chain
-  let result: TransferResult;
+  let privateKey: string;
   try {
-    const privateKey = resolveChainPrivateKey(secret, config.chain);
+    privateKey = resolveChainPrivateKey(rawSecret, config.chain);
+  } catch (err: any) {
+    console.error("[Wallet Send] Key derivation error:", err);
+    return NextResponse.json(
+      { error: `Key derivation failed for ${config.chain}: ${err?.message}` },
+      { status: 500 },
+    );
+  }
 
+  let result: TransferResult;
+
+  try {
     if (config.chain === "stellar") {
       result = await sendStellar({
         privateKey,
         destination: recipient.trim(),
         amount: String(amount),
-        asset: asset.toUpperCase(),
+        asset,
         network: config.network,
         memo: memo?.trim(),
       });
@@ -158,17 +153,19 @@ export async function POST(req: NextRequest) {
         privateKey,
         destination: recipient.trim(),
         amount: String(amount),
-        asset: asset.toUpperCase(),
+        asset,
       });
     } else if (config.chain === "base" || config.chain === "eth") {
       result = await sendEvm({
         privateKey,
         destination: recipient.trim(),
         amount: String(amount),
-        asset: asset.toUpperCase(),
+        asset,
         chain: config.chain,
       });
     } else {
+
+
       return NextResponse.json(
         { error: `Chain ${config.chain} is not supported for transfer` },
         { status: 400 },
@@ -182,9 +179,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Record Transaction in MongoDB
+  // Record Transaction in MongoDB via transactionFunctions
   try {
-    const tx: any = await Transaction.create({
+    const tx = await createTransactionRecord({
       userId: session.user.id,
       walletId: wallet._id,
       type: "TRANSFER",
@@ -194,7 +191,7 @@ export async function POST(req: NextRequest) {
       fromAddress: result.fromAddress,
       toAddress: recipient.trim(),
       amount: String(amount),
-      token: asset.toUpperCase(),
+      token: asset,
       memo: memo?.trim() || undefined,
       txHash: result.txHash,
       explorerUrl: result.explorerUrl,
@@ -210,7 +207,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (dbErr) {
     console.error("[Wallet Send] DB record error:", dbErr);
-    // Even if DB save fails, transaction succeeded on chain
     return NextResponse.json({
       success: true,
       txHash: result.txHash,

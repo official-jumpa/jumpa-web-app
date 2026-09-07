@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { withAuth } from "@/lib/withAuth";
-import { Wallet } from "@/models/Wallet";
-import { User } from "@/models/User";
-import { SavingsPlan } from "@/models/SavingsPlan";
-import { Transaction } from "@/models/Transaction";
+import { findWalletForUser } from "@/lib/functions/walletFunctions";
+import { createSavingsPlanRecord } from "@/lib/functions/savingsFunctions";
+import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
+import { setUserCreatedSavings } from "@/lib/functions/userFunctions";
+import { createSavingsPlanSchema } from "@/lib/validations/savings.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { decryptMnemonic } from "@/lib/crypto";
 import {
@@ -26,60 +28,29 @@ const defindexClient = new DefindexClient(
 
 export const POST = withAuth(async (req: NextRequest, { userId }) => {
   try {
-    const body = await req.json();
-    const {
-      kind = "individual",
-      name,
-      category = "Other",
-      targetAmount,
-      depositAmount = 0,
-      term = "30 DAYS",
-      startDate,
-      endDate,
-      frequency = "Weekly",
-      debitDay,
-      fundingSource = "crypto",
-      pin,
-    } = body;
+    const body = await req.json().catch(() => ({}));
+    const validation = createSavingsPlanSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), { status: 400 });
+    }
 
-    console.log("[POST /api/savings/create] Request received:", {
-      userId,
+    const {
       kind,
       name,
+      category,
       targetAmount,
-      depositAmount,
+      depositAmount = 0,
       term,
+      startDate,
+      endDate,
       frequency,
+      debitDay,
       fundingSource,
-    });
+      pin,
+    } = validation.data;
 
-    if (!name?.trim()) {
-      console.warn("[POST /api/savings/create] Validation error: Goal name is required");
-      return NextResponse.json(
-        { error: "Goal name is required" },
-        { status: 400 },
-      );
-    }
-
-    if (!targetAmount || Number(targetAmount) <= 0) {
-      console.warn("[POST /api/savings/create] Validation error: Invalid target amount:", targetAmount);
-      return NextResponse.json(
-        { error: "Valid target amount is required" },
-        { status: 400 },
-      );
-    }
-
-    if (!pin || pin.length !== 6) {
-      console.warn("[POST /api/savings/create] Validation error: Invalid PIN format");
-      return NextResponse.json(
-        { error: "6-digit PIN is required" },
-        { status: 400 },
-      );
-    }
-
-    const wallet = await Wallet.findOne({ userId });
+    const wallet = await findWalletForUser(userId);
     if (!wallet) {
-      console.warn("[POST /api/savings/create] Wallet not found for user:", userId);
       return NextResponse.json(
         { error: "No wallet found for user" },
         { status: 404 },
@@ -89,7 +60,6 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
     // 1. Verify 6-digit PIN
     const pinCheck = await verifyWalletPin(wallet, pin, { userId });
     if (!pinCheck.ok) {
-      console.warn("[POST /api/savings/create] PIN verification failed:", pinCheck.error);
       return NextResponse.json(
         { error: pinCheck.error },
         { status: pinCheck.status },
@@ -103,7 +73,6 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
         : environment.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS;
 
     if (!vaultAddress) {
-      console.error("[POST /api/savings/create] Vault address not configured in environment");
       return NextResponse.json(
         { error: "DeFindex vault address not configured" },
         { status: 500 },
@@ -113,25 +82,13 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
     const stellarAddress = wallet.addresses?.xlm || wallet.address;
     let txHash: string | undefined;
     let initialShares = "0";
-    const numDeposit = Number(depositAmount) || 0;
-
-    console.log("[POST /api/savings/create] Plan setup:", {
-      kind,
-      vaultAddress,
-      stellarAddress,
-      numDeposit,
-    });
+    const numDeposit = depositAmount;
 
     // 3. Execute initial deposit on Stellar Testnet if depositAmount > 0
     if (numDeposit > 0) {
-      // The vault answers an underfunded deposit with a bare 403, which tells
-      // nobody anything. Read the balance first and say what is actually wrong.
       const balances = await fetchStellarBalances(stellarAddress);
       const availableUsdc = Number(balances.testnet.usdc) || 0;
       if (availableUsdc < numDeposit) {
-        console.warn(
-          `[POST /api/savings/create] Insufficient USDC: has ${availableUsdc}, needs ${numDeposit}`,
-        );
         return NextResponse.json(
           {
             error:
@@ -150,8 +107,7 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
           wallet.salt,
           pin,
         );
-      } catch (decErr) {
-        console.error("[POST /api/savings/create] Decryption failed:", decErr);
+      } catch {
         return NextResponse.json(
           { error: "Failed to decrypt wallet credentials" },
           { status: 401 },
@@ -173,8 +129,6 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
         "testnet",
       );
 
-      console.log(`[POST /api/savings/create] Requesting DeFindex deposit of ${amountStroops} stroops ($${numDeposit.toFixed(2)}) into vault ${vaultAddress}...`);
-
       // Request unsigned deposit XDR from DeFindex
       const depositRes = await defindexClient.deposit(vaultAddress, {
         amounts: [amountStroops],
@@ -184,7 +138,6 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
       });
 
       if (!depositRes.xdr) {
-        console.error("[POST /api/savings/create] DeFindex failed to return deposit XDR:", depositRes);
         throw new Error("DeFindex failed to generate deposit transaction");
       }
 
@@ -195,16 +148,13 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
       );
       tx.sign(userKeypair);
 
-      console.log("[POST /api/savings/create] Broadcasting deposit transaction to Stellar Testnet...");
       const sendRes = await defindexClient.send(tx.toXDR());
       txHash = sendRes.txHash;
       initialShares = String(sendRes.dfTokens || amountStroops);
       const explorerUrl = getExplorerTxUrl("stellar", txHash, true);
 
-      console.log(`[POST /api/savings/create] Deposit broadcasted! TxHash: ${txHash}, Explorer: ${explorerUrl}`);
-
-      // Record in Transaction collection
-      await Transaction.create({
+      // Record in Transaction collection via transactionFunctions
+      await createTransactionRecord({
         userId,
         walletId: wallet._id,
         type: "SAVINGS_DEPOSIT",
@@ -226,15 +176,15 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
       });
     }
 
-    // 4. Save SavingsPlan in MongoDB
-    const plan = await SavingsPlan.create({
+    // 4. Save SavingsPlan in MongoDB via savingsFunctions
+    const plan = await createSavingsPlanRecord({
       userId,
       walletId: wallet._id,
       walletAddress: stellarAddress,
       kind,
-      name: name.trim(),
+      name,
       category,
-      targetAmount: Number(targetAmount),
+      targetAmount: targetAmount || 0,
       currentAmount: numDeposit,
       currency: "USDC",
       chain: "stellar",
@@ -251,13 +201,10 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
       txHashes: txHash ? [txHash] : [],
     });
 
-    console.log(`[POST /api/savings/create] Plan saved to MongoDB with ID: ${plan._id}`);
-
-    // 5. Update user flag hasCreatedSavings
-    await User.updateOne(
-      { _id: userId },
-      { $set: { hasCreatedSavings: true } },
-    ).catch((err) => console.warn("[SavingsCreate] Failed to update hasCreatedSavings:", err));
+    // 5. Update user flag hasCreatedSavings via userFunctions
+    setUserCreatedSavings(userId).catch((err) =>
+      console.warn("[SavingsCreate] Failed to update hasCreatedSavings:", err),
+    );
 
     return NextResponse.json(
       {

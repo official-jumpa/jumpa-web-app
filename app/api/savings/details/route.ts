@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/withAuth";
-import { SavingsPlan } from "@/models/SavingsPlan";
+import { getRawSavingsPlanById } from "@/lib/functions/savingsFunctions";
+import { savingsPlanDetailsQuerySchema } from "@/lib/validations/savings.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 import {
   formatPlanForUI,
   getLiveVaultBalance,
@@ -12,49 +14,27 @@ export const GET = withAuth(async (req: NextRequest, { userId }) => {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
 
-    console.log("[GET /api/savings/details] Fetching plan details:", { userId, planId: id });
-
-    if (!id) {
-      console.warn("[GET /api/savings/details] Missing plan ID in query");
-      return NextResponse.json(
-        { error: "Plan ID is required in query parameter (?id=...)" },
-        { status: 400 },
-      );
+    const validation = savingsPlanDetailsQuerySchema.safeParse({ id });
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), { status: 400 });
     }
 
-    const plan = await SavingsPlan.findOne({ _id: id, userId });
+    const plan = await getRawSavingsPlanById(validation.data.id, userId);
     if (!plan) {
-      console.warn(`[GET /api/savings/details] Plan ${id} not found for user ${userId}`);
       return NextResponse.json(
         { error: "Savings plan not found" },
         { status: 404 },
       );
     }
 
-    console.log("[GET /api/savings/details] DB plan record found:", {
-      id: plan._id,
-      name: plan.name,
-      kind: plan.kind,
-      dbCurrentAmount: plan.currentAmount,
-      targetAmount: plan.targetAmount,
-      vaultAddress: plan.vaultAddress,
-      walletAddress: plan.walletAddress,
-      status: plan.status,
-    });
-
     // Query live on-chain balance & APY from DeFindex vault
     let liveAmount = plan.currentAmount;
     const liveBal = await getLiveVaultBalance(plan.vaultAddress, plan.walletAddress);
     if (liveBal && liveBal.underlyingBalance > 0) {
       liveAmount = liveBal.underlyingBalance;
-      console.log(`[GET /api/savings/details] Live vault balance fetched: underlying=${liveBal.underlyingBalance} USDC, shares=${liveBal.shares}`);
-    } else {
-      console.log(`[GET /api/savings/details] Live vault balance returned empty/zero. Falling back to DB currentAmount ($${plan.currentAmount})`);
     }
 
     const liveApy = await getLiveVaultApy(plan.vaultAddress);
-    console.log(`[GET /api/savings/details] Live APY for vault ${plan.vaultAddress}: ${liveApy.toFixed(1)}%`);
-
     const formatted = formatPlanForUI(plan, liveAmount);
 
     return NextResponse.json({

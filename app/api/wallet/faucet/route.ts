@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
-import { Wallet } from "@/models/Wallet";
+import { findWalletForUser } from "@/lib/functions/walletFunctions";
+import { faucetRequestSchema } from "@/lib/validations/wallet.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 import { fundTestnetAccount, fetchStellarBalances } from "@/lib/chains/stellar";
 
 /**
@@ -21,10 +22,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const chain = (body.chain || "stellar").toLowerCase();
+    const validation = faucetRequestSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), { status: 400 });
+    }
 
-    await connectDB();
-    const wallet = await Wallet.findOne({ userId: session.user.id }).lean();
+    const chain = (validation.data.chain || "stellar").toLowerCase();
+    const wallet = await findWalletForUser(session.user.id);
 
     if (!wallet) {
       return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
@@ -32,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     if (chain === "stellar" || chain === "xlm") {
       const stellarAddress =
-        body.address || wallet.addresses?.xlm || wallet.address;
+        validation.data.address || wallet.addresses?.xlm || wallet.address;
 
       if (!stellarAddress || !stellarAddress.startsWith("G")) {
         return NextResponse.json(
@@ -41,10 +45,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      console.log(`[Faucet API] Requesting Friendbot for ${stellarAddress}...`);
       const result = await fundTestnetAccount(stellarAddress);
-
-      // Fetch fresh testnet balances
       const balances = await fetchStellarBalances(stellarAddress);
 
       return NextResponse.json({

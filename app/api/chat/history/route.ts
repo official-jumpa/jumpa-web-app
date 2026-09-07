@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
-import { ChatLog } from "@/models/ChatLog";
+import {
+  listRecentChatSessions,
+  getLatestChatLog,
+  getChatLogById,
+  deleteChatSession,
+} from "@/lib/functions/chatFunctions";
+import { chatHistoryQuerySchema } from "@/lib/validations/chat.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 /**
  * GET /api/chat/history
- *
- * Query options:
- * - ?sessionId=...  -> Returns the specific chat session with its 12 most recent messages (or all if ?all=true)
- * - ?latest=true     -> Returns the user's most recent chat session with its 12 most recent messages
- * - ?list=true       -> Returns a summary list of up to 10 most recent sessions
- * - ?all=true        -> Used with sessionId or latest to return all messages
  */
 export async function GET(req: NextRequest) {
   try {
@@ -23,39 +23,34 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await connectDB();
     const userId = session.user.id;
-
     const { searchParams } = new URL(req.url);
-    const sessionId = searchParams.get("sessionId");
-    const isLatest = searchParams.get("latest") === "true";
-    const isList = searchParams.get("list") === "true";
-    const loadAll = searchParams.get("all") === "true";
 
-    // 1. Return recent sessions summary list (max 10)
+    const validation = chatHistoryQuerySchema.safeParse({
+      sessionId: searchParams.get("sessionId") || undefined,
+      latest: searchParams.get("latest") || undefined,
+      list: searchParams.get("list") || undefined,
+      all: searchParams.get("all") || undefined,
+    });
+
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), { status: 400 });
+    }
+
+    const { sessionId, latest, list, all } = validation.data;
+    const isList = list === true || list === "true";
+    const isLatest = latest === true || latest === "true";
+    const loadAll = all === true || all === "true";
+
+    // 1. Return recent sessions summary list
     if (isList) {
-      const chatLogs = await ChatLog.find({ userId })
-        .sort({ updatedAt: -1 })
-        .limit(10)
-        .select("_id title updatedAt messages")
-        .lean();
-
-      const sessions = chatLogs.map((c: any) => ({
-        sessionId: c._id,
-        title: c.title || "New Chat",
-        updatedAt: c.updatedAt,
-        messageCount: c.messages?.length || 0,
-      }));
-
+      const sessions = await listRecentChatSessions(userId, 10);
       return NextResponse.json({ sessions });
     }
 
-    // 2. Return latest session (if requested)
+    // 2. Return latest session
     if (isLatest) {
-      const latestChat = await ChatLog.findOne({ userId })
-        .sort({ updatedAt: -1 })
-        .lean();
-
+      const latestChat = await getLatestChatLog(userId);
       if (!latestChat) {
         return NextResponse.json({ session: null });
       }
@@ -78,11 +73,7 @@ export async function GET(req: NextRequest) {
 
     // 3. Return specific session by ID
     if (sessionId) {
-      const chatLog = await ChatLog.findOne({
-        _id: sessionId,
-        userId,
-      }).lean();
-
+      const chatLog = await getChatLogById(sessionId, userId);
       if (!chatLog) {
         return NextResponse.json(
           { error: "Chat session not found" },
@@ -107,19 +98,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Default fallback: Return list of 10 recent sessions
-    const chatLogs = await ChatLog.find({ userId })
-      .sort({ updatedAt: -1 })
-      .limit(10)
-      .select("_id title updatedAt messages")
-      .lean();
-
-    const sessions = chatLogs.map((c: any) => ({
-      sessionId: c._id,
-      title: c.title || "New Chat",
-      updatedAt: c.updatedAt,
-      messageCount: c.messages?.length || 0,
-    }));
-
+    const sessions = await listRecentChatSessions(userId, 10);
     return NextResponse.json({ sessions });
   } catch (err) {
     console.error("[Chat History Error]", err);
@@ -154,11 +133,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    await connectDB();
-    const userId = session.user.id;
-
-    await ChatLog.deleteOne({ _id: sessionId, userId });
-
+    await deleteChatSession(sessionId, session.user.id);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[Chat History Error]", err);

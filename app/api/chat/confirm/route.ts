@@ -14,11 +14,12 @@ import { executeSwap } from "@/lib/execution/stellar-swap";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { generateId } from "@/lib/schema-ids";
 import { SwitchService } from "@/lib/switch";
+import { confirmChatActionSchema } from "@/lib/validations/chat.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 import { ChatLog, type IChatMessage } from "@/models/ChatLog";
 import { Transaction } from "@/models/Transaction";
 import { Wallet } from "@/models/Wallet";
 
-const WALLET_PIN_REGEX = /^\d{6}$/;
 
 /**
  * POST /api/chat/confirm
@@ -39,40 +40,22 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { sessionId, messageId, pin, updatedCardData, updatedParams } =
-      body as {
-        sessionId?: string;
-        messageId?: string;
-        pin?: string;
-        updatedCardData?: Record<string, any>;
-        updatedParams?: Record<string, any>;
-      };
+    const validation = confirmChatActionSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), { status: 400 });
+    }
 
-    console.log("[Chat Confirm] User ID:", session.user.id);
+    const { sessionId, messageId, pin, updatedCardData, updatedParams } =
+      validation.data;
+
+    const userId = session.user.id;
+    console.log("[Chat Confirm] User ID:", userId);
     console.log("[Chat Confirm] Session ID:", sessionId);
     console.log(
       "[Chat Confirm] Message ID:",
       messageId || "auto-detect pending",
     );
 
-    if (!sessionId) {
-      console.warn("[Chat Confirm] Error: sessionId is required");
-      return NextResponse.json(
-        { error: "sessionId is required" },
-        { status: 400 },
-      );
-    }
-
-    if (!pin || !WALLET_PIN_REGEX.test(pin)) {
-      console.warn("[Chat Confirm] Error: Invalid PIN format");
-      return NextResponse.json(
-        { error: "Valid PIN required" },
-        { status: 400 },
-      );
-    }
-
-    await connectDB();
-    const userId = session.user.id;
 
     // Verify PIN against user's wallet
     const wallet = await Wallet.findOne({ userId });

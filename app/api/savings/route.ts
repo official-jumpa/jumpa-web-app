@@ -1,30 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withAuth } from "@/lib/withAuth";
-import { SavingsPlan } from "@/models/SavingsPlan";
-import { User } from "@/models/User";
+import { listSavingsPlansByUserId } from "@/lib/functions/savingsFunctions";
+import { getUserById } from "@/lib/functions/userFunctions";
 import { formatPlanForUI, getLiveVaultApy } from "@/lib/savings-service";
 import { environment } from "@/lib/environment";
+import type { SavingsKind } from "@/lib/savings";
 
 export const GET = withAuth(async (req: NextRequest, { userId }) => {
   try {
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type"); // "individual" | "lock" | null
+    const type = searchParams.get("type"); // "individual" | "lock" | "circle" | null
+    const validKind =
+      type && ["individual", "lock", "circle"].includes(type)
+        ? (type as SavingsKind)
+        : undefined;
 
-    console.log("[GET /api/savings] Listing savings plans:", { userId, filterType: type || "all" });
-
-    const query: Record<string, any> = { userId };
-    if (type && ["individual", "lock", "circle"].includes(type)) {
-      query.kind = type;
-    }
-
-    // ‼️OPTIMISE THIS LATER 
-    const [plans, user, anyPlan] = await Promise.all([
-      SavingsPlan.find(query).sort({ createdAt: -1 }),
-      User.findById(userId).select("hasCreatedSavings seenSavingsIntros"),
-      SavingsPlan.findOne({ userId }),
+    const [plans, user] = await Promise.all([
+      listSavingsPlansByUserId(userId, validKind),
+      getUserById(userId),
     ]);
 
-    const hasCreatedSavings = Boolean(user?.hasCreatedSavings || anyPlan);
+    const hasCreatedSavings = Boolean(user?.hasCreatedSavings || plans.length > 0);
     const seenSavingsIntros = {
       individual: Boolean(user?.seenSavingsIntros?.individual),
       lock: Boolean(user?.seenSavingsIntros?.lock),
@@ -54,20 +50,6 @@ export const GET = withAuth(async (req: NextRequest, { userId }) => {
         ? environment.DEFINDEX_LOCK_VAULT_ADDRESS
         : environment.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS;
     const liveApy = await getLiveVaultApy(targetVault);
-
-    console.log("[GET /api/savings] Summary computed:", {
-      userId,
-      filterType: type || "all",
-      plansFound: plans.length,
-      activeGoalsCount,
-      totalSaved: `$${totalSaved.toFixed(2)}`,
-      totalTarget: `$${totalTarget.toFixed(2)}`,
-      percent,
-      hasCreatedSavings,
-      seenSavingsIntros,
-      targetVault,
-      liveApy: `${liveApy.toFixed(1)}%`,
-    });
 
     return NextResponse.json({
       plans: formattedPlans,

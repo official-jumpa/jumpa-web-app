@@ -6,11 +6,10 @@ import { Keypair as SolanaKeypair } from "@solana/web3.js";
 import { HDKey } from "@scure/bip32";
 import { deriveStellarKeypairFromMnemonic } from "@/lib/chains/stellar";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
 import { decryptMnemonic } from "@/lib/crypto";
-import { Wallet } from "@/models/Wallet";
-
-const WALLET_PIN_REGEX = /^\d{6}$/;
+import { findWalletForUser } from "@/lib/functions/walletFunctions";
+import { exportKeySchema } from "@/lib/validations/wallet.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 /**
  * POST /api/wallet/export-key
@@ -27,37 +26,14 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const {
-    address,
-    pin,
-    chain = "eth",
-  } = body as {
-    address?: string;
-    pin?: string;
-    chain?: string;
-  };
-
-  if (!address) {
-    return NextResponse.json(
-      { error: "Wallet address is required" },
-      { status: 400 },
-    );
+  const validation = exportKeySchema.safeParse(body);
+  if (!validation.success) {
+    return NextResponse.json(formatZodError(validation.error), { status: 400 });
   }
 
-  if (!pin || !WALLET_PIN_REGEX.test(pin)) {
-    return NextResponse.json(
-      { error: "Valid 6-digit PIN required" },
-      { status: 400 },
-    );
-  }
+  const { address, pin, chain = "eth" } = validation.data;
 
-  await connectDB();
-
-  const wallet = await Wallet.findOne({
-    userId: session.user.id,
-    address: address.toLowerCase(),
-  });
-
+  const wallet = await findWalletForUser(session.user.id, address);
   if (!wallet) {
     return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
   }

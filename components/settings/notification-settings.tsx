@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { settingsHref } from "@/components/settings/sections";
 import { SettingRow } from "@/components/settings/setting-row";
 import {
   SettingCard,
@@ -9,12 +9,11 @@ import { SettingsHeader } from "@/components/settings/settings-header";
 import { Toggle } from "@/components/settings/toggle";
 import { BellAltIcon } from "@/components/ui/icons/bell-alt";
 
-export const metadata: Metadata = { title: "Notifications" };
-
-export default function NotificationSettingsPage() {
+/** `?section=notifications`. */
+export function NotificationSettings() {
   return (
     <div className="px-4.5 pt-[calc(env(safe-area-inset-top)+21px)] pb-12">
-      <SettingsHeader back="/profile/settings" title="Notifications" />
+      <SettingsHeader back={settingsHref()} title="Notifications" />
 
       <div className="mt-4.25 flex flex-col gap-7.25">
         <SettingSection label="General Notifications">

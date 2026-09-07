@@ -9,7 +9,7 @@ import { SAVINGS_INTROS } from "@/components/savings/savings-intros";
 import { SavingsTypes } from "@/components/savings/savings-types";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { PlusIcon } from "@/components/ui/icons/plus";
-import type { SavingsKind } from "@/lib/savings";
+import { type SavingsKind, savingsHref } from "@/lib/savings";
 
 /** Savings landing: the running total, then the three products. */
 export function SavingsView({ hasGoals: initialHasGoals }: { hasGoals: boolean }) {
@@ -82,7 +82,7 @@ export function SavingsView({ hasGoals: initialHasGoals }: { hasGoals: boolean }
         title="Savings"
         action={
           <Link
-            href="/savings/individual/new"
+            href={savingsHref("individual", { create: true })}
             aria-label="Start a new savings goal"
             className="tap flex size-9.5 items-center justify-center rounded-full border border-jumpa-primary-600 bg-jumpa-secondary-150 text-jumpa-primary-600 active:scale-95"
           >

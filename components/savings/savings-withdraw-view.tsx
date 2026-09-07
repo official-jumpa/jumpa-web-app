@@ -14,7 +14,7 @@ import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { useGoBack } from "@/components/ui/back-link";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { type FriendlyError, friendlyError } from "@/lib/errors";
-import type { SavingsPlan } from "@/lib/savings";
+import { type SavingsPlan, savingsHref } from "@/lib/savings";
 import { formatAmount } from "@/lib/transfer";
 import { PROMOTIONS } from "@/lib/wallet";
 
@@ -148,7 +148,7 @@ export function SavingsWithdrawView() {
   ) : null;
 
   const backUrl = selectedPlan
-    ? `/savings/${selectedPlan.kind === "circle" ? "circles" : selectedPlan.kind}/${selectedPlan.id}`
+    ? savingsHref(selectedPlan.kind, { id: selectedPlan.id })
     : "/savings";
 
   const goBack = useGoBack(backUrl);

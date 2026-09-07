@@ -2,10 +2,17 @@ import Image from "next/image";
 import { PlaceholderScreen } from "@/components/ui/placeholder-screen";
 
 /** Stand-in for a route the UI links to but the design has not covered yet. */
-export function ComingSoon({ feature }: { feature: string }) {
+export function ComingSoon({
+  feature,
+  back = "/home",
+}: {
+  feature: string;
+  /** Where the arrow returns to, when the stub sits inside a flow. */
+  back?: string;
+}) {
   return (
     <PlaceholderScreen
-      back="/home"
+      back={back}
       art={
         <span className="flex size-20 items-center justify-center rounded-panel bg-jumpa-primary-50">
           {/* Alpha-trimmed mark — the raw logo is mostly transparent padding. */}

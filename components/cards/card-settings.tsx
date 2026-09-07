@@ -43,7 +43,7 @@ export function CardSettings({ onDelete }: { onDelete: () => void }) {
       />
       <hr className="border-jumpa-neutral-100" />
 
-      <Link href="/cards/limits">
+      <Link href="/cards?view=limits">
         <Row
           label="Card Limits"
           icon={<GaugeLowIcon className="size-6 text-jumpa-black" />}

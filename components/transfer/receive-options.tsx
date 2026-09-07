@@ -13,12 +13,12 @@ type ReceiveOption = {
 
 /** The two ways money comes in. Order and copy come from the design. */
 export const RECEIVE_OPTIONS: ReceiveOption[] = [
-  { id: "fiat", Icon: BankIcon, title: "Deposit Fiat", href: "/receive/fiat" },
+  { id: "fiat", Icon: BankIcon, title: "Deposit Fiat", href: "/receive?rail=fiat" },
   {
     id: "crypto",
     Icon: CoinFrontIcon,
     title: "Deposit Crypto",
-    href: "/receive/crypto",
+    href: "/receive?rail=crypto",
   },
 ];
 

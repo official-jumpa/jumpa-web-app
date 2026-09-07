@@ -47,7 +47,7 @@ export function CardIntro({ back }: { back: string }) {
           ))}
         </ul>
 
-        <RingedButton href="/cards/new/type">Create new card</RingedButton>
+        <RingedButton href="/cards?view=create">Create new card</RingedButton>
       </div>
     </div>
   );

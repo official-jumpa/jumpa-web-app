@@ -26,6 +26,77 @@ export type SavingsPlan = {
   members?: SavingsMember[];
 };
 
+/** URL slug per product — `circle` is plural in the path, singular in the data. */
+const SLUG: Record<SavingsKind, string> = {
+  individual: "individual",
+  lock: "lock",
+  circle: "circles",
+};
+
+const KIND_BY_SLUG: Record<string, SavingsKind> = {
+  individual: "individual",
+  lock: "lock",
+  circles: "circle",
+};
+
+export function kindFromSlug(slug: string): SavingsKind | null {
+  return KIND_BY_SLUG[slug] ?? null;
+}
+
+/**
+ * Every savings URL in one place. A product is one route and the stage is a
+ * query param, so a plan id never becomes a path segment — which is what let
+ * a child's close button push its own parent and loop the back button.
+ */
+export function savingsHref(
+  kind: SavingsKind,
+  stage?: { id?: string; create?: boolean; topUp?: boolean },
+): string {
+  const base = `/savings/${SLUG[kind]}`;
+  if (stage?.create) return `${base}?new=1`;
+  if (!stage?.id) return base;
+
+  const query = new URLSearchParams({ id: stage.id });
+  if (stage.topUp) query.set("topup", "1");
+  return `${base}?${query}`;
+}
+
+/** The three landings differ only in this — copy and where the plans come from. */
+export const SAVINGS_PRODUCTS: Record<
+  SavingsKind,
+  {
+    title: string;
+    cta: string;
+    listLabel: string;
+    emptyTitle: string;
+    emptyCaption?: string;
+    /** True where placeholder plans still stand in for real data. */
+    seeded?: boolean;
+  }
+> = {
+  individual: {
+    title: "Individual savings",
+    cta: "Create new",
+    listLabel: "Recent savings",
+    emptyTitle: "No savings plans yet",
+    emptyCaption: "Create a savings target to start earning",
+  },
+  lock: {
+    title: "Locked savings",
+    cta: "Create new",
+    listLabel: "Recent Plans",
+    emptyTitle: "No locked savings plans",
+    emptyCaption: "Lock funds away to earn guaranteed APY",
+  },
+  circle: {
+    title: "Circles",
+    cta: "Create new circle",
+    listLabel: "Recent Plans",
+    emptyTitle: "No recent plans",
+    seeded: true,
+  },
+};
+
 /** What the masthead reports across every product. */
 export const SAVINGS_SUMMARY = {
   goals: 0,

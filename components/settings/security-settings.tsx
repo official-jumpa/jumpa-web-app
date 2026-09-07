@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import { settingsHref } from "@/components/settings/sections";
 import { SettingLink, SettingRow } from "@/components/settings/setting-row";
 import {
   SettingCard,
@@ -13,12 +13,11 @@ import { KeyboardAltIcon } from "@/components/ui/icons/keyboard-alt";
 import { MobileIcon } from "@/components/ui/icons/mobile";
 import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
 
-export const metadata: Metadata = { title: "Security" };
-
-export default function SecurityPage() {
+/** `?section=security`. */
+export function SecuritySettings() {
   return (
     <div className="px-4.5 pt-[calc(env(safe-area-inset-top)+21px)] pb-12">
-      <SettingsHeader back="/profile/settings" title="Security" />
+      <SettingsHeader back={settingsHref()} title="Security" />
 
       <div className="mt-4.25 flex flex-col gap-4">
         <SettingSection label="Biometrics/Authentications">
@@ -46,7 +45,7 @@ export default function SecurityPage() {
         <SettingSection label="Devices">
           <SettingCard>
             <SettingLink
-              href="/profile/settings/security/devices"
+              href={settingsHref("devices")}
               icon={MobileIcon}
               label="See where you're logged in"
             />
@@ -57,14 +56,14 @@ export default function SecurityPage() {
         <SettingSection label="Wallet Security">
           <SettingCard>
             <SettingLink
-              href="/profile/settings/security/private-key"
+              href={settingsHref("private-key")}
               icon={KeyIcon}
               label="Export Private Key"
             />
           </SettingCard>
           <SettingCard>
             <SettingLink
-              href="/profile/settings/security/seed-phrase"
+              href={settingsHref("seed-phrase")}
               icon={KeyIcon}
               label="Export Seed Phrase"
             />

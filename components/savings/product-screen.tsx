@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { EmptyPlans } from "@/components/savings/empty-plans";
 import { PlanCard } from "@/components/savings/plan-card";
 import { SavingsBalance } from "@/components/savings/savings-balance";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { PlusIcon } from "@/components/ui/icons/plus";
 import type { SavingsKind, SavingsPlan } from "@/lib/savings";
-import { SAVINGS_BALANCE } from "@/lib/savings";
+import { SAVINGS_BALANCE, savingsHref } from "@/lib/savings";
 
 /**
  * One product's own landing — total, create button and the plans under it.
@@ -18,7 +18,6 @@ export function ProductScreen({
   kind,
   title,
   cta,
-  newHref,
   listLabel,
   emptyTitle,
   emptyCaption,
@@ -27,12 +26,12 @@ export function ProductScreen({
   kind: SavingsKind;
   title: string;
   cta: string;
-  newHref: string;
   listLabel: string;
   emptyTitle: string;
   emptyCaption?: string;
   plans?: SavingsPlan[];
 }) {
+  const newHref = savingsHref(kind, { create: true });
   const [plans, setPlans] = useState<SavingsPlan[]>(initialPlans);
   const defaultBalance = SAVINGS_BALANCE[kind];
   const [balance, setBalance] = useState<{
@@ -106,7 +105,7 @@ export function ProductScreen({
             <PlanCard
               key={plan.id}
               plan={plan}
-              href={`/savings/${kind === "circle" ? "circles" : kind}/${plan.id}`}
+              href={savingsHref(kind, { id: plan.id })}
             />
           ))
         )}

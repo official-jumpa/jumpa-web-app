@@ -73,9 +73,8 @@ export function ChatSlide({
       <div className="flex flex-1 flex-col justify-end pb-[20px]">
         <SlideHeading supporting="Send, swap, save, and spend across currencies and chains all in one conversation">
           <span className="text-[32px] leading-[34px]">
-            Move Money as Naturally as you{" "}
+            Move Money the way you Chat
           </span>
-          <span className="text-[36px] leading-[34px]">Chat</span>
         </SlideHeading>
       </div>
     </SlideFrame>

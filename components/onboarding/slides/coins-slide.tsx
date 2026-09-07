@@ -50,11 +50,10 @@ export function CoinsSlide({ index }: { index: number }) {
       }
     >
       <div className="flex flex-1 flex-col justify-end pb-[22px]">
-        <SlideHeading supporting="Send, swap, save, and spend across currencies and chains all in one conversation">
+        <SlideHeading supporting="Earn. Hold and move money in USD, Naira, EUR, or digital dollars all in one place.">
           <span className="text-[32px] leading-[34px]">
-            Move Money as Naturally as you{" "}
+            Your Cash and Crypto One App
           </span>
-          <span className="text-[36px] leading-[34px]">Chat</span>
         </SlideHeading>
       </div>
     </SlideFrame>

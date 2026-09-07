@@ -81,7 +81,16 @@ export type TransactionFilter = {
 export const TRANSACTION_FILTERS: TransactionFilter[] = [
   {
     label: "Transaction Type",
-    options: ["Show All", "Transfer", "Swap", "Deposit", "Withdraw", "Utility"],
+    options: [
+      "Show All",
+      "Send",
+      "Deposit",
+      "Investment",
+      "Savings",
+      "Credit",
+      "Airtime",
+      "Data",
+    ],
   },
   {
     label: "Card",
@@ -89,7 +98,7 @@ export const TRANSACTION_FILTERS: TransactionFilter[] = [
   },
   {
     label: "Status",
-    options: ["Show All", "Completed", "Pending", "Failed"],
+    options: ["Show All", "Successful", "Pending", "Failed"],
   },
   {
     label: "Duration",

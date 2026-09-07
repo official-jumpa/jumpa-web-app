@@ -64,14 +64,18 @@ export async function POST(req: NextRequest) {
 
   let privateKey = "";
 
-  if (selectedChain === "eth" || selectedChain === "base") {
+  if (
+    selectedChain === "eth" ||
+    selectedChain === "base" ||
+    selectedChain === "ethereum"
+  ) {
     const ethChild = masterKey.derive("m/44'/60'/0'/0/0");
     privateKey = `0x${Buffer.from(ethChild.privateKey!).toString("hex")}`;
-  } else if (selectedChain === "sol") {
+  } else if (selectedChain === "sol" || selectedChain === "solana") {
     const solDerived = derivePath("m/44'/501'/0'/0'", seed.toString("hex")).key;
     const solKeypair = SolanaKeypair.fromSeed(solDerived);
     privateKey = Buffer.from(solKeypair.secretKey).toString("hex");
-  } else if (selectedChain === "xlm") {
+  } else if (selectedChain === "xlm" || selectedChain === "stellar") {
     const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
     privateKey = stellarKeys.secretKey;
   } else {

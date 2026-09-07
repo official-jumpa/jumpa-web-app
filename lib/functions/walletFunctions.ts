@@ -20,7 +20,13 @@ export async function findWalletForUser(
   if (targetAddress) {
     const direct = await Wallet.findOne({
       userId,
-      address: targetAddress.toLowerCase(),
+      $or: [
+        { address: targetAddress.toLowerCase() },
+        { "addresses.eth": targetAddress.toLowerCase() },
+        { "addresses.base": targetAddress.toLowerCase() },
+        { "addresses.sol": targetAddress },
+        { "addresses.xlm": targetAddress.toUpperCase() },
+      ],
     });
     if (direct) return direct;
   }

@@ -29,8 +29,7 @@ export const sendTokenSchema = z.object({
     .string({
       error: "Network is required",
     })
-    .trim()
-    .toLowerCase(),
+    .trim(),
   memo: z.string().trim().max(100, "Memo cannot exceed 100 characters").optional(),
   pin: pinSchema,
 });

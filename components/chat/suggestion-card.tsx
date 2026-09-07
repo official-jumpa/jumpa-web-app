@@ -36,7 +36,7 @@ export function SuggestionCard({
   onSelect?: (prompt: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-x-1 gap-y-2 rounded-surface bg-jumpa-white px-1.5 py-2.5">
+    <div className="flex flex-wrap gap-x-1 gap-y-2 rounded-surface bg-jumpa-white px-2 py-2.5">
       {SUGGESTIONS.map(({ label, Icon, prompt }) => (
         <button
           key={label}

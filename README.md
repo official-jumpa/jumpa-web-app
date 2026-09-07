@@ -74,9 +74,9 @@ Every color, font, radius, shadow, and gradient is declared once in [`app/global
 - **Neutral & Surface Hierarchy:** `jumpa-neutral-25` through `jumpa-neutral-900` for hairline borders, card surfaces, and readable typography contrast.
 
 ### 3. Typography
-- **Small Copy (under 20px):** **SF Pro Rounded**, reached through the `ui-rounded` generic so Apple devices use the real face; **Nunito** (variable, 200–1000) is the self-hosted fallback everywhere else.
-- **Big Copy (20px and up):** **Inter**, loaded as a single variable Google font in `app/layout.tsx`. The switch is one size-keyed rule in `@layer base` in `app/globals.css` — no component tags it by hand, so add a selector there when you introduce a size above 20px.
+- **All UI Copy:** **Geist**, the face the Figma file specifies, loaded as a single variable Google font (100–900) in `app/layout.tsx`. One family at every size — there is no size-keyed switch, so a new heading needs no registration anywhere.
 - **Code Blocks & Monospace:** **Geist Mono** for developer logs, addresses, and transaction hashes.
+- `--font-display` and `--font-numeric` stand in for **Gotham Ultra** and **Neue Montreal**, which the design calls for but which are licensed and not ours to ship. Both alias Geist until that is settled.
 - **Semantic Tokens:**
   | Token | Utility | Usage |
   | :--- | :--- | :--- |

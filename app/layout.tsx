@@ -1,17 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Geist_Mono, Inter, Nunito } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-// Big copy. Variable, so 500 and 600 both come from the one file.
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-});
-
-// Small copy falls back to this off Apple devices, where `ui-rounded` resolves
-// to SF Pro Rounded itself. Variable 200–1000, so no weight is lost.
-const nunito = Nunito({
-  variable: "--font-nunito",
+// The design's face, for every size. Variable 100-900, so every weight the
+// Figma file uses comes from the one file.
+const geist = Geist({
+  variable: "--font-geist",
   subsets: ["latin"],
 });
 
@@ -43,7 +37,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${nunito.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geist.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-jumpa-black">{children}</body>
     </html>

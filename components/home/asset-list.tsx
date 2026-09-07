@@ -23,7 +23,7 @@ export function AssetList({ assets }: { assets: Asset[] }) {
             className="shrink-0 snap-start"
           >
             <Link
-              href={`/assets/${asset.symbol.toLowerCase()}`}
+              href={`/assets?token=${asset.symbol.toLowerCase()}`}
               className="tap flex h-29 w-38.75 flex-col justify-between rounded-panel bg-jumpa-neutral-50 px-4 py-3.5 active:scale-[0.98]"
             >
               <span className="flex items-center gap-2">

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DepositQr } from "@/components/assets/deposit-qr";
 import { NetworkSheet } from "@/components/assets/network-sheet";
 import { CopyButton } from "@/components/auth/copy-button";
@@ -34,8 +35,13 @@ export function DepositInfo({
   /** Live USD price per 1 unit of symbol, used to compute the minimum deposit. */
   priceUsd: number;
 }) {
+  const router = useRouter();
   const [chain, setChain] = useState(initialChain);
   const [picking, setPicking] = useState(false);
+
+  useEffect(() => {
+    setChain(initialChain);
+  }, [initialChain]);
 
   const switchable = chains.length > 1;
   const isAvailable = !chain.unavailable;
@@ -44,7 +50,7 @@ export function DepositInfo({
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
       <ScreenHeader
-        back={`/assets/${symbol.toLowerCase()}`}
+        back={`/assets?token=${symbol.toLowerCase()}&network=${chain.id}`}
         title={symbol}
         round
       />
@@ -131,6 +137,9 @@ export function DepositInfo({
           onSelect={(next) => {
             setChain(next);
             setPicking(false);
+            router.push(
+              `/assets?token=${symbol.toLowerCase()}&network=${next.id}&deposit=1`,
+            );
           }}
           onClose={() => setPicking(false)}
         />

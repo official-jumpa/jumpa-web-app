@@ -9,11 +9,11 @@ type Destination = (symbol: string, chain: Chain) => string;
 
 /** The deposit address. */
 export const depositHref: Destination = (symbol, chain) =>
-  `/assets/${symbol.toLowerCase()}/receive?network=${chain.id}`;
+  `/assets?token=${symbol.toLowerCase()}&network=${chain.id}&deposit=1`;
 
 /** The wallet screen, scoped to that chain. */
 export const walletHref: Destination = (symbol, chain) =>
-  `/assets/${symbol.toLowerCase()}?network=${chain.id}`;
+  `/assets?token=${symbol.toLowerCase()}&network=${chain.id}`;
 
 /**
  * Ask which chain first whenever the asset lives on more than one — a deposit

@@ -38,7 +38,7 @@ export interface ISavingsPlan {
 
 const SavingsPlanSchema = new Schema<ISavingsPlan>(
   {
-    _id: { type: String, default: () => generateId("PLAN") },
+    _id: { type: String, default: () => generateId("plan") },
     userId: { type: String, required: true, index: true },
     walletId: { type: String, default: null },
     walletAddress: { type: String, required: true },

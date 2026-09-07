@@ -73,7 +73,7 @@ export interface ITransaction {
 
 const TransactionSchema = new Schema<ITransaction>(
   {
-    _id: { type: String, default: () => generateId("TX") },
+    _id: { type: String, default: () => generateId("tx") },
     userId: { type: String, required: true, index: true },
     walletId: { type: String, default: null },
     sessionId: { type: String, default: null },

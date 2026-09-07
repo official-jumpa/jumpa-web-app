@@ -22,7 +22,7 @@ export interface IUserActivityLog {
 
 const UserActivityLogSchema = new Schema<IUserActivityLog>(
   {
-    _id: { type: String, default: () => generateId("ACT") },
+    _id: { type: String, default: () => generateId("act") },
     userId: { type: String, required: true, index: true },
     action: {
       type: String,

@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
     }
 
     const userMessage: IChatMessage = {
-      id: generateId("MSG"),
+      id: generateId("msg"),
       role: "user",
       content: message.trim(),
       timestamp: new Date(),
@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
 
     if (primaryCardHint.type === "quote" && requiresConfirmation) {
       assistantMessage = {
-        id: generateId("MSG"),
+        id: generateId("msg"),
         role: "assistant",
         content: finalAssistantContent,
         isTransaction: true,
@@ -227,7 +227,7 @@ export async function POST(req: NextRequest) {
       };
     } else if (primaryCardHint.type === "bridge" && requiresConfirmation) {
       assistantMessage = {
-        id: generateId("MSG"),
+        id: generateId("msg"),
         role: "assistant",
         content: finalAssistantContent,
         isTransaction: true,
@@ -239,7 +239,7 @@ export async function POST(req: NextRequest) {
       };
     } else if (primaryCardHint.type === "transfer" && requiresConfirmation) {
       assistantMessage = {
-        id: generateId("MSG"),
+        id: generateId("msg"),
         role: "assistant",
         content: finalAssistantContent,
         isTransaction: true,
@@ -251,7 +251,7 @@ export async function POST(req: NextRequest) {
       };
     } else if (primaryCardHint.type === "onramp") {
       assistantMessage = {
-        id: generateId("MSG"),
+        id: generateId("msg"),
         role: "assistant",
         content: finalAssistantContent,
         isTransaction: true,
@@ -263,7 +263,7 @@ export async function POST(req: NextRequest) {
       };
     } else if (primaryCardHint.type === "offramp") {
       assistantMessage = {
-        id: generateId("MSG"),
+        id: generateId("msg"),
         role: "assistant",
         content: finalAssistantContent,
         isTransaction: true,
@@ -275,7 +275,7 @@ export async function POST(req: NextRequest) {
       };
     } else if (primaryCardHint.type === "accounts") {
       assistantMessage = {
-        id: generateId("MSG"),
+        id: generateId("msg"),
         role: "assistant",
         content: finalAssistantContent,
         cardType: "accounts",
@@ -284,7 +284,7 @@ export async function POST(req: NextRequest) {
       };
     } else if (primaryCardHint.type === "options") {
       assistantMessage = {
-        id: generateId("MSG"),
+        id: generateId("msg"),
         role: "assistant",
         content: finalAssistantContent,
         cardType: "options",
@@ -293,7 +293,7 @@ export async function POST(req: NextRequest) {
       };
     } else if (primaryCardHint.type === "sep24") {
       assistantMessage = {
-        id: generateId("MSG"),
+        id: generateId("msg"),
         role: "assistant",
         content: finalAssistantContent,
         isTransaction: false,
@@ -304,7 +304,7 @@ export async function POST(req: NextRequest) {
       };
     } else {
       assistantMessage = {
-        id: generateId("MSG"),
+        id: generateId("msg"),
         role: "assistant",
         content: finalAssistantContent,
         cardType: "text",

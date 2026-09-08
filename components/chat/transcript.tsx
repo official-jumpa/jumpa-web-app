@@ -14,6 +14,7 @@ import { ReceiptCard } from "@/components/chat/receipt-card";
 import { Sep24Card } from "@/components/chat/sep24-card";
 import { TransferCard } from "@/components/chat/transfer-card";
 import type { ChatEntry, ChatItem, QuoteCard as Quote } from "@/lib/chat";
+import { cn } from "@/lib/cn";
 
 type Handlers = {
   onConfirm: () => void;
@@ -80,21 +81,23 @@ function Group({
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
       {items.map((item, index) =>
-        isFresh && item.kind !== "text" ? (
-          <div
-            key={`${item.kind}-${index}`}
-            className="w-full animate-rise stagger"
-            style={{ "--i": index + 3 } as CSSProperties}
-          >
-            <Item item={item} from={from} {...handlers} />
-          </div>
-        ) : (
+        item.kind === "text" ? (
           <Item
             key={`${item.kind}-${index}`}
             item={item}
             from={from}
             {...handlers}
           />
+        ) : (
+          // The wrapper is unconditional. Dropping it when the reveal ends
+          // remounts the card, which wipes a chooser's own selection.
+          <div
+            key={`${item.kind}-${index}`}
+            className={cn("w-full", isFresh && "animate-rise stagger")}
+            style={{ "--i": index + 3 } as CSSProperties}
+          >
+            <Item item={item} from={from} {...handlers} />
+          </div>
         ),
       )}
     </div>
@@ -139,13 +142,21 @@ function Item({
     case "offramp":
       return <OfframpCheckoutCard card={item.card} onReply={onReply} />;
     case "options":
-      return <OptionsCard card={item.card} onReply={onReply} />;
+      return (
+        <OptionsCard card={item.card} answer={item.answer} onReply={onReply} />
+      );
     case "plans":
-      return <PlansCard card={item.card} onReply={onReply} />;
+      return (
+        <PlansCard card={item.card} answer={item.answer} onReply={onReply} />
+      );
     case "contacts":
-      return <ContactsCard card={item.card} onReply={onReply} />;
+      return (
+        <ContactsCard card={item.card} answer={item.answer} onReply={onReply} />
+      );
     case "accounts":
-      return <AccountsCard card={item.card} onReply={onReply} />;
+      return (
+        <AccountsCard card={item.card} answer={item.answer} onReply={onReply} />
+      );
     case "sep24":
       return <Sep24Card card={item.card} />;
     case "actions":

@@ -13,6 +13,7 @@ import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import type { ChatEntry, ChatItem, QuoteCard as Quote } from "@/lib/chat";
+import { answersByCard } from "@/lib/chat-answer";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import type { IChatMessage } from "@/models/ChatLog";
 
@@ -25,6 +26,7 @@ function messagesToChatEntries(
   revealId?: string | null,
 ): ChatEntry[] {
   const entries: ChatEntry[] = [];
+  const answers = answersByCard(messages);
   let currentGroup: {
     id: string;
     kind: "group";
@@ -34,6 +36,8 @@ function messagesToChatEntries(
 
   for (const msg of messages) {
     const role: "user" | "agent" = msg.role === "assistant" ? "agent" : "user";
+    // Set only on a chooser: the reply it got, so its pick survives a reload.
+    const answer = msg.id ? answers.get(msg.id) : undefined;
 
     const items: ChatItem[] = [];
 
@@ -97,13 +101,13 @@ function messagesToChatEntries(
         items.push({ kind: "actions" });
       }
     } else if (msg.cardType === "options" && msg.cardData) {
-      items.push({ kind: "options", card: msg.cardData as any });
+      items.push({ kind: "options", card: msg.cardData as any, answer });
     } else if (msg.cardType === "plans" && msg.cardData) {
-      items.push({ kind: "plans", card: msg.cardData as any });
+      items.push({ kind: "plans", card: msg.cardData as any, answer });
     } else if (msg.cardType === "contacts" && msg.cardData) {
-      items.push({ kind: "contacts", card: msg.cardData as any });
+      items.push({ kind: "contacts", card: msg.cardData as any, answer });
     } else if (msg.cardType === "accounts" && msg.cardData) {
-      items.push({ kind: "accounts", card: msg.cardData as any });
+      items.push({ kind: "accounts", card: msg.cardData as any, answer });
     } else if (msg.cardType === "sep24" && msg.cardData) {
       items.push({
         kind: "sep24",

@@ -8,14 +8,17 @@ import type { OptionsCard as Options } from "@/lib/chat";
  */
 export function OptionsCard({
   card,
+  answer,
   onReply,
 }: {
   card: Options;
+  /** The reply it already got, so a reload lights the row that was picked. */
+  answer?: string;
   onReply?: (reply: string) => void;
 }) {
   return (
     <ChatCard padded>
-      <OptionList options={card.options} onSelect={onReply} />
+      <OptionList options={card.options} answer={answer} onSelect={onReply} />
     </ChatCard>
   );
 }

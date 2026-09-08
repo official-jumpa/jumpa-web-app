@@ -18,6 +18,16 @@ import type {
   ChatOption,
   ChatPlan,
 } from "@/lib/chat";
+import {
+  answeredAction,
+  answeredContact,
+  answeredOption,
+  answeredPlan,
+  contactKey,
+  isCustom,
+  optionKey,
+  planKey,
+} from "@/lib/chat-answer";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/cn";
 
@@ -43,15 +53,6 @@ const CONTACT_SELECTED =
 /** The same shell stacked — a plan needs the full width on every line. */
 const PLAN_ROW =
   "flex w-full flex-col gap-2 rounded-xl border p-3 text-left tap active:scale-[0.99]";
-
-/**
- * A "Custom" row asks for a value instead of answering with its own label. The
- * label check is a fallback for a card that omits the flag — the designer's own
- * copy is "Custom" / "Custom Amount".
- */
-function isCustom(option: ChatOption) {
-  return option.custom ?? /^custom\b/i.test(option.label);
-}
 
 /**
  * One row of a chooser. Picking it answers the agent, so the row sends its
@@ -166,14 +167,21 @@ function CustomField({
 /** A chooser's rows, ruled apart only when the design draws them borderless. */
 export function OptionList({
   options,
+  answer,
+  claimed,
   onSelect,
 }: {
   options: ChatOption[];
+  /** The reply this chooser already got, so a reload lights the row again. */
+  answer?: string;
+  /** Another row on the same card matched the answer — see answeredOption. */
+  claimed?: boolean;
   onSelect?: (reply: string) => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
-  // The answer is already sent; this only keeps the choice visible in the card.
-  const [picked, setPicked] = useState<string | null>(null);
+  // Covers the tap itself; once the reply lands, `answer` resolves the same row.
+  const [tapped, setTapped] = useState<string | null>(null);
+  const picked = tapped ?? answeredOption(options, answer, claimed);
   // Keyboard hint only: if the fixed choices are figures, so is the custom one.
   const numeric = options.some(
     (option) => !isCustom(option) && /^[^0-9A-Za-z]*\d/.test(option.label),
@@ -182,7 +190,7 @@ export function OptionList({
   return (
     <>
       {options.map((option, index) => {
-        const key = option.id ?? `${option.label}-${index}`;
+        const key = optionKey(option, index);
 
         if (isCustom(option) && editing === key) {
           return (
@@ -193,7 +201,7 @@ export function OptionList({
               onCancel={() => setEditing(null)}
               onSubmit={(value) => {
                 setEditing(null);
-                setPicked(key);
+                setTapped(key);
                 onSelect?.(value);
               }}
             />
@@ -209,7 +217,7 @@ export function OptionList({
               isCustom(option)
                 ? () => setEditing(key)
                 : (reply) => {
-                    setPicked(key);
+                    setTapped(key);
                     onSelect?.(reply);
                   }
             }
@@ -293,17 +301,21 @@ export function PlanRow({
 /** The plans a savings flow offers, in the order the agent sent them. */
 export function PlanList({
   plans,
+  answer,
   onSelect,
 }: {
   plans: ChatPlan[];
+  /** The reply this chooser already got, so a reload lights the row again. */
+  answer?: string;
   onSelect?: (reply: string) => void;
 }) {
-  const [picked, setPicked] = useState<string | null>(null);
+  const [tapped, setTapped] = useState<string | null>(null);
+  const picked = tapped ?? answeredPlan(plans, answer);
 
   return (
     <>
       {plans.map((plan, index) => {
-        const key = plan.id ?? `${plan.name}-${index}`;
+        const key = planKey(plan, index);
 
         return (
           <PlanRow
@@ -311,7 +323,7 @@ export function PlanList({
             plan={plan}
             selected={picked === key}
             onSelect={(reply) => {
-              setPicked(key);
+              setTapped(key);
               onSelect?.(reply);
             }}
           />
@@ -390,17 +402,21 @@ export function ContactRow({
 /** The contacts, with the design's hairline between each pair. */
 export function ContactList({
   contacts,
+  answer,
   onSelect,
 }: {
   contacts: ChatContact[];
+  /** The reply this chooser already got, so a reload lights the row again. */
+  answer?: string;
   onSelect?: (reply: string) => void;
 }) {
-  const [picked, setPicked] = useState<string | null>(null);
+  const [tapped, setTapped] = useState<string | null>(null);
+  const picked = tapped ?? answeredContact(contacts, answer);
 
   return (
     <>
       {contacts.map((contact, index) => {
-        const key = contact.id ?? `${contact.name}-${index}`;
+        const key = contactKey(contact, index);
 
         return (
           <div key={key} className="flex w-full flex-col gap-2.5">
@@ -409,7 +425,7 @@ export function ContactList({
               contact={contact}
               selected={picked === key}
               onSelect={(reply) => {
-                setPicked(key);
+                setTapped(key);
                 onSelect?.(reply);
               }}
             />
@@ -472,13 +488,17 @@ function ActionPill({
  */
 export function DetailPanel({
   details,
+  answer,
   onReply,
 }: {
   details: BankDetails;
+  /** The reply this card already got, so a reload lights the pill again. */
+  answer?: string;
   onReply?: (reply: string) => void;
 }) {
-  // The answer is already sent; this only keeps the choice visible in the card.
-  const [chosen, setChosen] = useState(false);
+  // Covers the tap itself; once the reply lands, `answer` resolves it too.
+  const [tapped, setTapped] = useState(false);
+  const chosen = tapped || answeredAction(details, answer);
 
   return (
     <div
@@ -516,7 +536,7 @@ export function DetailPanel({
             value={details.field.value}
             chosen={chosen}
             onReply={(reply) => {
-              setChosen(true);
+              setTapped(true);
               onReply?.(reply);
             }}
           />

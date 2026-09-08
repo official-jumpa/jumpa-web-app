@@ -80,6 +80,7 @@ export type TransactionKind =
   | "receive"
   | "card"
   | "swap"
+  | "bridge"
   | "airtime"
   | "data"
   | "invest";

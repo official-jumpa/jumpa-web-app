@@ -180,10 +180,14 @@ export type ChatItem =
   | { kind: "transfer"; card: TransferCard }
   | { kind: "onramp"; card: OnrampCard }
   | { kind: "offramp"; card: OfframpCard }
-  | { kind: "options"; card: OptionsCard }
-  | { kind: "plans"; card: PlansCard }
-  | { kind: "contacts"; card: ContactsCard }
-  | { kind: "accounts"; card: AccountsCard }
+  /**
+   * A chooser. `answer` is the reply it already got, which is what lets a
+   * reload light the row that was picked — see lib/chat-answer.
+   */
+  | { kind: "options"; card: OptionsCard; answer?: string }
+  | { kind: "plans"; card: PlansCard; answer?: string }
+  | { kind: "contacts"; card: ContactsCard; answer?: string }
+  | { kind: "accounts"; card: AccountsCard; answer?: string }
   | { kind: "sep24"; card: any }
   /** Cancel / Confirm pair. Confirm is what raises the PIN sheet. */
   | { kind: "actions"; confirmLabel?: string; cancelLabel?: string | false };

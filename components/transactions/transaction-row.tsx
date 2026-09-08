@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpIcon } from "@/components/ui/icons/arrow-up";
 import { CreditCardPlusIcon } from "@/components/ui/icons/credit-card-plus";
+import { FlipForwardIcon } from "@/components/ui/icons/flip-forward";
 import { MoneyWithdrawalIcon } from "@/components/ui/icons/money-withdrawal";
 import { PhoneAltOutlineIcon } from "@/components/ui/icons/phone-alt-outline";
 import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
@@ -16,15 +17,16 @@ const STATUS_LABEL = {
   failed: "Failed",
 } as const;
 
-/** One glyph per kind. Receive is the send arrow flipped, as the design draws it. */
+/** One glyph per kind; `spin` carries the rotation the design draws it at. */
 const GLYPH: Record<
   TransactionKind,
-  { Icon: typeof ArrowUpIcon; flip?: true }
+  { Icon: typeof ArrowUpIcon; spin?: string }
 > = {
   send: { Icon: ArrowUpIcon },
-  receive: { Icon: ArrowUpIcon, flip: true },
+  receive: { Icon: ArrowUpIcon, spin: "-scale-y-100" },
   card: { Icon: CreditCardPlusIcon },
   swap: { Icon: SwitchHorizontalIcon },
+  bridge: { Icon: FlipForwardIcon, spin: "rotate-90 -scale-y-100" },
   airtime: { Icon: PhoneAltOutlineIcon },
   data: { Icon: WifiIcon },
   invest: { Icon: MoneyWithdrawalIcon },
@@ -38,17 +40,14 @@ export function TransactionRule() {
 /** One history entry: kind tile, what and when, amount and status. */
 export function TransactionRow({ transaction }: { transaction: Transaction }) {
   const { id, kind, chain, title, detail, amount, status } = transaction;
-  const { Icon, flip } = GLYPH[kind] ?? GLYPH.send;
+  const { Icon, spin } = GLYPH[kind] ?? GLYPH.send;
 
   const body = (
     <>
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-jumpa-white">
           <Icon
-            className={cn(
-              "size-6 text-jumpa-primary-600",
-              flip && "-scale-y-100",
-            )}
+            className={cn("size-6 text-jumpa-primary-600", spin)}
           />
           {chain ? (
             <Image

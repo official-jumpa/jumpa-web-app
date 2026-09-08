@@ -21,7 +21,7 @@ export function ActionRow({
       <button
         type="button"
         onClick={onConfirm}
-        className={`${BUTTON} self-start bg-jumpa-primary-600 px-4 text-jumpa-neutral-25`}
+        className={`${BUTTON} w-fit self-start bg-jumpa-primary-600 px-4 text-jumpa-neutral-25`}
       >
         {confirmLabel}
       </button>

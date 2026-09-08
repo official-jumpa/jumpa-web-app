@@ -102,17 +102,19 @@ export function formatDbTransaction(tx: any) {
   const kind: TransactionKind =
     tx.type === "SWAP"
       ? "swap"
-      : token === "AIRTIME"
-        ? "airtime"
-        : token === "DATA"
-          ? "data"
-          : tx.type === "SAVINGS_DEPOSIT" || tx.type === "SAVINGS_WITHDRAW"
-            ? "invest"
-            : isCard
-              ? "card"
-              : isIncoming
-                ? "receive"
-                : "send";
+      : tx.type === "BRIDGE"
+        ? "bridge"
+        : token === "AIRTIME"
+          ? "airtime"
+          : token === "DATA"
+            ? "data"
+            : tx.type === "SAVINGS_DEPOSIT" || tx.type === "SAVINGS_WITHDRAW"
+              ? "invest"
+              : isCard
+                ? "card"
+                : isIncoming
+                  ? "receive"
+                  : "send";
 
   let title = tx.title;
   if (!title) {
@@ -197,6 +199,7 @@ const SUBJECT: Partial<Record<TransactionKind, string>> = {
   receive: "Deposit",
   card: "Card deposit",
   swap: "Swap",
+  bridge: "Bridge",
   airtime: "Airtime",
   data: "Data",
   invest: "Savings",

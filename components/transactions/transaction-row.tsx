@@ -6,7 +6,7 @@ import { MoneyWithdrawalIcon } from "@/components/ui/icons/money-withdrawal";
 import { PhoneAltOutlineIcon } from "@/components/ui/icons/phone-alt-outline";
 import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
 import { WifiIcon } from "@/components/ui/icons/wifi";
-import { getAssetLogo } from "@/lib/assets";
+import { getAssetLogo, logoMask } from "@/lib/assets";
 import { cn } from "@/lib/cn";
 import type { Transaction, TransactionKind } from "@/lib/wallet";
 
@@ -56,7 +56,10 @@ export function TransactionRow({ transaction }: { transaction: Transaction }) {
               alt=""
               width={36}
               height={36}
-              className="absolute right-0.5 bottom-0 size-4.5 rounded-full"
+              className={cn(
+                "absolute right-0.5 bottom-0 size-4.5",
+                logoMask(chain),
+              )}
             />
           ) : null}
         </span>

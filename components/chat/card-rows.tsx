@@ -10,6 +10,7 @@ import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
 import { CircleUserIcon } from "@/components/ui/icons/circle-user";
 import { CoinFrontIcon } from "@/components/ui/icons/coin-front";
 import { MoneybagIcon } from "@/components/ui/icons/moneybag";
+import { SendAltIcon } from "@/components/ui/icons/send-alt";
 import { WalletIcon } from "@/components/ui/icons/wallet";
 import type {
   BankDetails,
@@ -34,8 +35,14 @@ const BOX = "flex w-full items-center gap-2 rounded-xl border p-3 text-left";
 const ROW = `${BOX} tap active:scale-[0.99]`;
 const SELECTED = "border-jumpa-primary-600 bg-jumpa-primary-100";
 const RESTING = "border-jumpa-primary-100 bg-jumpa-grey-100";
+/** A contact row carries no box, so its picked mark is a ring — no layout cost. */
+const CONTACT_ROW =
+  "flex w-full items-center gap-2 rounded-xl text-left tap active:scale-[0.99]";
+const CONTACT_SELECTED =
+  "ring-2 ring-jumpa-primary-600 ring-offset-4 ring-offset-jumpa-neutral-95";
 /** The same shell stacked — a plan needs the full width on every line. */
-const PLAN_ROW = `flex w-full flex-col gap-2 rounded-xl border p-3 text-left tap active:scale-[0.99] ${RESTING}`;
+const PLAN_ROW =
+  "flex w-full flex-col gap-2 rounded-xl border p-3 text-left tap active:scale-[0.99]";
 
 /**
  * A "Custom" row asks for a value instead of answering with its own label. The
@@ -52,9 +59,11 @@ function isCustom(option: ChatOption) {
  */
 export function OptionRow({
   option,
+  selected = option.selected ?? false,
   onSelect,
 }: {
   option: ChatOption;
+  selected?: boolean;
   onSelect?: (reply: string) => void;
 }) {
   const Icon = option.icon
@@ -64,9 +73,9 @@ export function OptionRow({
   return (
     <button
       type="button"
-      aria-pressed={option.selected ?? false}
+      aria-pressed={selected}
       onClick={() => onSelect?.(option.reply ?? option.label)}
-      className={cn(ROW, option.selected ? SELECTED : RESTING)}
+      className={cn(ROW, selected ? SELECTED : RESTING)}
     >
       {Icon ? (
         <Icon
@@ -141,13 +150,14 @@ function CustomField({
         aria-label={option.label}
         className="min-w-0 flex-1 bg-transparent text-sm leading-4 font-medium text-jumpa-black outline-none placeholder:text-jumpa-primary-950"
       />
+      {/* Send, not a chevron: iOS number pads have no return key to submit with. */}
       <button
         type="submit"
         disabled={!entered}
-        aria-label={`Use this ${option.label.toLowerCase()}`}
-        className="tap shrink-0 text-jumpa-primary-600 active:scale-90 disabled:text-jumpa-primary-200"
+        aria-label={`Send this ${option.label.toLowerCase()}`}
+        className="tap -m-2 shrink-0 p-2 text-jumpa-primary-600 active:scale-90 disabled:text-jumpa-primary-200"
       >
-        <ChevronRightIcon aria-hidden="true" className="size-6" />
+        <SendAltIcon aria-hidden="true" className="size-6" />
       </button>
     </form>
   );
@@ -162,6 +172,8 @@ export function OptionList({
   onSelect?: (reply: string) => void;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
+  // The answer is already sent; this only keeps the choice visible in the card.
+  const [picked, setPicked] = useState<string | null>(null);
   // Keyboard hint only: if the fixed choices are figures, so is the custom one.
   const numeric = options.some(
     (option) => !isCustom(option) && /^[^0-9A-Za-z]*\d/.test(option.label),
@@ -181,6 +193,7 @@ export function OptionList({
               onCancel={() => setEditing(null)}
               onSubmit={(value) => {
                 setEditing(null);
+                setPicked(key);
                 onSelect?.(value);
               }}
             />
@@ -191,7 +204,15 @@ export function OptionList({
           <OptionRow
             key={key}
             option={option}
-            onSelect={isCustom(option) ? () => setEditing(key) : onSelect}
+            selected={option.selected || picked === key}
+            onSelect={
+              isCustom(option)
+                ? () => setEditing(key)
+                : (reply) => {
+                    setPicked(key);
+                    onSelect?.(reply);
+                  }
+            }
           />
         );
       })}
@@ -214,9 +235,11 @@ function PlanKind({ label }: { label: string }) {
  */
 export function PlanRow({
   plan,
+  selected = false,
   onSelect,
 }: {
   plan: ChatPlan;
+  selected?: boolean;
   onSelect?: (reply: string) => void;
 }) {
   const percent = Math.max(0, Math.min(100, Math.round(plan.percent ?? 0)));
@@ -224,8 +247,9 @@ export function PlanRow({
   return (
     <button
       type="button"
+      aria-pressed={selected}
       onClick={() => onSelect?.(plan.reply ?? plan.name)}
-      className={PLAN_ROW}
+      className={cn(PLAN_ROW, selected ? SELECTED : RESTING)}
     >
       <span className="flex items-center gap-2">
         <span className="min-w-0 flex-1 truncate text-sm leading-4 font-semibold text-jumpa-black">
@@ -274,15 +298,25 @@ export function PlanList({
   plans: ChatPlan[];
   onSelect?: (reply: string) => void;
 }) {
+  const [picked, setPicked] = useState<string | null>(null);
+
   return (
     <>
-      {plans.map((plan, index) => (
-        <PlanRow
-          key={plan.id ?? `${plan.name}-${index}`}
-          plan={plan}
-          onSelect={onSelect}
-        />
-      ))}
+      {plans.map((plan, index) => {
+        const key = plan.id ?? `${plan.name}-${index}`;
+
+        return (
+          <PlanRow
+            key={key}
+            plan={plan}
+            selected={picked === key}
+            onSelect={(reply) => {
+              setPicked(key);
+              onSelect?.(reply);
+            }}
+          />
+        );
+      })}
     </>
   );
 }
@@ -290,9 +324,11 @@ export function PlanList({
 /** One candidate recipient: avatar tile, name, and a meta line. */
 export function ContactRow({
   contact,
+  selected = false,
   onSelect,
 }: {
   contact: ChatContact;
+  selected?: boolean;
   onSelect?: (reply: string) => void;
 }) {
   const isUrl =
@@ -310,8 +346,9 @@ export function ContactRow({
   return (
     <button
       type="button"
+      aria-pressed={selected}
       onClick={() => onSelect?.(contact.reply ?? contact.name)}
-      className="flex w-full items-center gap-2 text-left tap active:scale-[0.99]"
+      className={cn(CONTACT_ROW, selected && CONTACT_SELECTED)}
     >
       <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-surface bg-jumpa-white">
         {isUrl ? (
@@ -358,17 +395,27 @@ export function ContactList({
   contacts: ChatContact[];
   onSelect?: (reply: string) => void;
 }) {
+  const [picked, setPicked] = useState<string | null>(null);
+
   return (
     <>
-      {contacts.map((contact, index) => (
-        <div
-          key={contact.id ?? `${contact.name}-${index}`}
-          className="flex w-full flex-col gap-2.5"
-        >
-          {index > 0 ? <CardRule /> : null}
-          <ContactRow contact={contact} onSelect={onSelect} />
-        </div>
-      ))}
+      {contacts.map((contact, index) => {
+        const key = contact.id ?? `${contact.name}-${index}`;
+
+        return (
+          <div key={key} className="flex w-full flex-col gap-2.5">
+            {index > 0 ? <CardRule /> : null}
+            <ContactRow
+              contact={contact}
+              selected={picked === key}
+              onSelect={(reply) => {
+                setPicked(key);
+                onSelect?.(reply);
+              }}
+            />
+          </div>
+        );
+      })}
     </>
   );
 }
@@ -379,10 +426,12 @@ const CONFIRM_MS = 2000;
 function ActionPill({
   action,
   value,
+  chosen = false,
   onReply,
 }: {
   action: NonNullable<BankDetails["action"]>;
   value: string;
+  chosen?: boolean;
   onReply?: (reply: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -394,22 +443,24 @@ function ActionPill({
   }, [copied]);
 
   const isCopy = (action.kind ?? "copy") === "copy";
+  const lit = copied || chosen;
 
   return (
     <button
       type="button"
+      aria-pressed={chosen}
       onClick={async () => {
         if (isCopy) setCopied(await copyText(value));
         else onReply?.(action.reply ?? action.label);
       }}
       className={cn(
         "flex h-6 shrink-0 items-center gap-1 rounded-xl px-3 text-[11px] leading-4 tap active:scale-95",
-        copied
+        lit
           ? "bg-jumpa-alt-400 text-jumpa-alt-950"
           : "bg-jumpa-primary-525 text-jumpa-primary-50",
       )}
     >
-      {copied ? <CheckIcon aria-hidden="true" className="size-3" /> : null}
+      {lit ? <CheckIcon aria-hidden="true" className="size-3" /> : null}
       {copied ? "Copied" : action.label}
     </button>
   );
@@ -426,8 +477,16 @@ export function DetailPanel({
   details: BankDetails;
   onReply?: (reply: string) => void;
 }) {
+  // The answer is already sent; this only keeps the choice visible in the card.
+  const [chosen, setChosen] = useState(false);
+
   return (
-    <div className="flex w-full flex-col gap-2.5 rounded-xl border border-jumpa-secondary-400 bg-jumpa-primary-100 p-3">
+    <div
+      className={cn(
+        "flex w-full flex-col gap-2.5 rounded-xl border bg-jumpa-primary-100 p-3",
+        chosen ? "border-jumpa-primary-600" : "border-jumpa-secondary-400",
+      )}
+    >
       {details.lines.map((line) => (
         <div key={line.label} className="flex items-start gap-1">
           <span className="min-w-0 flex-1 text-[11px] leading-4 text-jumpa-black">
@@ -455,7 +514,11 @@ export function DetailPanel({
           <ActionPill
             action={details.action}
             value={details.field.value}
-            onReply={onReply}
+            chosen={chosen}
+            onReply={(reply) => {
+              setChosen(true);
+              onReply?.(reply);
+            }}
           />
         ) : null}
       </div>

@@ -5,7 +5,8 @@ import type { Asset } from "@/lib/wallet";
  */
 /**
  * Official brand marks, kept as one map so a symbol can never resolve to a
- * glyph that disagrees with it. Every logo is a full-bleed 128px circle.
+ * glyph that disagrees with it. Every logo is a full-bleed 128px disc, except
+ * Base, whose symbol is a square — see `logoMask`.
  */
 const LOGOS: Record<string, string> = {
   XLM: "/coins/xlm.webp",
@@ -49,16 +50,27 @@ const ALIASES: [string, string][] = [
   ["$", "USDC"],
 ];
 
-/** Resolve an asset, chain or network name to its logo. */
-export function getAssetLogo(symbol = ""): string {
+function resolveKey(symbol = ""): string {
   const value = symbol.toUpperCase().trim();
-  const direct = LOGOS[value];
-  if (direct) return direct;
+  if (LOGOS[value]) return value;
 
   for (const [needle, key] of ALIASES) {
-    if (value.includes(needle)) return LOGOS[key];
+    if (value.includes(needle)) return key;
   }
-  return "/images/home/coin-generic.svg";
+  return "";
+}
+
+/** Resolve an asset, chain or network name to its logo. */
+export function getAssetLogo(symbol = ""): string {
+  return LOGOS[resolveKey(symbol)] ?? "/images/home/coin-generic.svg";
+}
+
+/** Base's symbol is a square (base.org/brand), and its corners are in its alpha. */
+const SQUARE_LOGOS = new Set(["BASE"]);
+
+/** The mask a logo needs in a fixed slot — a disc everywhere, but never on Base. */
+export function logoMask(symbol = ""): string {
+  return SQUARE_LOGOS.has(resolveKey(symbol)) ? "rounded-none" : "rounded-full";
 }
 
 /**

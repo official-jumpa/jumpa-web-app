@@ -1,7 +1,7 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 import { TbCurrencyNaira } from "react-icons/tb";
-import { getAssetLogo } from "@/lib/assets";
+import { getAssetLogo, logoMask } from "@/lib/assets";
 import type { CardRow, CardStatus, Stat } from "@/lib/chat";
 import { cn } from "@/lib/cn";
 
@@ -160,7 +160,7 @@ export function AssetBadge({
           alt=""
           width={20}
           height={20}
-          className="size-5 shrink-0 rounded-full object-contain"
+          className={cn("size-5 shrink-0 object-contain", logoMask(symbol))}
         />
       ) : null}
       <span>{symbol}</span>
@@ -173,7 +173,7 @@ export function AssetBadge({
             alt={chain}
             width={16}
             height={16}
-            className="size-4 shrink-0 rounded-full object-contain"
+            className={cn("size-4 shrink-0 object-contain", logoMask(chain))}
           />
         </>
       ) : null}

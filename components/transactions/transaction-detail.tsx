@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { ScreenHeader } from "@/components/ui/screen-header";
-import { getAssetLogo } from "@/lib/assets";
+import { getAssetLogo, logoMask } from "@/lib/assets";
 import { cn } from "@/lib/cn";
 import type { Transaction } from "@/lib/wallet";
 
@@ -37,6 +37,7 @@ export function TransactionDetail({ id }: { id: string }) {
   }, [id]);
 
   const rows = transaction?.rows ?? [];
+  const mark = transaction?.token || transaction?.chain || "";
 
   return (
     <div className="flex flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-10">
@@ -47,11 +48,11 @@ export function TransactionDetail({ id }: { id: string }) {
           <>
             <div className="flex flex-col items-center gap-4.5">
               <Image
-                src={getAssetLogo(transaction.token || transaction.chain)}
+                src={getAssetLogo(mark)}
                 alt=""
                 width={100}
                 height={100}
-                className="size-12.5 rounded-full"
+                className={cn("size-12.5", logoMask(mark))}
               />
               <p className="text-[32px] leading-10 font-medium text-jumpa-black">
                 {transaction.headline || transaction.amount}

@@ -36,13 +36,12 @@ import {
 } from "@/lib/savings";
 import { formatAmount } from "@/lib/transfer";
 import { revealFirstError } from "@/lib/validation";
-import type { Promotion } from "@/lib/wallet";
 
 type Sheet = "wallet" | "review" | "pin" | null;
 type Errors = { amount?: string; goal?: string; range?: string };
 
 /** Lock an amount away for a fixed term: form, wallet, review, PIN, receipt. */
-export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
+export function LockSavingsView() {
   const fields = useRef<HTMLDivElement>(null);
   const [amount, setAmount] = useState("");
   const [goal, setGoal] = useState("");
@@ -172,7 +171,6 @@ export function LockSavingsView({ promotions }: { promotions: Promotion[] }) {
         actionsFirst
         amount={total}
         details={details}
-        promotions={promotions}
         ctaLabel="Back to savings"
         ctaHref="/savings/lock"
       />

@@ -17,13 +17,12 @@ import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { getAssetLogo } from "@/lib/assets";
 import { COUNTRIES, DEMO_PIN, SEND_BALANCE } from "@/lib/transfer";
-import type { Promotion } from "@/lib/wallet";
 
 type Stage = "form" | "amount" | "done";
 type Sheet = "review" | "pin" | null;
 
 /** Bank and mobile-money transfers: recipient, amount, review, PIN, receipt. */
-export function BankTransferView({ promotions }: { promotions: Promotion[] }) {
+export function BankTransferView() {
   const [stage, setStage] = useState<Stage>("form");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
@@ -80,7 +79,6 @@ export function BankTransferView({ promotions }: { promotions: Promotion[] }) {
           </>
         }
         details={details}
-        promotions={promotions}
       />
     );
   }

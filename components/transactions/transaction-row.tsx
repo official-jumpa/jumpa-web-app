@@ -17,16 +17,18 @@ const STATUS_LABEL = {
 } as const;
 
 /** One glyph per kind. Receive is the send arrow flipped, as the design draws it. */
-const GLYPH: Record<TransactionKind, { Icon: typeof ArrowUpIcon; flip?: true }> =
-  {
-    send: { Icon: ArrowUpIcon },
-    receive: { Icon: ArrowUpIcon, flip: true },
-    card: { Icon: CreditCardPlusIcon },
-    swap: { Icon: SwitchHorizontalIcon },
-    airtime: { Icon: PhoneAltOutlineIcon },
-    data: { Icon: WifiIcon },
-    invest: { Icon: MoneyWithdrawalIcon },
-  };
+const GLYPH: Record<
+  TransactionKind,
+  { Icon: typeof ArrowUpIcon; flip?: true }
+> = {
+  send: { Icon: ArrowUpIcon },
+  receive: { Icon: ArrowUpIcon, flip: true },
+  card: { Icon: CreditCardPlusIcon },
+  swap: { Icon: SwitchHorizontalIcon },
+  airtime: { Icon: PhoneAltOutlineIcon },
+  data: { Icon: WifiIcon },
+  invest: { Icon: MoneyWithdrawalIcon },
+};
 
 /** Hairline between rows. `-mb-px` keeps it out of the flow — Figma draws it as a zero-height line. */
 export function TransactionRule() {
@@ -43,7 +45,10 @@ export function TransactionRow({ transaction }: { transaction: Transaction }) {
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-jumpa-white">
           <Icon
-            className={cn("size-6 text-jumpa-primary-600", flip && "-scale-y-100")}
+            className={cn(
+              "size-6 text-jumpa-primary-600",
+              flip && "-scale-y-100",
+            )}
           />
           {chain ? (
             <Image
@@ -73,7 +78,9 @@ export function TransactionRow({ transaction }: { transaction: Transaction }) {
         <span
           className={cn(
             "text-xs leading-3.5 font-medium",
-            status === "failed" ? "text-jumpa-danger" : "text-jumpa-neutral-775",
+            status === "failed"
+              ? "text-jumpa-danger"
+              : "text-jumpa-neutral-775",
           )}
         >
           {STATUS_LABEL[status] || status}

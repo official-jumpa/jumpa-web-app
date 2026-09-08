@@ -15,7 +15,6 @@ import {
   savingsHref,
 } from "@/lib/savings";
 import { getSession } from "@/lib/session";
-import { PROMOTIONS } from "@/lib/wallet";
 
 interface SavingsProductPageProps {
   params: Promise<{ kind: string }>;
@@ -51,9 +50,9 @@ export default async function SavingsProductPage({
   const { id, new: create, topup } = await searchParams;
 
   if (on(create)) {
-    if (kind === "lock") return <LockSavingsView promotions={PROMOTIONS} />;
-    if (kind === "circle") return <CreateCircleView promotions={PROMOTIONS} />;
-    return <CreateTargetView promotions={PROMOTIONS} />;
+    if (kind === "lock") return <LockSavingsView />;
+    if (kind === "circle") return <CreateCircleView />;
+    return <CreateTargetView />;
   }
 
   if (id) {
@@ -62,16 +61,13 @@ export default async function SavingsProductPage({
 
     // Circles has no stored plans yet, so it falls back to the placeholder.
     const plan =
-      (await getSavingsPlanById(id, session.userId, kind)) ?? findPlan(kind, id);
+      (await getSavingsPlanById(id, session.userId, kind)) ??
+      findPlan(kind, id);
     if (!plan) notFound();
 
     if (on(topup)) {
       return (
-        <TopUpView
-          plan={plan}
-          back={savingsHref(kind, { id: plan.id })}
-          promotions={PROMOTIONS}
-        />
+        <TopUpView plan={plan} back={savingsHref(kind, { id: plan.id })} />
       );
     }
 

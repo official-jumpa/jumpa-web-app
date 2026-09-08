@@ -11,13 +11,12 @@ import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { type DataPlan, getNetwork, getPeriodLabel } from "@/lib/bills";
 import { DEMO_PIN } from "@/lib/transfer";
-import type { Promotion } from "@/lib/wallet";
 
 type Stage = "form" | "plans" | "done";
 type Sheet = "review" | "pin" | null;
 
 /** Data bundles: recipient, plan, review, PIN, receipt. */
-export function MobileDataView({ promotions }: { promotions: Promotion[] }) {
+export function MobileDataView() {
   const [stage, setStage] = useState<Stage>("form");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
@@ -35,7 +34,6 @@ export function MobileDataView({ promotions }: { promotions: Promotion[] }) {
         titleFirst
         actionsFirst
         amount={plan.price}
-        promotions={promotions}
         ctaLabel="Back to home"
         actions={
           <button

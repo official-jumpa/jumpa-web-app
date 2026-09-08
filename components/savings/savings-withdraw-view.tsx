@@ -16,7 +16,6 @@ import { ResultSheet } from "@/components/ui/result-sheet";
 import { type FriendlyError, friendlyError } from "@/lib/errors";
 import { type SavingsPlan, savingsHref } from "@/lib/savings";
 import { formatAmount } from "@/lib/transfer";
-import { PROMOTIONS } from "@/lib/wallet";
 
 type Sheet = "review" | "pin" | null;
 
@@ -162,7 +161,6 @@ export function SavingsWithdrawView() {
         actionsFirst
         amount={payoutTotal}
         details={details}
-        promotions={PROMOTIONS}
         ctaLabel="Back to savings"
         ctaHref="/savings"
       />

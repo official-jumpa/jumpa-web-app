@@ -18,7 +18,6 @@ import { TriangleWarningIcon } from "@/components/ui/icons/triangle-warning";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { useSwapQuote } from "@/hooks/use-swap-quote";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
-import type { Promotion } from "@/lib/wallet";
 
 /** Assets available on each chain/network. Extend when new chains are integrated. */
 const CHAIN_ASSETS = {
@@ -41,10 +40,8 @@ export interface StellarTestnetBalances {
 }
 
 export function SwapView({
-  promotions,
   stellarTestnetBalances,
 }: {
-  promotions: Promotion[];
   stellarTestnetBalances: StellarTestnetBalances;
 }) {
   // ── Settings ──
@@ -165,7 +162,6 @@ export function SwapView({
         amount={`+${txResult.received} ${txResult.receivedToken}`}
         titleFirst
         actionsFirst
-        promotions={promotions}
         ctaLabel="Back to home"
         details={
           <DetailList tone="secondary">

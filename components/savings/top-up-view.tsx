@@ -12,22 +12,13 @@ import { ResultSheet } from "@/components/ui/result-sheet";
 import { type FriendlyError, friendlyError } from "@/lib/errors";
 import type { SavingsPlan } from "@/lib/savings";
 import { formatAmount } from "@/lib/transfer";
-import type { Promotion } from "@/lib/wallet";
 
 type Sheet = "review" | "pin" | null;
 
 const TOP_UP_AMOUNTS = [25, 50, 100] as const;
 
 /** Move more money into an existing plan: amount, review, PIN, receipt. */
-export function TopUpView({
-  plan,
-  back,
-  promotions,
-}: {
-  plan: SavingsPlan;
-  back: string;
-  promotions: Promotion[];
-}) {
+export function TopUpView({ plan, back }: { plan: SavingsPlan; back: string }) {
   const goBack = useGoBack(back);
   const [currentPlan, setCurrentPlan] = useState<SavingsPlan>(plan);
   const [amount, setAmount] = useState("");
@@ -118,7 +109,6 @@ export function TopUpView({
         actionsFirst
         amount={total}
         details={details}
-        promotions={promotions}
         ctaLabel="Back to plan"
         ctaHref={back}
       />

@@ -36,7 +36,6 @@ import {
 } from "@/lib/savings";
 import { formatAmount } from "@/lib/transfer";
 import { revealFirstError } from "@/lib/validation";
-import type { Promotion } from "@/lib/wallet";
 
 type Stage = "goal" | "money" | "done";
 type Sheet = "wallet" | "review" | "pin" | null;
@@ -51,7 +50,7 @@ type Errors = {
 const MONTH_DAYS = Array.from({ length: 28 }, (_, index) => `${index + 1}`);
 
 /** A personal target: what you are saving for, then how you will fund it. */
-export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
+export function CreateTargetView() {
   const fields = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState<Stage>("goal");
   const [goal, setGoal] = useState("");
@@ -143,7 +142,6 @@ export function CreateTargetView({ promotions }: { promotions: Promotion[] }) {
         actionsFirst
         amount={total}
         details={details}
-        promotions={promotions}
         ctaLabel="Back to savings"
         ctaHref="/savings/individual"
       />

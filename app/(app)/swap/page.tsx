@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { SwapView } from "@/components/swap/swap-view";
-import { PROMOTIONS } from "@/lib/wallet";
 import { getSession } from "@/lib/session";
 import { fetchStellarBalances } from "@/lib/chains/stellar";
 
@@ -26,10 +25,5 @@ export default async function SwapPage() {
     // Non-fatal — swap view will show 0.00 and live quote still works
   }
 
-  return (
-    <SwapView
-      promotions={PROMOTIONS}
-      stellarTestnetBalances={stellarTestnetBalances}
-    />
-  );
+  return <SwapView stellarTestnetBalances={stellarTestnetBalances} />;
 }

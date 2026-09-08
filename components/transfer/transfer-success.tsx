@@ -4,20 +4,18 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { PromotionList } from "@/components/home/promotion-list";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { Button } from "@/components/ui/button";
 import { ShareArrowIcon } from "@/components/ui/icons/share-arrow";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
-import type { Promotion } from "@/lib/wallet";
 
 const ACTION =
   "tap flex h-13 flex-1 items-center justify-center gap-2 rounded-tile bg-jumpa-neutral-50 " +
   "text-base leading-4 font-medium text-jumpa-black active:scale-[0.98]";
 
 /**
- * Terminal screen for every transfer. "More details" swaps the offer cards for
- * the receipt, which is the second frame the design draws for this screen.
+ * Terminal screen for every transfer. "More details" reveals the receipt, which
+ * is the second frame the design draws for this screen.
  */
 export function TransferSuccess({
   back,
@@ -25,7 +23,6 @@ export function TransferSuccess({
   title = "Payment Successful",
   note,
   details,
-  promotions,
   ctaLabel = "Go to Home",
   ctaHref = "/home",
   /** Swap puts its title above the amount; the send flows put it below. */
@@ -40,11 +37,10 @@ export function TransferSuccess({
   note?: ReactNode;
   /** Receipt rows revealed by "More details". */
   details?: ReactNode;
-  promotions: Promotion[];
   ctaLabel?: string;
   ctaHref?: string;
   titleFirst?: boolean;
-  /** Swap draws the action row above the offer cards; the send flows below. */
+  /** Swap draws the action row above the receipt; the send flows below. */
   actionsFirst?: boolean;
   /** Replaces the More details / Share pair, as the bill flows do. */
   actions?: ReactNode;
@@ -62,12 +58,7 @@ export function TransferSuccess({
     <p className="text-xl leading-6.75 font-medium text-jumpa-black">{title}</p>
   );
 
-  const slot =
-    showDetails && details ? (
-      details
-    ) : (
-      <PromotionList promotions={promotions} />
-    );
+  const slot = showDetails && details ? details : null;
 
   const actions = actionsOverride ?? (
     <div className="flex h-17.5 items-center gap-2 rounded-card border border-jumpa-neutral-100 p-2.25">

@@ -11,13 +11,12 @@ import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { AIRTIME_AMOUNTS, getNetwork } from "@/lib/bills";
 import { DEMO_PIN, formatAmount, SEND_BALANCE } from "@/lib/transfer";
-import type { Promotion } from "@/lib/wallet";
 
 type Stage = "form" | "amount" | "done";
 type Sheet = "review" | "pin" | null;
 
 /** Airtime top-up: recipient, amount, review, PIN, receipt. */
-export function AirtimeView({ promotions }: { promotions: Promotion[] }) {
+export function AirtimeView() {
   const [stage, setStage] = useState<Stage>("form");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
@@ -46,7 +45,6 @@ export function AirtimeView({ promotions }: { promotions: Promotion[] }) {
         actionsFirst
         amount={total}
         details={details}
-        promotions={promotions}
         ctaLabel="Back to home"
       />
     );

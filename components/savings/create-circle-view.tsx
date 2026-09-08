@@ -22,12 +22,11 @@ import {
 } from "@/lib/savings";
 import { formatAmount } from "@/lib/transfer";
 import { revealFirstError } from "@/lib/validation";
-import type { Promotion } from "@/lib/wallet";
 
 type Errors = { name?: string; target?: string; date?: string };
 
 /** Open a savings circle: name it, set the target and the date, then invite. */
-export function CreateCircleView({ promotions }: { promotions: Promotion[] }) {
+export function CreateCircleView() {
   const fields = useRef<HTMLDivElement>(null);
   const [name, setName] = useState("");
   const [category, setCategory] = useState(SAVINGS_CATEGORIES[0]);
@@ -63,7 +62,6 @@ export function CreateCircleView({ promotions }: { promotions: Promotion[] }) {
         titleFirst
         actionsFirst
         amount={total}
-        promotions={promotions}
         ctaLabel="View circle"
         ctaHref="/savings/circles"
         actions={

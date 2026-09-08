@@ -19,7 +19,6 @@ import { ResultSheet } from "@/components/ui/result-sheet";
 import { getAssetLogo } from "@/lib/assets";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import { NETWORK_CONFIGS, shortenAddress } from "@/lib/transfer";
-import type { Promotion } from "@/lib/wallet";
 
 type Stage = "form" | "amount" | "done";
 type Sheet = "review" | "pin" | null;
@@ -28,7 +27,7 @@ type Sheet = "review" | "pin" | null;
 const CHIPS = [25, 50, 100] as const;
 
 /** On-chain send, end to end: address, amount, review, PIN, receipt. */
-export function WalletAddressView({ promotions }: { promotions: Promotion[] }) {
+export function WalletAddressView() {
   const [stage, setStage] = useState<Stage>("form");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
@@ -183,7 +182,6 @@ export function WalletAddressView({ promotions }: { promotions: Promotion[] }) {
           </div>
         }
         details={details}
-        promotions={promotions}
       />
     );
   }

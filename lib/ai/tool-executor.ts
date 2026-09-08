@@ -211,7 +211,7 @@ const SAVINGS_DEPOSIT_QUICK_AMOUNTS: ChatOption[] = [
 const SWAP_NETWORKS: ChatOption[] = [
   {
     label: "Stellar Testnet",
-    description: "Test tokens — nothing real moves",
+    description: "Test tokens",
     icon: "crypto",
     reply: "Swap on Stellar Testnet",
   },
@@ -247,6 +247,70 @@ const swapAmountOptions = (token: string): ChatOption[] => [
   { label: `100 ${token}` },
   { label: "Custom Amount", custom: true, placeholder: `Amount in ${token}` },
 ];
+
+/**
+ * Loads the user's actual wallet balance for proposal cards.
+ * Returns formatted string like "$150.00" or specific token balance if available.
+ */
+async function getActualUserBalance(
+  userId?: string,
+  stellarAddress?: string,
+  tokenSymbol: string = "USDC",
+): Promise<string> {
+  try {
+    if (!userId && !stellarAddress) return "$0.00";
+
+    const target = userId || stellarAddress!;
+    const balances = await getCachedWalletBalances(target);
+
+    if (balances) {
+      // 1. Check for specific token in the user's balance
+      const token =
+        balances.tokens?.find(
+          (t) =>
+            t.symbol.toUpperCase() === tokenSymbol.toUpperCase() &&
+            Number(t.balance) > 0,
+        ) ||
+        balances.tokens?.find(
+          (t) => t.symbol.toUpperCase() === tokenSymbol.toUpperCase(),
+        );
+
+      if (token && Number(token.balance) > 0) {
+        return `$${Number(token.balance).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+      }
+
+      // 2. If token balance is 0 or not found, fall back to totalUsd (matching balance-sheet.tsx)
+      if (balances.totalUsd && Number(balances.totalUsd) > 0) {
+        return `$${Number(balances.totalUsd).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+      }
+    }
+
+    // 3. Fallback directly to Stellar Horizon if stellarAddress is available
+    if (stellarAddress && stellarAddress.startsWith("G")) {
+      const stellar = await fetchStellarBalances(stellarAddress);
+      const testnetUsdc = Number(stellar.testnet?.usdc || 0);
+      const mainnetUsdc = Number(stellar.mainnet?.usdc || 0);
+      const totalUsdc = testnetUsdc > 0 ? testnetUsdc : mainnetUsdc;
+      if (totalUsdc > 0) {
+        return `$${totalUsdc.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+      }
+    }
+
+    return "$0.00";
+  } catch (err) {
+    console.warn("[ToolExecutor] Error fetching actual user balance:", err);
+    return "$0.00";
+  }
+}
 
 export async function executeTool(
   toolName: string,
@@ -575,6 +639,12 @@ export async function executeTool(
         network,
       });
 
+      const actualBalance = await getActualUserBalance(
+        userCtx.userId,
+        userCtx.stellarAddress,
+        token,
+      );
+
       const cardData = {
         title: "Transfer Funds",
         contact: {
@@ -592,7 +662,7 @@ export async function executeTool(
         },
         amount: { caption: "YOU'LL SEND", value: `${amount} ${token}` },
         prompt: "Confirm transfer details",
-        options: [{ symbol: token, balance: "—", amount, selected: true }],
+        options: [{ symbol: token, balance: actualBalance, amount, selected: true }],
       };
 
       return {
@@ -1268,6 +1338,12 @@ export async function executeTool(
           ? `about **$${Math.ceil((target / durationDays) * 7).toLocaleString("en-US")} a week**`
           : "a steady amount each week";
 
+      const actualBalance = await getActualUserBalance(
+        userCtx.userId,
+        userCtx.stellarAddress,
+        "USDC",
+      );
+
       const cardData = {
         contact: {
           name: goalName,
@@ -1285,7 +1361,7 @@ export async function executeTool(
         options: [
           {
             symbol: "USDC",
-            balance: "—",
+            balance: actualBalance,
             amount: String(initialDeposit),
             selected: true,
           },
@@ -1479,6 +1555,12 @@ export async function executeTool(
         };
       }
 
+      const actualBalance = await getActualUserBalance(
+        userCtx.userId,
+        userCtx.stellarAddress,
+        "USDC",
+      );
+
       const cardData = {
         contact: {
           name: targetPlan.name,
@@ -1493,7 +1575,7 @@ export async function executeTool(
         options: [
           {
             symbol: "USDC",
-            balance: "—",
+            balance: actualBalance,
             amount: String(numAmount),
             selected: true,
           },
@@ -1643,6 +1725,12 @@ export async function executeTool(
       }
       const netPayout = Number((numAmount - penalty).toFixed(2));
 
+      const actualBalance = await getActualUserBalance(
+        userCtx.userId,
+        userCtx.stellarAddress,
+        "USDC",
+      );
+
       const cardData = {
         contact: {
           name: targetPlan.name,
@@ -1660,7 +1748,7 @@ export async function executeTool(
         options: [
           {
             symbol: "USDC",
-            balance: "—",
+            balance: actualBalance,
             amount: String(netPayout),
             selected: true,
           },

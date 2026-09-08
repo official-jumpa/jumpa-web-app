@@ -15,6 +15,7 @@ export interface IChatMessage {
     | "onramp"
     | "offramp"
     | "options"
+    | "plans"
     | "contacts"
     | "accounts"
     | "sep24"
@@ -69,6 +70,7 @@ const ChatLogSchema = new Schema<IChatLog>(
             "onramp",
             "offramp",
             "options",
+            "plans",
             "contacts",
             "accounts",
             "sep24",

@@ -11,7 +11,12 @@ import { CircleUserIcon } from "@/components/ui/icons/circle-user";
 import { CoinFrontIcon } from "@/components/ui/icons/coin-front";
 import { MoneybagIcon } from "@/components/ui/icons/moneybag";
 import { WalletIcon } from "@/components/ui/icons/wallet";
-import type { BankDetails, ChatContact, ChatOption } from "@/lib/chat";
+import type {
+  BankDetails,
+  ChatContact,
+  ChatOption,
+  ChatPlan,
+} from "@/lib/chat";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/cn";
 
@@ -28,6 +33,9 @@ const OPTION_ICONS = {
 const BOX = "flex w-full items-center gap-2 rounded-xl border p-3 text-left";
 const ROW = `${BOX} tap active:scale-[0.99]`;
 const SELECTED = "border-jumpa-primary-600 bg-jumpa-primary-100";
+const RESTING = "border-jumpa-primary-100 bg-jumpa-grey-100";
+/** The same shell stacked — a plan needs the full width on every line. */
+const PLAN_ROW = `flex w-full flex-col gap-2 rounded-xl border p-3 text-left tap active:scale-[0.99] ${RESTING}`;
 
 /**
  * A "Custom" row asks for a value instead of answering with its own label. The
@@ -58,12 +66,7 @@ export function OptionRow({
       type="button"
       aria-pressed={option.selected ?? false}
       onClick={() => onSelect?.(option.reply ?? option.label)}
-      className={cn(
-        ROW,
-        option.selected
-          ? SELECTED
-          : "border-jumpa-primary-100 bg-jumpa-grey-100",
-      )}
+      className={cn(ROW, option.selected ? SELECTED : RESTING)}
     >
       {Icon ? (
         <Icon
@@ -77,14 +80,15 @@ export function OptionRow({
           {option.label}
         </span>
         {option.description ? (
-          <span className="text-[11px] leading-4 text-jumpa-black">
+          <span className="truncate text-[11px] leading-4 text-jumpa-black">
             {option.description}
           </span>
         ) : null}
       </span>
 
+      {/* Capped, or a wide figure squeezes the label down to one letter. */}
       {option.amount ? (
-        <span className="shrink-0 text-sm leading-5 font-semibold whitespace-nowrap text-jumpa-black">
+        <span className="max-w-[45%] shrink-0 truncate text-sm leading-5 font-semibold text-jumpa-black">
           {option.amount}
         </span>
       ) : null}
@@ -195,6 +199,94 @@ export function OptionList({
   );
 }
 
+/** Kind pill opposite a plan's name, in the savings screens' colours. */
+function PlanKind({ label }: { label: string }) {
+  return (
+    <span className="flex h-5.5 shrink-0 items-center rounded-xl bg-jumpa-primary-300 px-2.5 text-[11px] leading-4 whitespace-nowrap text-jumpa-white">
+      {label}
+    </span>
+  );
+}
+
+/**
+ * One savings plan, laid out as the savings screens draw it — progress towards
+ * a target. Picking it answers the agent, like any other chooser row.
+ */
+export function PlanRow({
+  plan,
+  onSelect,
+}: {
+  plan: ChatPlan;
+  onSelect?: (reply: string) => void;
+}) {
+  const percent = Math.max(0, Math.min(100, Math.round(plan.percent ?? 0)));
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect?.(plan.reply ?? plan.name)}
+      className={PLAN_ROW}
+    >
+      <span className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate text-sm leading-4 font-semibold text-jumpa-black">
+          {plan.name}
+        </span>
+        {plan.kind ? <PlanKind label={plan.kind} /> : null}
+      </span>
+
+      <span className="flex items-baseline gap-2">
+        <span className="min-w-0 flex-1 truncate text-[13px] leading-4 font-semibold text-jumpa-black">
+          {plan.saved}
+          {plan.target ? (
+            <span className="font-medium text-jumpa-black/50">
+              {" / "}
+              {plan.target}
+            </span>
+          ) : null}
+        </span>
+        <span className="shrink-0 text-[11px] leading-4 font-semibold text-jumpa-primary-600">
+          {percent}%
+        </span>
+      </span>
+
+      <span className="h-1 w-full overflow-hidden bg-jumpa-primary-200">
+        <span
+          className="block h-full bg-jumpa-primary-400"
+          style={{ width: `${percent}%` }}
+        />
+      </span>
+
+      {plan.category || plan.term ? (
+        <span className="flex items-center gap-2 text-[11px] leading-4 text-jumpa-black/50">
+          <span className="min-w-0 flex-1 truncate">{plan.category}</span>
+          <span className="shrink-0">{plan.term}</span>
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+/** The plans a savings flow offers, in the order the agent sent them. */
+export function PlanList({
+  plans,
+  onSelect,
+}: {
+  plans: ChatPlan[];
+  onSelect?: (reply: string) => void;
+}) {
+  return (
+    <>
+      {plans.map((plan, index) => (
+        <PlanRow
+          key={plan.id ?? `${plan.name}-${index}`}
+          plan={plan}
+          onSelect={onSelect}
+        />
+      ))}
+    </>
+  );
+}
+
 /** One candidate recipient: avatar tile, name, and a meta line. */
 export function ContactRow({
   contact,
@@ -231,10 +323,7 @@ export function ContactRow({
             className="size-full object-cover"
           />
         ) : Icon ? (
-          <Icon
-            aria-hidden="true"
-            className="size-6 text-jumpa-primary-600"
-          />
+          <Icon aria-hidden="true" className="size-6 text-jumpa-primary-600" />
         ) : (
           <CircleUserIcon
             aria-hidden="true"

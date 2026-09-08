@@ -125,6 +125,30 @@ export type ChatOption = {
 
 export type OptionsCard = { options: ChatOption[] };
 
+/**
+ * One savings plan offered in the transcript, in the terms the savings screens
+ * already use: how far along it is and how long is left. A plan's figures are a
+ * pair, so they get their own line rather than sitting opposite the name.
+ */
+export type ChatPlan = {
+  id?: string;
+  name: string;
+  /** "Locked", "Target" or "Circle" — the pill opposite the name. */
+  kind?: string;
+  /** What the plan is for, e.g. "Transportation". */
+  category?: string;
+  saved: string;
+  target?: string;
+  /** 0-100, driving the progress bar. */
+  percent?: number;
+  /** Time or state under the bar, e.g. "60 days left". */
+  term?: string;
+  reply?: string;
+};
+
+/** The user's plans, with any chooser rows the flow adds under them. */
+export type PlansCard = { plans: ChatPlan[]; options?: ChatOption[] };
+
 /** Contact chooser: avatar, name and one meta line with an optional bold tail. */
 export type ChatContact = {
   id?: string;
@@ -157,6 +181,7 @@ export type ChatItem =
   | { kind: "onramp"; card: OnrampCard }
   | { kind: "offramp"; card: OfframpCard }
   | { kind: "options"; card: OptionsCard }
+  | { kind: "plans"; card: PlansCard }
   | { kind: "contacts"; card: ContactsCard }
   | { kind: "accounts"; card: AccountsCard }
   | { kind: "sep24"; card: any }

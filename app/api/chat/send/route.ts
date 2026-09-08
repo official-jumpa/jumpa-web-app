@@ -278,6 +278,15 @@ export async function POST(req: NextRequest) {
         cardData: primaryCardHint.data,
         timestamp: new Date(),
       };
+    } else if (primaryCardHint.type === "plans") {
+      assistantMessage = {
+        id: generateId("msg"),
+        role: "assistant",
+        content: finalAssistantContent,
+        cardType: "plans",
+        cardData: primaryCardHint.data,
+        timestamp: new Date(),
+      };
     } else if (primaryCardHint.type === "sep24") {
       assistantMessage = {
         id: generateId("msg"),

@@ -8,6 +8,7 @@ import { MessageBubble } from "@/components/chat/message-bubble";
 import { OfframpCheckoutCard } from "@/components/chat/offramp-checkout-card";
 import { OnrampCheckoutCard } from "@/components/chat/onramp-checkout-card";
 import { OptionsCard } from "@/components/chat/options-card";
+import { PlansCard } from "@/components/chat/plans-card";
 import { QuoteCard } from "@/components/chat/quote-card";
 import { ReceiptCard } from "@/components/chat/receipt-card";
 import { Sep24Card } from "@/components/chat/sep24-card";
@@ -139,6 +140,8 @@ function Item({
       return <OfframpCheckoutCard card={item.card} onReply={onReply} />;
     case "options":
       return <OptionsCard card={item.card} onReply={onReply} />;
+    case "plans":
+      return <PlansCard card={item.card} onReply={onReply} />;
     case "contacts":
       return <ContactsCard card={item.card} onReply={onReply} />;
     case "accounts":

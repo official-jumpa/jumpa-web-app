@@ -98,6 +98,8 @@ function messagesToChatEntries(
       }
     } else if (msg.cardType === "options" && msg.cardData) {
       items.push({ kind: "options", card: msg.cardData as any });
+    } else if (msg.cardType === "plans" && msg.cardData) {
+      items.push({ kind: "plans", card: msg.cardData as any });
     } else if (msg.cardType === "contacts" && msg.cardData) {
       items.push({ kind: "contacts", card: msg.cardData as any });
     } else if (msg.cardType === "accounts" && msg.cardData) {

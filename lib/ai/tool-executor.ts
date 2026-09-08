@@ -8,7 +8,12 @@
 
 import { getBridgeQuote } from "@/lib/bridge";
 import { fetchStellarBalances, fundTestnetAccount } from "@/lib/chains/stellar";
-import type { AccountsCard, BridgeCard, ChatOption } from "@/lib/chat";
+import type {
+  AccountsCard,
+  BridgeCard,
+  ChatOption,
+  PlansCard,
+} from "@/lib/chat";
 import { connectDB } from "@/lib/db";
 import { getSwapQuote } from "@/lib/dex";
 import type { SwapQuote } from "@/lib/dex/types";
@@ -23,6 +28,7 @@ import { Transaction } from "@/models/Transaction";
 import { User } from "@/models/User";
 import { Wallet } from "@/models/Wallet";
 import { listSavingsPlansByUserId } from "@/lib/functions/savingsFunctions";
+import { toChatPlan } from "./savings-plan-card";
 import { getNetworkFromToolName, type JumpaToolName } from "./tools";
 
 export type CardHint =
@@ -33,6 +39,7 @@ export type CardHint =
   | { type: "offramp"; data: Record<string, any> }
   | { type: "sep24"; data: Record<string, any> }
   | { type: "options"; data: { options: ChatOption[] } }
+  | { type: "plans"; data: PlansCard }
   | { type: "accounts"; data: AccountsCard }
   | { type: "none" };
 
@@ -1338,18 +1345,9 @@ export async function executeTool(
         };
       }
 
-      const options: ChatOption[] = activePlans.map((p) => ({
-        id: String(p._id),
-        label: p.name,
-        amount: `$${(p.currentAmount || 0).toFixed(2)} / $${(p.targetAmount || 0).toFixed(2)}`,
-        description: p.category || "Target",
-        reply: `Deposit to ${p.name}`,
-      }));
-
-      options.push({
-        label: "Create New Savings Goal",
-        reply: "I want to create a savings goal",
-      });
+      const chatPlans = activePlans.map((p) =>
+        toChatPlan(p, `Deposit to ${p.name}`),
+      );
 
       const totalSaved = activePlans.reduce(
         (acc, p) => acc + (p.currentAmount || 0),
@@ -1362,7 +1360,19 @@ export async function executeTool(
           `You have **${activePlans.length} active savings goal${activePlans.length > 1 ? "s" : ""}** ` +
           `with a total balance of **$${totalSaved.toFixed(2)} USDC**. ` +
           `Tap a goal below to deposit into it, or select Create New Savings Goal.`,
-        cardHint: { type: "options", data: { options } },
+        cardHint: {
+          type: "plans",
+          data: {
+            plans: chatPlans,
+            options: [
+              {
+                label: "Create New Savings Goal",
+                icon: "savings",
+                reply: "I want to create a savings goal",
+              },
+            ],
+          },
+        },
         requiresConfirmation: false,
       };
     }
@@ -1427,18 +1437,17 @@ export async function executeTool(
         if (activePlans.length === 1) {
           targetPlan = activePlans[0];
         } else {
-          const options: ChatOption[] = activePlans.map((p) => ({
-            id: String(p._id),
-            label: p.name,
-            amount: `$${(p.currentAmount || 0).toFixed(2)}`,
-            description: `${p.category || "Target"}`,
-            icon: "savings",
-            reply: `Deposit to ${p.name}`,
-          }));
           return {
             toolName: name,
             summaryForAI: "Which savings goal would you like to deposit into?",
-            cardHint: { type: "options", data: { options } },
+            cardHint: {
+              type: "plans",
+              data: {
+                plans: activePlans.map((p) =>
+                  toChatPlan(p, `Deposit to ${p.name}`),
+                ),
+              },
+            },
             requiresConfirmation: false,
           };
         }
@@ -1552,19 +1561,18 @@ export async function executeTool(
         if (fundedPlans.length === 1) {
           targetPlan = fundedPlans[0];
         } else {
-          const options: ChatOption[] = fundedPlans.map((p) => ({
-            id: String(p._id),
-            label: p.name,
-            amount: `$${(p.currentAmount || 0).toFixed(2)}`,
-            description: `${p.category || "Target"} • ${p.kind === "lock" ? "Locked" : "Flexible"}`,
-            icon: "savings",
-            reply: `Withdraw from ${p.name}`,
-          }));
           return {
             toolName: name,
             summaryForAI:
               "Which savings goal would you like to withdraw from?",
-            cardHint: { type: "options", data: { options } },
+            cardHint: {
+              type: "plans",
+              data: {
+                plans: fundedPlans.map((p) =>
+                  toChatPlan(p, `Withdraw from ${p.name}`),
+                ),
+              },
+            },
             requiresConfirmation: false,
           };
         }

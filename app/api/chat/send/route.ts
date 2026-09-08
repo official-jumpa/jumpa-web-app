@@ -117,9 +117,19 @@ export async function POST(req: NextRequest) {
         message,
       );
 
+    // This message answers a chooser we just drew, and the next card only exists if
+    // the tool runs — on "auto" the model answers the step in prose and it never renders.
+    const lastAssistantCard = [...(chatLog.messages || [])]
+      .reverse()
+      .find((m: IChatMessage) => m.role === "assistant")?.cardType;
+    const isChooserReply =
+      lastAssistantCard === "options" || lastAssistantCard === "plans";
+
     // Only force tool execution if it's a pure lookup OR a transaction with a specific amount
     const isActionPrompt =
-      isLookupAction || (isTransactionalAction && hasNumericalAmount);
+      isLookupAction ||
+      isChooserReply ||
+      (isTransactionalAction && hasNumericalAmount);
 
     const MAX_TURNS = 4;
     let turn = 0;

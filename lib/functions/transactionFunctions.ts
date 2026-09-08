@@ -116,6 +116,12 @@ export function formatDbTransaction(tx: any) {
       title = `Withdraw ${tx.token}`;
     } else if (tx.type === "FAUCET") {
       title = `Claim ${tx.token}`;
+    } else if (tx.type === "SAVINGS_WITHDRAW") {
+      title = `Withdrew from Savings Goal`;
+    } else if (tx.type === "SAVINGS_DEPOSIT") {
+      title = `Deposited to Savings Goal`;
+    } else if (tx.type === "BRIDGE") {
+      title = `Bridged from ${tx.bridgeDetails?.fromChain} to ${tx.bridgeDetails?.toChain}`;
     } else if (tx.type === "TRANSFER") {
       title = `${isIncoming ? "Received" : "Sent"} ${tx.token}`;
     } else {

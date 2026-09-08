@@ -361,27 +361,120 @@ const createSavingsGoal: DeepSeekTool = {
     name: "create_savings_goal",
     description:
       "Set up a savings goal. Call this whenever the user wants to save towards something, " +
-      "create a savings target or plan, or asks about saving money (e.g. 'I want to save for a trip', " +
-      "'help me save', 'create a savings goal'). " +
+      "create a savings target or plan, or asks about saving money (e.g. 'I want to create a savings goal', " +
+      "'save for rent', 'help me save'). " +
       "Call it with whatever the user has given so far and OMIT the rest — the tool returns the " +
-      "chooser the user needs next. Never invent a name, an amount or a duration.",
+      "interactive chooser card the user needs next (categories, amounts, durations, initial deposit). " +
+      "Never invent a category, a name, an amount or a duration in prose.",
     parameters: {
       type: "object",
       properties: {
+        category: {
+          type: "string",
+          description:
+            "Category of the savings goal: 'Rent', 'Travel', 'Groceries', 'Transportation', or 'Others'. Omit if not yet chosen.",
+        },
         name: {
           type: "string",
           description:
-            "What the user is saving for, in their own words, e.g. 'December trip'. Omit if not yet given.",
+            "What the user wants to call the goal, in their own words, e.g. 'December trip'. Omit if not yet given.",
         },
         amount: {
           type: "string",
           description:
-            "Target amount in USD as the user expressed it, e.g. '10000' or '$10,000'. Omit if not yet given.",
+            "Target amount in USD as the user expressed it, e.g. '1000' or '$1,000'. Omit if not yet given.",
         },
         durationDays: {
           type: "number",
           description:
-            "How many days until the goal date, e.g. 60. Omit if not yet given.",
+            "How many days until the goal date, e.g. 30, 60, 90. Omit if not yet given.",
+        },
+        depositAmount: {
+          type: "string",
+          description:
+            "Initial deposit amount in USD if the user wants to fund now, or '0' to skip. Omit if not yet given.",
+        },
+      },
+      required: [],
+    },
+  },
+};
+
+const listSavings: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "list_savings",
+    description:
+      "View, check, or list the user's active savings goals and plans. " +
+      "Call this when the user asks 'show my savings', 'list my savings goals', 'check my savings', " +
+      "or 'how much have I saved'. Returns an interactive options card showing each goal's balance, " +
+      "target, and APY.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
+};
+
+const depositSavings: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "deposit_savings",
+    description:
+      "Deposit or top up funds into an existing savings goal. " +
+      "Call this when the user asks to deposit, add money, or top up their savings (e.g. 'deposit to savings', " +
+      "'add $50 to December trip', 'top up my savings'). " +
+      "Pass whatever the user provided (goal name/id, amount) and omit what's missing — the tool returns " +
+      "an interactive options chooser card for any missing piece.",
+    parameters: {
+      type: "object",
+      properties: {
+        planName: {
+          type: "string",
+          description:
+            "Name of the savings goal to deposit into, e.g. 'December trip'. Omit if not specified.",
+        },
+        planId: {
+          type: "string",
+          description: "ID of the savings plan if known. Omit if not specified.",
+        },
+        amount: {
+          type: "string",
+          description:
+            "Amount in USD/USDC to deposit. Omit if unstated — never assume one.",
+        },
+      },
+      required: [],
+    },
+  },
+};
+
+const withdrawSavings: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "withdraw_savings",
+    description:
+      "Withdraw or cash out funds from an existing savings goal. " +
+      "Call this when the user asks to withdraw from savings (e.g. 'withdraw from savings', " +
+      "'cash out December trip', 'take money out of my travel savings'). " +
+      "Pass whatever the user provided and omit what's missing — the tool returns an interactive chooser card.",
+    parameters: {
+      type: "object",
+      properties: {
+        planName: {
+          type: "string",
+          description:
+            "Name of the savings goal to withdraw from. Omit if not specified.",
+        },
+        planId: {
+          type: "string",
+          description: "ID of the savings plan if known. Omit if not specified.",
+        },
+        amount: {
+          type: "string",
+          description:
+            "Amount in USD/USDC to withdraw, or omit to withdraw full balance or present percentage chooser.",
         },
       },
       required: [],
@@ -491,6 +584,9 @@ export const JUMPA_TOOLS: DeepSeekTool[] = [
   offrampNgn,
   claimFaucet,
   createSavingsGoal,
+  listSavings,
+  depositSavings,
+  withdrawSavings,
   bridgeTokens,
 ];
 
@@ -507,6 +603,9 @@ export type JumpaToolName =
   | "offramp_ngn"
   | "claim_faucet"
   | "create_savings_goal"
+  | "list_savings"
+  | "deposit_savings"
+  | "withdraw_savings"
   | "bridge_tokens";
 
 /** Infer network from tool name — single source of truth */

@@ -84,7 +84,7 @@ export function OptionRow({
       </span>
 
       {option.amount ? (
-        <span className="shrink-0 text-lg leading-5 font-semibold whitespace-nowrap text-jumpa-black">
+        <span className="shrink-0 text-sm leading-5 font-semibold whitespace-nowrap text-jumpa-black">
           {option.amount}
         </span>
       ) : null}
@@ -203,6 +203,18 @@ export function ContactRow({
   contact: ChatContact;
   onSelect?: (reply: string) => void;
 }) {
+  const isUrl =
+    typeof contact.avatar === "string" &&
+    (contact.avatar.startsWith("/") ||
+      contact.avatar.startsWith("http://") ||
+      contact.avatar.startsWith("https://") ||
+      contact.avatar.startsWith("data:"));
+
+  const Icon =
+    !isUrl && contact.avatar && contact.avatar in OPTION_ICONS
+      ? OPTION_ICONS[contact.avatar as keyof typeof OPTION_ICONS]
+      : null;
+
   return (
     <button
       type="button"
@@ -210,13 +222,18 @@ export function ContactRow({
       className="flex w-full items-center gap-2 text-left tap active:scale-[0.99]"
     >
       <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-surface bg-jumpa-white">
-        {contact.avatar ? (
+        {isUrl ? (
           <Image
-            src={contact.avatar}
+            src={contact.avatar!}
             alt=""
             width={40}
             height={40}
             className="size-full object-cover"
+          />
+        ) : Icon ? (
+          <Icon
+            aria-hidden="true"
+            className="size-6 text-jumpa-primary-600"
           />
         ) : (
           <CircleUserIcon

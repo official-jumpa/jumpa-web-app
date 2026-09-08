@@ -19,6 +19,11 @@ import { formatZodError } from "@/lib/validations/validation-helper";
 import { ChatLog, type IChatMessage } from "@/models/ChatLog";
 import { Transaction } from "@/models/Transaction";
 import { Wallet } from "@/models/Wallet";
+import {
+  createSavingsPlanExecution,
+  depositSavingsExecution,
+  withdrawSavingsExecution,
+} from "@/lib/services/savings-execution";
 
 
 /**
@@ -140,7 +145,13 @@ export async function POST(req: NextRequest) {
           ? "Swap approved"
           : cardType === "bridge"
             ? "Bridge authorised"
-            : "Transfer approved",
+            : txParams?.type === "savings_create"
+              ? "Savings goal confirmed"
+              : txParams?.type === "savings_deposit"
+                ? "Savings deposit approved"
+                : txParams?.type === "savings_withdraw"
+                  ? "Savings withdrawal approved"
+                  : "Transfer approved",
       timestamp: new Date(),
     };
 
@@ -316,6 +327,81 @@ export async function POST(req: NextRequest) {
           ? `https://stellar.expert/explorer/testnet/account/${userStellarAddr}`
           : undefined,
       };
+    } else if (txParams?.type === "savings_create") {
+      const {
+        name: goalName,
+        category,
+        targetAmount,
+        durationDays,
+        depositAmount,
+      } = txParams;
+
+      console.log(
+        `[Chat Confirm] Creating Savings Plan: ${goalName}, Target: ${targetAmount}, Initial Deposit: ${depositAmount}`,
+      );
+      const res = await createSavingsPlanExecution({
+        userId,
+        wallet,
+        pin,
+        name: goalName,
+        category,
+        targetAmount,
+        depositAmount,
+        durationDays,
+      });
+
+      if (!res.ok) {
+        return NextResponse.json(
+          { error: res.error },
+          { status: res.status || 400 },
+        );
+      }
+
+      receiptCardData = res.receiptCardData;
+    } else if (txParams?.type === "savings_deposit") {
+      const { planId, amount } = txParams;
+
+      console.log(
+        `[Chat Confirm] Processing Savings Deposit: Plan ${planId}, Amount ${amount}`,
+      );
+      const res = await depositSavingsExecution({
+        userId,
+        wallet,
+        pin,
+        planId,
+        amount: Number(amount),
+      });
+
+      if (!res.ok) {
+        return NextResponse.json(
+          { error: res.error },
+          { status: res.status || 400 },
+        );
+      }
+
+      receiptCardData = res.receiptCardData;
+    } else if (txParams?.type === "savings_withdraw") {
+      const { planId, amount } = txParams;
+
+      console.log(
+        `[Chat Confirm] Processing Savings Withdrawal: Plan ${planId}, Amount ${amount}`,
+      );
+      const res = await withdrawSavingsExecution({
+        userId,
+        wallet,
+        pin,
+        planId,
+        amount: amount ? Number(amount) : undefined,
+      });
+
+      if (!res.ok) {
+        return NextResponse.json(
+          { error: res.error },
+          { status: res.status || 400 },
+        );
+      }
+
+      receiptCardData = res.receiptCardData;
     } else if (cardType === "transfer") {
       const amount = String(txParams?.amount || "0");
       const token = (txParams?.token || "XLM").toUpperCase();
@@ -743,7 +829,13 @@ export async function POST(req: NextRequest) {
           ? `✓ Swap confirmed`
           : cardType === "bridge"
             ? `✓ Bridge confirmed in ${elapsedSeconds} seconds`
-            : `✓ Transfer successful`,
+            : txParams?.type === "savings_create"
+              ? `✓ Savings goal created`
+              : txParams?.type === "savings_deposit"
+                ? `✓ Savings deposit successful`
+                : txParams?.type === "savings_withdraw"
+                  ? `✓ Savings withdrawal successful`
+                  : `✓ Transfer successful`,
       isTransaction: true,
       cardType: "receipt",
       status: "confirmed",

@@ -22,6 +22,7 @@ import {
 import { Transaction } from "@/models/Transaction";
 import { User } from "@/models/User";
 import { Wallet } from "@/models/Wallet";
+import { listSavingsPlansByUserId } from "@/lib/functions/savingsFunctions";
 import { getNetworkFromToolName, type JumpaToolName } from "./tools";
 
 export type CardHint =
@@ -158,6 +159,15 @@ async function lastPayoutAccount(userId: string) {
   return saved?.accountNumber && saved.bankName ? saved : null;
 }
 
+/** Savings goal categories */
+const SAVINGS_CATEGORIES: ChatOption[] = [
+  { label: "Rent", icon: "savings", reply: "Rent" },
+  { label: "Travel", icon: "savings", reply: "Travel" },
+  { label: "Groceries", icon: "savings", reply: "Groceries" },
+  { label: "Transportation", icon: "savings", reply: "Transportation" },
+  { label: "Others", icon: "savings", reply: "Others" },
+];
+
 /** The savings choosers the design draws. A Custom row opens a field in the card. */
 const SAVINGS_AMOUNTS: ChatOption[] = [
   { label: "$1000" },
@@ -165,6 +175,29 @@ const SAVINGS_AMOUNTS: ChatOption[] = [
   { label: "$25,000" },
   { label: "$100,000" },
   { label: "Custom Amount", custom: true, placeholder: "Enter an amount" },
+];
+
+const SAVINGS_DURATIONS: ChatOption[] = [
+  { label: "30 days" },
+  { label: "60 days" },
+  { label: "90 days" },
+  { label: "Custom", custom: true, placeholder: "Number of days" },
+];
+
+const SAVINGS_INITIAL_DEPOSITS: ChatOption[] = [
+  { label: "$0 (Skip for now)", reply: "$0" },
+  { label: "$10", reply: "$10" },
+  { label: "$25", reply: "$25" },
+  { label: "$50", reply: "$50" },
+  { label: "Custom Amount", custom: true, placeholder: "Amount in USD" },
+];
+
+const SAVINGS_DEPOSIT_QUICK_AMOUNTS: ChatOption[] = [
+  { label: "$25", reply: "$25" },
+  { label: "$50", reply: "$50" },
+  { label: "$100", reply: "$100" },
+  { label: "$250", reply: "$250" },
+  { label: "Custom Amount", custom: true, placeholder: "Amount in USD" },
 ];
 
 /** The two networks a Stellar swap can run on. */
@@ -206,13 +239,6 @@ const swapAmountOptions = (token: string): ChatOption[] => [
   { label: `50 ${token}` },
   { label: `100 ${token}` },
   { label: "Custom Amount", custom: true, placeholder: `Amount in ${token}` },
-];
-
-const SAVINGS_DURATIONS: ChatOption[] = [
-  { label: "30 days" },
-  { label: "60 days" },
-  { label: "90 days" },
-  { label: "Custom", custom: true, placeholder: "Number of days" },
 ];
 
 export async function executeTool(
@@ -1119,59 +1145,536 @@ export async function executeTool(
       };
     }
 
-    // ── Savings goal — a conversation, one chooser per missing detail
+    // ── Savings goal — interactive conversational wizard
     case "create_savings_goal": {
       const {
-        name: goal,
+        category,
+        name: rawGoalName,
         amount,
         durationDays,
+        depositAmount,
       } = toolArgs as {
+        category?: string;
         name?: string;
         amount?: string;
         durationDays?: number;
+        depositAmount?: string;
       };
 
-      if (!goal?.trim()) {
+      const KNOWN_CATEGORIES = [
+        "Rent",
+        "Travel",
+        "Groceries",
+        "Transportation",
+        "Others",
+        "Other",
+      ];
+      let chosenCategory = category?.trim();
+      let goalName = rawGoalName?.trim();
+
+      // If user provided a name that matches one of the category chips and no category was specified
+      if (
+        goalName &&
+        !chosenCategory &&
+        KNOWN_CATEGORIES.some(
+          (c) => c.toLowerCase() === goalName?.toLowerCase(),
+        )
+      ) {
+        chosenCategory =
+          KNOWN_CATEGORIES.find(
+            (c) => c.toLowerCase() === goalName?.toLowerCase(),
+          ) || goalName;
+        goalName = undefined;
+      }
+
+      // Step 1: Category chooser if neither category nor specific goal name is known
+      if (!chosenCategory && !goalName) {
         return {
           toolName: name,
-          summaryForAI:
-            "Ask the user what they are saving for — a short name for the goal, like 'December trip'.",
+          summaryForAI: "Absolutely. What are you saving for?",
+          cardHint: {
+            type: "options",
+            data: { options: SAVINGS_CATEGORIES },
+          },
+          requiresConfirmation: false,
+        };
+      }
+
+      // Step 2: Goal name
+      if (!goalName) {
+        return {
+          toolName: name,
+          summaryForAI: "Nice. What would you like to call this goal?",
           cardHint: { type: "none" },
           requiresConfirmation: false,
         };
       }
 
+      // Step 3: Target amount
       if (!amount?.trim()) {
         return {
           toolName: name,
-          summaryForAI: `Got it, **${goal}**. How much would you like to save?`,
-          cardHint: { type: "options", data: { options: SAVINGS_AMOUNTS } },
+          summaryForAI: `Got it, **${goalName}**. How much would you like to save?`,
+          cardHint: {
+            type: "options",
+            data: { options: SAVINGS_AMOUNTS },
+          },
           requiresConfirmation: false,
         };
       }
 
+      // Step 4: Duration
       if (!durationDays) {
         return {
           toolName: name,
           summaryForAI: "When would you like to reach your goal?",
-          cardHint: { type: "options", data: { options: SAVINGS_DURATIONS } },
+          cardHint: {
+            type: "options",
+            data: { options: SAVINGS_DURATIONS },
+          },
+          requiresConfirmation: false,
+        };
+      }
+
+      // Step 5: Initial deposit
+      if (
+        depositAmount === undefined ||
+        depositAmount === null ||
+        depositAmount === ""
+      ) {
+        return {
+          toolName: name,
+          summaryForAI: `Would you like to make an initial deposit into **${goalName}** now?`,
+          cardHint: {
+            type: "options",
+            data: { options: SAVINGS_INITIAL_DEPOSITS },
+          },
           requiresConfirmation: false,
         };
       }
 
       const target = Number(amount.replace(/[^0-9.]/g, ""));
+      const initialDeposit =
+        Number(depositAmount.replace(/[^0-9.]/g, "")) || 0;
       const weekly =
         Number.isFinite(target) && target > 0 && durationDays > 0
           ? `about **$${Math.ceil((target / durationDays) * 7).toLocaleString("en-US")} a week**`
           : "a steady amount each week";
 
+      const cardData = {
+        contact: {
+          name: goalName,
+          handle: `${chosenCategory || "Savings"} • ${durationDays} days`,
+          avatar: "savings",
+        },
+        amount: {
+          caption: initialDeposit > 0 ? "INITIAL DEPOSIT" : "TARGET AMOUNT",
+          value:
+            initialDeposit > 0
+              ? `$${initialDeposit.toFixed(2)} USDC`
+              : `$${target.toLocaleString("en-US")} USDC`,
+        },
+        prompt: `Confirm creating saving for ${goalName}`,
+        options: [
+          {
+            symbol: "USDC",
+            balance: "—",
+            amount: String(initialDeposit),
+            selected: true,
+          },
+        ],
+      };
+
       return {
         toolName: name,
         summaryForAI:
-          `The **${goal}** goal is set: **$${target.toLocaleString("en-US")}** over **${durationDays} days** — ${weekly}. ` +
-          "Tell the user the goal is set up in this chat and that funding it is coming soon.",
-        cardHint: { type: "none" },
+          `Proposal created for **${goalName}** (Target: **$${target.toLocaleString("en-US")}**, ` +
+          `Duration: **${durationDays} days** — ${weekly}, Initial Deposit: **$${initialDeposit.toFixed(2)}**). ` +
+          `Tell the user to confirm to set up the savings goal. Do NOT use emojis or instruct them to click buttons or enter PINs.`,
+        cardHint: { type: "transfer", data: cardData },
+        transactionParams: {
+          type: "savings_create",
+          name: goalName,
+          category: chosenCategory || "Other",
+          targetAmount: target,
+          durationDays,
+          depositAmount: initialDeposit,
+        },
+        requiresConfirmation: true,
+      };
+    }
+
+    // ── List user's savings goals
+    case "list_savings": {
+      if (!userId || userId === "UNKNOWN") {
+        return {
+          toolName: name,
+          summaryForAI: "Please log in to view your savings plans.",
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      const plans = await listSavingsPlansByUserId(userId);
+      const activePlans = plans.filter((p) => p.status === "Active");
+
+      if (activePlans.length === 0) {
+        return {
+          toolName: name,
+          summaryForAI:
+            "You do not have any active savings goals yet. Select below to set up your first goal.",
+          cardHint: {
+            type: "options",
+            data: {
+              options: [
+                {
+                  label: "Create New Savings Goal",
+                  reply: "I want to create a savings goal",
+                },
+              ],
+            },
+          },
+          requiresConfirmation: false,
+        };
+      }
+
+      const options: ChatOption[] = activePlans.map((p) => ({
+        id: String(p._id),
+        label: p.name,
+        amount: `$${(p.currentAmount || 0).toFixed(2)} / $${(p.targetAmount || 0).toFixed(2)}`,
+        description: p.category || "Target",
+        reply: `Deposit to ${p.name}`,
+      }));
+
+      options.push({
+        label: "Create New Savings Goal",
+        reply: "I want to create a savings goal",
+      });
+
+      const totalSaved = activePlans.reduce(
+        (acc, p) => acc + (p.currentAmount || 0),
+        0,
+      );
+
+      return {
+        toolName: name,
+        summaryForAI:
+          `You have **${activePlans.length} active savings goal${activePlans.length > 1 ? "s" : ""}** ` +
+          `with a total balance of **$${totalSaved.toFixed(2)} USDC**. ` +
+          `Tap a goal below to deposit into it, or select Create New Savings Goal.`,
+        cardHint: { type: "options", data: { options } },
         requiresConfirmation: false,
+      };
+    }
+
+    // ── Deposit / Top-up savings goal
+    case "deposit_savings": {
+      if (!userId || userId === "UNKNOWN") {
+        return {
+          toolName: name,
+          summaryForAI: "Please log in to deposit into savings.",
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      const { planName, planId, amount } = toolArgs as {
+        planName?: string;
+        planId?: string;
+        amount?: string;
+      };
+
+      const plans = await listSavingsPlansByUserId(userId);
+      const activePlans = plans.filter(
+        (p) => p.status === "Active" && p.kind !== "lock",
+      );
+
+      if (activePlans.length === 0) {
+        return {
+          toolName: name,
+          summaryForAI:
+            "You do not have any active flexible savings plans available for top-up. Would you like to create one?",
+          cardHint: {
+            type: "options",
+            data: {
+              options: [
+                {
+                  label: "Create New Savings Goal",
+                  icon: "savings",
+                  reply: "I want to create a savings goal",
+                },
+              ],
+            },
+          },
+          requiresConfirmation: false,
+        };
+      }
+
+      // Find selected plan
+      let targetPlan = planId
+        ? activePlans.find((p) => String(p._id) === planId)
+        : planName
+          ? activePlans.find(
+              (p) => p.name.toLowerCase() === planName.toLowerCase(),
+            ) ||
+            activePlans.find((p) =>
+              p.name.toLowerCase().includes(planName.toLowerCase()),
+            )
+          : undefined;
+
+      // If multiple plans and none explicitly matched, present chooser
+      if (!targetPlan) {
+        if (activePlans.length === 1) {
+          targetPlan = activePlans[0];
+        } else {
+          const options: ChatOption[] = activePlans.map((p) => ({
+            id: String(p._id),
+            label: p.name,
+            amount: `$${(p.currentAmount || 0).toFixed(2)}`,
+            description: `${p.category || "Target"}`,
+            icon: "savings",
+            reply: `Deposit to ${p.name}`,
+          }));
+          return {
+            toolName: name,
+            summaryForAI: "Which savings goal would you like to deposit into?",
+            cardHint: { type: "options", data: { options } },
+            requiresConfirmation: false,
+          };
+        }
+      }
+
+      // If amount not provided, show quick amounts chooser
+      if (!amount?.trim()) {
+        return {
+          toolName: name,
+          summaryForAI: `How much would you like to deposit into **${targetPlan.name}**?`,
+          cardHint: {
+            type: "options",
+            data: { options: SAVINGS_DEPOSIT_QUICK_AMOUNTS },
+          },
+          requiresConfirmation: false,
+        };
+      }
+
+      const numAmount = Number(amount.replace(/[^0-9.]/g, ""));
+      if (!Number.isFinite(numAmount) || numAmount <= 0) {
+        return {
+          toolName: name,
+          summaryForAI: "Please enter a valid deposit amount.",
+          cardHint: {
+            type: "options",
+            data: { options: SAVINGS_DEPOSIT_QUICK_AMOUNTS },
+          },
+          requiresConfirmation: false,
+        };
+      }
+
+      const cardData = {
+        contact: {
+          name: targetPlan.name,
+          handle: `Current: $${(targetPlan.currentAmount || 0).toFixed(2)} • Target: $${(targetPlan.targetAmount || 0).toFixed(2)}`,
+          avatar: "savings",
+        },
+        amount: {
+          caption: "YOU'LL DEPOSIT",
+          value: `$${numAmount.toFixed(2)} USDC`,
+        },
+        prompt: `Confirm deposit to ${targetPlan.name}`,
+        options: [
+          {
+            symbol: "USDC",
+            balance: "—",
+            amount: String(numAmount),
+            selected: true,
+          },
+        ],
+      };
+
+      return {
+        toolName: name,
+        summaryForAI:
+          `Deposit proposal prepared for **$${numAmount.toFixed(2)} USDC** into **${targetPlan.name}**. ` +
+          `Tell the user to confirm to proceed. Do NOT use emojis or instruct them to click buttons or enter PINs.`,
+        cardHint: { type: "transfer", data: cardData },
+        transactionParams: {
+          type: "savings_deposit",
+          planId: String(targetPlan._id),
+          planName: targetPlan.name,
+          amount: numAmount,
+        },
+        requiresConfirmation: true,
+      };
+    }
+
+    // ── Withdraw from savings goal
+    case "withdraw_savings": {
+      if (!userId || userId === "UNKNOWN") {
+        return {
+          toolName: name,
+          summaryForAI: "Please log in to withdraw from your savings.",
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      const { planName, planId, amount } = toolArgs as {
+        planName?: string;
+        planId?: string;
+        amount?: string;
+      };
+
+      const plans = await listSavingsPlansByUserId(userId);
+      const fundedPlans = plans.filter((p) => (p.currentAmount || 0) > 0);
+
+      if (fundedPlans.length === 0) {
+        return {
+          toolName: name,
+          summaryForAI:
+            "You do not have any savings plans with an available balance to withdraw.",
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      let targetPlan = planId
+        ? fundedPlans.find((p) => String(p._id) === planId)
+        : planName
+          ? fundedPlans.find(
+              (p) => p.name.toLowerCase() === planName.toLowerCase(),
+            ) ||
+            fundedPlans.find((p) =>
+              p.name.toLowerCase().includes(planName.toLowerCase()),
+            )
+          : undefined;
+
+      if (!targetPlan) {
+        if (fundedPlans.length === 1) {
+          targetPlan = fundedPlans[0];
+        } else {
+          const options: ChatOption[] = fundedPlans.map((p) => ({
+            id: String(p._id),
+            label: p.name,
+            amount: `$${(p.currentAmount || 0).toFixed(2)}`,
+            description: `${p.category || "Target"} • ${p.kind === "lock" ? "Locked" : "Flexible"}`,
+            icon: "savings",
+            reply: `Withdraw from ${p.name}`,
+          }));
+          return {
+            toolName: name,
+            summaryForAI:
+              "Which savings goal would you like to withdraw from?",
+            cardHint: { type: "options", data: { options } },
+            requiresConfirmation: false,
+          };
+        }
+      }
+
+      const balance = targetPlan.currentAmount || 0;
+
+      // If amount not provided, show options
+      if (!amount?.trim()) {
+        const withdrawOptions: ChatOption[] = [
+          {
+            label: `Full Balance ($${balance.toFixed(2)})`,
+            reply: `$${balance.toFixed(2)}`,
+          },
+          {
+            label: `50% ($${(balance * 0.5).toFixed(2)})`,
+            reply: `$${(balance * 0.5).toFixed(2)}`,
+          },
+          {
+            label: "Custom Amount",
+            custom: true,
+            placeholder: `Amount (Max $${balance.toFixed(2)})`,
+          },
+        ];
+        return {
+          toolName: name,
+          summaryForAI: `How much would you like to withdraw from **${targetPlan.name}**? Available balance: **$${balance.toFixed(2)} USDC**.`,
+          cardHint: {
+            type: "options",
+            data: { options: withdrawOptions },
+          },
+          requiresConfirmation: false,
+        };
+      }
+
+      const numAmount = Number(amount.replace(/[^0-9.]/g, ""));
+      if (!Number.isFinite(numAmount) || numAmount <= 0) {
+        return {
+          toolName: name,
+          summaryForAI: "Please provide a valid withdrawal amount.",
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      if (numAmount > balance) {
+        return {
+          toolName: name,
+          summaryForAI: `Requested amount (**$${numAmount.toFixed(2)}**) exceeds available balance of **$${balance.toFixed(2)} USDC** in **${targetPlan.name}**.`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      let penalty = 0;
+      const now = new Date();
+      if (
+        targetPlan.kind === "lock" &&
+        targetPlan.endDate &&
+        now < new Date(targetPlan.endDate)
+      ) {
+        penalty = Number(
+          (
+            (numAmount * (targetPlan.penaltyFeePercent || 5)) /
+            100
+          ).toFixed(2),
+        );
+      }
+      const netPayout = Number((numAmount - penalty).toFixed(2));
+
+      const cardData = {
+        contact: {
+          name: targetPlan.name,
+          handle:
+            penalty > 0
+              ? `Early lock withdrawal (5% penalty: -$${penalty.toFixed(2)})`
+              : `Net payout to wallet: $${netPayout.toFixed(2)} USDC`,
+          avatar: "savings",
+        },
+        amount: {
+          caption: "YOU'LL RECEIVE",
+          value: `$${netPayout.toFixed(2)} USDC`,
+        },
+        prompt: `Confirm withdrawal from ${targetPlan.name}`,
+        options: [
+          {
+            symbol: "USDC",
+            balance: "—",
+            amount: String(netPayout),
+            selected: true,
+          },
+        ],
+      };
+
+      return {
+        toolName: name,
+        summaryForAI:
+          `Withdrawal proposal prepared for **$${numAmount.toFixed(2)} USDC** from **${targetPlan.name}** ` +
+          `(Net payout: **$${netPayout.toFixed(2)} USDC**${penalty > 0 ? `, including early penalty of **$${penalty.toFixed(2)}**` : ""}). ` +
+          `Tell the user to confirm to process the withdrawal. Do NOT use emojis or instruct them to click buttons or enter PINs.`,
+        cardHint: { type: "transfer", data: cardData },
+        transactionParams: {
+          type: "savings_withdraw",
+          planId: String(targetPlan._id),
+          planName: targetPlan.name,
+          amount: numAmount,
+          penaltyFee: penalty,
+          netPayout,
+        },
+        requiresConfirmation: true,
       };
     }
 

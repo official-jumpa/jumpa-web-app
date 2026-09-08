@@ -11,7 +11,7 @@ export const sendMessageSchema = z.object({
       error: "Message content is required",
     })
     .trim()
-    .min(3, "Message content is required"),
+    .min(1, "Message content is required"),
 });
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;

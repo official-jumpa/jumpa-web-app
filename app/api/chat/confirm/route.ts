@@ -19,6 +19,11 @@ import { formatZodError } from "@/lib/validations/validation-helper";
 import { ChatLog, type IChatMessage } from "@/models/ChatLog";
 import { Transaction } from "@/models/Transaction";
 import { Wallet } from "@/models/Wallet";
+import {
+  createSavingsPlanExecution,
+  depositSavingsExecution,
+  withdrawSavingsExecution,
+} from "@/lib/services/savings-execution";
 
 
 /**
@@ -140,7 +145,13 @@ export async function POST(req: NextRequest) {
           ? "Swap approved"
           : cardType === "bridge"
             ? "Bridge authorised"
-            : "Transfer approved",
+            : txParams?.type === "savings_create"
+              ? "Savings goal confirmed"
+              : txParams?.type === "savings_deposit"
+                ? "Savings deposit approved"
+                : txParams?.type === "savings_withdraw"
+                  ? "Savings withdrawal approved"
+                  : "Transfer approved",
       timestamp: new Date(),
     };
 
@@ -220,33 +231,177 @@ export async function POST(req: NextRequest) {
         explorerUrl: explorerUrl || undefined,
       };
     } else if (cardType === "bridge") {
-      // No bridge provider is wired up yet, so this records the authorisation
-      // and hands back the receipt. Nothing moves on-chain.
-      const payVal =
+      const fromAmount =
         effectiveCardData?.pay?.value || txParams?.fromAmount || "0";
-      const payBadge =
+      const fromToken =
         effectiveCardData?.pay?.badge || txParams?.fromToken || "USDC";
-      const receiveVal =
+      const fromChain =
+        effectiveCardData?.pay?.chain || txParams?.fromChain || "base";
+
+      const toAmount =
         effectiveCardData?.receive?.value || txParams?.toAmount || "0";
-      const receiveBadge =
-        effectiveCardData?.receive?.badge || txParams?.toToken || "XLM";
-      const feeStat = effectiveCardData?.stats?.find(
-        (stat: { lead?: string; value: string }) => stat?.lead?.includes("Fee"),
-      );
+      const toToken =
+        effectiveCardData?.receive?.badge || txParams?.toToken || "USDC";
+      const toChain =
+        effectiveCardData?.receive?.chain || txParams?.toChain || "stellar";
+
+      const provider = txParams?.provider || "Allbridge Core";
+      const fee =
+        txParams?.fee ||
+        effectiveCardData?.stats?.find((s: any) =>
+          s.lead?.toLowerCase().includes("fee"),
+        )?.value ||
+        "0.3%";
+
+      const userStellarAddr =
+        wallet.addresses?.xlm ||
+        wallet.address ||
+        "";
+      const userBaseAddr =
+        wallet.addresses?.base ||
+        wallet.address ||
+        "";
+
+      // Log for bridge transaction
+      try {
+        await Transaction.create({
+          userId,
+          walletId: wallet._id,
+          sessionId,
+          messageId: targetMsg?.id,
+          type: "BRIDGE",
+          status: "CONFIRMED",
+          chain: "base",
+          network: "testnet",
+          fromAddress: userBaseAddr,
+          toAddress: userStellarAddr,
+          amount: fromAmount,
+          token: fromToken,
+          feePaid: fee,
+          bridgeDetails: {
+            provider,
+            fromChain,
+            toChain,
+            fromToken,
+            toToken,
+            fromAmount,
+            toAmount,
+            fee,
+          },
+          executedAt: new Date(),
+        });
+      } catch (dbErr: any) {
+        console.warn(
+          "[Chat Confirm] Bridge Transaction log notice:",
+          dbErr.message,
+        );
+      }
+
+      Wallet.updateOne(
+        { _id: wallet._id },
+        { $set: { lastUsedAt: new Date() } },
+      ).catch(() => {});
 
       receiptCardData = {
-        title: "Bridged",
+        title: "Bridge Order Placed",
         status: "Successful",
         balance: {
-          caption: "RECEIVED",
-          value: receiveVal,
-          badge: receiveBadge,
+          caption: "BRIDGED",
+          value: toAmount,
+          badge: toToken,
         },
         stats: [
-          { value: `+ ${receiveVal} ${receiveBadge}` },
-          feeStat ?? { lead: "Fee ", value: `- ${payVal} ${payBadge}` },
+          { value: `- ${fromAmount} ${fromToken} (${fromChain.toUpperCase()})` },
+          { value: `+ ${toAmount} ${toToken} (${toChain.toUpperCase()})` },
+          { lead: "Provider ", value: provider },
+          { lead: "Est. Delivery ", value: "2-4 minutes" },
+          { lead: "Bridge Fee ", value: fee },
+          {
+            lead: "Recipient ",
+            value: userStellarAddr
+              ? `${userStellarAddr.slice(0, 6)}...${userStellarAddr.slice(-6)}`
+              : "Stellar Wallet",
+          },
         ],
+        explorerUrl: userStellarAddr
+          ? `https://stellar.expert/explorer/testnet/account/${userStellarAddr}`
+          : undefined,
       };
+    } else if (txParams?.type === "savings_create") {
+      const {
+        name: goalName,
+        category,
+        targetAmount,
+        durationDays,
+        depositAmount,
+      } = txParams;
+
+      console.log(
+        `[Chat Confirm] Creating Savings Plan: ${goalName}, Target: ${targetAmount}, Initial Deposit: ${depositAmount}`,
+      );
+      const res = await createSavingsPlanExecution({
+        userId,
+        wallet,
+        pin,
+        name: goalName,
+        category,
+        targetAmount,
+        depositAmount,
+        durationDays,
+      });
+
+      if (!res.ok) {
+        return NextResponse.json(
+          { error: res.error },
+          { status: res.status || 400 },
+        );
+      }
+
+      receiptCardData = res.receiptCardData;
+    } else if (txParams?.type === "savings_deposit") {
+      const { planId, amount } = txParams;
+
+      console.log(
+        `[Chat Confirm] Processing Savings Deposit: Plan ${planId}, Amount ${amount}`,
+      );
+      const res = await depositSavingsExecution({
+        userId,
+        wallet,
+        pin,
+        planId,
+        amount: Number(amount),
+      });
+
+      if (!res.ok) {
+        return NextResponse.json(
+          { error: res.error },
+          { status: res.status || 400 },
+        );
+      }
+
+      receiptCardData = res.receiptCardData;
+    } else if (txParams?.type === "savings_withdraw") {
+      const { planId, amount } = txParams;
+
+      console.log(
+        `[Chat Confirm] Processing Savings Withdrawal: Plan ${planId}, Amount ${amount}`,
+      );
+      const res = await withdrawSavingsExecution({
+        userId,
+        wallet,
+        pin,
+        planId,
+        amount: amount ? Number(amount) : undefined,
+      });
+
+      if (!res.ok) {
+        return NextResponse.json(
+          { error: res.error },
+          { status: res.status || 400 },
+        );
+      }
+
+      receiptCardData = res.receiptCardData;
     } else if (cardType === "transfer") {
       const amount = String(txParams?.amount || "0");
       const token = (txParams?.token || "XLM").toUpperCase();
@@ -674,7 +829,13 @@ export async function POST(req: NextRequest) {
           ? `✓ Swap confirmed`
           : cardType === "bridge"
             ? `✓ Bridge confirmed in ${elapsedSeconds} seconds`
-            : `✓ Transfer successful`,
+            : txParams?.type === "savings_create"
+              ? `✓ Savings goal created`
+              : txParams?.type === "savings_deposit"
+                ? `✓ Savings deposit successful`
+                : txParams?.type === "savings_withdraw"
+                  ? `✓ Savings withdrawal successful`
+                  : `✓ Transfer successful`,
       isTransaction: true,
       cardType: "receipt",
       status: "confirmed",

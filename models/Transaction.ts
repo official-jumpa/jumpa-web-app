@@ -15,7 +15,8 @@ export interface ITransaction {
     | "OFFRAMP"
     | "FAUCET"
     | "SAVINGS_DEPOSIT"
-    | "SAVINGS_WITHDRAW";
+    | "SAVINGS_WITHDRAW"
+    | "BRIDGE";
   status: "PENDING" | "CONFIRMED" | "FAILED" | "CANCELLED";
 
   chain: "stellar" | "solana" | "base" | "eth";
@@ -60,6 +61,19 @@ export interface ITransaction {
     penaltyFee?: string;
   };
 
+  // Bridge Details (if type === "BRIDGE")
+  bridgeDetails?: {
+    provider: string;
+    fromChain: string;
+    toChain: string;
+    fromToken: string;
+    toToken: string;
+    fromAmount: string;
+    toAmount: string;
+    fee: string;
+    relayerFee?: string;
+  };
+
   // On-Chain Execution & Accounting
   txHash?: string;
   explorerUrl?: string;
@@ -89,6 +103,7 @@ const TransactionSchema = new Schema<ITransaction>(
         "FAUCET",
         "SAVINGS_DEPOSIT",
         "SAVINGS_WITHDRAW",
+        "BRIDGE",
       ],
       required: true,
     },
@@ -136,6 +151,18 @@ const TransactionSchema = new Schema<ITransaction>(
         accountName: { type: String },
         bankCode: { type: String },
       },
+    },
+
+    bridgeDetails: {
+      provider: { type: String },
+      fromChain: { type: String },
+      toChain: { type: String },
+      fromToken: { type: String },
+      toToken: { type: String },
+      fromAmount: { type: String },
+      toAmount: { type: String },
+      fee: { type: String },
+      relayerFee: { type: String },
     },
 
     txHash: { type: String, default: null, index: true },

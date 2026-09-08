@@ -1,6 +1,6 @@
-# How to Test: End-to-End Tranche 1 Testing Guide
+# How to Test: End-to-End Tranche 1 & Tranche 2 Testing Guide
 
-This guide provides step-by-step instructions for testing Jumpa's core features on the Stellar Testnet, including seamless onboarding, automated wallet generation, AI-powered conversational swaps via Soroswap, and on-chain settlement.
+This guide provides step-by-step instructions for testing Jumpa's core features on the Stellar Testnet, including seamless onboarding, automated wallet generation, AI-powered conversational swaps via Soroswap, on-chain settlement, DeFindex yield savings, and Allbridge cross-chain bridging.
 
 ---
 
@@ -22,6 +22,10 @@ This guide provides step-by-step instructions for testing Jumpa's core features 
 7. Confirm Quote Card & Enter PIN
        ↓
 8. On-Chain Settlement & Verified Transaction Receipt
+       ↓
+9. DeFindex Yield Savings (Create Goal & Top-Up USDC from `/savings`)
+       ↓
+10. Allbridge Cross-Chain Bridge ("Bridge 25 USDC from Base to Stellar")
 ```
 
 ---
@@ -37,10 +41,11 @@ This guide provides step-by-step instructions for testing Jumpa's core features 
 ---
 
 ### Step 2: Set Transaction PIN & Access Dashboard
-1. Set a **6-digit transaction PIN** (e.g. `123456`)
-2. Once confirmed, you will be redirected to the **Home Screen** (`/home`).
-3. View your unified balance panel across supported chains (Stellar, Base, Solana).
-4. Click the **Chat** icon in the bottom navigation bar to open the conversational interface.
+1. Set a **6-digit transaction PIN** (e.g. `123456`).
+2. Confirm the PIN. Your mnemonic is encrypted with **AES-256-GCM** using a unique salt and IV.
+3. Once confirmed, you will be redirected to the **Home Screen** (`/home`).
+4. View your unified balance panel across supported chains (Stellar, Base, Solana).
+5. Click the **Chat** icon in the bottom navigation bar to open the conversational interface.
 
 ---
 
@@ -75,6 +80,42 @@ This guide provides step-by-step instructions for testing Jumpa's core features 
    - The transaction is signed with your Ed25519 secret key and submitted to the **Stellar Horizon Testnet**.
 5. **Verified Receipt:**
    - A **Receipt Card** is rendered in the chat transcript with the confirmed transaction status, hash, and a clickable link to view the transaction on the **Stellar Expert Explorer**.
+
+---
+
+### Step 5: Target Savings & DeFindex Yield Module (Tranche 2)
+1. Navigate to the **Savings** dashboard (`/savings`) from the bottom navigation.
+2. **Create a Savings Goal:**
+   - Click **Create Target Goal** or **Lock Savings**.
+   - Enter a title (e.g. *"Emergency Fund"*), target amount (e.g. `100`), and duration.
+   - Jumpa creates the plan linked to the pre-configured DeFindex testnet vault pool.
+3. **Automated USDC Top-Up:**
+   - Open your created plan.
+   - Click **Top Up**, enter an amount (e.g. `10 USDC`), and input your 6-digit wallet PIN.
+   - Jumpa checks available USDC balance, ensures the USDC trustline, generates the deposit XDR with `defindexClient.deposit()`, signs it using your decrypted keypair, and broadcasts to the Stellar network via `defindexClient.send()`.
+4. **Live Yield & Balance Tracking:**
+   - The savings dashboard displays live underlying asset balances (`defindexClient.getBalance()`) and active Net APY (`defindexClient.getApy()`).
+
+---
+
+### Step 6: Cross-Chain Bridging via Allbridge Core (Tranche 2)
+1. Navigate back to **Chat** (`/home/chat`).
+2. Send a bridge request, for example:
+   - *"Bridge 25 USDC from Base to Stellar"*
+3. **Allbridge Quote Card:**
+   - The AI assistant calls `bridge_tokens` using Allbridge Core's mathematical fee model:
+     - **LP Fee:** `0.30%` (`0.075 USDC`)
+     - **Relayer Gas Fee:** `0.15 USDC`
+     - **Est. Settlement Time:** `2-4 minutes`
+     - **Provider:** `Allbridge Core`
+   - Displays the **Bridge Card** in the transcript showing:
+     - **You Pay:** `25 USDC` on Base
+     - **You Receive:** `24.775 USDC` on Stellar
+     - **Rate, Fee & Est. Time**
+4. **Unified Confirmation & Receipt:**
+   - Click **Confirm** on the Bridge Card.
+   - The **PIN Sheet drawer** slides up. Enter your 6-digit PIN.
+   - Jumpa verifies the PIN, records the confirmed transaction, and renders a **Receipt Card** with Allbridge delivery stats and recipient Stellar account explorer link.
 
 ---
 

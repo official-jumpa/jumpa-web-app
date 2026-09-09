@@ -1,17 +1,30 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
+import { NotificationCard } from "@/components/notifications/notification-card";
+import { NotificationsEmpty } from "@/components/notifications/notifications-empty";
 import { ScreenHeader } from "@/components/ui/screen-header";
-import type { Notification } from "@/lib/notifications";
+import { cn } from "@/lib/cn";
+import {
+  NOTIFICATION_TABS,
+  type Notification,
+  type NotificationTab,
+} from "@/lib/notifications";
+
+const CHIP =
+  "tap rounded-pill px-5.5 py-2.5 text-[10px] leading-3.5 font-medium text-jumpa-black active:scale-95";
 
 /** The feed, with the read state held locally until there is a service for it. */
 export function NotificationList({ items }: { items: Notification[] }) {
-  const [read, setRead] = useState(() =>
-    items.filter((n) => n.read).map((n) => n.id),
+  const [tab, setTab] = useState<NotificationTab>("transactions");
+  const [read, setRead] = useState(
+    () => new Set(items.filter((item) => item.read).map((item) => item.id)),
   );
 
-  const markAll = () => setRead(items.map((n) => n.id));
+  const markRead = (id: string) =>
+    setRead((current) => new Set(current).add(id));
+
+  const shown = items.filter((item) => item.tab === tab);
 
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
@@ -22,7 +35,7 @@ export function NotificationList({ items }: { items: Notification[] }) {
         action={
           <button
             type="button"
-            onClick={markAll}
+            onClick={() => setRead(new Set(items.map((item) => item.id)))}
             className="tap rounded-pill bg-jumpa-neutral-50 px-2.5 py-1.5 text-[10px] leading-3.5 font-medium text-jumpa-black active:scale-95"
           >
             Read All
@@ -30,39 +43,45 @@ export function NotificationList({ items }: { items: Notification[] }) {
         }
       />
 
-      <ul className="mt-6 flex flex-col gap-4 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-6 py-5">
-        {items.map((item, index) => (
-          <li key={item.id} className="flex flex-col gap-4">
-            {/* -mb-px: the design draws a zero-height line between rows. */}
-            {index > 0 ? (
-              <span className="-mb-px block h-px w-full bg-jumpa-neutral-100" />
-            ) : null}
+      <div className="mt-5 flex items-center gap-2">
+        {NOTIFICATION_TABS.map(({ id, label }) => {
+          const count = items.reduce(
+            (total, item) => (item.tab === id ? total + 1 : total),
+            0,
+          );
 
-            <article className="flex items-center gap-4">
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <Image
-                  src={item.avatar}
-                  alt=""
-                  width={40}
-                  height={40}
-                  className="size-10 shrink-0 rounded-full object-cover"
-                />
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <h2 className="text-sm leading-4 font-semibold text-jumpa-black">
-                    {item.title}
-                  </h2>
-                  <p className="text-[10px] leading-3.5 font-medium text-jumpa-neutral-700">
-                    {item.body}
-                  </p>
-                </div>
-              </div>
-              <span className="shrink-0 text-xs leading-3.5 font-medium text-jumpa-neutral-425">
-                {read.includes(item.id) ? "Read" : "New"}
-              </span>
-            </article>
-          </li>
-        ))}
-      </ul>
+          return (
+            <button
+              key={id}
+              type="button"
+              aria-pressed={id === tab}
+              onClick={() => setTab(id)}
+              className={cn(
+                CHIP,
+                id === tab ? "bg-jumpa-primary-50" : "bg-jumpa-neutral-50",
+              )}
+            >
+              {count > 0 ? `${label} (${count})` : label}
+            </button>
+          );
+        })}
+      </div>
+
+      {shown.length > 0 ? (
+        <ul className="mt-4 flex flex-col gap-4">
+          {shown.map((item) => (
+            <li key={item.id}>
+              <NotificationCard
+                item={item}
+                read={read.has(item.id)}
+                onRead={() => markRead(item.id)}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <NotificationsEmpty />
+      )}
     </div>
   );
 }

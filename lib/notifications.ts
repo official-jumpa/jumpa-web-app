@@ -1,32 +1,52 @@
+export type NotificationTab = "transactions" | "activities";
+
 export type Notification = {
   id: string;
+  tab: NotificationTab;
   title: string;
   body: string;
-  avatar: string;
+  time: string;
   read: boolean;
 };
+
+/** The two chips above the feed, in the design's order. */
+export const NOTIFICATION_TABS: { id: NotificationTab; label: string }[] = [
+  { id: "transactions", label: "Transactions" },
+  { id: "activities", label: "Activities" },
+];
 
 /** Placeholder feed; the notifications service replaces it. */
 export const NOTIFICATIONS: Notification[] = [
   {
     id: "n1",
-    title: "Jumpa Support",
-    body: "Your payment of ₦25,000 was completed successfully",
-    avatar: "/images/notifications/avatar-1.webp",
+    tab: "transactions",
+    title: "New Payment Received",
+    body: "1.43 USDC received on 24th Aug, 1:30pm, from rfvf383fbur3",
+    time: "Today 12:32AM",
     read: true,
   },
   {
     id: "n2",
-    title: "Jumpa Support",
-    body: "Your payment of ₦25,000 was completed successfully",
-    avatar: "/images/notifications/avatar-2.webp",
-    read: true,
+    tab: "transactions",
+    title: "New Payment Received",
+    body: "1.43 USDC received on 24th Aug, 1:30pm, from rfvf383fbur3",
+    time: "Today 12:32AM",
+    read: false,
   },
   {
     id: "n3",
-    title: "Jumpa Support",
-    body: "Your payment of ₦25,000 was completed successfully",
-    avatar: "/images/notifications/avatar-2.webp",
-    read: true,
+    tab: "transactions",
+    title: "New Payment Received",
+    body: "1.43 USDC received on 24th Aug, 1:30pm, from rfvf383fbur3",
+    time: "Today 12:32AM",
+    read: false,
+  },
+  {
+    id: "n4",
+    tab: "transactions",
+    title: "New Payment Received",
+    body: "1.43 USDC received on 24th Aug, 1:30pm, from rfvf383fbur3",
+    time: "Today 12:32AM",
+    read: false,
   },
 ];

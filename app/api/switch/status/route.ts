@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { connectDB } from "@/lib/db";
 import { SwitchService } from "@/lib/switch";
+import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { switchStatusQuerySchema } from "@/lib/validations/switch.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { Transaction } from "@/models/Transaction";
 
 export async function GET(req: NextRequest) {
   try {
@@ -56,8 +59,52 @@ export async function GET(req: NextRequest) {
     let humanMessage = "Awaiting deposit. Waiting for a few seconds before trying again.";
     if (isCompleted) {
       humanMessage = "Transaction completed successfully.";
+      const txHash = result.data?.meta?.hash || validation.data.reference;
+      const explorerUrl = result.data?.meta?.explorer_url || null;
+
+      try {
+        await connectDB();
+        await Transaction.updateOne(
+          {
+            $or: [
+              { "rampDetails.reference": validation.data.reference },
+              { txHash: validation.data.reference },
+            ],
+          },
+          {
+            $set: {
+              status: "CONFIRMED",
+              txHash,
+              ...(explorerUrl ? { explorerUrl } : {}),
+              updatedAt: new Date(),
+            },
+          },
+        );
+        invalidateBalanceCache(session.user.id);
+      } catch (dbErr: any) {
+        console.warn("[Switch Status API] Notice updating transaction status:", dbErr?.message);
+      }
     } else if (isFailed) {
       humanMessage = "Transaction failed or expired. Please initiate a new transaction.";
+      try {
+        await connectDB();
+        await Transaction.updateOne(
+          {
+            $or: [
+              { "rampDetails.reference": validation.data.reference },
+              { txHash: validation.data.reference },
+            ],
+          },
+          {
+            $set: {
+              status: "FAILED",
+              updatedAt: new Date(),
+            },
+          },
+        );
+      } catch (dbErr: any) {
+        console.warn("[Switch Status API] Notice updating failed transaction status:", dbErr?.message);
+      }
     } else if (isAwaiting) {
       humanMessage = "Deposit received. Processing payout...";
     }

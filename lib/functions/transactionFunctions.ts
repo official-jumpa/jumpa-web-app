@@ -1,5 +1,7 @@
 import { connectDB } from "@/lib/db";
 import { Transaction, type ITransaction } from "@/models/Transaction";
+import { SwitchService } from "@/lib/switch";
+import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import type {
   TransactionDetailRow,
   TransactionKind,
@@ -16,6 +18,94 @@ export async function createTransactionRecord(
 }
 
 /**
+ * Automatically syncs a pending Switch onramp or offramp transaction
+ * against Switch provider status API, updating the DB and invalidating balance cache if complete.
+ */
+export async function syncPendingSwitchTransaction(tx: any): Promise<any> {
+  if (!tx || tx.status !== "PENDING" || !tx.rampDetails?.reference) {
+    return tx;
+  }
+
+  // Only sync Switch ramp transactions
+  if (
+    tx.rampDetails?.provider !== "switch" &&
+    tx.type !== "ONRAMP" &&
+    tx.type !== "OFFRAMP"
+  ) {
+    return tx;
+  }
+
+  try {
+    const reference = tx.rampDetails.reference;
+    const result = await SwitchService.getTransactionStatus(reference);
+
+    if (!result.success || !result.data) {
+      return tx;
+    }
+
+    const rawStatus = (result.data.status || "").toUpperCase();
+    const isCompleted = [
+      "COMPLETED",
+      "SUCCESS",
+      "SUCCESSFUL",
+      "DELIVERED",
+      "SETTLED",
+    ].includes(rawStatus);
+
+    const isFailed = [
+      "FAILED",
+      "EXPIRED",
+      "CANCELLED",
+      "REJECTED",
+    ].includes(rawStatus);
+
+    if (isCompleted) {
+      const txHash = result.data.meta?.hash || reference;
+      const explorerUrl = result.data.meta?.explorer_url || null;
+
+      await Transaction.updateOne(
+        { _id: tx._id },
+        {
+          $set: {
+            status: "CONFIRMED",
+            txHash,
+            ...(explorerUrl ? { explorerUrl } : {}),
+            updatedAt: new Date(),
+          },
+        },
+      );
+
+      tx.status = "CONFIRMED";
+      tx.txHash = txHash;
+      if (explorerUrl) tx.explorerUrl = explorerUrl;
+
+      // Invalidate balance cache so user immediately sees their funds
+      if (tx.userId) invalidateBalanceCache(tx.userId);
+      if (tx.toAddress) invalidateBalanceCache(tx.toAddress);
+      if (tx.fromAddress) invalidateBalanceCache(tx.fromAddress);
+    } else if (isFailed) {
+      await Transaction.updateOne(
+        { _id: tx._id },
+        {
+          $set: {
+            status: "FAILED",
+            updatedAt: new Date(),
+          },
+        },
+      );
+      tx.status = "FAILED";
+    }
+  } catch (err) {
+    console.warn(
+      `[Transaction Sync] Notice syncing pending transaction ${tx._id}:`,
+      err,
+    );
+  }
+
+  return tx;
+}
+
+/**
  * Lists transactions belonging to an authenticated user, ordered newest first.
  */
 export async function listTransactionsByUserId(
@@ -23,10 +113,18 @@ export async function listTransactionsByUserId(
   limit = 20,
 ): Promise<ITransaction[]> {
   await connectDB();
-  return Transaction.find({ userId })
+  const raw = await Transaction.find({ userId })
     .sort({ createdAt: -1 })
     .limit(limit)
     .lean<ITransaction[]>();
+
+  return Promise.all(
+    raw.map((tx) =>
+      tx.status === "PENDING" && tx.rampDetails?.reference
+        ? syncPendingSwitchTransaction(tx)
+        : Promise.resolve(tx),
+    ),
+  );
 }
 
 /**
@@ -37,7 +135,9 @@ export async function getTransactionById(
   userId: string,
 ): Promise<ITransaction | null> {
   await connectDB();
-  return Transaction.findOne({ _id: id, userId });
+  const tx = await Transaction.findOne({ _id: id, userId }).lean();
+  if (!tx) return null;
+  return syncPendingSwitchTransaction(tx);
 }
 
 function formatDecimal(val: string | number, maxDecimals = 4): string {
@@ -368,7 +468,7 @@ export async function queryUserTransactions(params: {
     }
   }
 
-  const [transactions, total] = await Promise.all([
+  const [rawTransactions, total] = await Promise.all([
     Transaction.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -376,6 +476,14 @@ export async function queryUserTransactions(params: {
       .lean(),
     Transaction.countDocuments(query),
   ]);
+
+  const transactions = await Promise.all(
+    rawTransactions.map((tx) =>
+      tx.status === "PENDING" && tx.rampDetails?.reference
+        ? syncPendingSwitchTransaction(tx)
+        : Promise.resolve(tx),
+    ),
+  );
 
   return { transactions, total };
 }

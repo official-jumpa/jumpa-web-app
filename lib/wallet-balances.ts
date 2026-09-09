@@ -1,6 +1,6 @@
 import { formatEther, formatUnits, erc20Abi } from "viem";
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { EVM_CHAINS, EVM_CLIENTS } from "@/lib/blockchain";
+import { EVM_CHAINS, EVM_CLIENTS, CONTRACT_ADDRESSES } from "@/lib/blockchain";
 import { environment } from "@/lib/environment";
 import { Wallet } from "@/models/Wallet";
 import { connectDB } from "@/lib/db";
@@ -257,13 +257,47 @@ export async function fetchWalletBalances(
     fetchSolana && solAddr
       ? safeFetchBalance(
           async () => {
-            const b = await solMainnetConnection.getBalance(new PublicKey(solAddr));
-            return (b / LAMPORTS_PER_SOL).toFixed(4);
+            const pubkey = new PublicKey(solAddr);
+            const [lamports, tokenAccountsResult] = await Promise.all([
+              solMainnetConnection.getBalance(pubkey),
+              solMainnetConnection
+                .getParsedTokenAccountsByOwner(pubkey, {
+                  programId: new PublicKey(
+                    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                  ),
+                })
+                .catch((err) => {
+                  console.warn(
+                    "[Balance Service] Failed to get SPL token accounts:",
+                    err?.message || err,
+                  );
+                  return { value: [] };
+                }),
+            ]);
+
+            const native = (lamports / LAMPORTS_PER_SOL).toFixed(4);
+            let usdc = "0.00";
+            let usdt = "0.00";
+
+            const usdcMint = CONTRACT_ADDRESSES.solana.mainnet.USDC.mint;
+            const usdtMint = CONTRACT_ADDRESSES.solana.mainnet.USDT.mint;
+
+            for (const item of tokenAccountsResult.value || []) {
+              const info = item.account?.data?.parsed?.info;
+              if (!info) continue;
+              if (info.mint === usdcMint) {
+                usdc = info.tokenAmount?.uiAmountString || "0.00";
+              } else if (info.mint === usdtMint) {
+                usdt = info.tokenAmount?.uiAmountString || "0.00";
+              }
+            }
+
+            return { native, usdc, usdt };
           },
           "Solana Mainnet",
-          "0.00",
+          { native: "0.00", usdc: "0.00", usdt: "0.00" },
         )
-      : Promise.resolve("0.00"),
+      : Promise.resolve({ native: "0.00", usdc: "0.00", usdt: "0.00" }),
 
     // 3. Stellar (Mainnet & Testnet)
     fetchStellar && xlmAddr
@@ -353,12 +387,32 @@ export async function fetchWalletBalances(
       symbol: "SOL",
       name: "Solana",
       icon: solCached.icon,
-      balance: solMainnetBal,
+      balance: solMainnetBal.native,
       priceUsd: solCached.priceUsd,
       network: "Solana Mainnet",
       isTestnet: false,
     });
-    summary.SOL = `${solMainnetBal} SOL`;
+    tokens.push({
+      symbol: "USDC",
+      name: "USD Coin (Solana)",
+      icon: usdcCached.icon,
+      balance: solMainnetBal.usdc,
+      priceUsd: usdcCached.priceUsd,
+      network: "Solana Mainnet",
+      isTestnet: false,
+    });
+    tokens.push({
+      symbol: "USDT",
+      name: "Tether USD (Solana)",
+      icon: usdtCached.icon,
+      balance: solMainnetBal.usdt,
+      priceUsd: usdtCached.priceUsd,
+      network: "Solana Mainnet",
+      isTestnet: false,
+    });
+    summary.SOL = `${solMainnetBal.native} SOL`;
+    summary["Solana (USDC)"] = `${solMainnetBal.usdc} USDC`;
+    summary["Solana (USDT)"] = `${solMainnetBal.usdt} USDT`;
   }
 
   if (fetchEvm) {
@@ -431,6 +485,19 @@ export async function fetchWalletBalances(
     summary,
     testnetSummary,
   };
+}
+
+/**
+ * Invalidates the in-memory balance cache for a given userId or address.
+ */
+export function invalidateBalanceCache(userIdOrAddress?: string) {
+  if (!userIdOrAddress) return;
+  const key = userIdOrAddress.toLowerCase();
+  delete balanceCache[key];
+  if (globalThis._balanceCache) {
+    delete globalThis._balanceCache[key];
+  }
+  console.log(`[Balance Service] Cache invalidated for "${userIdOrAddress}"`);
 }
 
 /**

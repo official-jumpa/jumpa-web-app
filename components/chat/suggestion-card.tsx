@@ -13,7 +13,7 @@ const SUGGESTIONS = [
   { label: "Check Balance", Icon: MoneyBillIcon },
   { label: "Create Savings", Icon: BadgePercentIcon },
   {
-    label: "Swap tokens",
+    label: "Swap any token",
     Icon: SwitchHorizontalIcon,
     // The design's "Swap 20 USD to XLM" names the pair and the amount, so it
     // quoted immediately and there was nothing left to choose.

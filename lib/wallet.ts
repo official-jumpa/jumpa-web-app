@@ -20,8 +20,6 @@ export type Asset = {
   icon: string;
   balance: string;
   change: string;
-  /** How the wallet list prints it — the design says STELLAR, not XLM. */
-  label?: string;
 };
 
 /** Every wallet the app supports, in the order the wallet list shows them.
@@ -30,7 +28,6 @@ export const SUPPORTED_ASSETS: Asset[] = [
   {
     symbol: "XLM",
     name: "Stellar",
-    label: "STELLAR",
     icon: "/coins/xlm.webp",
     balance: "$0.00",
     change: "+$0.00",

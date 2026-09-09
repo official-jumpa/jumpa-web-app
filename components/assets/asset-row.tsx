@@ -24,7 +24,7 @@ export function AssetRow({
         className="size-8 shrink-0 rounded-full object-contain"
       />
       <span className="truncate text-sm leading-4 font-semibold text-jumpa-black">
-        {asset.label ?? asset.symbol}
+        {asset.symbol}
       </span>
     </button>
   );

@@ -31,7 +31,7 @@ export function AssetPicker({
   const term = query.trim().toLowerCase();
   const matches = term
     ? assets.filter((asset) =>
-        [asset.symbol, asset.name, asset.label ?? ""].some((field) =>
+        [asset.symbol, asset.name].some((field) =>
           field.toLowerCase().includes(term),
         ),
       )

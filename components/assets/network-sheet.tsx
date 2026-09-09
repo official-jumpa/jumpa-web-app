@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { CheckIcon } from "@/components/ui/icons/check";
-import { getAssetLogo, logoMask } from "@/lib/assets";
+import { getAssetLogo } from "@/lib/assets";
 import type { Chain } from "@/lib/blockchain";
 
 /**
@@ -57,7 +57,7 @@ export function NetworkSheet({
                   alt=""
                   width={32}
                   height={32}
-                  className={`size-8 shrink-0 object-contain ${logoMask(chain.name)}`}
+                  className="size-8 shrink-0 rounded-full object-contain"
                 />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-sm leading-4.5 font-semibold text-jumpa-black">

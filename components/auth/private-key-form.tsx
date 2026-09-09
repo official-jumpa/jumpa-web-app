@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { CaretDownIcon } from "@/components/ui/icons/caret-down";
 import { EyeOffIcon } from "@/components/ui/icons/eye-off";
 import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
-import { getAssetLogo, logoMask } from "@/lib/assets";
+import { getAssetLogo } from "@/lib/assets";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/cn";
 import { NETWORKS } from "@/lib/blockchain";
@@ -169,10 +169,7 @@ export function PrivateKeyForm({ nextHref }: { nextHref: string }) {
                 alt={selectedNetworkObj.label}
                 width={26}
                 height={26}
-                className={cn(
-                  "size-6.5 shrink-0 object-contain",
-                  logoMask(selectedNetworkObj.id),
-                )}
+                className="size-6.5 shrink-0 rounded-full object-contain"
               />
               <span className="flex-1 text-left text-sm leading-4 font-semibold text-jumpa-black">
                 {selectedNetworkObj.label}
@@ -217,10 +214,7 @@ export function PrivateKeyForm({ nextHref }: { nextHref: string }) {
                           alt={label}
                           width={24}
                           height={24}
-                          className={cn(
-                            "size-6 shrink-0 object-contain",
-                            logoMask(id),
-                          )}
+                          className="size-6 shrink-0 rounded-full object-contain"
                         />
                         <span className="flex-1 text-left">{label}</span>
                         {isSelected && (

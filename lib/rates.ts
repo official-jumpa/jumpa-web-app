@@ -1,3 +1,4 @@
+import { FLAGS } from "@/lib/flags";
 import { COUNTRIES } from "@/lib/transfer";
 
 /**
@@ -34,9 +35,9 @@ const FIAT: Record<string, { symbol: string; perUsd: number }> = {
 };
 
 /** Derived from the send flow's countries, so the two lists cannot drift. */
-export const RATE_CURRENCIES = COUNTRIES.map(({ currency }) => currency).filter(
-  (code) => code in FIAT,
-);
+export const RATE_CURRENCIES = COUNTRIES.filter(
+  ({ code, currency }) => currency in FIAT && code in FLAGS,
+).map(({ code, currency }) => ({ code: currency, flag: FLAGS[code] }));
 
 /** What the header pill opens on, and what the design draws. */
 export const DEFAULT_RATE_CURRENCY = "NGN";

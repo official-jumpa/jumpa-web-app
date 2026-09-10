@@ -1,3 +1,5 @@
+import { FLAGS } from "@/lib/flags";
+
 export interface UserAccountInfo {
   firstName: string;
   avatar: string;
@@ -72,7 +74,7 @@ export const ASSETS: Asset[] = SUPPORTED_ASSETS.filter((asset) =>
 export type FiatAccount = {
   id: "ngn" | "usd";
   label: string;
-  /** Circular flag, a 32px source for the design's 16px slot. */
+  /** Circular country mark from `lib/flags.ts`. */
   flag: string;
   /** Formatted balance, or null until the user opens the account. */
   balance: string | null;
@@ -87,13 +89,13 @@ export const FIAT_ACCOUNTS: FiatAccount[] = [
   {
     id: "ngn",
     label: "NGN Account",
-    flag: "/images/home/flag-ngn.png",
+    flag: FLAGS.NG,
     balance: null,
   },
   {
     id: "usd",
     label: "USD Account",
-    flag: "/images/home/flag-usd.png",
+    flag: FLAGS.US,
     balance: null,
   },
 ];

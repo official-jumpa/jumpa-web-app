@@ -18,9 +18,10 @@ import {
   RATE_TOKENS,
 } from "@/lib/rates";
 
-const CURRENCY_OPTIONS = RATE_CURRENCIES.map((code) => ({
+const CURRENCY_OPTIONS = RATE_CURRENCIES.map(({ code, flag }) => ({
   value: code,
   label: code,
+  icon: flag,
 }));
 
 /** `?section=rates`. What every token is worth in the chosen currency. */
@@ -49,13 +50,6 @@ export function CurrencyRates() {
             value={currency}
             onValueChange={setCurrency}
             options={CURRENCY_OPTIONS}
-            // The frame draws a plain disc here — there are no flag assets.
-            icon={
-              <span
-                aria-hidden="true"
-                className="size-5 shrink-0 rounded-full bg-jumpa-neutral-100"
-              />
-            }
           />
         }
       />

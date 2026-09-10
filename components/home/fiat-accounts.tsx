@@ -30,9 +30,9 @@ function AccountCard({ account }: { account: FiatAccount }) {
         <Image
           src={account.flag}
           alt=""
-          width={32}
-          height={32}
-          className="size-4 rounded-full object-cover"
+          width={64}
+          height={64}
+          className="size-4 rounded-full object-contain"
         />
         <span className="text-[10px] font-medium text-jumpa-black">
           {account.label}

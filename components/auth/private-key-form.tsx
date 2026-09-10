@@ -271,7 +271,7 @@ export function PrivateKeyForm({ nextHref }: { nextHref: string }) {
               Passcode for your self-custodial wallet.
             </span>
             <span>
-              A 4-digit PIN is used to sign transactions and unlock your wallet
+              A 6-digit PIN is used to sign transactions and unlock your wallet
               on your device. It's never sent unencrypted to Jumpa servers.
             </span>
           </span>

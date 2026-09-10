@@ -20,11 +20,11 @@ const MAX_ATTEMPTS = 5;
 const LOCK_MS = 15 * 60 * 1000;
 
 /**
- * Verify the transaction PIN against the wallet's stored bcrypt hash.
+ * Verify a 6-digit PIN against the wallet's stored bcrypt hash.
  * Tracks failed attempts and locks the wallet for 15 min after 5 failures.
  *
  * @param wallet  - Mongoose wallet document
- * @param pin     - Raw transaction PIN from the request
+ * @param pin     - Raw 6-digit PIN from the request
  * @param ctx     - Optional context for activity log entries
  */
 export async function verifyWalletPin(

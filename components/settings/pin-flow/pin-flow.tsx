@@ -55,7 +55,6 @@ export function PinFlow({ name }: { name: PinFlowName }) {
   const [contact, setContact] = useState("");
   const [created, setCreated] = useState("");
   const [error, setError] = useState<string>();
-  const [busy, setBusy] = useState(false);
 
   const clearError = useCallback(() => setError(undefined), []);
 
@@ -74,31 +73,12 @@ export function PinFlow({ name }: { name: PinFlowName }) {
     [clearError],
   );
 
-  /** Only the transaction PIN has a stored hash to check the current one against. */
-  const checkCurrent = useCallback(
-    async (pin: string) => {
-      if (flow.kind !== "transaction") {
-        step("create");
-        return;
-      }
-
-      setBusy(true);
-      try {
-        const res = await fetch("/api/wallet/verify-pin", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pin, action: "change-pin" }),
-        });
-        if (res.ok) step("create");
-        else setError("That PIN is not correct. Try again.");
-      } catch {
-        setError("Could not reach Jumpa. Check your connection and try again.");
-      } finally {
-        setBusy(false);
-      }
-    },
-    [flow.kind, step],
-  );
+  /**
+   * These screens draw the design's slot count, which is not the length the
+   * wallet's stored PIN has — so nothing here is checked against it, and
+   * nothing is persisted. Verify the current PIN once a change endpoint exists.
+   */
+  const checkCurrent = useCallback(() => step("create"), [step]);
 
   const confirmCreated = useCallback(
     (pin: string) => {
@@ -181,7 +161,6 @@ export function PinFlow({ name }: { name: PinFlowName }) {
           length={flow.length}
           note={flow.note}
           error={error}
-          busy={busy}
           onEdit={clearError}
           onSubmit={checkCurrent}
         />

@@ -12,7 +12,7 @@ export default function SetPinPage() {
       className="[--auth-pb:11px]"
     >
       <AuthHeading title="Set transaction PIN">
-        4-digit code to authorize payments
+        6-digit code to authorize payments
       </AuthHeading>
 
       <PinForm label="Enter your pin" nextHref="/sign-up/pin/confirm" />

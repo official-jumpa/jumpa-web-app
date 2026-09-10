@@ -62,7 +62,7 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
       );
     }
 
-    // 1. Verify the transaction PIN
+    // 1. Verify 6-digit PIN
     const pinCheck = await verifyWalletPin(wallet, pin, { userId });
     if (!pinCheck.ok) {
       return NextResponse.json(

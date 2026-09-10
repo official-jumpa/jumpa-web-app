@@ -12,7 +12,7 @@ export default function ConfirmPinPage() {
       className="[--auth-pb:11px]"
     >
       <AuthHeading title="Confirm PIN">
-        4-digit code to authorize payments
+        6-digit code to authorize payments
       </AuthHeading>
 
       <ConfirmPinForm nextHref="/sign-up/done" />

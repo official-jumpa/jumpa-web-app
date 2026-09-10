@@ -6,7 +6,8 @@ import { PinDisplay } from "@/components/auth/pin-display";
 import { SheetPortal } from "@/components/ui/sheet-portal";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
-import { TRANSACTION_PIN_LENGTH as PIN_LENGTH } from "@/lib/pin";
+
+const PIN_LENGTH = 6;
 
 /** Stable, so the sheet's Escape listener is not rebound on every render. */
 const NOOP = () => {};

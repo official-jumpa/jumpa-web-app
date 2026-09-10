@@ -1,5 +1,3 @@
-import { LOGIN_PIN_LENGTH, TRANSACTION_PIN_LENGTH } from "@/lib/pin";
-
 /** Which code the flow sets: the one that signs in, or the one that pays. */
 export type PinKind = "login" | "transaction";
 
@@ -30,8 +28,15 @@ const SIGNING_NOTE = {
   body: "A PIN is used to sign transactions on your device. It's never sent to Jumpa servers.",
 };
 
-const TRANSACTION_SUBTITLE = `${TRANSACTION_PIN_LENGTH}-digit code to authorize payments`;
-const LOGIN_SUBTITLE = `${LOGIN_PIN_LENGTH}-digit code to sign in to Jumpa`;
+/**
+ * Slots these screens draw. Presentation only — the PIN the app actually takes
+ * is 6 digits everywhere, and changing one is not wired to a backend yet.
+ */
+const TRANSACTION_SLOTS = 4;
+const LOGIN_SLOTS = 6;
+
+const TRANSACTION_SUBTITLE = `${TRANSACTION_SLOTS}-digit code to authorize payments`;
+const LOGIN_SUBTITLE = `${LOGIN_SLOTS}-digit code to sign in to Jumpa`;
 
 /** `?section=` values that open a PIN flow. */
 export type PinFlowName =
@@ -46,7 +51,7 @@ export const PIN_FLOWS: Record<PinFlowName, PinFlow> = {
     kind: "transaction",
     mode: "change",
     title: "Change Transaction PIN",
-    length: TRANSACTION_PIN_LENGTH,
+    length: TRANSACTION_SLOTS,
     current: {
       heading: "Enter your current PIN",
       description: TRANSACTION_SUBTITLE,
@@ -73,7 +78,7 @@ export const PIN_FLOWS: Record<PinFlowName, PinFlow> = {
     kind: "login",
     mode: "change",
     title: "Change Login PIN",
-    length: LOGIN_PIN_LENGTH,
+    length: LOGIN_SLOTS,
     current: {
       heading: "Enter your current PIN",
       description: LOGIN_SUBTITLE,
@@ -99,19 +104,19 @@ export const PIN_FLOWS: Record<PinFlowName, PinFlow> = {
     kind: "transaction",
     mode: "forgot",
     title: "Forgot Transaction PIN",
-    length: TRANSACTION_PIN_LENGTH,
+    length: TRANSACTION_SLOTS,
     intro: {
       heading: "Forgot your Transaction PIN?",
       description: "Verify your identity to create a new transaction PIN.",
     },
     create: {
       heading: "Set New Transaction PIN",
-      description: `Please enter a ${TRANSACTION_PIN_LENGTH}-digit PIN. Avoid using simple ones like 1234.`,
+      description: `Please enter a ${TRANSACTION_SLOTS}-digit PIN. Avoid using simple ones like 1234.`,
       label: "Enter new transaction PIN",
     },
     confirm: {
       heading: "Confirm New Transaction PIN",
-      description: `Please enter a ${TRANSACTION_PIN_LENGTH}-digit PIN. Avoid using simple ones like 1234.`,
+      description: `Please enter a ${TRANSACTION_SLOTS}-digit PIN. Avoid using simple ones like 1234.`,
       label: "Re-enter new transaction PIN",
     },
     note: SIGNING_NOTE,
@@ -125,19 +130,19 @@ export const PIN_FLOWS: Record<PinFlowName, PinFlow> = {
     kind: "login",
     mode: "forgot",
     title: "Forgot Login PIN",
-    length: LOGIN_PIN_LENGTH,
+    length: LOGIN_SLOTS,
     intro: {
       heading: "Forgot your Login PIN?",
       description: "Verify your identity to create a new Login PIN.",
     },
     create: {
       heading: "Set New Login PIN",
-      description: `Please enter a ${LOGIN_PIN_LENGTH}-digit PIN. Avoid using simple ones like 123456.`,
+      description: `Please enter a ${LOGIN_SLOTS}-digit PIN. Avoid using simple ones like 123456.`,
       label: "Enter your login PIN",
     },
     confirm: {
       heading: "Confirm New Login PIN",
-      description: `Please enter a ${LOGIN_PIN_LENGTH}-digit PIN. Avoid using simple ones like 123456.`,
+      description: `Please enter a ${LOGIN_SLOTS}-digit PIN. Avoid using simple ones like 123456.`,
       label: "Re-enter your login PIN",
     },
     success: {

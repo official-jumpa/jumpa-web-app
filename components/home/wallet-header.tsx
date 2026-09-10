@@ -3,9 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { BellIcon } from "@/components/ui/icons/bell";
+import { MessageCircleQuestionIcon } from "@/components/ui/icons/message-circle-question";
 import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
 import { useAuthContext } from "@/components/auth/AuthGuard";
 import { ACCOUNT } from "@/lib/wallet";
+
+const CONTROL =
+  "flex size-10 items-center justify-center rounded-full bg-jumpa-white/43 text-jumpa-primary-50";
 
 export function WalletHeader() {
   const auth = useAuthContext();
@@ -46,13 +50,19 @@ export function WalletHeader() {
         </p>
       </Link>
 
-      <Link
-        href="/notifications"
-        aria-label="Notifications"
-        className="flex size-10 items-center justify-center rounded-full bg-jumpa-white/43 text-jumpa-primary-50"
-      >
-        <BellIcon className="size-6" />
-      </Link>
+      <div className="flex items-center gap-2">
+        <Link href="/support" aria-label="Help and support" className={CONTROL}>
+          <MessageCircleQuestionIcon className="size-6" />
+        </Link>
+
+        <Link
+          href="/notifications"
+          aria-label="Notifications"
+          className={CONTROL}
+        >
+          <BellIcon className="size-6" />
+        </Link>
+      </div>
     </header>
   );
 }

@@ -69,6 +69,35 @@ export const ASSETS: Asset[] = SUPPORTED_ASSETS.filter((asset) =>
   HOME_WALLETS.includes(asset.symbol),
 );
 
+export type FiatAccount = {
+  id: "ngn" | "usd";
+  label: string;
+  /** Circular flag, a 32px source for the design's 16px slot. */
+  flag: string;
+  /** Formatted balance, or null until the user opens the account. */
+  balance: string | null;
+};
+
+/**
+ * The two fiat balances that sit beside the crypto wallets. No rail issues an
+ * account yet, so both are unopened and the cards offer to create one; give a
+ * card a `balance` to see the funded state.
+ */
+export const FIAT_ACCOUNTS: FiatAccount[] = [
+  {
+    id: "ngn",
+    label: "NGN Account",
+    flag: "/images/home/flag-ngn.png",
+    balance: null,
+  },
+  {
+    id: "usd",
+    label: "USD Account",
+    flag: "/images/home/flag-usd.png",
+    balance: null,
+  },
+];
+
 export type TransactionStatus = "completed" | "pending" | "failed";
 
 /** Picks the glyph on the row's tile. */

@@ -4,13 +4,13 @@ import { getAssetLogo } from "@/lib/assets";
 import type { Asset } from "@/lib/wallet";
 import { HomeSection } from "./home-section";
 
-/** Horizontally scrolling row of balances, one card per asset. */
+/** Horizontally scrolling row of balances, one card per wallet. */
 export function AssetList({ assets }: { assets: Asset[] }) {
   return (
     <HomeSection
-      title="Your Assets"
+      title="Your Wallets"
       action={
-        <Link href="/assets" className="text-jumpa-primary-950">
+        <Link href="/assets" className="text-xs text-jumpa-primary-950">
           See All
         </Link>
       }
@@ -24,9 +24,9 @@ export function AssetList({ assets }: { assets: Asset[] }) {
           >
             <Link
               href={`/assets?token=${asset.symbol.toLowerCase()}`}
-              className="tap flex h-29 w-38.75 flex-col justify-between rounded-panel bg-jumpa-neutral-50 px-4 py-3.5 active:scale-[0.98]"
+              className="tap flex h-27 w-38.75 flex-col justify-between rounded-panel bg-jumpa-neutral-50 px-4 py-3.5 active:scale-[0.98]"
             >
-              <span className="flex items-center gap-2">
+              <span className="flex items-center gap-1">
                 {/* Resolved from the symbol so the glyph can never disagree with it. */}
                 <Image
                   src={getAssetLogo(asset.symbol)}
@@ -35,8 +35,13 @@ export function AssetList({ assets }: { assets: Asset[] }) {
                   height={22}
                   className="size-5.5 rounded-full object-contain"
                 />
-                <span className="text-sm leading-4.5 font-medium text-jumpa-black">
-                  {asset.symbol}
+                <span className="flex flex-col">
+                  <span className="text-[10px] leading-3 font-medium text-jumpa-black">
+                    {asset.symbol}
+                  </span>
+                  <span className="text-[8px] leading-2 text-jumpa-neutral-350">
+                    {asset.name}
+                  </span>
                 </span>
               </span>
 

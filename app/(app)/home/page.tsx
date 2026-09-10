@@ -6,6 +6,7 @@ import { AdBanner } from "@/components/home/ad-banner";
 import { AssetList } from "@/components/home/asset-list";
 import { BalancePanel } from "@/components/home/balance-panel";
 import { BottomNav } from "@/components/home/bottom-nav";
+import { FiatAccounts } from "@/components/home/fiat-accounts";
 import { HeroBackdrop } from "@/components/home/hero-backdrop";
 import { KycCard } from "@/components/home/kyc-card";
 import { QuickActions } from "@/components/home/quick-actions";
@@ -146,6 +147,9 @@ export default function HomePage() {
           <QuickActions />
         </RiseIn>
         <RiseIn index={3}>
+          <FiatAccounts />
+        </RiseIn>
+        <RiseIn index={4}>
           <TransactionHistory
             transactions={transactions}
             loading={loadingTransactions}

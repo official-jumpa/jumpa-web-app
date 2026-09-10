@@ -36,7 +36,8 @@
 ### Key Capabilities
 - **Conversational Financial Engine:** Process intents such as *"Swap 10 XLM to USDC on testnet"*, *"What's my balance?"*, or *"Claim test tokens"* into on-chain actions.
 - **Sovereign Non-Custodial Security:** BIP-39 mnemonic seeds generated in the background, encrypted locally via AES-256-GCM + PIN, deriving standardized Stellar (`m/44'/148'/0'`), EVM, and Solana addresses.
-- **Soroswap DEX Liquidity Aggregation:** Real-time quote routing (`/quote`) and unsigned transaction XDR construction (`/quote/build`) across Stellar Soroban liquidity pools.
+- **Soroswap DEX Routing & Soroban Smart Contracts:** On-chain router quoting (`router_get_amounts_out`) and direct Soroban smart contract execution (`swap_exact_tokens_for_tokens` via `invoke_host_function`) against Soroswap liquidity pools.
+- **DeFi Yield Target Savings:** Automated USDC deposits into DeFindex Soroban smart contract vaults with real-time APY tracking.
 - **Multi-Chain Portfolio Aggregation:** Concurrent balance synchronization across Stellar Horizon (Testnet & Mainnet), Base/EVM, and Solana.
 - **Integrated Hosted Ramps:** Responsive checkout bottom sheets for fiat deposit and withdrawal gateways (Switch, MoneyGram, Mercuryo).
 
@@ -46,8 +47,9 @@
 
 | Guide | Description |
 | :--- | :--- |
-| 📖 **[Tranche 1 Completion Guide](docs/TRANCHE_1_COMPLETE.md)** | Comprehensive technical architecture, Soroswap REST integration, Stellar Horizon synchronization, SEP-24 ramps staging, and proof of deliverables. |
-| 🧪 **[Step-by-Step Testing Guide](docs/HOW_TO_TEST.md)** | Walkthrough on sign-up OTP, PIN setup, Friendbot faucet activation, and executing conversational DEX swaps. |
+| **[Tranche 1 Completion Guide](docs/TRANCHE_1_COMPLETE.md)** | Core technical architecture, Stellar Horizon synchronization, SEP-24 ramps staging, and baseline SDK foundations. |
+| **[Tranche 2 Completion Guide](docs/TRANCHE_2_COMPLETE.md)** | End-to-end chat swaps via on-chain Soroswap Router (`invoke_host_function`), DeFindex savings yield, Allbridge Core bridging, and verified hashes. |
+| **[Step-by-Step Testing Guide](docs/HOW_TO_TEST.md)** | Walkthrough on sign-up OTP, PIN setup, Friendbot faucet activation, conversational DEX swaps, savings goals, and bridging. |
 
 ---
 
@@ -167,30 +169,35 @@ The application will be live at **`http://localhost:3000`**.
 ```
 jumpa-web-app/
 ├── app/                      # Next.js 16 App Router pages, layouts, and API routes
-│   ├── (app)/                # Authenticated application screens (home, chat, settings, cards)
+│   ├── (app)/                # Authenticated application screens (home, chat, savings, swap, settings)
 │   ├── (auth)/               # Authentication & onboarding flows (login, OTP, PIN)
 │   ├── api/                  # REST backend handlers
 │   │   ├── auth/             # BetterAuth handlers & session verification
 │   │   ├── chat/             # Chat prompt dispatch (/send) & transaction confirmation (/confirm)
-│   │   ├── swap/             # Soroswap DEX proxy routes (/quote & /build)
+│   │   ├── savings/          # DeFindex savings vaults (/create, /top-up, /withdraw)
+│   │   ├── swap/             # Soroswap DEX routes (/quote, /build, /execute)
 │   │   ├── switch/           # Fiat on/off-ramp webhook & status routes
-│   │   └── wallet/           # Wallet balance sync & faucet funding
+│   │   └── wallet/           # Wallet balance sync, send, & faucet funding
 │   └── globals.css           # Global static design tokens & Tailwind theme
 ├── components/               # React 19 UI component library
 │   ├── auth/                 # OTP verification, PIN inputs, and recovery phrase components
 │   ├── chat/                 # Conversational UI, QuoteCard, ReceiptCard, PIN Sheet
 │   ├── home/                 # Asset list, balance panels, quick actions, bottom nav
+│   ├── savings/              # Target savings dashboard, goal creation, top-up sheets
+│   ├── swap/                 # Standalone DEX swap view & settings sheet
 │   └── ui/                   # Generic primitives (Button, TextField, BottomSheet, Icons)
 ├── docs/                     # Technical specifications and testing guides
 │   ├── HOW_TO_TEST.md        # Step-by-step testnet walkthrough
-│   └── TRANCHE_1_COMPLETE.md # Tranche 1 architecture & verification proofs
+│   ├── TRANCHE_1_COMPLETE.md # Tranche 1 architecture & verification proofs
+│   └── TRANCHE_2_COMPLETE.md # Tranche 2 architecture & verification proofs
 ├── lib/                      # Core business logic & blockchain integration
 │   ├── ai/                   # AI intent engine, tool schemas, and tool execution dispatcher
-│   ├── chains/               # Chain integrations (Stellar Horizon, Solana, EVM)
-│   │   └── stellar/          # BIP-39 m/44'/148'/0' key derivation, Horizon client, state sync
-│   ├── dex/                  # Decentralized exchange connectors (Soroswap REST API client)
+│   ├── bridge.ts             # Allbridge Core cross-chain stablecoin quoting
+│   ├── chains/               # Chain integrations (Stellar Horizon, Soroban, Solana, EVM)
+│   │   └── stellar/          # Key derivation, Horizon client, DeFindex vault client, state sync
+│   ├── dex/                  # Decentralized exchange connectors (Soroswap on-chain Router client)
 │   └── crypto.ts             # AES-256-GCM encryption & secure mnemonic hashing
-├── models/                   # Mongoose database schemas (User, Wallet, Transaction, ChatLog)
+├── models/                   # Mongoose database schemas (User, Wallet, Transaction, SavingsPlan, ChatLog)
 └── public/                   # Static assets, SVG coin badges, and brand marks
 ```
 

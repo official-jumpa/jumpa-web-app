@@ -62,24 +62,27 @@ This guide provides step-by-step instructions for testing Jumpa's core features 
 
 ---
 
-### Step 4: Execute a Conversational Token Swap (Soroswap DEX)
+### Step 4: Execute a Conversational Token Swap (Soroswap Router)
 1. Send a swap prompt in chat, for example:
    - *"Swap 10 XLM to USDC on testnet"* (or *"Swap 10 stellar to usdc"*)
-2. **Interactive Quote Card:** The AI fetches a live quote from the **Soroswap DEX API** (`/quote`) and displays a structured card in the chat showing:
+2. **Interactive Quote Card:** The AI queries the **Soroswap Router contract on-chain** via Soroban RPC (`router_get_amounts_out`) and displays a structured card in the chat showing:
    - **You Pay:** `10 XLM`
-   - **You Receive:** Expected USDC output
-   - **Rate, Slippage, & Estimated Fee:** (`0.00001 XLM`)
-   - **Protocol:** `Soroswap (soroswap)`
+   - **You Receive:** Expected USDC output (derived from live pool reserves)
+   - **Rate, Slippage, & Estimated Fee:** Dynamically calculated from Soroban RPC `minResourceFee` (e.g. `0.00144 XLM`, zero hardcoded values)
+   - **Protocol:** `Soroswap Router`
 3. **Confirm the Transaction:**
    - Click the **Confirm** button on the Quote Card.
    - The **PIN Sheet modal** will appear from the bottom of the screen.
    - Enter your **6-digit wallet PIN**.
 4. **Signing & On-Chain Broadcast:**
-   - The server decrypts the mnemonic keypair using your PIN.
-   - Soroswap constructs the unsigned transaction XDR envelope (`/quote/build`).
-   - The transaction is signed with your Ed25519 secret key and submitted to the **Stellar Horizon Testnet**.
+   - The server verifies available balance and trustline prerequisites.
+   - Decrypts the mnemonic keypair using your PIN.
+   - Constructs the Soroban `invoke_host_function` smart contract transaction calling `swap_exact_tokens_for_tokens` on the Soroswap Router (`CCJUD55...`).
+   - Simulates transaction auth and footprint via Soroban RPC, signs with your Ed25519 secret key, and submits to the Stellar network.
 5. **Verified Receipt:**
    - A **Receipt Card** is rendered in the chat transcript with the confirmed transaction status, hash, and a clickable link to view the transaction on the **Stellar Expert Explorer**.
+
+> **Standalone Swap UI:** You can also test swaps directly via the dedicated `/swap` page in the application, which shares the identical on-chain Soroswap Router pipeline.
 
 ---
 

@@ -85,32 +85,39 @@ flowchart TD
 
 ---
 
-## 3. Milestone 1: End-to-End Chat Swaps via Soroswap
+## 3. Milestone 1: End-to-End Chat Swaps via Soroswap Router
 
-Conversational swaps are executed seamlessly from natural language input to final on-chain settlement on the Stellar testnet.
+Conversational swaps are executed seamlessly from natural language input to final on-chain settlement on the Stellar testnet via Soroban smart contract invocations.
 
-### 3.1 Conversational Intent & Soroswap Quoting
-The AI system prompt interprets natural language intent for token swaps, extracting parameters via structured function calling (`stellar_testnet_swap_quote`). Contract addresses for XLM and testnet USDC are resolved and submitted to the Soroswap REST API:
-- **XLM Contract:** `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
-- **USDC Contract:** `CB3TLW74NBIOT3BUWOZ3TUM6RFDF6A4GVIRUQRQZABG5KPOUL4JJOV2F`
+### 3.1 Conversational Intent & On-Chain Soroswap Quoting
+The AI system prompt interprets natural language intent for token swaps, extracting parameters via structured function calling (`stellar_testnet_swap_quote`). Quotes are queried **directly on-chain** against the **Soroswap Router smart contract** via Soroban RPC simulation (`router_get_amounts_out`), ensuring pricing is anchored in real-time liquidity pool reserves:
+- **Soroswap Router Contract:** `CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD`
+- **XLM SAC Contract:** `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
+- **Circle USDC SAC Contract:** `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA`
+- **XLM/USDC Pair Contract:** `CCBX3NZTCQLQFSPG7HBOKL4P2RVPOPVFHDNRTOSCCJWBTPL2GHEH7RQS`
+
+> [!IMPORTANT]
+> **No Fabricated Rates:** The hardcoded fallback rate was completely removed. If no on-chain liquidity or orderbook route exists for a pair, the engine throws an explicit `Insufficient liquidity` error, preventing users from signing transactions priced off invented numbers.
 
 ### 3.2 Dynamic Quote Card & Inline Editing
 An interactive card renders directly within the chat transcript:
-- **You Pay:** Numeric input and token badge (`XLM`)
-- **You Receive:** Formatted output token amount (`USDC`)
-- **Stats:** Rate, slippage tolerance (`0.5%`), protocol (`Soroswap Testnet`), and network fee (`0.00001 XLM`).
-- **Inline Editing:** Users can edit the input amount directly inside the card, which automatically triggers a debounced live re-quote from the quote endpoint.
+- **You Pay:** Numeric input and token badge (`XLM` or `USDC`)
+- **You Receive:** Formatted output token amount derived from live on-chain pool reserves
+- **Stats:** Live exchange rate, slippage tolerance (`0.5%`), protocol (`Soroswap Router`), and network fee dynamically derived from Soroban RPC `minResourceFee` + `BASE_FEE` (e.g. `0.00144 XLM`).
+- **Inline Editing:** Users can edit the input amount directly inside the card, which automatically triggers a debounced live re-quote from the on-chain router.
 
-### 3.3 Authorization, XDR Construction & Horizon Broadcast
+### 3.3 Authorization, Soroban XDR Construction & Horizon Broadcast
 When the user taps **Confirm** and enters their 6-digit PIN:
 1. Validates the 6-digit PIN against the encrypted wallet hash.
-2. Decrypts the user's BIP-39 mnemonic in memory via AES-256-GCM.
-3. Derives the sovereign Stellar keypair via derivation path `m/44'/148'/0'`.
-4. Calls Soroswap `/quote/build` with the latest quote parameters, user public key, and slippage tolerance.
-5. Deserializes the unsigned XDR with the Stellar SDK and signs it with the decrypted secret key.
-6. Submits the signed transaction directly to the Horizon testnet.
-7. Records the transaction under the transaction ledger (`type: "SWAP"`, `status: "CONFIRMED"`, `txHash`).
-8. Emits the verified receipt card with a clickable explorer link to Stellar Expert.
+2. Checks available on-chain balance and ensures the destination asset trustline exists on-chain.
+3. Decrypts the user's BIP-39 mnemonic in memory via AES-256-GCM.
+4. Derives the sovereign Stellar keypair via derivation path `m/44'/148'/0'`.
+5. Constructs the Soroban `invoke_host_function` smart contract transaction calling `swap_exact_tokens_for_tokens(amountIn, amountOutMin, path, recipient, deadline)` on the Soroswap Router contract.
+6. Simulates the transaction via Soroban RPC to assemble footprint and authorizations (`assembleTransaction`).
+7. Signs the transaction envelope with the decrypted Ed25519 secret key.
+8. Submits the signed transaction directly to the Stellar network.
+9. Records the transaction under the transaction ledger (`type: "SWAP"`, `status: "CONFIRMED"`, `txHash`).
+10. Emits the verified receipt card with a clickable explorer link to Stellar Expert.
 
 ---
 
@@ -208,13 +215,14 @@ All transactional actions across Swaps, Transfers, DeFi Yield, and Bridging shar
 
 ## 7. End-to-End Transaction Flow (Signing & Execution)
 
-### 7.1 Conversational Swap Loop (Soroswap DEX)
+### 7.1 Conversational Swap Loop (Soroswap Router)
 ```
 1. [User Prompt]  "Swap 10 XLM for USDC on testnet"
        ↓
 2. [AI Tool]      Dispatches `stellar_testnet_swap_quote` with { fromToken: "XLM", toToken: "USDC", fromAmount: "10" }
        ↓
-3. [DEX Quote]    Fetches quote from Soroswap API, renders interactive `QuoteCard` in chat.
+3. [Router Quote] Queries Soroswap Router on-chain via Soroban RPC simulation (`router_get_amounts_out`),
+                  renders interactive `QuoteCard` with live rate and dynamic network fee.
        ↓
 4. [User Action]  User clicks "Confirm" on QuoteCard.
        ↓
@@ -222,12 +230,14 @@ All transactional actions across Swaps, Transfers, DeFi Yield, and Bridging shar
        ↓
 6. [POST /api/chat/confirm]
        ├─ a. Verifies PIN bcrypt hash in MongoDB `Wallet` collection.
-       ├─ b. Decrypts BIP-39 mnemonic using AES-256-GCM (mnemonic + IV + salt + PIN).
-       ├─ c. Derives sovereign Stellar keypair via `m/44'/148'/0'`.
-       ├─ d. Calls Soroswap `/quote/build` to get unsigned transaction XDR envelope.
-       ├─ e. Signs transaction with `StellarSdk.TransactionBuilder.fromXDR(xdr, Networks.TESTNET)`.
-       ├─ f. Submits signed tx to Stellar Horizon Testnet (`server.submitTransaction(tx)`).
-       └─ g. Records transaction in MongoDB `Transaction` collection.
+       ├─ b. Performs pre-flight balance and trustline verification.
+       ├─ c. Decrypts BIP-39 mnemonic using AES-256-GCM (mnemonic + IV + salt + PIN).
+       ├─ d. Derives sovereign Stellar keypair via `m/44'/148'/0'`.
+       ├─ e. Builds Soroban `invoke_host_function` transaction calling Router `swap_exact_tokens_for_tokens`.
+       ├─ f. Simulates transaction on Soroban RPC to assemble footprint and authorizations (`assembleTransaction`).
+       ├─ g. Signs transaction envelope with sovereign Ed25519 keypair.
+       ├─ h. Submits signed tx to Stellar network (`server.submitTransaction(tx)`).
+       └─ i. Records confirmed transaction in MongoDB `Transaction` collection.
        ↓
 7. [UI Update]    Replaces Quote Card with confirmed `ReceiptCard` containing tx hash and Stellar Expert explorer link.
 ```

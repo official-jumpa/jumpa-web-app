@@ -4,12 +4,15 @@ import type { Asset } from "@/lib/wallet";
 
 const ROW = "tap flex w-full items-center gap-2 text-left active:scale-[0.99]";
 
-/** One wallet in the picker: brand mark and ticker. */
+/** One wallet in the picker: brand mark, ticker and what it holds. */
 export function AssetRow({
   asset,
+  value,
   onSelect,
 }: {
   asset: Asset;
+  /** USD worth of the holding. The deposit list draws none. */
+  value?: string;
   /** The row asks for a network rather than navigating, so it is a button. */
   onSelect: () => void;
 }) {
@@ -26,6 +29,11 @@ export function AssetRow({
       <span className="truncate text-sm leading-4 font-semibold text-jumpa-black">
         {asset.symbol}
       </span>
+      {value ? (
+        <span className="ml-auto shrink-0 text-sm leading-5.5 font-semibold text-jumpa-black">
+          {value}
+        </span>
+      ) : null}
     </button>
   );
 }

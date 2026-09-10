@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AssetRow, AssetRule } from "@/components/assets/asset-row";
 import { NetworkSheet } from "@/components/assets/network-sheet";
+import { FiatAccounts } from "@/components/home/fiat-accounts";
 import { SearchAltIcon } from "@/components/ui/icons/search-alt";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import {
@@ -10,6 +11,7 @@ import {
   useAssetNetwork,
   walletHref,
 } from "@/hooks/use-asset-network";
+import { cn } from "@/lib/cn";
 import type { Asset } from "@/lib/wallet";
 
 /**
@@ -61,17 +63,30 @@ export function AssetPicker({
         />
       </label>
 
+      {/* Deposit is a crypto step, so only the wallet list carries the accounts. */}
+      {receive ? null : (
+        <div className="mt-3.5">
+          <FiatAccounts />
+        </div>
+      )}
+
       {matches.length === 0 ? (
         <p className="mt-10 text-center text-sm text-jumpa-neutral-400">
           No wallet matches &ldquo;{query}&rdquo;.
         </p>
       ) : (
-        <ul className="mt-3.5 flex flex-col gap-4 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-6 py-5">
+        <ul
+          className={cn(
+            receive ? "mt-3.5" : "mt-4",
+            "flex flex-col gap-4 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-6 py-5",
+          )}
+        >
           {matches.map((asset, index) => (
             <li key={asset.symbol} className="flex flex-col gap-4">
               {index > 0 ? <AssetRule /> : null}
               <AssetRow
                 asset={asset}
+                value={receive ? undefined : asset.balance}
                 onSelect={() => network.start(asset.symbol)}
               />
             </li>

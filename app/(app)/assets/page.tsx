@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { AssetPicker } from "@/components/assets/asset-picker";
 import { DepositInfo } from "@/components/assets/deposit-info";
 import { TokenDetailView } from "@/components/assets/token-detail-view";
+import { unifyTokens } from "@/lib/assets";
 import { chainsFor, resolveChainAddresses } from "@/lib/blockchain";
 import { getSession } from "@/lib/session";
 import {
@@ -13,7 +14,7 @@ import {
   getCachedWalletBalances,
   getAssetPriceUsd,
 } from "@/lib/wallet-balances";
-import { SUPPORTED_ASSETS, type Transaction } from "@/lib/wallet";
+import { SUPPORTED_ASSETS, type Asset, type Transaction } from "@/lib/wallet";
 
 interface AssetsPageProps {
   searchParams: Promise<{
@@ -44,12 +45,36 @@ export async function generateMetadata({
   return { title: `${symbol} Wallet` };
 }
 
+/**
+ * Every supported wallet, carrying the USD value of what the user actually
+ * holds. The list never shrinks — an untouched wallet still shows its row.
+ */
+async function walletAssets(): Promise<Asset[]> {
+  const session = await getSession();
+  if (!session?.userId) return SUPPORTED_ASSETS;
+
+  const balances = await getCachedWalletBalances(session.userId).catch(
+    () => null,
+  );
+  if (!balances?.tokens?.length) return SUPPORTED_ASSETS;
+
+  // unifyTokens sums a symbol across chains, which is what one row stands for.
+  const held = new Map(
+    unifyTokens(balances.tokens).map((asset) => [asset.symbol, asset.balance]),
+  );
+
+  return SUPPORTED_ASSETS.map((asset) => {
+    const balance = held.get(asset.symbol);
+    return balance ? { ...asset, balance } : asset;
+  });
+}
+
 export default async function AssetsPage({ searchParams }: AssetsPageProps) {
   const { token, network, deposit } = await searchParams;
 
   // 1. List View: Render full asset list when no specific token is selected
   if (!token) {
-    return <AssetPicker assets={SUPPORTED_ASSETS} />;
+    return <AssetPicker assets={await walletAssets()} />;
   }
 
   const asset = SUPPORTED_ASSETS.find(

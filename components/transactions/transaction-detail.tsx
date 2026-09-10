@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { CopyButton } from "@/components/auth/copy-button";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { getAssetLogo } from "@/lib/assets";
@@ -97,7 +98,17 @@ export function TransactionDetail({ id }: { id: string }) {
                 className="flex items-center justify-between gap-4"
               >
                 <dt className="shrink-0">{row.label}</dt>
-                <dd className="truncate text-right">{row.value}</dd>
+                <dd className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate text-right">{row.value}</span>
+                  {/* The printed value is shortened; copy hands over the whole of it. */}
+                  {row.copy ? (
+                    <CopyButton
+                      value={row.copy}
+                      name={`Copy ${row.label.toLowerCase()}`}
+                      className="shrink-0 [&>svg]:size-4"
+                    />
+                  ) : null}
+                </dd>
               </div>
             ))}
           </dl>

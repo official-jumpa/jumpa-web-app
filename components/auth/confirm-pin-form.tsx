@@ -8,7 +8,7 @@ import { PinDisplay } from "@/components/auth/pin-display";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 
-const PIN_LENGTH = 6;
+import { TRANSACTION_PIN_LENGTH as PIN_LENGTH } from "@/lib/pin";
 
 export function ConfirmPinForm({
   nextHref = "/sign-up/done",
@@ -134,7 +134,7 @@ export function ConfirmPinForm({
         )}
 
         <InfoNote>
-          Re-enter your 6-digit PIN to confirm and complete setting up your
+          Re-enter your 4-digit PIN to confirm and complete setting up your
           wallet
         </InfoNote>
       </div>

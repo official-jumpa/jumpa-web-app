@@ -331,7 +331,8 @@ function formatTxTimestamp(dateVal?: Date | string): string {
 
 /** Only rows the record can actually answer — an empty value is left out. */
 function detailRows(tx: any, status: string): TransactionDetailRow[] {
-  const rows: [string, unknown][] = [];
+  // Third slot is the full value to copy, where the printed one is shortened.
+  const rows: [string, unknown, string?][] = [];
   const swap = tx.swapDetails;
   const ramp = tx.rampDetails;
 
@@ -354,7 +355,7 @@ function detailRows(tx: any, status: string): TransactionDetailRow[] {
           ramp.fiatAmount ? `${ramp.fiatCurrency} ${ramp.fiatAmount}` : "",
         ],
         ["Bank", ramp.bankDetails?.bankName],
-        ["Reference", ramp.reference],
+        ["Reference", ramp.reference, ramp.reference],
       );
     } else {
       rows.push(
@@ -367,7 +368,7 @@ function detailRows(tx: any, status: string): TransactionDetailRow[] {
   rows.push(
     ["Network", tx.chain ? `${tx.chain} ${tx.network || ""}`.trim() : ""],
     ["Network fee", tx.feePaid],
-    ["TXN HASH", shortenKey(tx.txHash)],
+    ["TXN HASH", shortenKey(tx.txHash), tx.txHash],
     ["Time taken", timeTaken(tx)],
   );
 
@@ -375,7 +376,11 @@ function detailRows(tx: any, status: string): TransactionDetailRow[] {
 
   return rows
     .filter(([, value]) => value !== undefined && value !== null && `${value}`.trim() !== "")
-    .map(([label, value]) => ({ label, value: `${value}`.trim() }));
+    .map(([label, value, copy]) => ({
+      label,
+      value: `${value}`.trim(),
+      ...(copy ? { copy } : {}),
+    }));
 }
 
 function exchangeRate(from?: string, to?: string): string {

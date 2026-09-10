@@ -4,13 +4,14 @@ import { useState } from "react";
 import { AccountActions } from "@/components/settings/account-actions";
 import { IdDocumentSheet } from "@/components/settings/id-document-sheet";
 import { settingsHref } from "@/components/settings/sections";
-import { SettingLink } from "@/components/settings/setting-row";
+import { SettingAction, SettingLink } from "@/components/settings/setting-row";
 import {
   SettingCard,
   SettingRule,
   SettingSection,
 } from "@/components/settings/setting-section";
 import { SettingsHeader } from "@/components/settings/settings-header";
+import { StatementSheet } from "@/components/settings/statement-options";
 import { BadgeDollarIcon } from "@/components/ui/icons/badge-dollar";
 import { BellAltIcon } from "@/components/ui/icons/bell-alt";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
@@ -25,6 +26,7 @@ import { UsersIcon } from "@/components/ui/icons/users";
 /** The settings landing. Every row below opens a section of this same route. */
 export function SettingsIndex() {
   const [kycOpen, setKycOpen] = useState(false);
+  const [statementsOpen, setStatementsOpen] = useState(false);
 
   return (
     <>
@@ -38,6 +40,12 @@ export function SettingsIndex() {
                 href="/profile"
                 icon={CircleUserIcon}
                 label="My Profile"
+              />
+              <SettingRule />
+              <SettingAction
+                icon={ShieldCheckIcon}
+                label="Statement and report"
+                onClick={() => setStatementsOpen(true)}
               />
               <SettingRule />
               <SettingLink
@@ -111,6 +119,9 @@ export function SettingsIndex() {
       </div>
 
       {kycOpen ? <IdDocumentSheet onClose={() => setKycOpen(false)} /> : null}
+      {statementsOpen ? (
+        <StatementSheet onClose={() => setStatementsOpen(false)} />
+      ) : null}
     </>
   );
 }

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/auth/copy-button";
+import { settingsHref } from "@/components/settings/sections";
 import { SettingLink, SettingRow } from "@/components/settings/setting-row";
 import {
   SettingCard,
@@ -14,6 +15,7 @@ import { SettingsHeader } from "@/components/settings/settings-header";
 import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { CornerUpRightIcon } from "@/components/ui/icons/corner-up-right";
 import { GearIcon } from "@/components/ui/icons/gear";
+import { HeartAltIcon } from "@/components/ui/icons/heart-alt";
 import { PartyBellIcon } from "@/components/ui/icons/party-bell";
 import { TagsIcon } from "@/components/ui/icons/tags";
 import { UserAlt1Icon } from "@/components/ui/icons/user-alt-1";
@@ -109,11 +111,19 @@ export default function ProfilePage() {
         <p className="mt-2 text-[10px] leading-3 font-medium text-jumpa-primary-600">
           {displayEmail}
         </p>
+        {stellarAddress ? (
+          <CopyButton
+            value={stellarAddress}
+            label="Copy wallet address"
+            variant="text"
+            className="mt-1 text-[10px] leading-3 font-semibold text-jumpa-primary-950"
+          />
+        ) : null}
       </div>
 
       <Link
         href="/kyc"
-        className="mt-6 flex items-center gap-1.5 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-3.25 py-4 tap active:scale-[0.99]"
+        className="mt-6 flex items-center gap-1.5 rounded-xl border-[1.5px] border-jumpa-primary-50 bg-jumpa-neutral-50 px-3.25 py-4 tap active:scale-[0.99]"
       >
         <span className="flex size-11 shrink-0 items-center justify-center rounded-pill bg-jumpa-primary-600 text-jumpa-white">
           <UserAlt1Icon className="size-6" />
@@ -219,6 +229,25 @@ export default function ProfilePage() {
                 )}
               </>
             )}
+
+            <p className="flex items-center gap-2 self-center text-[10px] leading-3 font-medium text-jumpa-black">
+              Powered by
+              <span className="flex items-center gap-1 rounded-pill border border-jumpa-neutral-100 bg-jumpa-white py-1 pr-2.5 pl-1">
+                <Image
+                  src={getAssetLogo("XLM")}
+                  alt=""
+                  width={44}
+                  height={44}
+                  className="size-5.5 rounded-full"
+                />
+                <span className="flex flex-col items-start">
+                  <span className="leading-3">XLM</span>
+                  <span className="text-[8px] leading-2 font-normal text-jumpa-neutral-350">
+                    Stellar
+                  </span>
+                </span>
+              </span>
+            </p>
           </SettingCard>
         </SettingSection>
 
@@ -236,6 +265,12 @@ export default function ProfilePage() {
               icon={PartyBellIcon}
               label="Invite friends to Jumpa and earn rewards"
               brand
+            />
+            <SettingRule />
+            <SettingLink
+              href={settingsHref("support")}
+              icon={HeartAltIcon}
+              label="Help & Support"
             />
           </SettingCard>
         </SettingSection>

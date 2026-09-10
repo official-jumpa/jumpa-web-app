@@ -7,9 +7,9 @@ import {
 } from "@/components/settings/setting-section";
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { Toggle } from "@/components/settings/toggle";
+import { DialpadCircleIcon } from "@/components/ui/icons/dialpad-circle";
 import { FaceIdIcon } from "@/components/ui/icons/face-id";
 import { KeyIcon } from "@/components/ui/icons/key";
-import { KeyboardAltIcon } from "@/components/ui/icons/keyboard-alt";
 import { MobileIcon } from "@/components/ui/icons/mobile";
 import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
 
@@ -33,14 +33,38 @@ export function SecuritySettings() {
               label="Face ID for Transactions"
               action={<Toggle label="Face ID for transactions" />}
             />
-            <SettingRule />
-            <SettingRow
-              icon={KeyboardAltIcon}
-              label="PIN for Transactions"
-              action={<Toggle label="PIN for transactions" />}
-            />
           </SettingCard>
         </SettingSection>
+
+        {/* Both PIN cards sit under the biometrics label — the design gives
+            neither a heading of its own. */}
+        <SettingCard>
+          <SettingLink
+            href={settingsHref("transaction-pin")}
+            icon={DialpadCircleIcon}
+            label="Change Transaction PIN"
+          />
+          <SettingRule />
+          <SettingLink
+            href={settingsHref("forgot-transaction-pin")}
+            icon={DialpadCircleIcon}
+            label="Forgot Transaction PIN?"
+          />
+        </SettingCard>
+
+        <SettingCard>
+          <SettingLink
+            href={settingsHref("login-pin")}
+            icon={DialpadCircleIcon}
+            label="Change Login PIN"
+          />
+          <SettingRule />
+          <SettingLink
+            href={settingsHref("forgot-login-pin")}
+            icon={DialpadCircleIcon}
+            label="Forgot Login PIN?"
+          />
+        </SettingCard>
 
         <SettingSection label="Devices">
           <SettingCard>

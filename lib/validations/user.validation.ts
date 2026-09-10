@@ -1,13 +1,18 @@
 import { z } from "zod";
+import { TRANSACTION_PIN_LENGTH } from "@/lib/pin";
 
 /**
- * Validates a 6-digit numeric transaction PIN.
+ * Validates the numeric transaction PIN. Its length lives in `lib/pin.ts` —
+ * the login PIN is a different length and must not be validated by this.
  */
 export const pinSchema = z
   .string({
     error: "PIN is required",
   })
-  .regex(/^\d{6}$/, "PIN must be exactly 6 digits");
+  .regex(
+    new RegExp(`^\\d{${TRANSACTION_PIN_LENGTH}}$`),
+    `PIN must be exactly ${TRANSACTION_PIN_LENGTH} digits`,
+  );
 
 /**
  * Validation for /api/wallet/verify-pin.

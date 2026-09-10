@@ -3,11 +3,22 @@
 import { useState } from "react";
 import { DayPicker, type Matcher } from "react-day-picker";
 import { CalendarIcon } from "@/components/ui/icons/calendar";
+import { CaretDownIcon } from "@/components/ui/icons/caret-down";
 import { SheetPortal } from "@/components/ui/sheet-portal";
+import { cn } from "@/lib/cn";
 
-/** Explicit h-11.5 — the design's stroke is inside, a CSS border is outside. */
+/** Explicit heights — the design's stroke is inside, a CSS border is outside. */
+const TRIGGERS = {
+  /** Savings forms: bordered white box. */
+  field: "h-11.5 rounded-surface border bg-jumpa-white px-3 text-xs",
+  /** Statement form: borderless grey pill with a leading glyph. */
+  statement:
+    "h-12 rounded-pill bg-jumpa-neutral-50 pr-5.25 pl-6 text-xs " +
+    "aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-jumpa-danger",
+} as const;
+
 const TRIGGER =
-  "flex h-11.5 w-full items-center justify-between gap-2 rounded-surface border bg-jumpa-white px-3 text-left text-xs leading-4 font-medium outline-none";
+  "flex w-full items-center justify-between gap-2 text-left leading-4 font-medium outline-none";
 
 /** `YYYY-MM-DD` parsed as local time — `new Date(iso)` would read it as UTC. */
 function toDate(iso: string): Date | undefined {
@@ -62,6 +73,7 @@ export function DateField({
   value,
   invalid,
   placeholder = "Select a date",
+  variant = "field",
   min,
   max,
   className,
@@ -71,6 +83,7 @@ export function DateField({
   value: string;
   invalid?: boolean;
   placeholder?: string;
+  variant?: keyof typeof TRIGGERS;
   className?: string;
   /** `YYYY-MM-DD` bounds. Days outside them are shown but not selectable. */
   min?: string;
@@ -79,6 +92,8 @@ export function DateField({
 }) {
   const [open, setOpen] = useState(false);
   const selected = toDate(value);
+  const statement = variant === "statement";
+  const text = value ? display(value) : placeholder;
 
   const bounds: Matcher[] = [];
   const first = toDate(min ?? "");
@@ -93,12 +108,35 @@ export function DateField({
         onClick={() => setOpen(true)}
         aria-label={label}
         aria-invalid={invalid}
-        className={`${TRIGGER} ${
-          invalid ? "border-jumpa-danger" : "border-jumpa-grey-100"
-        } ${value ? "text-jumpa-primary-950" : "text-jumpa-secondary-200"} ${className ?? ""}`}
+        className={cn(
+          TRIGGER,
+          TRIGGERS[variant],
+          statement
+            ? value
+              ? "text-jumpa-black"
+              : "text-jumpa-neutral-500"
+            : invalid
+              ? "border-jumpa-danger"
+              : "border-jumpa-grey-100",
+          !statement &&
+            (value ? "text-jumpa-primary-950" : "text-jumpa-secondary-200"),
+          className,
+        )}
       >
-        {value ? display(value) : placeholder}
-        <CalendarIcon className="size-4.5 shrink-0 text-jumpa-primary-600" />
+        {statement ? (
+          <span className="flex min-w-0 items-center gap-2">
+            <CalendarIcon className="size-5 shrink-0 text-jumpa-primary-600" />
+            <span className="truncate">{text}</span>
+          </span>
+        ) : (
+          text
+        )}
+
+        {statement ? (
+          <CaretDownIcon className="size-6 shrink-0 text-jumpa-black" />
+        ) : (
+          <CalendarIcon className="size-4.5 shrink-0 text-jumpa-primary-600" />
+        )}
       </button>
 
       {open ? (

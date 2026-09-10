@@ -83,7 +83,12 @@ export type TransactionKind =
   | "invest";
 
 /** One line of the "Transaction details" card. */
-export type TransactionDetailRow = { label: string; value: string };
+export type TransactionDetailRow = {
+  label: string;
+  value: string;
+  /** Full text behind a shortened value — renders a copy control on the row. */
+  copy?: string;
+};
 
 export type Transaction = {
   id: string;

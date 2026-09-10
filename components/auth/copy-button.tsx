@@ -12,12 +12,15 @@ const CONFIRM_MS = 2000;
 export function CopyButton({
   value,
   label,
+  name,
   variant = "pill",
   className,
 }: {
   value: string;
   /** Shown beside the icon; omit for the icon-only form. */
   label?: string;
+  /** Accessible name for the icon-only form, when "Copy" alone is ambiguous. */
+  name?: string;
   /** `text` drops the pill and the icon, leaving the label alone. */
   variant?: "pill" | "text";
   className?: string;
@@ -41,7 +44,7 @@ export function CopyButton({
     <button
       type="button"
       onClick={copy}
-      aria-label={label ? undefined : copied ? "Copied" : "Copy"}
+      aria-label={label ? undefined : copied ? "Copied" : (name ?? "Copy")}
       className={cn(
         "flex items-center justify-center gap-2 transition-colors",
         copied ? "text-jumpa-success" : "text-jumpa-primary-950",

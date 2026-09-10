@@ -7,10 +7,9 @@ import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
+import { TRANSACTION_PIN_LENGTH } from "@/lib/pin";
 
-const PIN_LENGTH = 6;
-
-/** Transaction PIN entry. Advances on its own once six digits are in. */
+/** Transaction PIN entry. Advances on its own once the last digit is in. */
 export function PinForm({
   label,
   nextHref,
@@ -18,7 +17,7 @@ export function PinForm({
   label: string;
   nextHref: string;
 }) {
-  const pin = usePinInput(PIN_LENGTH);
+  const pin = usePinInput(TRANSACTION_PIN_LENGTH);
   const router = useRouter();
 
   useKeypadKeys(pin);
@@ -36,7 +35,7 @@ export function PinForm({
     <>
       <div className="mt-8 flex flex-1 flex-col gap-8">
         <PinDisplay
-          length={PIN_LENGTH}
+          length={TRANSACTION_PIN_LENGTH}
           value={pin.value}
           label={label}
           autoFocus

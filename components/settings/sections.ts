@@ -6,11 +6,18 @@
 export const SETTINGS_SECTIONS = {
   security: { title: "Security" },
   notifications: { title: "Notifications" },
+  statements: { title: "Statement and report" },
   currency: { title: "Currency Display", stub: true },
   rates: { title: "Currency Rates", stub: true },
-  statements: { title: "Account Statements", stub: true },
   support: { title: "Help & Support", stub: true },
   // Reached from Security, so that is where their back goes.
+  "login-pin": { title: "Change Login PIN", parent: "security" },
+  "transaction-pin": { title: "Change Transaction PIN", parent: "security" },
+  "forgot-login-pin": { title: "Forgot Login PIN", parent: "security" },
+  "forgot-transaction-pin": {
+    title: "Forgot Transaction PIN",
+    parent: "security",
+  },
   devices: { title: "Your Devices", stub: true, parent: "security" },
   "private-key": {
     title: "Export Private Key",

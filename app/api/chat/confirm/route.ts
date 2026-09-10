@@ -262,7 +262,7 @@ export async function POST(req: NextRequest) {
         wallet.address ||
         "";
 
-      // Log for bridge transaction
+      // Log for bridge transaction (Simulated Staging)
       try {
         await Transaction.create({
           userId,
@@ -270,7 +270,7 @@ export async function POST(req: NextRequest) {
           sessionId,
           messageId: targetMsg?.id,
           type: "BRIDGE",
-          status: "CONFIRMED",
+          status: "SIMULATED",
           chain: "base",
           network: "testnet",
           fromAddress: userBaseAddr,
@@ -279,7 +279,7 @@ export async function POST(req: NextRequest) {
           token: fromToken,
           feePaid: fee,
           bridgeDetails: {
-            provider,
+            provider: provider || "Allbridge Core (Simulation)",
             fromChain,
             toChain,
             fromToken,
@@ -303,18 +303,18 @@ export async function POST(req: NextRequest) {
       ).catch(() => {});
 
       receiptCardData = {
-        title: "Bridge Order Placed",
-        status: "Successful",
+        title: "Bridge (Simulation)",
+        status: "Simulated",
         balance: {
-          caption: "BRIDGED",
+          caption: "SIMULATED",
           value: toAmount,
           badge: toToken,
         },
         stats: [
           { value: `- ${fromAmount} ${fromToken} (${fromChain.toUpperCase()})` },
           { value: `+ ${toAmount} ${toToken} (${toChain.toUpperCase()})` },
-          { lead: "Provider ", value: provider },
-          { lead: "Est. Delivery ", value: "2-4 minutes" },
+          { lead: "Provider ", value: provider || "Allbridge Core (Simulation)" },
+          { lead: "Mode ", value: "Simulated" },
           { lead: "Bridge Fee ", value: fee },
           {
             lead: "Recipient ",
@@ -323,9 +323,7 @@ export async function POST(req: NextRequest) {
               : "Stellar Wallet",
           },
         ],
-        explorerUrl: userStellarAddr
-          ? `https://stellar.expert/explorer/testnet/account/${userStellarAddr}`
-          : undefined,
+        explorerUrl: undefined, // no explorer URL
       };
     } else if (txParams?.type === "savings_create") {
       const {
@@ -828,7 +826,7 @@ export async function POST(req: NextRequest) {
         cardType === "quote"
           ? `✓ Swap confirmed`
           : cardType === "bridge"
-            ? `✓ Bridge confirmed in ${elapsedSeconds} seconds`
+            ? `✓ Bridge transfer simulated in ${elapsedSeconds} seconds (Testnet)`
             : txParams?.type === "savings_create"
               ? `✓ Savings goal created`
               : txParams?.type === "savings_deposit"

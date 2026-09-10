@@ -62,24 +62,27 @@ This guide provides step-by-step instructions for testing Jumpa's core features 
 
 ---
 
-### Step 4: Execute a Conversational Token Swap (Soroswap DEX)
+### Step 4: Execute a Conversational Token Swap (Soroswap Router)
 1. Send a swap prompt in chat, for example:
    - *"Swap 10 XLM to USDC on testnet"* (or *"Swap 10 stellar to usdc"*)
-2. **Interactive Quote Card:** The AI fetches a live quote from the **Soroswap DEX API** (`/quote`) and displays a structured card in the chat showing:
+2. **Interactive Quote Card:** The AI queries the **Soroswap Router contract on-chain** via Soroban RPC (`router_get_amounts_out`) and displays a structured card in the chat showing:
    - **You Pay:** `10 XLM`
-   - **You Receive:** Expected USDC output
-   - **Rate, Slippage, & Estimated Fee:** (`0.00001 XLM`)
-   - **Protocol:** `Soroswap (soroswap)`
+   - **You Receive:** Expected USDC output (derived from live pool reserves)
+   - **Rate, Slippage, & Estimated Fee:** Dynamically calculated from Soroban RPC `minResourceFee` (e.g. `0.00144 XLM`, zero hardcoded values)
+   - **Protocol:** `Soroswap Router`
 3. **Confirm the Transaction:**
    - Click the **Confirm** button on the Quote Card.
    - The **PIN Sheet modal** will appear from the bottom of the screen.
    - Enter your **6-digit wallet PIN**.
 4. **Signing & On-Chain Broadcast:**
-   - The server decrypts the mnemonic keypair using your PIN.
-   - Soroswap constructs the unsigned transaction XDR envelope (`/quote/build`).
-   - The transaction is signed with your Ed25519 secret key and submitted to the **Stellar Horizon Testnet**.
+   - The server verifies available balance and trustline prerequisites.
+   - Decrypts the mnemonic keypair using your PIN.
+   - Constructs the Soroban `invoke_host_function` smart contract transaction calling `swap_exact_tokens_for_tokens` on the Soroswap Router (`CCJUD55...`).
+   - Simulates transaction auth and footprint via Soroban RPC, signs with your Ed25519 secret key, and submits to the Stellar network.
 5. **Verified Receipt:**
    - A **Receipt Card** is rendered in the chat transcript with the confirmed transaction status, hash, and a clickable link to view the transaction on the **Stellar Expert Explorer**.
+
+> **Standalone Swap UI:** You can also test swaps directly via the dedicated `/swap` page in the application, which shares the identical on-chain Soroswap Router pipeline.
 
 ---
 
@@ -98,24 +101,25 @@ This guide provides step-by-step instructions for testing Jumpa's core features 
 
 ---
 
-### Step 6: Cross-Chain Bridging via Allbridge Core (Tranche 2)
+### Step 6: Cross-Chain Bridging (Simulation & Testnet Staging) (Tranche 2)
 1. Navigate back to **Chat** (`/home/chat`).
 2. Send a bridge request, for example:
    - *"Bridge 25 USDC from Base to Stellar"*
-3. **Allbridge Quote Card:**
+3. **Simulated Bridge Quote Card:**
    - The AI assistant calls `bridge_tokens` using Allbridge Core's mathematical fee model:
      - **LP Fee:** `0.30%` (`0.075 USDC`)
      - **Relayer Gas Fee:** `0.15 USDC`
      - **Est. Settlement Time:** `2-4 minutes`
-     - **Provider:** `Allbridge Core`
+     - **Provider:** `Allbridge Core (Simulation)`
    - Displays the **Bridge Card** in the transcript showing:
+     - **Title:** `Bridge (Simulation)`
      - **You Pay:** `25 USDC` on Base
      - **You Receive:** `24.775 USDC` on Stellar
-     - **Rate, Fee & Est. Time**
+     - **Mode:** `Simulated`
 4. **Unified Confirmation & Receipt:**
    - Click **Confirm** on the Bridge Card.
    - The **PIN Sheet drawer** slides up. Enter your 6-digit PIN.
-   - Jumpa verifies the PIN, records the confirmed transaction, and renders a **Receipt Card** with Allbridge delivery stats and recipient Stellar account explorer link.
+   - Jumpa verifies the PIN, records the transaction under `status: "SIMULATED"` in the database, and renders a verified **Receipt Card** labeled **`Simulated`**.
 
 ---
 

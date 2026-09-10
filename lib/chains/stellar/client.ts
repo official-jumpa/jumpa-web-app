@@ -4,6 +4,8 @@ import { environment } from "@/lib/environment";
 export const STELLAR_TESTNET_HORIZON = environment.STELLAR_TESTNET;
 export const STELLAR_MAINNET_HORIZON = environment.STELLAR_MAINNET;
 export const STELLAR_FRIENDBOT_URL = "https://friendbot.stellar.org";
+export const STELLAR_TESTNET_SOROBAN_RPC = "https://soroban-testnet.stellar.org";
+export const STELLAR_MAINNET_SOROBAN_RPC = "https://soroban-rpc.stellar.org";
 
 // Horizon server singletons
 export const stellarTestnetServer = new StellarSdk.Horizon.Server(
@@ -13,6 +15,14 @@ export const stellarMainnetServer = new StellarSdk.Horizon.Server(
   STELLAR_MAINNET_HORIZON,
 );
 
+// Soroban RPC server singletons
+export const sorobanTestnetRpc = new StellarSdk.rpc.Server(
+  STELLAR_TESTNET_SOROBAN_RPC,
+);
+export const sorobanMainnetRpc = new StellarSdk.rpc.Server(
+  STELLAR_MAINNET_SOROBAN_RPC,
+);
+
 /**
  * Returns the appropriate Horizon server for the given network.
  */
@@ -20,6 +30,15 @@ export function getHorizonServer(
   network: "testnet" | "mainnet" = "testnet",
 ): StellarSdk.Horizon.Server {
   return network === "mainnet" ? stellarMainnetServer : stellarTestnetServer;
+}
+
+/**
+ * Returns the appropriate Soroban RPC server for the given network.
+ */
+export function getSorobanRpcServer(
+  network: "testnet" | "mainnet" = "testnet",
+): StellarSdk.rpc.Server {
+  return network === "mainnet" ? sorobanMainnetRpc : sorobanTestnetRpc;
 }
 
 /**

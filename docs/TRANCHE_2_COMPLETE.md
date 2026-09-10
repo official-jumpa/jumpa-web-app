@@ -85,32 +85,39 @@ flowchart TD
 
 ---
 
-## 3. Milestone 1: End-to-End Chat Swaps via Soroswap
+## 3. Milestone 1: End-to-End Chat Swaps via Soroswap Router
 
-Conversational swaps are executed seamlessly from natural language input to final on-chain settlement on the Stellar testnet.
+Conversational swaps are executed seamlessly from natural language input to final on-chain settlement on the Stellar testnet via Soroban smart contract invocations.
 
-### 3.1 Conversational Intent & Soroswap Quoting
-The AI system prompt interprets natural language intent for token swaps, extracting parameters via structured function calling (`stellar_testnet_swap_quote`). Contract addresses for XLM and testnet USDC are resolved and submitted to the Soroswap REST API:
-- **XLM Contract:** `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
-- **USDC Contract:** `CB3TLW74NBIOT3BUWOZ3TUM6RFDF6A4GVIRUQRQZABG5KPOUL4JJOV2F`
+### 3.1 Conversational Intent & On-Chain Soroswap Quoting
+The AI system prompt interprets natural language intent for token swaps, extracting parameters via structured function calling (`stellar_testnet_swap_quote`). Quotes are queried **directly on-chain** against the **Soroswap Router smart contract** via Soroban RPC simulation (`router_get_amounts_out`), ensuring pricing is anchored in real-time liquidity pool reserves:
+- **Soroswap Router Contract:** `CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD`
+- **XLM SAC Contract:** `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
+- **Circle USDC SAC Contract:** `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA`
+- **XLM/USDC Pair Contract:** `CCBX3NZTCQLQFSPG7HBOKL4P2RVPOPVFHDNRTOSCCJWBTPL2GHEH7RQS`
+
+> [!IMPORTANT]
+> **No Fabricated Rates:** The hardcoded fallback rate was completely removed. If no on-chain liquidity or orderbook route exists for a pair, the engine throws an explicit `Insufficient liquidity` error, preventing users from signing transactions priced off invented numbers.
 
 ### 3.2 Dynamic Quote Card & Inline Editing
 An interactive card renders directly within the chat transcript:
-- **You Pay:** Numeric input and token badge (`XLM`)
-- **You Receive:** Formatted output token amount (`USDC`)
-- **Stats:** Rate, slippage tolerance (`0.5%`), protocol (`Soroswap Testnet`), and network fee (`0.00001 XLM`).
-- **Inline Editing:** Users can edit the input amount directly inside the card, which automatically triggers a debounced live re-quote from the quote endpoint.
+- **You Pay:** Numeric input and token badge (`XLM` or `USDC`)
+- **You Receive:** Formatted output token amount derived from live on-chain pool reserves
+- **Stats:** Live exchange rate, slippage tolerance (`0.5%`), protocol (`Soroswap Router`), and network fee dynamically derived from Soroban RPC `minResourceFee` + `BASE_FEE` (e.g. `0.00144 XLM`).
+- **Inline Editing:** Users can edit the input amount directly inside the card, which automatically triggers a debounced live re-quote from the on-chain router.
 
-### 3.3 Authorization, XDR Construction & Horizon Broadcast
+### 3.3 Authorization, Soroban XDR Construction & Horizon Broadcast
 When the user taps **Confirm** and enters their 6-digit PIN:
 1. Validates the 6-digit PIN against the encrypted wallet hash.
-2. Decrypts the user's BIP-39 mnemonic in memory via AES-256-GCM.
-3. Derives the sovereign Stellar keypair via derivation path `m/44'/148'/0'`.
-4. Calls Soroswap `/quote/build` with the latest quote parameters, user public key, and slippage tolerance.
-5. Deserializes the unsigned XDR with the Stellar SDK and signs it with the decrypted secret key.
-6. Submits the signed transaction directly to the Horizon testnet.
-7. Records the transaction under the transaction ledger (`type: "SWAP"`, `status: "CONFIRMED"`, `txHash`).
-8. Emits the verified receipt card with a clickable explorer link to Stellar Expert.
+2. Checks available on-chain balance and ensures the destination asset trustline exists on-chain.
+3. Decrypts the user's BIP-39 mnemonic in memory via AES-256-GCM.
+4. Derives the sovereign Stellar keypair via derivation path `m/44'/148'/0'`.
+5. Constructs the Soroban `invoke_host_function` smart contract transaction calling `swap_exact_tokens_for_tokens(amountIn, amountOutMin, path, recipient, deadline)` on the Soroswap Router contract.
+6. Simulates the transaction via Soroban RPC to assemble footprint and authorizations (`assembleTransaction`).
+7. Signs the transaction envelope with the decrypted Ed25519 secret key.
+8. Submits the signed transaction directly to the Stellar network.
+9. Records the transaction under the transaction ledger (`type: "SWAP"`, `status: "CONFIRMED"`, `txHash`).
+10. Emits the verified receipt card with a clickable explorer link to Stellar Expert.
 
 ---
 
@@ -147,9 +154,18 @@ Automated routes handle plan lifecycle and blockchain execution:
 
 ---
 
-## 5. Milestone 3: Cross-Chain Bridging via Allbridge Core
+## 5. Milestone 3: Cross-Chain Bridging (Simulation & Testnet Staging)
 
-Enables simulated cross-chain stablecoin transfers between **Base Sepolia** and **Stellar Testnet** using Allbridge Core production formulas within Jumpa's unified confirmation drawer.
+Enables **simulated cross-chain stablecoin transfers** between **Base Sepolia** and **Stellar Testnet** using Allbridge Core mathematical fee formulas within Jumpa's unified confirmation drawer.
+
+> [!NOTE]
+> **Upstream Provider Context & Staging Rationale:**
+> Following the exploit on Allbridge Core liquidity pools, pool-based routes have been paused upstream by the Allbridge team as they transition away from pool models. Consequently, a live on-chain Stellar pool was unavailable for direct settlement. Jumpa models the deterministic quoting and fee structures (0.3% LP fee + relayer gas) to stage the cross-chain drawer, card UI, and ledger flow without simulating on-chain settlement.
+> 
+> To maintain complete accounting transparency:
+> - The flow is explicitly labeled in the UI as **`Bridge (Simulation)`** with mode **`Simulated Staging`**.
+> - In the database, bridge transactions on testnet are saved under `status: "SIMULATED"` so they cannot be read or audited as settled on-chain.
+> - The receipt card displays `status: "Simulated"` and does not fabricate a fake on-chain transaction explorer hash.
 
 ### 5.1 Quoting Engine & Fee Calculation
 Uses Allbridge Core's mathematical fee model:
@@ -169,23 +185,32 @@ Uses Allbridge Core's mathematical fee model:
     "amountOut": "99.55",
     "rate": "1 USDC = 1 USDC",
     "fee": "0.45 USDC",
-    "provider": "Allbridge Core",
+    "provider": "Allbridge Core (Simulation)",
     "estimatedTime": "2-4 minutes"
   }
   ```
 
 ### 5.2 AI Tool Execution & Preserved UI Integration
-The AI assistant handles `bridge_tokens`, formats parameters for the bridge card, and flags confirmation requirements. The existing bridge and receipt cards are completely preserved without modifying layout structure.
+The AI assistant handles `bridge_tokens`, formats parameters for the bridge card, and flags confirmation requirements. The card explicitly identifies the route as a **`Simulated Staging`** operation.
 
 ### 5.3 Confirmation & Ledger Accounting
 In the bridge execution branch:
 1. Validates user PIN against the wallet pin hash.
 2. Resolves source Base address and destination Stellar address.
-3. Records confirmed bridge transaction in MongoDB under the transaction ledger:
+3. Records simulated bridge transaction in MongoDB under the transaction ledger:
    - `type: "BRIDGE"`
-   - `status: "CONFIRMED"`
-   - `bridgeDetails`: `{ provider: "Allbridge Core", fromChain: "base", toChain: "stellar", ... }`
-4. Returns receipt card data displaying bridged values, Allbridge provider attribution, delivery estimate, and destination Stellar explorer link.
+   - `status: "SIMULATED"`
+   - `bridgeDetails`: `{ provider: "Allbridge Core (Simulation)", fromChain: "base", toChain: "stellar", ... }`
+4. Returns receipt card data displaying bridged values, Allbridge provider attribution, simulated delivery estimate, and `status: "Simulated"`.
+
+### 5.4 Tranche 3 Migration Plan: Circle CCTP (Native USDC)
+For production cross-chain transfers in Tranche 3, Jumpa will migrate from pool-based bridging to **Circle CCTP (Cross-Chain Transfer Protocol)**:
+- **Architecture:** 1:1 burn-and-mint between Circle's official contracts on Base and Stellar (Soroban SAC).
+- **Security:** Eliminates third-party liquidity pool risks, wrapped token risks, and slippage.
+- **Protocol Flow:**
+  1. **Burn:** User signs `depositForBurn()` on Base Sepolia `TokenMessenger`.
+  2. **Attestation:** Circle Iris attestation service observes and signs the burn attestation.
+  3. **Mint:** Attestation is submitted to Stellar's CCTP `MessageTransmitter` to mint native Circle USDC directly to the user's Stellar wallet.
 
 ---
 
@@ -208,13 +233,14 @@ All transactional actions across Swaps, Transfers, DeFi Yield, and Bridging shar
 
 ## 7. End-to-End Transaction Flow (Signing & Execution)
 
-### 7.1 Conversational Swap Loop (Soroswap DEX)
+### 7.1 Conversational Swap Loop (Soroswap Router)
 ```
 1. [User Prompt]  "Swap 10 XLM for USDC on testnet"
        ↓
 2. [AI Tool]      Dispatches `stellar_testnet_swap_quote` with { fromToken: "XLM", toToken: "USDC", fromAmount: "10" }
        ↓
-3. [DEX Quote]    Fetches quote from Soroswap API, renders interactive `QuoteCard` in chat.
+3. [Router Quote] Queries Soroswap Router on-chain via Soroban RPC simulation (`router_get_amounts_out`),
+                  renders interactive `QuoteCard` with live rate and dynamic network fee.
        ↓
 4. [User Action]  User clicks "Confirm" on QuoteCard.
        ↓
@@ -222,12 +248,14 @@ All transactional actions across Swaps, Transfers, DeFi Yield, and Bridging shar
        ↓
 6. [POST /api/chat/confirm]
        ├─ a. Verifies PIN bcrypt hash in MongoDB `Wallet` collection.
-       ├─ b. Decrypts BIP-39 mnemonic using AES-256-GCM (mnemonic + IV + salt + PIN).
-       ├─ c. Derives sovereign Stellar keypair via `m/44'/148'/0'`.
-       ├─ d. Calls Soroswap `/quote/build` to get unsigned transaction XDR envelope.
-       ├─ e. Signs transaction with `StellarSdk.TransactionBuilder.fromXDR(xdr, Networks.TESTNET)`.
-       ├─ f. Submits signed tx to Stellar Horizon Testnet (`server.submitTransaction(tx)`).
-       └─ g. Records transaction in MongoDB `Transaction` collection.
+       ├─ b. Performs pre-flight balance and trustline verification.
+       ├─ c. Decrypts BIP-39 mnemonic using AES-256-GCM (mnemonic + IV + salt + PIN).
+       ├─ d. Derives sovereign Stellar keypair via `m/44'/148'/0'`.
+       ├─ e. Builds Soroban `invoke_host_function` transaction calling Router `swap_exact_tokens_for_tokens`.
+       ├─ f. Simulates transaction on Soroban RPC to assemble footprint and authorizations (`assembleTransaction`).
+       ├─ g. Signs transaction envelope with sovereign Ed25519 keypair.
+       ├─ h. Submits signed tx to Stellar network (`server.submitTransaction(tx)`).
+       └─ i. Records confirmed transaction in MongoDB `Transaction` collection.
        ↓
 7. [UI Update]    Replaces Quote Card with confirmed `ReceiptCard` containing tx hash and Stellar Expert explorer link.
 ```
@@ -278,10 +306,17 @@ All transactional actions across Swaps, Transfers, DeFi Yield, and Bridging shar
 - **Test:** Open chat at `/home/chat`, enter: `"Swap 10 XLM to USDC on testnet"`.
 - **Observed Behavior:**
   1. The AI calls `stellar_testnet_swap_quote`.
-  2. Soroswap REST API returns active quote from testnet contract pool (`CDLZ...` → `CB3T...`).
-  3. Interactive quote card is rendered in chat displaying You Pay, You Receive, Protocol (`Soroswap Testnet`), and Fee (`0.00001 XLM`).
-  4. Clicking "Confirm" and entering wallet PIN generates XDR, signs with decrypted key, submits to Horizon testnet, and returns a verified transaction receipt.
+  2. The swap engine queries the Soroswap Router contract directly on-chain via Soroban RPC simulation (`router_get_amounts_out`) against router `CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD` with liquidity pair `CCBX3NZTCQLQFSPG7HBOKL4P2RVPOPVFHDNRTOSCCJWBTPL2GHEH7RQS` (reserves: 417,048 XLM / 3,936,432 USDC).
+  3. Interactive quote card renders in chat displaying You Pay, You Receive, Protocol (`Soroswap Router (Soroban)`), and Fee dynamically calculated on-chain via Soroban RPC `minResourceFee` (e.g. `0.00144 XLM`).
+  4. Clicking "Confirm" and entering wallet PIN derives sovereign keypair, ensures USDC trustline, constructs the Soroban `invoke_host_function` transaction (`swap_exact_tokens_for_tokens`), signs, and submits on-chain.
   5. Transaction is recorded in MongoDB `Transaction` collection under `type: "SWAP"`.
+
+#### Verified Soroswap Router Invocations on Testnet
+| Transaction Hash | Operation Type | Contract & Method | Stellar Expert Explorer |
+| :--- | :--- | :--- | :--- |
+| `80a945d21c2df1bb70fb1d8aae1b0f450c46b5b6cac702592ea8c7a0ed677e19` | `invoke_host_function` | Soroswap Router (`CCJUD55...`) `swap_exact_tokens_for_tokens` | [View Tx 1 on Stellar Expert](https://stellar.expert/explorer/testnet/tx/80a945d21c2df1bb70fb1d8aae1b0f450c46b5b6cac702592ea8c7a0ed677e19) |
+| `df0ce749e420a9fc9c801ca7d6386d1b4225224a5f4302f2b9dfb24f985a1f9d` | `invoke_host_function` | Soroswap Router (`CCJUD55...`) `swap_exact_tokens_for_tokens` | [View Tx 2 on Stellar Expert](https://stellar.expert/explorer/testnet/tx/df0ce749e420a9fc9c801ca7d6386d1b4225224a5f4302f2b9dfb24f985a1f9d) |
+
 
 ### Deliverable 2 Verification: DeFindex Target Savings Yield Integration
 - **Test:** Navigate to `/savings`, create a savings goal, and click "Top Up" to deposit 10 USDC.
@@ -291,13 +326,13 @@ All transactional actions across Swaps, Transfers, DeFi Yield, and Bridging shar
   3. Plan balance updates with on-chain underlying assets and dashboard displays live Net APY.
   4. Transaction is recorded in MongoDB under `type: "SAVINGS_DEPOSIT"`.
 
-### Deliverable 3 Verification: Simulated Allbridge Core Cross-Chain Bridging
+### Deliverable 3 Verification: Simulated Allbridge Core Cross-Chain Bridging (Testnet Staging)
 - **Test:** In chat, enter: `"Bridge 25 USDC from Base to Stellar"`.
 - **Observed Behavior:**
   1. The AI invokes `bridge_tokens` using Allbridge Core 0.3% fee model.
-  2. Interactive bridge card renders displaying You Pay (25 USDC on Base), You Receive (24.775 USDC on Stellar), Provider (`Allbridge Core`), and Est. Time (`2-4 minutes`).
+  2. Interactive bridge card renders with title **`Bridge (Simulation)`**, mode **`Simulated Staging`**, displaying You Pay (25 USDC on Base), You Receive (24.775 USDC on Stellar), Provider (`Allbridge Core (Simulation)`), and Est. Time (`2-4 minutes`).
   3. Clicking "Confirm" opens the unified PIN sheet.
-  4. Entering PIN confirms transaction, records `type: "BRIDGE"` in db, and returns verified receipt card with Stellar explorer link.
+  4. Entering PIN confirms the simulation, records `type: "BRIDGE"` with `status: "SIMULATED"` in the database, and returns a verified receipt card labeled **`Simulated`** .
 
 ### Verification Commands & Test Invocations
 

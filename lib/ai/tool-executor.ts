@@ -354,8 +354,8 @@ export async function executeTool(
       }
 
       const cardData: BridgeCard = {
-        title: "Bridge",
-        status: { lead: "Slippage ", value: quote.slippage },
+        title: "Bridge (Simulation)",
+        status: { lead: "Mode ", value: "Simulated" },
         pay: {
           caption: "YOU PAY",
           value: quote.amountIn,
@@ -371,7 +371,7 @@ export async function executeTool(
         stats: [
           { lead: "Rate ", value: quote.rate },
           { lead: "Fee ", value: quote.fee },
-          { lead: "Provider ", value: quote.provider || "Allbridge Core" },
+          { lead: "Provider ", value: quote.provider || "Allbridge Core (Simulation)" },
           { lead: "Est. Time ", value: quote.estimatedTime || "2-4 mins" },
         ],
       };
@@ -379,14 +379,14 @@ export async function executeTool(
       return {
         toolName: name,
         summaryForAI: [
-          "Bridge quote ready:",
+          "Simulated bridge quote ready (Testnet Staging):",
           `- ${quote.amountIn} ${quote.fromToken} on ${quote.fromChainName} → ${quote.amountOut} ${quote.toToken} on ${quote.toChainName}`,
           `- Rate: ${quote.rate}`,
           `- Fee: ${quote.fee}`,
-          `- Provider: ${quote.provider || "Allbridge Core"}`,
+          `- Provider: ${quote.provider || "Allbridge Core (Simulation)"}`,
           `- Est. Delivery: ${quote.estimatedTime || "2-4 mins"}`,
-          `- Slippage: ${quote.slippage}`,
-          "The bridge card is on screen. Ask them to confirm. Do NOT use emojis or tell them to press buttons or enter a PIN.",
+          `- Mode: Simulated Testnet Staging`,
+          "The simulated bridge card is on screen. Ask them to confirm to simulate the bridge order. Do NOT use emojis or tell them to press buttons or enter a PIN.",
         ].join("\n"),
         cardHint: { type: "bridge", data: cardData },
         transactionParams: {
@@ -399,7 +399,7 @@ export async function executeTool(
           toChain: quote.toChain,
           currency: quote.fromToken,
           fee: quote.fee,
-          provider: quote.provider || "Allbridge Core",
+          provider: quote.provider || "Allbridge Core (Simulation)",
         },
         requiresConfirmation: true,
       };
@@ -466,6 +466,47 @@ export async function executeTool(
         };
       }
 
+      // Pre-check user balance on Stellar
+      if (userCtx.stellarAddress && userCtx.stellarAddress.startsWith("G")) {
+        try {
+          const stellar = await fetchStellarBalances(userCtx.stellarAddress);
+          const netBals = chosen === "testnet" ? stellar.testnet : stellar.mainnet;
+          const availStr =
+            from === "XLM" ? netBals?.native : (netBals as any)?.[from.toLowerCase()];
+          if (availStr !== undefined) {
+            const avail = Number.parseFloat(availStr);
+            if (Number.isFinite(avail) && size > avail) {
+              const formattedAvail = avail.toFixed(2);
+              return {
+                toolName: name,
+                summaryForAI: `Insufficient ${from} balance: The user has ${formattedAvail} ${from} on Stellar ${chosen}, but asked to swap ${size} ${from}. Inform the user they only have ${formattedAvail} ${from} and ask if they want to swap ${formattedAvail} ${from} or a smaller amount.`,
+                cardHint: {
+                  type: "options",
+                  data: {
+                    options:
+                      avail > 0
+                        ? [
+                            {
+                              label: `Swap all (${formattedAvail} ${from})`,
+                              reply: `Swap ${formattedAvail} ${from} to ${to} on Stellar ${chosen}`,
+                            },
+                            {
+                              label: `Swap half (${(avail / 2).toFixed(2)} ${from})`,
+                              reply: `Swap ${(avail / 2).toFixed(2)} ${from} to ${to} on Stellar ${chosen}`,
+                            },
+                          ]
+                        : [],
+                  },
+                },
+                requiresConfirmation: false,
+              };
+            }
+          }
+        } catch (err) {
+          console.warn("[swap_tokens] Balance pre-check error:", err);
+        }
+      }
+
       return {
         toolName: name,
         summaryForAI:
@@ -485,6 +526,49 @@ export async function executeTool(
         toToken: string;
         fromAmount: string;
       };
+
+      // Pre-check balance before creating quote card
+      if (userCtx.stellarAddress && userCtx.stellarAddress.startsWith("G")) {
+        try {
+          const stellar = await fetchStellarBalances(userCtx.stellarAddress);
+          const netBals = network === "testnet" ? stellar.testnet : stellar.mainnet;
+          const tokenKey =
+            fromToken.toUpperCase() === "XLM" ? "native" : fromToken.toLowerCase();
+          const availStr = (netBals as any)?.[tokenKey];
+          if (availStr !== undefined) {
+            const avail = Number.parseFloat(availStr);
+            const needed = Number.parseFloat(fromAmount);
+            if (Number.isFinite(avail) && Number.isFinite(needed) && needed > avail) {
+              const formattedAvail = avail.toFixed(2);
+              return {
+                toolName: name,
+                summaryForAI: `Insufficient ${fromToken} balance: The user has ${formattedAvail} ${fromToken} on Stellar ${network}, but requested to swap ${fromAmount} ${fromToken}. Inform the user they only have ${formattedAvail} ${fromToken} and ask if they'd like to swap an amount up to ${formattedAvail} ${fromToken} instead. Do not display a quote card.`,
+                cardHint: {
+                  type: "options",
+                  data: {
+                    options:
+                      avail > 0
+                        ? [
+                            {
+                              label: `Swap all (${formattedAvail} ${fromToken})`,
+                              reply: `Swap ${formattedAvail} ${fromToken} to ${toToken} on Stellar ${network}`,
+                            },
+                            {
+                              label: `Swap half (${(avail / 2).toFixed(2)} ${fromToken})`,
+                              reply: `Swap ${(avail / 2).toFixed(2)} ${fromToken} to ${toToken} on Stellar ${network}`,
+                            },
+                          ]
+                        : [],
+                  },
+                },
+                requiresConfirmation: false,
+              };
+            }
+          }
+        } catch (balErr) {
+          console.warn("[swap_quote] Balance pre-check error:", balErr);
+        }
+      }
 
       let quote: SwapQuote;
       try {
@@ -771,7 +855,6 @@ export async function executeTool(
           amount,
           asset,
           walletAddress,
-          false,
         );
         console.log(
           `[ToolExecutor] [User: ${userId}] onramp_ngn ← Switch result:`,
@@ -1067,7 +1150,6 @@ export async function executeTool(
             account_number: cleanAccount,
             bank_code: switchBank.code,
           },
-          false,
         );
 
         console.log(
@@ -1165,6 +1247,79 @@ export async function executeTool(
         return {
           toolName: name,
           summaryForAI: `Failed to initiate offramp: ${err.message}`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+    }
+
+    // Live Exchange Rate for NGN Ramps (Switch)
+    case "get_ramp_rate": {
+      const { direction = "both", asset, token = "USDC" } = toolArgs as {
+        direction?: "onramp" | "offramp" | "both";
+        asset?: string;
+        token?: string;
+      };
+
+      // Resolve asset identifier if not explicitly provided
+      const targetAsset = asset || (token.toUpperCase() === "USDT" ? "solana:usdt" : "base:usdc");
+      const tokenSymbol = token.toUpperCase() === "USDT" ? "USDT" : "USDC";
+
+      console.log(`[ToolExecutor] [User: ${userId}] get_ramp_rate →`, {
+        direction,
+        asset: targetAsset,
+        token: tokenSymbol,
+      });
+
+      try {
+        let onrampRate: number | undefined;
+        let offrampRate: number | undefined;
+
+        if (direction === "onramp" || direction === "both") {
+          const res = await SwitchService.getOnrampRate(targetAsset);
+          if (res.success && res.rate) {
+            onrampRate = res.rate;
+          }
+        }
+
+        if (direction === "offramp" || direction === "both") {
+          const res = await SwitchService.getOfframpRate(targetAsset);
+          if (res.success && res.rate) {
+            offrampRate = res.rate;
+          }
+        }
+
+        const lines: string[] = [];
+        if (onrampRate) {
+          lines.push(`Deposit (Buy ${tokenSymbol}): 1 ${tokenSymbol} = ₦${onrampRate.toLocaleString()}`);
+        }
+        if (offrampRate) {
+          lines.push(`Withdrawal (Sell ${tokenSymbol} to Bank): 1 ${tokenSymbol} = ₦${offrampRate.toLocaleString()}`);
+        }
+
+        if (lines.length === 0) {
+          throw new Error("Unable to fetch current rates from provider.");
+        }
+
+        const summaryForAI =
+          `Current  exchange rates for **${tokenSymbol}** (via Switch):\n` +
+          lines.join("\n") +
+          `\nTell the user these exact live rates clearly and concisely. Ask if they would like to proceed with a deposit or withdrawal.`;
+
+        return {
+          toolName: name,
+          summaryForAI,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      } catch (err: any) {
+        console.error(
+          `[ToolExecutor] [User: ${userId}] get_ramp_rate ✗ Error:`,
+          err.message,
+        );
+        return {
+          toolName: name,
+          summaryForAI: `Failed to fetch live rates: ${err.message}. Please try again shortly.`,
           cardHint: { type: "none" },
           requiresConfirmation: false,
         };

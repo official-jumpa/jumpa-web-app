@@ -1,3 +1,5 @@
+import environment from "./environment";
+
 export interface OnRampResponse {
   success: boolean;
   status: number;
@@ -141,8 +143,7 @@ export class SwitchService {
   static async initiateOnRamp(
     amount: number,
     asset: string,
-    walletAddress: string,
-    isExactOut: boolean = false
+    walletAddress: string
   ): Promise<OnRampResponse> {
     if (!SUPPORTED_SWITCH_ASSETS.includes(asset.toLowerCase())) {
       return {
@@ -164,7 +165,8 @@ export class SwitchService {
           holder_name: "Jumpa",
           wallet_address: walletAddress
         },
-        exact_output: isExactOut,
+        exact_output: false,
+        developer_fee: environment.SWITCH_JUMPA_FEE,
         rail: "NIBSS"
       };
 
@@ -202,7 +204,7 @@ export class SwitchService {
     }
   }
 
-  static async getQuote(amount: number, asset: string, isExactOut: boolean = false): Promise<QuoteResponse> {
+  static async getQuote(amount: number, asset: string): Promise<QuoteResponse> {
     if (!SUPPORTED_SWITCH_ASSETS.includes(asset.toLowerCase())) {
       return {
         success: false,
@@ -217,7 +219,8 @@ export class SwitchService {
         currency: "NGN",
         asset: asset,
         rail: "NIBSS",
-        exact_output: isExactOut
+        exact_output: false, 
+        developer_fee: environment.SWITCH_JUMPA_FEE
       };
 
       const response = await fetch(`${this.BASE_URL}/onramp/quote`, {
@@ -245,7 +248,74 @@ export class SwitchService {
       };
     }
   }
-  static async getOfframpQuote(amount: number, asset: string, isExactOut: boolean = false): Promise<QuoteResponse> {
+
+  static async getOnrampRate(asset: string = "base:usdc"): Promise<{ success: boolean; rate?: number; message?: string }> {
+    try {
+      const payload = {
+        country: "NG",
+        currency: "NGN",
+        asset,
+        channel: "BANK",
+      };
+
+      const response = await fetch(`${this.BASE_URL}/onramp/rate`, {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload),
+      });
+
+      const responseData = await response.json();
+      if (!response.ok || !responseData.success) {
+        return {
+          success: false,
+          message: parseSwitchError(responseData.message || "Failed to fetch onramp rate"),
+        };
+      }
+
+      return {
+        success: true,
+        rate: responseData.data?.rate,
+      };
+    } catch (error: any) {
+      console.error("[SwitchService] Error fetching onramp rate:", error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  static async getOfframpRate(asset: string = "base:usdc"): Promise<{ success: boolean; rate?: number; message?: string }> {
+    try {
+      const payload = {
+        country: "NG",
+        currency: "NGN",
+        asset,
+        channel: "BANK",
+      };
+
+      const response = await fetch(`${this.BASE_URL}/offramp/rate`, {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: JSON.stringify(payload),
+      });
+
+      const responseData = await response.json();
+      if (!response.ok || !responseData.success) {
+        return {
+          success: false,
+          message: parseSwitchError(responseData.message || "Failed to fetch offramp rate"),
+        };
+      }
+
+      return {
+        success: true,
+        rate: responseData.data?.rate,
+      };
+    } catch (error: any) {
+      console.error("[SwitchService] Error fetching offramp rate:", error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  static async getOfframpQuote(amount: number, asset: string): Promise<QuoteResponse> {
     if (!SUPPORTED_SWITCH_ASSETS.includes(asset.toLowerCase())) {
       return {
         success: false,
@@ -260,7 +330,8 @@ export class SwitchService {
         currency: "NGN",
         asset,
         rail: "BANK",
-        exact_output: isExactOut
+        exact_output: false,
+        developer_fee: environment.SWITCH_JUMPA_FEE
       };
 
       const response = await fetch(`${this.BASE_URL}/offramp/quote`, {
@@ -297,8 +368,7 @@ export class SwitchService {
       holder_name: string;
       account_number: string;
       bank_code: string;
-    },
-    isExactOut: boolean = false
+    }
   ): Promise<OffRampResponse> {
     if (!SUPPORTED_SWITCH_ASSETS.includes(asset.toLowerCase())) {
       return {
@@ -323,7 +393,9 @@ export class SwitchService {
         },
         channel: "BANK",
         reason: "REMITTANCES",
-        exact_output: isExactOut
+        exact_output: false,
+        developer_fee: environment.SWITCH_JUMPA_FEE
+
       };
 
       console.log("[SwitchService] Initiating offramp:", payload);

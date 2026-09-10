@@ -17,7 +17,7 @@ export interface ITransaction {
     | "SAVINGS_DEPOSIT"
     | "SAVINGS_WITHDRAW"
     | "BRIDGE";
-  status: "PENDING" | "CONFIRMED" | "FAILED" | "CANCELLED";
+  status: "PENDING" | "CONFIRMED" | "FAILED" | "CANCELLED" | "SIMULATED";
 
   chain: "stellar" | "solana" | "base" | "eth";
   network: "mainnet" | "testnet";
@@ -109,7 +109,7 @@ const TransactionSchema = new Schema<ITransaction>(
     },
     status: {
       type: String,
-      enum: ["PENDING", "CONFIRMED", "FAILED", "CANCELLED"],
+      enum: ["PENDING", "CONFIRMED", "FAILED", "CANCELLED", "SIMULATED"],
       default: "PENDING",
       required: true,
     },

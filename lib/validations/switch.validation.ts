@@ -19,7 +19,6 @@ export const switchQuoteSchema = z.object({
     .trim()
     .min(1, "asset is required"),
   direction: z.enum(["onramp", "offramp"]).optional().default("onramp"),
-  isExactOut: z.boolean().optional().default(false),
 });
 
 export type SwitchQuoteInput = z.infer<typeof switchQuoteSchema>;
@@ -49,7 +48,6 @@ export const switchOnrampSchema = z.object({
     })
     .trim()
     .min(1, "walletAddress is required"),
-  isExactOut: z.boolean().optional().default(false),
 });
 
 export type SwitchOnrampInput = z.infer<typeof switchOnrampSchema>;
@@ -91,7 +89,6 @@ export const switchOfframpSchema = z.object({
     })
     .trim()
     .min(1, "bankName is required"),
-  isExactOut: z.boolean().optional().default(false),
 });
 
 export type SwitchOfframpInput = z.infer<typeof switchOfframpSchema>;

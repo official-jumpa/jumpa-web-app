@@ -4,11 +4,17 @@ import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
 import { FIAT_ACCOUNTS, type FiatAccount } from "@/lib/wallet";
 import { FiatBalance } from "./fiat-balance";
 
-/** No rail issues an account yet, so opening one starts with identity. */
-const CREATE = "/kyc";
+/** USD has its own opening flow; NGN still starts with identity. */
+const CREATE: Record<FiatAccount["id"], string> = {
+  ngn: "/kyc",
+  usd: "/usd-account",
+};
 
 /** A funded account opens the details money is sent to. */
-const DETAILS = "/receive?rail=fiat";
+const DETAILS: Record<FiatAccount["id"], string> = {
+  ngn: "/receive?rail=fiat",
+  usd: "/usd-account?view=details",
+};
 
 /** The NGN and USD balances, side by side under the quick actions. */
 export function FiatAccounts() {
@@ -50,7 +56,7 @@ function AccountCard({ account }: { account: FiatAccount }) {
 
           {/* Full height, so the design's 20px glyph still takes a real tap. */}
           <Link
-            href={DETAILS}
+            href={DETAILS[account.id]}
             aria-label={`Open your ${account.label}`}
             className="absolute inset-y-0 right-0 flex w-9 items-center justify-end pr-2.375 text-jumpa-black"
           >
@@ -59,7 +65,7 @@ function AccountCard({ account }: { account: FiatAccount }) {
         </>
       ) : (
         <Link
-          href={CREATE}
+          href={CREATE[account.id]}
           className="tap flex h-8.25 items-center justify-center rounded-pill bg-jumpa-white text-[10px] font-medium text-jumpa-primary-600 active:scale-95"
         >
           Create Account

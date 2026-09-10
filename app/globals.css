@@ -368,6 +368,12 @@
       width: 100% !important;
       transform: none !important;
     }
+
+    /* A spinner that cannot turn reads as stuck — close the ring instead.
+       The dash comes from an SVG attribute, so no `!important` is needed. */
+    .spinner-arc {
+      stroke-dasharray: none;
+    }
   }
 }
 

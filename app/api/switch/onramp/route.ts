@@ -25,14 +25,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: err.error }, { status: 400 });
     }
 
-    const { fiatAmount, cryptoToken, asset, walletAddress, isExactOut = false } =
+    const { fiatAmount, cryptoToken, asset, walletAddress } =
       validation.data;
 
     const result = await SwitchService.initiateOnRamp(
       fiatAmount,
       asset,
       walletAddress,
-      isExactOut,
     );
 
     if (!result.success || !result.data) {

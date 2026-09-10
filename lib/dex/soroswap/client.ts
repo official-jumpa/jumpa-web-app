@@ -16,6 +16,7 @@ import {
   STELLAR_MAINNET_HORIZON,
   STELLAR_TESTNET_HORIZON,
   getHorizonServer,
+  getSorobanRpcServer,
 } from "@/lib/chains/stellar/client";
 
 const DECIMALS_FACTOR = 10_000_000;
@@ -30,7 +31,7 @@ function fromSorobanUnits(unitsStr: string | number): string {
   const num =
     typeof unitsStr === "number" ? unitsStr : Number.parseFloat(unitsStr);
   if (Number.isNaN(num) || num === 0) return "0.00";
-  return (num / DECIMALS_FACTOR).toFixed(4);
+  return (num / DECIMALS_FACTOR).toFixed(7);
 }
 
 /**
@@ -54,6 +55,73 @@ export function resolveStellarAsset(
     (contracts as Record<string, string>)[upper] || contracts.USDC;
 
   return new StellarSdk.Asset(upper, issuer);
+}
+
+/**
+ * Queries Soroswap Router via Soroban RPC simulation (router_get_amounts_out).
+ * Directly inspects real-time Soroban pool depth without relying on the external REST indexer.
+ */
+async function fetchSoroswapOnChainQuote(
+  contractIn: string,
+  contractOut: string,
+  amountUnits: string,
+  network: "testnet" | "mainnet",
+): Promise<{ amountOutUnits: string; estimatedFee: string } | null> {
+  try {
+    const routerAddress =
+      (CONTRACT_ADDRESSES.soroswap as any)[network]?.ROUTER;
+    if (!routerAddress) return null;
+
+    const rpc = getSorobanRpcServer(network);
+    const contract = new StellarSdk.Contract(routerAddress);
+    const dummyKey = StellarSdk.Keypair.random();
+
+    const pathVec = StellarSdk.xdr.ScVal.scvVec([
+      new StellarSdk.Address(contractIn).toScVal(),
+      new StellarSdk.Address(contractOut).toScVal(),
+    ]);
+
+    const tx = new StellarSdk.TransactionBuilder(
+      new StellarSdk.Account(dummyKey.publicKey(), "0"),
+      {
+        fee: StellarSdk.BASE_FEE,
+        networkPassphrase:
+          network === "mainnet"
+            ? StellarSdk.Networks.PUBLIC
+            : StellarSdk.Networks.TESTNET,
+      },
+    )
+      .addOperation(
+        contract.call(
+          "router_get_amounts_out",
+          StellarSdk.nativeToScVal(BigInt(amountUnits), { type: "i128" }),
+          pathVec,
+        ),
+      )
+      .setTimeout(30)
+      .build();
+
+    const sim = await rpc.simulateTransaction(tx);
+    if (StellarSdk.rpc.Api.isSimulationSuccess(sim) && sim.result?.retval) {
+      const amounts = StellarSdk.scValToNative(sim.result.retval);
+      if (Array.isArray(amounts) && amounts.length >= 2) {
+        // Calculate real on-chain fee from Soroban RPC simulation
+        const minResourceFee = BigInt(sim.minResourceFee || "14000");
+        const inclusionFee = BigInt(StellarSdk.BASE_FEE || "100");
+        const totalFeeStroops = minResourceFee + inclusionFee;
+        const estimatedFee = `${(Number(totalFeeStroops) / 10_000_000).toFixed(5)} XLM`;
+
+        return {
+          amountOutUnits: amounts[amounts.length - 1].toString(),
+          estimatedFee,
+        };
+      }
+    }
+    return null;
+  } catch (err) {
+    console.warn("[Soroswap On-Chain Quote] RPC simulation error:", err);
+    return null;
+  }
 }
 
 /**
@@ -106,8 +174,8 @@ async function fetchHorizonStrictSendPath(
 }
 
 /**
- * Fetches an optimal swap quote strictly from Soroswap REST API (/quote) with live SDEX fallback.
- */
+ * Fetches an optimal swap quote strictly using on-chain Soroswap Router simulation or live SDEX.
+ *  */
 export async function fetchSoroswapQuote(
   params: SwapQuoteRequest,
 ): Promise<SwapQuote> {
@@ -121,11 +189,62 @@ export async function fetchSoroswapQuote(
   const contractOut = resolveSoroswapContract(params.assetOut, network);
 
   const amountUnits = toSorobanUnits(params.amount);
-  const tradeType = params.tradeType || "EXACT_IN";
   const slippage = params.slippageTolerance ?? 0.5;
-  const slippageBps = Math.round(slippage * 100); // 0.5% = 50 bps
 
-  // 1. Try Soroswap REST API (works when indexer has active pools, e.g. on mainnet)
+  // Direct On-Chain Soroswap Router Query
+  const onChainQuote = await fetchSoroswapOnChainQuote(
+    contractIn,
+    contractOut,
+    amountUnits,
+    network,
+  );
+
+  if (onChainQuote) {
+    const rawOutFormatted = fromSorobanUnits(onChainQuote.amountOutUnits);
+    const inNum = Number.parseFloat(params.amount) || 1;
+    const outNum = Number.parseFloat(rawOutFormatted) || 0;
+    const rateVal = outNum / inNum;
+
+    const rateStr = `1 ${symbolIn} = ${rateVal < 1 ? rateVal.toFixed(4) : rateVal.toFixed(2)} ${symbolOut}`;
+    const minReceivedNum = outNum * (1 - slippage / 100);
+    const minReceivedStr = minReceivedNum.toFixed(7);
+    const minReceivedUnits = BigInt(Math.floor(Number(onChainQuote.amountOutUnits) * (1 - slippage / 100))).toString();
+
+    const routerAddress = (CONTRACT_ADDRESSES.soroswap as any)[network]?.ROUTER;
+
+    return {
+      chain: "stellar",
+      protocol: `Soroswap Router`,
+      assetIn: symbolIn,
+      assetOut: symbolOut,
+      amountIn: params.amount,
+      amountOut: Number.parseFloat(rawOutFormatted).toFixed(4),
+      rate: rateStr,
+      priceImpact: "< 0.05%",
+      minimumReceived: minReceivedStr,
+      slippage: `${slippage}%`,
+      estimatedFee: onChainQuote.estimatedFee,
+      path: [symbolIn, symbolOut],
+      rawQuote: {
+        _isSoroswapRouter: true,
+        network,
+        routerAddress,
+        contractIn,
+        contractOut,
+        amountInUnits: amountUnits,
+        amountOutUnits: onChainQuote.amountOutUnits,
+        minimumReceivedUnits: minReceivedUnits,
+        pathContracts: [contractIn, contractOut],
+        pathSymbols: [symbolIn, symbolOut],
+        amountIn: params.amount,
+        amountOut: rawOutFormatted,
+        minimumReceived: minReceivedStr,
+        estimatedFee: onChainQuote.estimatedFee,
+      },
+    };
+  }
+
+  // Try Soroswap REST API if available (e.g., active on mainnet)
   if (apiKey) {
     try {
       const response = await fetch(`${baseUrl}/quote?network=${network}`, {
@@ -138,9 +257,9 @@ export async function fetchSoroswapQuote(
           assetIn: contractIn,
           assetOut: contractOut,
           amount: amountUnits,
-          tradeType,
+          tradeType: params.tradeType || "EXACT_IN",
           protocols: SOROSWAP_PROTOCOLS,
-          slippageBps,
+          slippageBps: Math.round(slippage * 100),
           parts: 10,
         }),
       });
@@ -158,7 +277,7 @@ export async function fetchSoroswapQuote(
         const rateVal = outNum / inNum;
 
         const rateStr = `1 ${symbolIn} = ${rateVal < 1 ? rateVal.toFixed(4) : rateVal.toFixed(2)} ${symbolOut}`;
-        const minReceived = (outNum * (1 - slippage / 100)).toFixed(4);
+        const minReceived = (outNum * (1 - slippage / 100)).toFixed(7);
 
         return {
           chain: "stellar",
@@ -166,7 +285,7 @@ export async function fetchSoroswapQuote(
           assetIn: symbolIn,
           assetOut: symbolOut,
           amountIn: amountInFormatted,
-          amountOut: amountOutFormatted,
+          amountOut: Number.parseFloat(amountOutFormatted).toFixed(4),
           rate: rateStr,
           priceImpact: data.priceImpactPct ? `${data.priceImpactPct}%` : "< 0.05%",
           minimumReceived: minReceived,
@@ -177,11 +296,11 @@ export async function fetchSoroswapQuote(
         };
       }
     } catch (err) {
-      console.warn("[Soroswap Quote] REST quote query failed, evaluating on-chain fallback:", err);
+      console.warn("[Soroswap Quote] REST quote query error:", err);
     }
   }
 
-  // 2. Live Stellar SDEX Orderbook Query (via Horizon /paths/strict-send)
+  // Live Stellar SDEX Orderbook Query (via Horizon /paths/strict-send)
   const sendAsset = resolveStellarAsset(symbolIn, network);
   const destAsset = resolveStellarAsset(symbolOut, network);
   const inputAmount = Number.parseFloat(params.amount) || 1;
@@ -193,23 +312,20 @@ export async function fetchSoroswapQuote(
     network,
   );
 
-  let outputAmount: string;
-  let rawPath: any[] = [];
-  let rateVal: number;
-
-  if (pathRecord?.destination_amount) {
-    const rawDest = Number.parseFloat(pathRecord.destination_amount);
-    outputAmount = rawDest.toFixed(4);
-    rateVal = rawDest / inputAmount;
-    rawPath = pathRecord.path || [];
-  } else {
-    // Fallback market estimate if orderbook is temporarily empty
-    rateVal = symbolIn === "USDC" || symbolIn === "USDT" ? 5.434 : 0.184;
-    outputAmount = (inputAmount * rateVal).toFixed(4);
+  // If orderbook has no offers or route, throw an explicit error
+  if (!pathRecord?.destination_amount) {
+    throw new Error(
+      `Insufficient liquidity: No trade path or orderbook offers found on Stellar ${network} for ${symbolIn} → ${symbolOut}. Try a smaller amount or a different pair.`,
+    );
   }
 
+  const rawDest = Number.parseFloat(pathRecord.destination_amount);
+  const outputAmount = rawDest.toFixed(4);
+  const rateVal = rawDest / inputAmount;
+  const rawPath = pathRecord.path || [];
+
   const rateStr = `1 ${symbolIn} = ${rateVal < 1 ? rateVal.toFixed(4) : rateVal.toFixed(2)} ${symbolOut}`;
-  const minReceived = (Number.parseFloat(outputAmount) * (1 - slippage / 100)).toFixed(7);
+  const minReceived = (rawDest * (1 - slippage / 100)).toFixed(7);
 
   return {
     chain: "stellar",
@@ -220,7 +336,7 @@ export async function fetchSoroswapQuote(
     amountOut: outputAmount,
     rate: rateStr,
     priceImpact: "< 0.01%",
-    minimumReceived: (Number.parseFloat(outputAmount) * (1 - slippage / 100)).toFixed(4),
+    minimumReceived: (rawDest * (1 - slippage / 100)).toFixed(4),
     slippage: `${slippage}%`,
     estimatedFee: "0.00002 XLM",
     path: [symbolIn, symbolOut],
@@ -237,28 +353,143 @@ export async function fetchSoroswapQuote(
 }
 
 /**
- * Builds an unsigned transaction XDR envelope using Soroswap REST API (/quote/build) or Stellar Horizon SDEX.
+ * Builds an unsigned transaction XDR envelope using Soroswap Soroban Router, Soroswap REST API, or Horizon SDEX.
  */
 export async function buildSoroswapTransaction(
   req: SwapBuildRequest,
 ): Promise<SwapBuildResult> {
   const network = req.network || "testnet";
-  const apiKey = environment.SOROSWAP_API_KEY;
-  const baseUrl = environment.SOROSWAP_API_URL;
   const { quote, fromAddress, toAddress } = req;
   const recipient = toAddress || fromAddress;
+
+  const raw = (quote as any)?.rawQuote || quote || {};
+  const isRouter = raw?._isSoroswapRouter === true;
+  const isNativeSdex = raw?._isNativeSdex === true;
+
+  const assetIn =
+    quote?.assetIn ||
+    raw?.assetIn ||
+    (Array.isArray(raw?.pathSymbols) ? raw.pathSymbols[0] : "") ||
+    "XLM";
+  const assetOut =
+    quote?.assetOut ||
+    raw?.assetOut ||
+    (Array.isArray(raw?.pathSymbols) ? raw.pathSymbols[1] : "") ||
+    "USDC";
+  const amountIn = quote?.amountIn || raw?.amountIn || "0";
+  const amountOut = quote?.amountOut || raw?.amountOut || "0";
+  const protocol =
+    quote?.protocol || (isRouter ? "Soroswap Router" : "Stellar DEX");
 
   const transactionDetails = {
     from: fromAddress,
     to: recipient,
-    assetIn: quote.assetIn,
-    assetOut: quote.assetOut,
-    amountIn: quote.amountIn,
-    amountOut: quote.amountOut,
-    protocol: quote.protocol,
+    assetIn,
+    assetOut,
+    amountIn,
+    amountOut,
+    protocol,
   };
 
-  // 1. Try Soroswap REST API if quote has standard Soroswap payload and not native fallback
+  // On-Chain Soroswap Soroban Router Transaction (invoke_host_function)
+  if (isRouter) {
+    const routerAddress =
+      raw.routerAddress ||
+      (CONTRACT_ADDRESSES.soroswap as any)[network]?.ROUTER;
+    if (!routerAddress) {
+      throw new Error(`Soroswap Router contract address not configured for ${network}`);
+    }
+
+    const rpc = getSorobanRpcServer(network);
+    const horizonServer = getHorizonServer(network);
+    const account = await horizonServer.loadAccount(fromAddress);
+    const passphrase =
+      network === "mainnet"
+        ? StellarSdk.Networks.PUBLIC
+        : StellarSdk.Networks.TESTNET;
+
+    const contract = new StellarSdk.Contract(routerAddress);
+    const pathContracts = raw.pathContracts || [
+      resolveSoroswapContract(assetIn, network),
+      resolveSoroswapContract(assetOut, network),
+    ];
+    const pathVec = StellarSdk.xdr.ScVal.scvVec(
+      pathContracts.map((c: string) => new StellarSdk.Address(c).toScVal()),
+    );
+
+    const amountInBig = BigInt(
+      raw.amountInUnits || toSorobanUnits(amountIn),
+    );
+    const minReceivedStr = quote?.minimumReceived || raw.minimumReceived || amountOut;
+    const amountOutMinBig = BigInt(
+      raw.minimumReceivedUnits ||
+      toSorobanUnits(minReceivedStr),
+    );
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour
+
+    const swapOp = contract.call(
+      "swap_exact_tokens_for_tokens",
+      StellarSdk.nativeToScVal(amountInBig, { type: "i128" }),
+      StellarSdk.nativeToScVal(amountOutMinBig, { type: "i128" }),
+      pathVec,
+      new StellarSdk.Address(recipient).toScVal(),
+      StellarSdk.nativeToScVal(deadline, { type: "u64" }),
+    );
+
+    const baseTx = new StellarSdk.TransactionBuilder(account, {
+      fee: "100000",
+      networkPassphrase: passphrase,
+    })
+      .addOperation(swapOp)
+      .setTimeout(60)
+      .build();
+
+    const sim = await rpc.simulateTransaction(baseTx);
+    if (!StellarSdk.rpc.Api.isSimulationSuccess(sim)) {
+      const simStr = JSON.stringify(sim);
+      console.error("[Soroswap Build] Simulation failed details:", simStr);
+
+      if (
+        simStr.includes("resulting balance is not within the allowed range") ||
+        simStr.includes("Error(Contract, #10)") ||
+        simStr.includes("Contract, #10")
+      ) {
+        throw new Error(
+          `Insufficient ${assetIn} balance: your account does not have enough ${assetIn} to execute this swap.`,
+        );
+      }
+      if (
+        simStr.includes("trustline entry is missing") ||
+        simStr.includes("Error(Contract, #13)") ||
+        simStr.includes("Contract, #13")
+      ) {
+        throw new Error(
+          `Missing trustline for ${assetOut}. Please establish a trustline before swapping.`,
+        );
+      }
+      if (simStr.includes("expired") || simStr.includes("deadline")) {
+        throw new Error(
+          "Swap quote expired. Please request a fresh quote and try again.",
+        );
+      }
+
+      throw new Error(
+        `Soroban simulation failed: ${(sim as any).error || "Contract execution trapped"}`,
+      );
+    }
+
+    const preparedTx = StellarSdk.rpc.assembleTransaction(baseTx, sim).build();
+    return {
+      chain: "stellar",
+      network,
+      xdr: preparedTx.toXDR(),
+      transactionDetails,
+    };
+  }
+
+  // Soroswap REST API build (e.g. on mainnet if quote came from REST)
+  const apiKey = environment.SOROSWAP_API_KEY;
+  const baseUrl = environment.SOROSWAP_API_URL;
   if (apiKey && !quote.rawQuote?._isNativeSdex) {
     try {
       const response = await fetch(`${baseUrl}/quote/build?network=${network}`, {
@@ -299,7 +530,7 @@ export async function buildSoroswapTransaction(
               .build();
             finalXdr = cloned.toXDR();
           } catch {
-            // Keep original XDR if cloning/memo fails
+            // Keep original XDR
           }
 
           return {
@@ -311,11 +542,17 @@ export async function buildSoroswapTransaction(
         }
       }
     } catch (e) {
-      console.warn("[Soroswap Build] REST build failed, falling back to Horizon on-chain builder:", e);
+      console.warn("[Soroswap Build] REST build failed, evaluating fallback:", e);
     }
   }
 
-  // 2. Real On-Chain Stellar Horizon Transaction Builder (Native SDEX PathPaymentStrictSend)
+  // Fallback to Native SDEX PathPaymentStrictSend only if quote was derived from live SDEX
+  if (!isNativeSdex) {
+    throw new Error(
+      `Unable to build transaction: no valid Soroswap router or orderbook path was found for ${assetIn} → ${assetOut}.`,
+    );
+  }
+
   const server = getHorizonServer(network);
   const account = await server.loadAccount(fromAddress);
   const passphrase =
@@ -323,10 +560,9 @@ export async function buildSoroswapTransaction(
       ? StellarSdk.Networks.PUBLIC
       : StellarSdk.Networks.TESTNET;
 
-  const sendAsset = resolveStellarAsset(quote.assetIn, network);
-  const destAsset = resolveStellarAsset(quote.assetOut, network);
+  const sendAsset = resolveStellarAsset(assetIn, network);
+  const destAsset = resolveStellarAsset(assetOut, network);
 
-  // Check if destination needs a trustline for non-native destAsset
   const destNeedsTrustline = !destAsset.isNative();
   const hasTrustline = account.balances.some(
     (b: any) =>
@@ -343,12 +579,11 @@ export async function buildSoroswapTransaction(
   })
     .addMemo(
       StellarSdk.Memo.text(
-        `Jumpa: Swap ${quote.assetIn}->${quote.assetOut}`.slice(0, 28),
+        `Jumpa: Swap ${assetIn}->${assetOut}`.slice(0, 28),
       ),
     )
     .setTimeout(120);
 
-  // Auto-add trustline if missing so recipient can receive the token atomically
   if (!hasTrustline && destNeedsTrustline) {
     txBuilder.addOperation(
       StellarSdk.Operation.changeTrust({
@@ -357,8 +592,7 @@ export async function buildSoroswapTransaction(
     );
   }
 
-  // Convert intermediate path records if any
-  const rawPath = quote.rawQuote?.path || [];
+  const rawPath = raw?.path || [];
   const convertedPath: StellarSdk.Asset[] = [];
   if (Array.isArray(rawPath)) {
     for (const p of rawPath) {
@@ -370,16 +604,13 @@ export async function buildSoroswapTransaction(
     }
   }
 
-  const sendAmount = Number.parseFloat(quote.amountIn).toFixed(7);
-  const slippageFraction =
-    (quote.slippage ? Number.parseFloat(quote.slippage) : 0.5) / 100;
-  const expectedOut = Number.parseFloat(quote.amountOut);
+  const sendAmount = Number.parseFloat(amountIn).toFixed(7);
   const destMin = (
-    quote.rawQuote?.minimumReceived
-      ? Number.parseFloat(quote.rawQuote.minimumReceived)
-      : quote.minimumReceived
+    raw?.minimumReceived
+      ? Number.parseFloat(raw.minimumReceived)
+      : quote?.minimumReceived
         ? Number.parseFloat(quote.minimumReceived)
-        : expectedOut * (1 - slippageFraction)
+        : Number.parseFloat(amountOut)
   ).toFixed(7);
 
   txBuilder.addOperation(
@@ -394,12 +625,10 @@ export async function buildSoroswapTransaction(
   );
 
   const tx = txBuilder.build();
-  const xdr = tx.toXDR();
-
   return {
     chain: "stellar",
     network,
-    xdr,
+    xdr: tx.toXDR(),
     transactionDetails,
   };
 }

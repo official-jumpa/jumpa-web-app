@@ -66,10 +66,22 @@ const UNDERFUNDED = [
   "tx_insufficient_balance",
   "op_low_reserve",
   "balance is too low",
+  "resulting balance",
+  "allowed range",
+  "error(contract, #10)",
+  "contract, #10",
+  "insufficient balance",
 ];
 
 /** No trustline — the account cannot hold the asset at all yet. */
-const NO_TRUST = ["op_no_trust", "no_trust", "trustline", "does not trust"];
+const NO_TRUST = [
+  "op_no_trust",
+  "no_trust",
+  "trustline",
+  "does not trust",
+  "error(contract, #13)",
+  "contract, #13",
+];
 
 /** The account does not exist on the ledger, or the destination does not. */
 const INACTIVE = [

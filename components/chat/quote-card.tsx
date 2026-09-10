@@ -28,14 +28,13 @@ export function QuoteCard({
   const [toToken, setToToken] = useState(card.receive.badge || "USDC");
   const [payAmount, setPayAmount] = useState(card.pay.value || "30");
   const [receiveAmount, setReceiveAmount] = useState(
-    card.receive.value || "5.50",
+    card.receive.value || "",
   );
   const [rateText, setRateText] = useState(
-    card.stats?.find((s) => s.lead?.includes("Rate"))?.value ||
-      "1 XLM = 0.1834 USDC",
+    card.stats?.find((s) => s.lead?.includes("Rate"))?.value || "—",
   );
   const [feeText, setFeeText] = useState(
-    card.stats?.find((s) => s.lead?.includes("Fee"))?.value || "0.00001 XLM",
+    card.stats?.find((s) => s.lead?.includes("Fee"))?.value || "—",
   );
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [rotated, setRotated] = useState(false);
@@ -60,7 +59,7 @@ export function QuoteCard({
             assetIn: from,
             assetOut: to,
             amount: amount,
-            network: "testnet",
+            network: (card as any).network || "testnet",
           }),
         });
 
@@ -70,7 +69,7 @@ export function QuoteCard({
             const q = data.quote;
             setReceiveAmount(q.amountOut);
             setRateText(q.rate);
-            setFeeText(q.estimatedFee || "0.00001 XLM");
+            setFeeText(q.estimatedFee || "—");
 
             if (onUpdateQuote) {
               const updatedCard: Quote = {
@@ -79,7 +78,7 @@ export function QuoteCard({
                 receive: { ...card.receive, value: q.amountOut, badge: to },
                 stats: [
                   { lead: "Rate ", value: q.rate },
-                  { lead: "Est. Fee ", value: q.estimatedFee || "0.00001 XLM" },
+                  { lead: "Est. Fee ", value: q.estimatedFee || "—" },
                 ],
                 _rawQuote: q,
               } as any;

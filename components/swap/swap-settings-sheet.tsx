@@ -62,18 +62,34 @@ export function SwapSettingsSheet({
           )}
         </button>
 
-        {/* Mainnet — visible but disabled until integrated */}
-        <div className="flex items-center justify-between rounded-xl bg-jumpa-neutral-95 px-4 py-3 opacity-50">
+        {/* Mainnet */}
+        <button
+          type="button"
+          onClick={() => onNetworkChange("mainnet")}
+          className={`flex items-center justify-between rounded-xl px-4 py-3 transition-colors ${
+            network === "mainnet"
+              ? "bg-jumpa-primary-50 ring-1 ring-jumpa-primary-400"
+              : "bg-jumpa-neutral-95"
+          }`}
+        >
           <span className="flex items-center gap-2.5">
-            <span className="size-3.5 rounded-full border-2 border-jumpa-neutral-300 bg-transparent" />
+            <span
+              className={`size-3.5 rounded-full border-2 ${
+                network === "mainnet"
+                  ? "border-jumpa-primary-600 bg-jumpa-primary-600"
+                  : "border-jumpa-neutral-300 bg-transparent"
+              }`}
+            />
             <span className="text-sm font-medium text-jumpa-black">
               Stellar Mainnet
             </span>
           </span>
-          <span className="rounded-full bg-jumpa-neutral-200 px-2 py-0.5 text-[10px] font-semibold text-jumpa-black/50">
-            Soon
-          </span>
-        </div>
+          {network === "mainnet" && (
+            <span className="rounded-full bg-jumpa-primary-100 px-2 py-0.5 text-[10px] font-semibold text-jumpa-primary-700">
+              Active
+            </span>
+          )}
+        </button>
       </section>
 
       {/* ── Slippage ── */}

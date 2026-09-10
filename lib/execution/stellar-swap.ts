@@ -12,8 +12,10 @@ import { decryptMnemonic } from "@/lib/crypto";
 import {
   deriveStellarKeypairFromMnemonic,
   getHorizonServer,
+  ensureStellarTrustline,
 } from "@/lib/chains/stellar";
 import { buildSwapTransaction } from "@/lib/dex";
+import { resolveStellarAsset } from "@/lib/dex/soroswap/client";
 import { getExplorerTxUrl } from "@/lib/blockchain";
 import { connectDB } from "@/lib/db";
 import { Transaction } from "@/models/Transaction";
@@ -89,7 +91,7 @@ export async function executeSwap(
     messageId,
   } = params;
 
-  // 1. Decrypt mnemonic
+  // Decrypt mnemonic
   let sourceKeypair: StellarSdk.Keypair;
   try {
     const phrase = decryptMnemonic(
@@ -111,7 +113,64 @@ export async function executeSwap(
   const fromAddress =
     sourceKeypair.publicKey() || wallet.addresses?.xlm || wallet.address;
 
-  // 2. Build XDR
+  // Pre-flight balance verification
+  try {
+    const server = getHorizonServer(network);
+    const account = await server.loadAccount(fromAddress);
+    const fromTokenUpper = fromToken.toUpperCase();
+    let balance = 0;
+
+    if (fromTokenUpper === "XLM") {
+      const nativeBal = account.balances.find((b) => b.asset_type === "native");
+      const minReserve = (2 + (account.subentry_count || 0)) * 0.5;
+      const totalXlm = nativeBal ? Number.parseFloat(nativeBal.balance) : 0;
+      balance = Math.max(0, totalXlm - minReserve);
+    } else {
+      const expectedAsset = resolveStellarAsset(fromTokenUpper, network);
+      const tokenBal =
+        account.balances.find(
+          (b: any) =>
+            b.asset_code?.toUpperCase() === fromTokenUpper &&
+            b.asset_issuer === expectedAsset.issuer,
+        ) ||
+        account.balances.find(
+          (b: any) =>
+            b.asset_code?.toUpperCase() === fromTokenUpper &&
+            Number.parseFloat(b.balance) > 0,
+        );
+      balance = tokenBal ? Number.parseFloat(tokenBal.balance) : 0;
+    }
+
+    const needed = Number.parseFloat(fromAmount);
+    if (Number.isFinite(needed) && needed > balance) {
+      return {
+        ok: false,
+        error: `Insufficient ${fromTokenUpper} balance. You have ${balance.toFixed(4)} ${fromTokenUpper}, but tried to swap ${fromAmount} ${fromTokenUpper}.`,
+        status: 400,
+      };
+    }
+  } catch (balCheckErr: any) {
+    if (balCheckErr?.response?.status === 404) {
+      return {
+        ok: false,
+        error: "Your Stellar account is not activated yet. Fund it with at least 1 XLM first.",
+        status: 400,
+      };
+    }
+    console.warn("[executeSwap] Balance pre-check error (proceeding to build):", balCheckErr?.message);
+  }
+
+  // 2. Ensure trustline if destination token is non-native (e.g. USDC)
+  try {
+    const destAsset = resolveStellarAsset(toToken, network);
+    if (!destAsset.isNative()) {
+      await ensureStellarTrustline(sourceKeypair, destAsset, network);
+    }
+  } catch (tlErr) {
+    console.warn("[executeSwap] Warning ensuring trustline:", tlErr);
+  }
+
+  // Build XDR
   let builtXdr = "";
   try {
     console.log(`[executeSwap] Building XDR for ${fromAmount} ${fromToken} → ${toToken} on Stellar ${network}`);

@@ -297,6 +297,40 @@ const offrampNgn: DeepSeekTool = {
   },
 };
 
+const getRampRate: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "get_ramp_rate",
+    description:
+      "Get the current live exchange rate for onramping (buying crypto with Naira) or offramping (selling crypto for Naira) via Switch. " +
+      "Call this whenever the user asks for rates, prices, or conversion values before depositing or withdrawing " +
+      "(e.g. 'what are the rates for withdrawing usdc or usdt to naira?', 'what is the current naira rate for usdc?', 'how much is 1 usdc in naira?', 'show onramp and offramp rates'). " +
+      "If the user asks broadly about rates without specifying, you can call this to get the rate for both onramp and offramp.",
+    parameters: {
+      type: "object",
+      properties: {
+        direction: {
+          type: "string",
+          enum: ["onramp", "offramp", "both"],
+          description:
+            "Direction of transfer: 'onramp' (buying crypto with NGN), 'offramp' (selling crypto for NGN), or 'both' (default).",
+        },
+        asset: {
+          type: "string",
+          description:
+            "Optional Switch asset code (e.g. 'base:usdc', 'solana:usdt', 'solana:usdc', 'bsc:usdt'). Defaults to 'base:usdc'.",
+        },
+        token: {
+          type: "string",
+          description:
+            "Optional crypto token symbol ('USDC' or 'USDT'). Defaults to 'USDC'.",
+        },
+      },
+      required: [],
+    },
+  },
+};
+
 const claimFaucet: DeepSeekTool = {
   type: "function",
   function: {
@@ -582,6 +616,7 @@ export const JUMPA_TOOLS: DeepSeekTool[] = [
   sendFunds,
   onrampNgn,
   offrampNgn,
+  getRampRate,
   claimFaucet,
   createSavingsGoal,
   listSavings,
@@ -601,6 +636,7 @@ export type JumpaToolName =
   | "send_funds"
   | "onramp_ngn"
   | "offramp_ngn"
+  | "get_ramp_rate"
   | "claim_faucet"
   | "create_savings_goal"
   | "list_savings"

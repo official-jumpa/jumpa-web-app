@@ -278,10 +278,17 @@ All transactional actions across Swaps, Transfers, DeFi Yield, and Bridging shar
 - **Test:** Open chat at `/home/chat`, enter: `"Swap 10 XLM to USDC on testnet"`.
 - **Observed Behavior:**
   1. The AI calls `stellar_testnet_swap_quote`.
-  2. Soroswap REST API returns active quote from testnet contract pool (`CDLZ...` → `CB3T...`).
-  3. Interactive quote card is rendered in chat displaying You Pay, You Receive, Protocol (`Soroswap Testnet`), and Fee (`0.00001 XLM`).
-  4. Clicking "Confirm" and entering wallet PIN generates XDR, signs with decrypted key, submits to Horizon testnet, and returns a verified transaction receipt.
+  2. The swap engine queries the Soroswap Router contract directly on-chain via Soroban RPC simulation (`router_get_amounts_out`) against router `CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD` with liquidity pair `CCBX3NZTCQLQFSPG7HBOKL4P2RVPOPVFHDNRTOSCCJWBTPL2GHEH7RQS` (reserves: 417,048 XLM / 3,936,432 USDC).
+  3. Interactive quote card renders in chat displaying You Pay, You Receive, Protocol (`Soroswap Router (Soroban)`), and Fee dynamically calculated on-chain via Soroban RPC `minResourceFee` (e.g. `0.00144 XLM`).
+  4. Clicking "Confirm" and entering wallet PIN derives sovereign keypair, ensures USDC trustline, constructs the Soroban `invoke_host_function` transaction (`swap_exact_tokens_for_tokens`), signs, and submits on-chain.
   5. Transaction is recorded in MongoDB `Transaction` collection under `type: "SWAP"`.
+
+#### Verified Soroswap Router Invocations on Testnet
+| Transaction Hash | Operation Type | Contract & Method | Stellar Expert Explorer |
+| :--- | :--- | :--- | :--- |
+| `80a945d21c2df1bb70fb1d8aae1b0f450c46b5b6cac702592ea8c7a0ed677e19` | `invoke_host_function` | Soroswap Router (`CCJUD55...`) `swap_exact_tokens_for_tokens` | [View Tx 1 on Stellar Expert](https://stellar.expert/explorer/testnet/tx/80a945d21c2df1bb70fb1d8aae1b0f450c46b5b6cac702592ea8c7a0ed677e19) |
+| `df0ce749e420a9fc9c801ca7d6386d1b4225224a5f4302f2b9dfb24f985a1f9d` | `invoke_host_function` | Soroswap Router (`CCJUD55...`) `swap_exact_tokens_for_tokens` | [View Tx 2 on Stellar Expert](https://stellar.expert/explorer/testnet/tx/df0ce749e420a9fc9c801ca7d6386d1b4225224a5f4302f2b9dfb24f985a1f9d) |
+
 
 ### Deliverable 2 Verification: DeFindex Target Savings Yield Integration
 - **Test:** Navigate to `/savings`, create a savings goal, and click "Top Up" to deposit 10 USDC.

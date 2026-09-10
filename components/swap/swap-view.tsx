@@ -119,7 +119,7 @@ export function SwapView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pin,
-          rawQuote: quote.rawQuote,
+          rawQuote: quote,
           network,
           fromToken,
           toToken,

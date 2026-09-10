@@ -34,7 +34,6 @@ export async function POST(req: NextRequest) {
       holderName,
       accountNumber,
       bankName,
-      isExactOut = false,
     } = validation.data;
 
     // Resolve bank code and verify account via Paystack
@@ -43,7 +42,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: `Bank "${bankName}" not found. Please check the bank name and try again.`,
+          error: `Bank "${bankName}" is not supported`,
         },
         { status: 400 },
       );
@@ -77,7 +76,6 @@ export async function POST(req: NextRequest) {
       cryptoAmount,
       asset,
       recipient,
-      isExactOut,
     );
 
 

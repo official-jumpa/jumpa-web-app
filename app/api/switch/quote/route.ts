@@ -22,13 +22,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: err.error }, { status: 400 });
     }
 
-    const { amount, asset, direction = "onramp", isExactOut = false } =
+    const { amount, asset, direction = "onramp" } =
       validation.data;
 
     const result =
       direction === "offramp"
-        ? await SwitchService.getOfframpQuote(amount, asset, isExactOut)
-        : await SwitchService.getQuote(amount, asset, isExactOut);
+        ? await SwitchService.getOfframpQuote(amount, asset)
+        : await SwitchService.getQuote(amount, asset);
 
     if (!result.success) {
       return NextResponse.json(

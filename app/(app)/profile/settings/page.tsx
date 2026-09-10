@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { CurrencyRates } from "@/components/settings/currency-rates";
 import { NotificationSettings } from "@/components/settings/notification-settings";
 import { PinFlow } from "@/components/settings/pin-flow/pin-flow";
 import {
@@ -43,6 +44,7 @@ export default async function SettingsPage({
 
   if (section === "security") return <SecuritySettings />;
   if (section === "notifications") return <NotificationSettings />;
+  if (section === "rates") return <CurrencyRates />;
 
   if (section === "statements") {
     if (!kind) return <StatementIndex />;

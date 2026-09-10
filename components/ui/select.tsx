@@ -24,9 +24,12 @@ const TRIGGER = {
   /** Bordered white field, matching the savings forms. */
   savings:
     "h-11.5 w-full gap-2 rounded-surface border border-jumpa-grey-100 bg-jumpa-white px-3 text-xs leading-4 font-medium text-jumpa-primary-950",
+  /** Compact pill that sits in a screen header beside the title. */
+  currency:
+    "h-11 gap-0.5 rounded-pill bg-jumpa-neutral-50 pr-3 pl-2 text-xs leading-4 font-medium text-jumpa-black",
 } as const;
 
-const LOGO = { field: 20, pill: 16, savings: 20 } as const;
+const LOGO = { field: 20, pill: 16, savings: 20, currency: 20 } as const;
 
 export function Select({
   value,

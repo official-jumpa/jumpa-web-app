@@ -7,8 +7,7 @@ export const SETTINGS_SECTIONS = {
   security: { title: "Security" },
   notifications: { title: "Notifications" },
   statements: { title: "Statement and report" },
-  currency: { title: "Currency Display", stub: true },
-  rates: { title: "Currency Rates", stub: true },
+  rates: { title: "Currency Rates" },
   support: { title: "Help & Support", stub: true },
   // Reached from Security, so that is where their back goes.
   "login-pin": { title: "Change Login PIN", parent: "security" },

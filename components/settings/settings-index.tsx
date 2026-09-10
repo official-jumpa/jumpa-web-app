@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { AccountActions } from "@/components/settings/account-actions";
-import { IdDocumentSheet } from "@/components/settings/id-document-sheet";
 import { settingsHref } from "@/components/settings/sections";
 import { SettingAction, SettingLink } from "@/components/settings/setting-row";
 import {
@@ -11,21 +10,18 @@ import {
   SettingSection,
 } from "@/components/settings/setting-section";
 import { SettingsHeader } from "@/components/settings/settings-header";
-import { StatementSheet } from "@/components/settings/statement-options";
+import { StatementRequestSheet } from "@/components/settings/statement-request";
 import { BadgeDollarIcon } from "@/components/ui/icons/badge-dollar";
 import { BellAltIcon } from "@/components/ui/icons/bell-alt";
-import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
 import { CircleUserIcon } from "@/components/ui/icons/circle-user";
 import { ClipboardTextIcon } from "@/components/ui/icons/clipboard-text";
 import { HeartAltIcon } from "@/components/ui/icons/heart-alt";
 import { IdCardIcon } from "@/components/ui/icons/id-card";
-import { MoneyInsertIcon } from "@/components/ui/icons/money-insert";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
 import { UsersIcon } from "@/components/ui/icons/users";
 
 /** The settings landing. Every row below opens a section of this same route. */
 export function SettingsIndex() {
-  const [kycOpen, setKycOpen] = useState(false);
   const [statementsOpen, setStatementsOpen] = useState(false);
 
   return (
@@ -42,31 +38,17 @@ export function SettingsIndex() {
                 label="My Profile"
               />
               <SettingRule />
-              <SettingAction
-                icon={ShieldCheckIcon}
-                label="Statement and report"
-                onClick={() => setStatementsOpen(true)}
-              />
-              <SettingRule />
               <SettingLink
                 href={settingsHref("security")}
                 icon={ShieldCheckIcon}
                 label="Security"
               />
               <SettingRule />
-              <button
-                type="button"
-                onClick={() => setKycOpen(true)}
-                className="flex items-center justify-between gap-3 tap active:scale-[0.99]"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <IdCardIcon className="size-6 shrink-0 text-jumpa-primary-600" />
-                  <span className="truncate text-xs leading-3 font-medium text-jumpa-black">
-                    KYC Verification
-                  </span>
-                </span>
-                <ChevronRightIcon className="size-5 shrink-0 text-jumpa-black" />
-              </button>
+              <SettingLink
+                href="/kyc"
+                icon={IdCardIcon}
+                label="KYC Verification"
+              />
             </SettingCard>
           </SettingSection>
 
@@ -79,9 +61,9 @@ export function SettingsIndex() {
               />
               <SettingRule />
               <SettingLink
-                href={settingsHref("currency")}
+                href={settingsHref("rates")}
                 icon={BadgeDollarIcon}
-                label="Currency Display"
+                label="Currency Rates"
               />
               <SettingRule />
               <SettingLink
@@ -94,16 +76,10 @@ export function SettingsIndex() {
 
           <SettingSection label="Profile Information">
             <SettingCard>
-              <SettingLink
-                href={settingsHref("rates")}
-                icon={MoneyInsertIcon}
-                label="Currency Rates"
-              />
-              <SettingRule />
-              <SettingLink
-                href={settingsHref("statements")}
+              <SettingAction
                 icon={ClipboardTextIcon}
                 label="Request Account Statements"
+                onClick={() => setStatementsOpen(true)}
               />
               <SettingRule />
               <SettingLink
@@ -118,9 +94,8 @@ export function SettingsIndex() {
         </div>
       </div>
 
-      {kycOpen ? <IdDocumentSheet onClose={() => setKycOpen(false)} /> : null}
       {statementsOpen ? (
-        <StatementSheet onClose={() => setStatementsOpen(false)} />
+        <StatementRequestSheet onClose={() => setStatementsOpen(false)} />
       ) : null}
     </>
   );

@@ -9,6 +9,7 @@ import type { Asset } from "@/lib/wallet";
  */
 const LOGOS: Record<string, string> = {
   XLM: "/coins/xlm.webp",
+  BTC: "/coins/btc.webp",
   USDC: "/coins/usdc.webp",
   USDT: "/coins/usdt.webp",
   SOL: "/coins/sol.webp",
@@ -25,6 +26,8 @@ const LOGOS: Record<string, string> = {
 /** Alias list */
 const ALIASES: [string, string][] = [
   ["STELLAR", "XLM"],
+  ["BITCOIN", "BTC"],
+  ["BTC", "BTC"],
   ["TETHER", "USDT"],
   ["ETHEREUM", "ETH"],
   ["POLYGON", "POL"],

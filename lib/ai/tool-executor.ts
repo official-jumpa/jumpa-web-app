@@ -354,8 +354,8 @@ export async function executeTool(
       }
 
       const cardData: BridgeCard = {
-        title: "Bridge",
-        status: { lead: "Slippage ", value: quote.slippage },
+        title: "Bridge (Simulation)",
+        status: { lead: "Mode ", value: "Simulated" },
         pay: {
           caption: "YOU PAY",
           value: quote.amountIn,
@@ -371,7 +371,7 @@ export async function executeTool(
         stats: [
           { lead: "Rate ", value: quote.rate },
           { lead: "Fee ", value: quote.fee },
-          { lead: "Provider ", value: quote.provider || "Allbridge Core" },
+          { lead: "Provider ", value: quote.provider || "Allbridge Core (Simulation)" },
           { lead: "Est. Time ", value: quote.estimatedTime || "2-4 mins" },
         ],
       };
@@ -379,14 +379,14 @@ export async function executeTool(
       return {
         toolName: name,
         summaryForAI: [
-          "Bridge quote ready:",
+          "Simulated bridge quote ready (Testnet Staging):",
           `- ${quote.amountIn} ${quote.fromToken} on ${quote.fromChainName} → ${quote.amountOut} ${quote.toToken} on ${quote.toChainName}`,
           `- Rate: ${quote.rate}`,
           `- Fee: ${quote.fee}`,
-          `- Provider: ${quote.provider || "Allbridge Core"}`,
+          `- Provider: ${quote.provider || "Allbridge Core (Simulation)"}`,
           `- Est. Delivery: ${quote.estimatedTime || "2-4 mins"}`,
-          `- Slippage: ${quote.slippage}`,
-          "The bridge card is on screen. Ask them to confirm. Do NOT use emojis or tell them to press buttons or enter a PIN.",
+          `- Mode: Simulated Testnet Staging`,
+          "The simulated bridge card is on screen. Ask them to confirm to simulate the bridge order. Do NOT use emojis or tell them to press buttons or enter a PIN.",
         ].join("\n"),
         cardHint: { type: "bridge", data: cardData },
         transactionParams: {
@@ -399,7 +399,7 @@ export async function executeTool(
           toChain: quote.toChain,
           currency: quote.fromToken,
           fee: quote.fee,
-          provider: quote.provider || "Allbridge Core",
+          provider: quote.provider || "Allbridge Core (Simulation)",
         },
         requiresConfirmation: true,
       };

@@ -154,9 +154,18 @@ Automated routes handle plan lifecycle and blockchain execution:
 
 ---
 
-## 5. Milestone 3: Cross-Chain Bridging via Allbridge Core
+## 5. Milestone 3: Cross-Chain Bridging (Simulation & Testnet Staging)
 
-Enables simulated cross-chain stablecoin transfers between **Base Sepolia** and **Stellar Testnet** using Allbridge Core production formulas within Jumpa's unified confirmation drawer.
+Enables **simulated cross-chain stablecoin transfers** between **Base Sepolia** and **Stellar Testnet** using Allbridge Core mathematical fee formulas within Jumpa's unified confirmation drawer.
+
+> [!NOTE]
+> **Upstream Provider Context & Staging Rationale:**
+> Following the exploit on Allbridge Core liquidity pools, pool-based routes have been paused upstream by the Allbridge team as they transition away from pool models. Consequently, a live on-chain Stellar pool was unavailable for direct settlement. Jumpa models the deterministic quoting and fee structures (0.3% LP fee + relayer gas) to stage the cross-chain drawer, card UI, and ledger flow without simulating on-chain settlement.
+> 
+> To maintain complete accounting transparency:
+> - The flow is explicitly labeled in the UI as **`Bridge (Simulation)`** with mode **`Simulated Staging`**.
+> - In the database, bridge transactions on testnet are saved under `status: "SIMULATED"` so they cannot be read or audited as settled on-chain.
+> - The receipt card displays `status: "Simulated"` and does not fabricate a fake on-chain transaction explorer hash.
 
 ### 5.1 Quoting Engine & Fee Calculation
 Uses Allbridge Core's mathematical fee model:
@@ -176,23 +185,32 @@ Uses Allbridge Core's mathematical fee model:
     "amountOut": "99.55",
     "rate": "1 USDC = 1 USDC",
     "fee": "0.45 USDC",
-    "provider": "Allbridge Core",
+    "provider": "Allbridge Core (Simulation)",
     "estimatedTime": "2-4 minutes"
   }
   ```
 
 ### 5.2 AI Tool Execution & Preserved UI Integration
-The AI assistant handles `bridge_tokens`, formats parameters for the bridge card, and flags confirmation requirements. The existing bridge and receipt cards are completely preserved without modifying layout structure.
+The AI assistant handles `bridge_tokens`, formats parameters for the bridge card, and flags confirmation requirements. The card explicitly identifies the route as a **`Simulated Staging`** operation.
 
 ### 5.3 Confirmation & Ledger Accounting
 In the bridge execution branch:
 1. Validates user PIN against the wallet pin hash.
 2. Resolves source Base address and destination Stellar address.
-3. Records confirmed bridge transaction in MongoDB under the transaction ledger:
+3. Records simulated bridge transaction in MongoDB under the transaction ledger:
    - `type: "BRIDGE"`
-   - `status: "CONFIRMED"`
-   - `bridgeDetails`: `{ provider: "Allbridge Core", fromChain: "base", toChain: "stellar", ... }`
-4. Returns receipt card data displaying bridged values, Allbridge provider attribution, delivery estimate, and destination Stellar explorer link.
+   - `status: "SIMULATED"`
+   - `bridgeDetails`: `{ provider: "Allbridge Core (Simulation)", fromChain: "base", toChain: "stellar", ... }`
+4. Returns receipt card data displaying bridged values, Allbridge provider attribution, simulated delivery estimate, and `status: "Simulated"`.
+
+### 5.4 Tranche 3 Migration Plan: Circle CCTP (Native USDC)
+For production cross-chain transfers in Tranche 3, Jumpa will migrate from pool-based bridging to **Circle CCTP (Cross-Chain Transfer Protocol)**:
+- **Architecture:** 1:1 burn-and-mint between Circle's official contracts on Base and Stellar (Soroban SAC).
+- **Security:** Eliminates third-party liquidity pool risks, wrapped token risks, and slippage.
+- **Protocol Flow:**
+  1. **Burn:** User signs `depositForBurn()` on Base Sepolia `TokenMessenger`.
+  2. **Attestation:** Circle Iris attestation service observes and signs the burn attestation.
+  3. **Mint:** Attestation is submitted to Stellar's CCTP `MessageTransmitter` to mint native Circle USDC directly to the user's Stellar wallet.
 
 ---
 
@@ -308,13 +326,13 @@ All transactional actions across Swaps, Transfers, DeFi Yield, and Bridging shar
   3. Plan balance updates with on-chain underlying assets and dashboard displays live Net APY.
   4. Transaction is recorded in MongoDB under `type: "SAVINGS_DEPOSIT"`.
 
-### Deliverable 3 Verification: Simulated Allbridge Core Cross-Chain Bridging
+### Deliverable 3 Verification: Simulated Allbridge Core Cross-Chain Bridging (Testnet Staging)
 - **Test:** In chat, enter: `"Bridge 25 USDC from Base to Stellar"`.
 - **Observed Behavior:**
   1. The AI invokes `bridge_tokens` using Allbridge Core 0.3% fee model.
-  2. Interactive bridge card renders displaying You Pay (25 USDC on Base), You Receive (24.775 USDC on Stellar), Provider (`Allbridge Core`), and Est. Time (`2-4 minutes`).
+  2. Interactive bridge card renders with title **`Bridge (Simulation)`**, mode **`Simulated Staging`**, displaying You Pay (25 USDC on Base), You Receive (24.775 USDC on Stellar), Provider (`Allbridge Core (Simulation)`), and Est. Time (`2-4 minutes`).
   3. Clicking "Confirm" opens the unified PIN sheet.
-  4. Entering PIN confirms transaction, records `type: "BRIDGE"` in db, and returns verified receipt card with Stellar explorer link.
+  4. Entering PIN confirms the simulation, records `type: "BRIDGE"` with `status: "SIMULATED"` in the database, and returns a verified receipt card labeled **`Simulated`** .
 
 ### Verification Commands & Test Invocations
 

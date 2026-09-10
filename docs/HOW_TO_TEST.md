@@ -101,24 +101,25 @@ This guide provides step-by-step instructions for testing Jumpa's core features 
 
 ---
 
-### Step 6: Cross-Chain Bridging via Allbridge Core (Tranche 2)
+### Step 6: Cross-Chain Bridging (Simulation & Testnet Staging) (Tranche 2)
 1. Navigate back to **Chat** (`/home/chat`).
 2. Send a bridge request, for example:
    - *"Bridge 25 USDC from Base to Stellar"*
-3. **Allbridge Quote Card:**
+3. **Simulated Bridge Quote Card:**
    - The AI assistant calls `bridge_tokens` using Allbridge Core's mathematical fee model:
      - **LP Fee:** `0.30%` (`0.075 USDC`)
      - **Relayer Gas Fee:** `0.15 USDC`
      - **Est. Settlement Time:** `2-4 minutes`
-     - **Provider:** `Allbridge Core`
+     - **Provider:** `Allbridge Core (Simulation)`
    - Displays the **Bridge Card** in the transcript showing:
+     - **Title:** `Bridge (Simulation)`
      - **You Pay:** `25 USDC` on Base
      - **You Receive:** `24.775 USDC` on Stellar
-     - **Rate, Fee & Est. Time**
+     - **Mode:** `Simulated`
 4. **Unified Confirmation & Receipt:**
    - Click **Confirm** on the Bridge Card.
    - The **PIN Sheet drawer** slides up. Enter your 6-digit PIN.
-   - Jumpa verifies the PIN, records the confirmed transaction, and renders a **Receipt Card** with Allbridge delivery stats and recipient Stellar account explorer link.
+   - Jumpa verifies the PIN, records the transaction under `status: "SIMULATED"` in the database, and renders a verified **Receipt Card** labeled **`Simulated`**.
 
 ---
 

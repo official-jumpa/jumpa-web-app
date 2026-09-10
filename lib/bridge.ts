@@ -1,9 +1,11 @@
 import { CHAINS, chainsFor } from "@/lib/blockchain";
 
 /**
- * Cross-chain quoting. There is no bridge provider wired up yet, so the rate
- * and fee below are a deterministic placeholder in the shape the real one will
- * return — the card, the confirmation and the receipt all run off it.
+ * Cross-chain quoting simulation (Testnet Staging).
+ * Note: External bridge pools (such as Allbridge Core) have been paused upstream following
+ * their transition away from liquidity pool models. This module provides deterministic
+ * mathematical quoting (0.3% LP fee + relayer gas) to stage the cross-chain drawer,
+ * card UI, and ledger flow without executing live on-chain settlement.
  */
 
 export type BridgeQuote = {
@@ -118,7 +120,7 @@ export function getBridgeQuote({
     rate: `1 ${to} = ${trim(toPrice / fromPrice, 4)} ${from}`,
     fee: `${trim(totalFee, 4)} ${from}`,
     slippage: ALLBRIDGE_SLIPPAGE,
-    provider: "Allbridge Core",
+    provider: "Allbridge Core (Simulation)",
     relayerFee: `${trim(relayerFeeInToken, 4)} ${from}`,
     estimatedTime: ALLBRIDGE_ESTIMATED_TIME,
   };

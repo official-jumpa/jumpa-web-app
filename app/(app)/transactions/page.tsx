@@ -4,7 +4,7 @@ import { TransactionsView } from "@/components/transactions/transactions-view";
 import { TRANSACTION_FILTERS } from "@/lib/cards";
 
 type TransactionsPageProps = {
-  searchParams: Promise<{ id?: string }>;
+  searchParams: Promise<{ id?: string; chain?: string }>;
 };
 
 export async function generateMetadata({
@@ -17,9 +17,14 @@ export async function generateMetadata({
 export default async function TransactionsPage({
   searchParams,
 }: TransactionsPageProps) {
-  const { id } = await searchParams;
+  const { id, chain } = await searchParams;
 
   if (id) return <TransactionDetail id={id} />;
 
-  return <TransactionsView filters={TRANSACTION_FILTERS} />;
+  return (
+    <TransactionsView
+      filters={TRANSACTION_FILTERS}
+      initialChain={chain}
+    />
+  );
 }

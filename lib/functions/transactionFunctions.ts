@@ -412,6 +412,7 @@ export async function queryUserTransactions(params: {
   limit?: number;
   duration?: string;
   card?: string;
+  token?: string;
 }): Promise<{ transactions: any[]; total: number }> {
   await connectDB();
 
@@ -421,14 +422,39 @@ export async function queryUserTransactions(params: {
 
   const query: Record<string, any> = { userId: params.userId };
 
+  if (params.token) {
+    const tokenUpper = params.token.toUpperCase();
+    const rampRegex = new RegExp(`:${params.token}$`, "i");
+    const tokenMatch = [
+      { token: tokenUpper },
+      { "swapDetails.fromToken": tokenUpper },
+      { "swapDetails.toToken": tokenUpper },
+      { "rampDetails.asset": rampRegex },
+    ];
+    query.$or = tokenMatch;
+  }
+
   if (params.type) {
     const t = params.type.toUpperCase();
+    let typeMatch: any;
     if (t === "UTILITY") {
-      query.$or = [
+      typeMatch = [
         { type: "UTILITY" },
         { "rampDetails.provider": "bills" },
         { token: { $in: ["AIRTIME", "DATA", "ELECTRICITY"] } },
       ];
+    } else {
+      typeMatch = [{ type: t }];
+    }
+
+    if (query.$or) {
+      query.$and = (query.$and || []).concat([
+        { $or: query.$or },
+        { $or: typeMatch },
+      ]);
+      delete query.$or;
+    } else if (t === "UTILITY") {
+      query.$or = typeMatch;
     } else {
       query.type = t;
     }

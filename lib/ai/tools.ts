@@ -1,5 +1,5 @@
 /**
- * Jumpa AI — DeepSeek Tool Schemas
+ * Jumpa AI — Tool Schemas
  *
  * Tools are strictly network-scoped. Mainnet and testnet tools are separate
  * to prevent cross-network contract contamination.

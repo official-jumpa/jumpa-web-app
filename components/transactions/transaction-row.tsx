@@ -76,7 +76,7 @@ export function TransactionRow({ transaction }: { transaction: Transaction }) {
         </span>
         <span
           className={cn(
-            "text-xs leading-3.5 font-medium",
+            "text-xs leading-3.5 font-medium lowercase",
             status === "failed"
               ? "text-jumpa-danger"
               : "text-jumpa-neutral-775",

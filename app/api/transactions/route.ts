@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
       limit: searchParams.get("limit") || undefined,
       duration: searchParams.get("duration") || undefined,
       card: searchParams.get("card") || undefined,
+      token: searchParams.get("token") || undefined,
     };
 
     const validation = transactionQuerySchema.safeParse(rawParams);
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(formatZodError(validation.error), { status: 400 });
     }
 
-    const { type, status, chain, network, page, limit, duration, card } =
+    const { type, status, chain, network, page, limit, duration, card, token } =
       validation.data;
 
     const { transactions, total } = await queryUserTransactions({
@@ -52,6 +53,7 @@ export async function GET(req: NextRequest) {
       limit,
       duration,
       card,
+      token,
     });
 
     const activePage = page || 1;

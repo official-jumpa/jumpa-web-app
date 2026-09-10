@@ -5,8 +5,15 @@ import { DepositInfo } from "@/components/assets/deposit-info";
 import { TokenDetailView } from "@/components/assets/token-detail-view";
 import { chainsFor, resolveChainAddresses } from "@/lib/blockchain";
 import { getSession } from "@/lib/session";
-import { getAssetPriceUsd } from "@/lib/wallet-balances";
-import { SUPPORTED_ASSETS, TRANSACTIONS } from "@/lib/wallet";
+import {
+  queryUserTransactions,
+  formatDbTransaction,
+} from "@/lib/functions/transactionFunctions";
+import {
+  getCachedWalletBalances,
+  getAssetPriceUsd,
+} from "@/lib/wallet-balances";
+import { SUPPORTED_ASSETS, type Transaction } from "@/lib/wallet";
 
 interface AssetsPageProps {
   searchParams: Promise<{
@@ -76,16 +83,54 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
 
   // 3. Detail View: Render single token wallet & transaction view
   const chains = chainsFor(asset.symbol);
+  // Default to matching query network, or fallback to default chain (first chain in list)
   const chain =
-    chains.find((entry) => entry.id === network) ??
-    (chains.length === 1 ? chains[0] : undefined);
+    chains.find((entry) => entry.id === network) ?? chains[0];
+
+  const session = await getSession();
+  let transactions: Transaction[] = [];
+  const displayAsset = { ...asset };
+
+  if (session?.userId) {
+    const [txResult, balancesResult] = await Promise.all([
+      queryUserTransactions({
+        userId: session.userId,
+        token: asset.symbol,
+        chain: chain.id,
+        limit: 5,
+      }).catch(() => ({ transactions: [], total: 0 })),
+      getCachedWalletBalances(session.userId).catch(() => null),
+    ]);
+
+    transactions = (txResult.transactions || []).map(formatDbTransaction);
+
+    if (balancesResult?.tokens) {
+      // Look for the token on the specific active chain
+      const tokenMatch = balancesResult.tokens.find(
+        (t) =>
+          t.symbol.toUpperCase() === asset.symbol.toUpperCase() &&
+          (t.network?.toLowerCase() === chain.id.toLowerCase() ||
+            t.network?.toLowerCase() === chain.name.toLowerCase()),
+      );
+
+      if (tokenMatch) {
+        const balNum = parseFloat(tokenMatch.balance || "0");
+        const formattedBal = balNum.toLocaleString("en-US", {
+          maximumFractionDigits: 4,
+        });
+        displayAsset.balance = `${formattedBal} ${asset.symbol}`;
+      } else {
+        displayAsset.balance = `0.00 ${asset.symbol}`;
+      }
+    }
+  }
 
   return (
     <TokenDetailView
-      asset={asset}
+      asset={displayAsset}
       chains={chains}
       chain={chain}
-      transactions={TRANSACTIONS}
+      transactions={transactions}
     />
   );
 }

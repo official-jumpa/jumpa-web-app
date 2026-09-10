@@ -15,6 +15,7 @@ export const transactionQuerySchema = z.object({
     .transform((val) => Math.min(100, Math.max(1, parseInt(String(val || "20"), 10)))),
   duration: z.string().trim().optional(),
   card: z.string().trim().optional(),
+  token: z.string().trim().optional(),
 });
 
 export type TransactionQueryInput = z.infer<typeof transactionQuerySchema>;

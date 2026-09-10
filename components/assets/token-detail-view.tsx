@@ -157,7 +157,14 @@ export function TokenDetailView({
 
       <div className="mt-8 flex items-center justify-between text-sm leading-4.5 font-medium text-jumpa-black">
         <h2>Transaction History</h2>
-        <Link href="/transactions" className="text-jumpa-primary-950">
+        <Link
+          href={
+            chain
+              ? `/transactions?chain=${encodeURIComponent(chain.id)}`
+              : "/transactions"
+          }
+          className="text-jumpa-primary-950"
+        >
           See All
         </Link>
       </div>

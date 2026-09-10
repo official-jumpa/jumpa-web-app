@@ -57,13 +57,22 @@ function buildFilterParams(selected: Record<string, string>): string {
 export function TransactionsView({
   transactions: initialTransactions = [],
   filters,
+  initialChain,
 }: {
   transactions?: Transaction[];
   filters: TransactionFilter[];
+  initialChain?: string;
 }) {
   const [sheet, setSheet] = useState<Sheet>(null);
   const [query, setQuery] = useState("");
-  const [selectedFilters, setSelectedFilters] = useState<Record<string, string>>({});
+
+  const defaultChainOption = initialChain
+    ? initialChain.charAt(0).toUpperCase() + initialChain.slice(1).toLowerCase()
+    : undefined;
+
+  const [selectedFilters, setSelectedFilters] = useState<Record<string, string>>(
+    defaultChainOption ? { Chain: defaultChainOption } : {},
+  );
   const [transactions, setTransactions] =
     useState<Transaction[]>(initialTransactions);
   const [loading, setLoading] = useState(true);

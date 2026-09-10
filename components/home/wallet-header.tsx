@@ -40,9 +40,9 @@ export function WalletHeader() {
         </span>
         <p className="flex flex-col text-base leading-4 text-jumpa-white">
           <span className="font-medium">
-            <span className="text-jumpa-white/68 font-semibold">Hello</span>👋,
+            <span className="text-jumpa-white/68 font-semibold">Hello</span>,
           </span>
-          <span className="font-bold">{displayName}</span>
+          <span className="font-bold lowercase">{displayName}</span>
         </p>
       </Link>
 

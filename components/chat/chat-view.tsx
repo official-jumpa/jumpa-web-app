@@ -88,7 +88,10 @@ function messagesToChatEntries(
     } else if (msg.cardType === "onramp" && msg.cardData) {
       items.push({
         kind: "onramp",
-        card: msg.cardData as any,
+        card: {
+          ...msg.cardData,
+          status: msg.cardData.status || msg.status || "pending",
+        } as any,
       });
     } else if (msg.cardType === "offramp" && msg.cardData) {
       const isPending = msg.status === "pending";

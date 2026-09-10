@@ -25,6 +25,35 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: err.error }, { status: 400 });
     }
 
+    // Return instantly if already settled in our database
+    await connectDB();
+    const existingTx = await Transaction.findOne({
+      $or: [
+        { "rampDetails.reference": validation.data.reference },
+        { txHash: validation.data.reference },
+      ],
+    }).lean();
+
+    if (existingTx && existingTx.status === "CONFIRMED") {
+      return NextResponse.json({
+        success: true,
+        status: "COMPLETED",
+        isCompleted: true,
+        isAwaiting: false,
+        isFailed: false,
+        message: "Transaction completed",
+        data: {
+          status: "COMPLETED",
+          reference: validation.data.reference,
+          meta: {
+            hash: existingTx.txHash,
+            explorer_url: existingTx.explorerUrl,
+          },
+        },
+      });
+    }
+
+    // Fallback to Switch if not already confirmed in DB
     const result = await SwitchService.getTransactionStatus(validation.data.reference);
 
     if (!result.success) {
@@ -58,7 +87,7 @@ export async function GET(req: NextRequest) {
 
     let humanMessage = "Awaiting deposit. Waiting for a few seconds before trying again.";
     if (isCompleted) {
-      humanMessage = "Transaction completed successfully.";
+      humanMessage = "Transaction completed";
       const txHash = result.data?.meta?.hash || validation.data.reference;
       const explorerUrl = result.data?.meta?.explorer_url || null;
 
@@ -119,7 +148,7 @@ export async function GET(req: NextRequest) {
       data: result.data,
     });
   } catch (err: any) {
-    console.error("[Switch Status API] ✗ Unhandled error:", err);
+    console.error("[Switch Status] ✗ Unhandled error:", err);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }

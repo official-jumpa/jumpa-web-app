@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DetailPanel } from "@/components/chat/card-rows";
 import {
   CardAmount,
@@ -21,10 +21,32 @@ interface OnrampCheckoutCardProps {
 /** Buying crypto with a bank transfer: pay this account, then say you have. */
 export function OnrampCheckoutCard({ card, onPaid }: OnrampCheckoutCardProps) {
   const [verifying, setVerifying] = useState(false);
-  const [isDone, setIsDone] = useState(card.status === "confirmed");
+  const isAlreadyDone =
+    card.status === "confirmed" || card.status === "completed";
+  const [isDone, setIsDone] = useState(isAlreadyDone);
   const [statusError, setStatusError] = useState<string | null>(null);
 
   const isError = card.status === "error";
+
+  // Avoid frequent data fetches — only query if the transaction is not already completed
+  useEffect(() => {
+    if (isDone || isAlreadyDone || !card.reference) return;
+
+    let isMounted = true;
+    fetch(`/api/switch/status?reference=${encodeURIComponent(card.reference)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (isMounted && data?.success && data.isCompleted) {
+          setIsDone(true);
+          onPaid?.();
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [card.reference, isDone, isAlreadyDone, onPaid]);
 
   const handleConfirmPaid = async () => {
     setVerifying(true);

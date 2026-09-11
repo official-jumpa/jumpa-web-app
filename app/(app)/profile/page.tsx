@@ -111,14 +111,6 @@ export default function ProfilePage() {
         <p className="mt-2 text-[10px] leading-3 font-medium text-jumpa-primary-600">
           {displayEmail}
         </p>
-        {stellarAddress ? (
-          <CopyButton
-            value={stellarAddress}
-            label="Copy wallet address"
-            variant="text"
-            className="mt-1 text-[10px] leading-3 font-semibold text-jumpa-primary-950"
-          />
-        ) : null}
       </div>
 
       <Link
@@ -229,25 +221,6 @@ export default function ProfilePage() {
                 )}
               </>
             )}
-
-            <p className="flex items-center gap-2 self-center text-[10px] leading-3 font-medium text-jumpa-black">
-              Powered by
-              <span className="flex items-center gap-1 rounded-pill border border-jumpa-neutral-100 bg-jumpa-white py-1 pr-2.5 pl-1">
-                <Image
-                  src={getAssetLogo("XLM")}
-                  alt=""
-                  width={44}
-                  height={44}
-                  className="size-5.5 rounded-full"
-                />
-                <span className="flex flex-col items-start">
-                  <span className="leading-3">XLM</span>
-                  <span className="text-[8px] leading-2 font-normal text-jumpa-neutral-350">
-                    Stellar
-                  </span>
-                </span>
-              </span>
-            </p>
           </SettingCard>
         </SettingSection>
 

@@ -38,9 +38,7 @@ export default function MigratePinPage() {
     if (stage === "confirm-existing") {
       handleConfirmExistingPin(pin.value);
     } else if (stage === "current") {
-      setCurrentPin(pin.value);
-      pin.clear();
-      setStage("new");
+      handleValidateCurrentPin(pin.value);
     } else if (stage === "new") {
       setNewPin(pin.value);
       pin.clear();
@@ -54,6 +52,42 @@ export default function MigratePinPage() {
       handleMigratePin(pin.value);
     }
   }, [pin.complete, stage, newPin, status, pin.value]);
+
+  const handleValidateCurrentPin = async (candidatePin: string) => {
+    setStatus("submitting");
+    setError(null);
+
+    try {
+      const res = await fetch("/api/auth/wallet-setup?step=migrate-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "validate-current",
+          oldPin: candidatePin,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(data.error || "Incorrect current PIN. Please try again.");
+        setStatus("error");
+        pin.clear();
+        setTimeout(() => setStatus("idle"), 1000);
+        return;
+      }
+
+      setCurrentPin(candidatePin);
+      pin.clear();
+      setStatus("idle");
+      setStage("new");
+    } catch {
+      setError("Network error. Please try again.");
+      setStatus("error");
+      pin.clear();
+      setTimeout(() => setStatus("idle"), 1000);
+    }
+  };
 
   const handleConfirmExistingPin = async (confirmedPin: string) => {
     setStatus("submitting");
@@ -249,7 +283,9 @@ export default function MigratePinPage() {
           <p className="text-center text-xs text-jumpa-neutral-500 animate-pulse">
             {stage === "confirm-existing"
               ? "Verifying your PIN..."
-              : "Upgrading your wallet security..."}
+              : stage === "current"
+                ? "Verifying current PIN..."
+                : "Upgrading your wallet security..."}
           </p>
         )}
 

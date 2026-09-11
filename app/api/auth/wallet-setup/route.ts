@@ -268,6 +268,62 @@ export async function POST(req: NextRequest) {
       const existingWallets = await listWalletsByUserId(session.user.id);
       console.log("🟢🟢🟢 Existig user wallets", existingWallets)
       
+      // Pre-validation path: Verify current 6-digit PIN before prompting for new PIN
+      if (body.action === "validate-current" || body.action === "verify-current") {
+        const oldPin = String(body.oldPin || body.pin || "").trim();
+        if (!/^\d{6}$/.test(oldPin)) {
+          return NextResponse.json(
+            { error: "Current PIN must be exactly 6 digits" },
+            { status: 400 },
+          );
+        }
+
+        const user = await User.findById(session.user.id);
+        const wallet = user?.activeWalletId
+          ? await Wallet.findById(user.activeWalletId)
+          : await Wallet.findOne({ userId: session.user.id });
+
+        if (!wallet) {
+          return NextResponse.json(
+            { error: "No active wallet found" },
+            { status: 404 },
+          );
+        }
+
+        const isMatch = await bcrypt.compare(oldPin, wallet.pinHash);
+        if (!isMatch) {
+          console.warn(`[MigratePIN][ValidateCurrent] ❌ WRONG CURRENT PIN! bcrypt.compare returned false for wallet ${wallet._id} (User: ${session.user.id})`);
+          return NextResponse.json(
+            { error: "Incorrect current PIN. Please try again." },
+            { status: 400 },
+          );
+        }
+
+        try {
+          decryptMnemonic(
+            wallet.encryptedMnemonic,
+            wallet.iv,
+            wallet.salt,
+            oldPin,
+          );
+        } catch (decryptErr) {
+          console.error(
+            `[MigratePIN][ValidateCurrent] ❌ Decryption failed for wallet ${wallet._id}:`,
+            decryptErr,
+          );
+          return NextResponse.json(
+            { error: "PIN verified, but unable to decrypt wallet. Please contact support." },
+            { status: 400 },
+          );
+        }
+
+        console.log(`[MigratePIN][ValidateCurrent] ✅ Current PIN verified successfully for wallet ${wallet._id}.`);
+        return NextResponse.json({
+          success: true,
+          message: "Current PIN verified successfully",
+        });
+      }
+
       // Fallback path: User already has a 4-digit PIN and wants to confirm it
       if (isConfirmExisting) {
         const pinCandidate = String(body.existing4DigitPin || body.pin || "").trim();

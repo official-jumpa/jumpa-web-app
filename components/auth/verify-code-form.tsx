@@ -8,6 +8,7 @@ import { SuccessSheet } from "@/components/auth/success-sheet";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 import { emailOtp, signIn } from "@/lib/auth-client";
+import { SIGN_UP_FLOW } from "@/lib/sign-up";
 
 const CODE_LENGTH = 6;
 
@@ -23,7 +24,7 @@ export function VerifyCodeForm({
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState(false);
   const [targetActionHref, setTargetActionHref] = useState(
-    nextHref || "/sign-up/pin",
+    nextHref || SIGN_UP_FLOW.phone,
   );
   const [error, setError] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
@@ -73,10 +74,10 @@ export function VerifyCodeForm({
           if (Array.isArray(wallets) && wallets.length > 0) {
             setTargetActionHref("/home");
           } else {
-            setTargetActionHref("/sign-up/pin");
+            setTargetActionHref(SIGN_UP_FLOW.phone);
           }
         } catch {
-          setTargetActionHref(nextHref || "/sign-up/pin");
+          setTargetActionHref(nextHref || SIGN_UP_FLOW.phone);
         }
 
         setVerifying(false);

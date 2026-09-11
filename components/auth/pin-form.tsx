@@ -2,9 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { InfoNote } from "@/components/auth/info-note";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
+import { PinNote } from "@/components/auth/pin-note";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 
@@ -42,17 +42,7 @@ export function PinForm({
           autoFocus
           onValueChange={pin.set}
         />
-        <InfoNote>
-          <span className="flex flex-col gap-2">
-            <span className="font-medium">
-              Passcode for your self-custodial wallet.
-            </span>
-            <span>
-              A PIN is used to sign transactions and unlock your wallet on your
-              device. It's never sent unencrypted to Jumpa servers.
-            </span>
-          </span>
-        </InfoNote>
+        <PinNote />
       </div>
 
       <NumericKeypad

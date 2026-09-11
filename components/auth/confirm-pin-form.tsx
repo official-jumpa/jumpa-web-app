@@ -2,9 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { InfoNote } from "@/components/auth/info-note";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
+import { PinNote } from "@/components/auth/pin-note";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 
@@ -133,10 +133,7 @@ export function ConfirmPinForm({
           </p>
         )}
 
-        <InfoNote>
-          Re-enter your 6-digit PIN to confirm and complete setting up your
-          wallet
-        </InfoNote>
+        <PinNote />
       </div>
 
       <NumericKeypad

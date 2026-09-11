@@ -120,7 +120,8 @@ export function JumpaTagForm({ nextHref }: { nextHref: string }) {
       writeSignUpValue(SIGN_UP_KEYS.tag, fullTag(handle));
       setClaiming(false);
       setConfirming(false);
-      router.push(nextHref);
+      const destination = data.nextRoute || nextHref;
+      router.push(destination);
     } catch {
       setClaimError("Network error. Please try again.");
       setClaiming(false);

@@ -63,7 +63,8 @@ export function LoginPasswordForm({
         }
         clearSignUpValue(SIGN_UP_KEYS.password);
         setSubmitting(false);
-        router.push(nextHref);
+        const destination = data.nextRoute || nextHref;
+        router.push(destination);
       } catch {
         setError("Network error. Please try again.");
         password.clear();

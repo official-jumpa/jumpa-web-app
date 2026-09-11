@@ -25,6 +25,7 @@ export interface OnboardingStatus {
   hasTag: boolean;
   hasPin: boolean;
   needsPinMigration?: boolean;//delete once everyone has migrated to v2
+  nextRoute?: string;
   isComplete: boolean;
 }
 
@@ -85,7 +86,29 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
       setStatus(data);
       setCheckingStatus(false);
 
-      // If on an auth/signup/migration page, don't interrupt
+      // If user is on an onboarding step they have ALREADY completed, forward them to the next required step
+      if (
+        (pathname?.startsWith("/sign-up/password") && data.hasPassword) ||
+        (pathname?.startsWith("/sign-up/tag") && data.hasTag) ||
+        (pathname?.startsWith("/sign-up/pin") && data.hasPin)
+      ) {
+        if (data.nextRoute) {
+          router.replace(data.nextRoute);
+        } else if (!data.hasPassword) {
+          router.replace("/sign-up/password");
+        } else if (!data.hasTag) {
+          router.replace("/sign-up/tag");
+        } else if (!data.hasPin) {
+          router.replace("/sign-up/pin");
+        } else if (data.needsPinMigration) {
+          router.replace("/migrate-pin");
+        } else {
+          router.replace("/home");
+        }
+        return;
+      }
+
+      // If on an auth/signup/migration page that they still need, don't interrupt
       //delete once everyone has migrated to v2
       if (
         pathname?.startsWith("/sign-up") ||
@@ -96,7 +119,9 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
       }
 
       // Sequential onboarding check: Password -> Tag -> PIN / Migration
-      if (!data.hasPassword) {
+      if (data.nextRoute && data.nextRoute !== "/home") {
+        router.replace(data.nextRoute);
+      } else if (!data.hasPassword) {
         router.replace("/sign-up/password");
       } else if (!data.hasTag) {
         router.replace("/sign-up/tag");

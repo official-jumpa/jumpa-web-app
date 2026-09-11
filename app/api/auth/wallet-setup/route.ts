@@ -38,10 +38,24 @@ function isWeakPassword(value: string): boolean {
   );
 }
 
+/** Resolves the next route a user must complete in onboarding */
+function resolveNextOnboardingRoute(user: any, wallet: any): string {
+  const hasPassword = Boolean(user?.loginPasswordHash);
+  const hasTag = Boolean(user?.jumpaTag);
+  const hasPin = Boolean(wallet?.pinHash);
+  const needsPinMigration = Boolean(wallet && wallet.pinVersion !== "v2");
+
+  if (!hasPassword) return "/sign-up/password";
+  if (!hasTag) return "/sign-up/tag";
+  if (!hasPin) return "/sign-up/pin";
+  if (needsPinMigration) return "/migrate-pin";
+  return "/home";
+}
+
 /**
  * GET /api/auth/wallet-setup
  * - If ?checkTag=<handle>: checks Jumpa tag availability & returns suggestions
- * - Otherwise: returns user onboarding & security status (hasPassword, hasTag, hasPin, isComplete)
+ * - Otherwise: returns user onboarding & security status (hasPassword, hasTag, hasPin, isComplete, nextRoute)
  */
 export async function GET(req: NextRequest) {
   try {
@@ -99,12 +113,14 @@ export async function GET(req: NextRequest) {
     const hasTag = Boolean(user?.jumpaTag);
     const hasPin = Boolean(wallet?.pinHash);
     const needsPinMigration = Boolean(wallet && wallet.pinVersion !== "v2");
+    const nextRoute = resolveNextOnboardingRoute(user, wallet);
 
     return NextResponse.json({
       hasPassword,
       hasTag,
       hasPin,
       needsPinMigration,
+      nextRoute,
       isComplete: hasPassword && hasTag && hasPin && !needsPinMigration,//delete once everyone has migrated to v2
     });
   } catch (err) {
@@ -156,13 +172,25 @@ export async function POST(req: NextRequest) {
       }
 
       const loginPasswordHash = await bcrypt.hash(password, 10);
-      await User.findByIdAndUpdate(session.user.id, {
-        $set: { loginPasswordHash },
-      });
+      const updatedUser = await User.findByIdAndUpdate(
+        session.user.id,
+        { $set: { loginPasswordHash } },
+        { new: true },
+      );
+
+      const wallet = updatedUser?.activeWalletId
+        ? await Wallet.findById(updatedUser.activeWalletId)
+        : await Wallet.findOne({
+            userId: session.user.id,
+            pinHash: { $exists: true, $ne: "" },
+          });
+
+      const nextRoute = resolveNextOnboardingRoute(updatedUser, wallet);
 
       return NextResponse.json({
         success: true,
         message: "Login password set successfully",
+        nextRoute,
       });
     }
 
@@ -195,13 +223,25 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      await User.findByIdAndUpdate(session.user.id, {
-        $set: { jumpaTag: fullTag },
-      });
+      const updatedUser = await User.findByIdAndUpdate(
+        session.user.id,
+        { $set: { jumpaTag: fullTag } },
+        { new: true },
+      );
+
+      const wallet = updatedUser?.activeWalletId
+        ? await Wallet.findById(updatedUser.activeWalletId)
+        : await Wallet.findOne({
+            userId: session.user.id,
+            pinHash: { $exists: true, $ne: "" },
+          });
+
+      const nextRoute = resolveNextOnboardingRoute(updatedUser, wallet);
 
       return NextResponse.json({
         success: true,
         jumpaTag: fullTag,
+        nextRoute,
       });
     }
 

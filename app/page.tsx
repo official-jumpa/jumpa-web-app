@@ -40,12 +40,16 @@ export default function SplashPage() {
           return;
         }
         const status = await res.json();
-        if (!status.hasPassword) {
+        if (status.nextRoute) {
+          setNext(status.nextRoute);
+        } else if (!status.hasPassword) {
           setNext("/sign-up/password");
         } else if (!status.hasTag) {
           setNext("/sign-up/tag");
         } else if (!status.hasPin) {
           setNext("/sign-up/pin");
+        } else if (status.needsPinMigration) {
+          setNext("/migrate-pin");
         } else {
           setNext("/home");
         }

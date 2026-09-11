@@ -14,6 +14,7 @@ import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import type { ChatEntry, ChatItem, QuoteCard as Quote } from "@/lib/chat";
 import { answersByCard } from "@/lib/chat-answer";
+import type { ChatAttachment } from "@/lib/chat-attachments";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import type { IChatMessage } from "@/models/ChatLog";
 
@@ -40,6 +41,11 @@ function messagesToChatEntries(
     const answer = msg.id ? answers.get(msg.id) : undefined;
 
     const items: ChatItem[] = [];
+
+    // Files the user sent, above whatever they said about them.
+    if (msg.attachments?.length) {
+      items.push({ kind: "attachments", items: msg.attachments });
+    }
 
     // Text message
     if (msg.content) {
@@ -317,9 +323,10 @@ export function ChatView() {
 
   // Send message handler
   const handleSendMessage = useCallback(
-    async (customText?: string) => {
+    async (customText?: string, attachments?: ChatAttachment[]) => {
       const textToSend = (customText || inputValue).trim();
-      if (!textToSend || isResponding) return;
+      // A file on its own is a message, so either half is enough to send.
+      if ((!textToSend && !attachments?.length) || isResponding) return;
 
       setInputValue("");
 
@@ -328,6 +335,7 @@ export function ChatView() {
         role: "user",
         content: textToSend,
         timestamp: new Date(),
+        ...(attachments?.length ? { attachments } : {}),
       };
 
       setMessages((prev) => [...prev, tempUserMsg]);
@@ -340,6 +348,7 @@ export function ChatView() {
           body: JSON.stringify({
             sessionId: activeSessionId || undefined,
             message: textToSend,
+            attachmentIds: attachments?.map((file) => file.id),
           }),
         });
 
@@ -599,7 +608,7 @@ export function ChatView() {
           <ChatComposer
             value={inputValue}
             onChange={setInputValue}
-            onSend={() => handleSendMessage()}
+            onSend={(attachments) => handleSendMessage(undefined, attachments)}
             disabled={isResponding}
           />
         </ChatDock>

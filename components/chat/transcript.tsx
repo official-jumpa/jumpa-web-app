@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { AccountsCard } from "@/components/chat/accounts-card";
 import { ActionRow } from "@/components/chat/action-row";
 import { AgentAvatar } from "@/components/chat/agent-avatar";
+import { AttachmentList } from "@/components/chat/attachment-list";
 import { BridgeCard } from "@/components/chat/bridge-card";
 import { ContactsCard } from "@/components/chat/contacts-card";
 import { MessageBubble } from "@/components/chat/message-bubble";
@@ -123,6 +124,8 @@ function Item({
           {item.text}
         </MessageBubble>
       );
+    case "attachments":
+      return <AttachmentList items={item.items} align={from} />;
     case "quote":
       return (
         <QuoteCard

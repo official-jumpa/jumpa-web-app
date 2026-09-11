@@ -1,18 +1,28 @@
 import { z } from "zod";
+import { MAX_ATTACHMENTS } from "@/lib/chat-attachments";
 import { pinSchema } from "./user.validation";
 
 /**
  * Validation for sending a message (/api/chat/send)
  */
-export const sendMessageSchema = z.object({
-  sessionId: z.string().trim().optional(),
-  message: z
-    .string({
-      error: "Message content is required",
-    })
-    .trim()
-    .min(1, "Message content is required"),
-});
+export const sendMessageSchema = z
+  .object({
+    sessionId: z.string().trim().optional(),
+    message: z.string().trim().default(""),
+    /**
+     * Ids from /api/chat/attachments. Only the id is trusted — the name, type
+     * and size are read back from storage, never from the request body.
+     */
+    attachmentIds: z
+      .array(z.string().trim().min(1))
+      .max(MAX_ATTACHMENTS)
+      .optional(),
+  })
+  // A file on its own is a message, so the text is only required without one.
+  .refine(
+    (body) => body.message.length > 0 || (body.attachmentIds?.length ?? 0) > 0,
+    { message: "Message content is required", path: ["message"] },
+  );
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
 

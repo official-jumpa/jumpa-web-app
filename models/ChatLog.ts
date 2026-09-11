@@ -1,4 +1,5 @@
 import mongoose, { type Model, Schema } from "mongoose";
+import type { ChatAttachment } from "@/lib/chat-attachments";
 import { generateId } from "@/lib/schema-ids";
 
 export interface IChatMessage {
@@ -32,6 +33,8 @@ export interface IChatMessage {
     isScheduled?: boolean;
   };
   imageUrls?: string[];
+  /** Files the user sent with the message, stored in GridFS. */
+  attachments?: ChatAttachment[];
   isVoice?: boolean;
 }
 
@@ -94,6 +97,16 @@ const ChatLogSchema = new Schema<IChatLog>(
           isScheduled: { type: Boolean },
         },
         imageUrls: [{ type: String }],
+        attachments: [
+          {
+            _id: false,
+            id: { type: String, required: true },
+            url: { type: String, required: true },
+            name: { type: String, default: "attachment" },
+            mime: { type: String, default: "application/octet-stream" },
+            size: { type: Number, default: 0 },
+          },
+        ],
         isVoice: { type: Boolean, default: false },
       },
     ],

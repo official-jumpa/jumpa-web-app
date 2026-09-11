@@ -8,6 +8,8 @@ import {
 import { executeTool } from "@/lib/ai/tool-executor";
 import { auth } from "@/lib/auth";
 import { detectTargetChains } from "@/lib/blockchain";
+import { describeAttachments } from "@/lib/chat-attachments";
+import { getChatAttachments } from "@/lib/functions/chatAttachmentFunctions";
 import { generateId } from "@/lib/schema-ids";
 import {
   getCachedWalletBalances,
@@ -22,7 +24,7 @@ import { type IChatMessage } from "@/models/ChatLog";
 
 /**
  * POST /api/chat/send
- * Body: { sessionId?: string, message: string }
+ * Body: { sessionId?: string, message: string, attachmentIds?: string[] }
  */
 export async function POST(req: NextRequest) {
   try {
@@ -40,8 +42,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(formatZodError(validation.error), { status: 400 });
     }
 
-    const { sessionId, message } = validation.data;
+    const { sessionId, message, attachmentIds } = validation.data;
     const userId = session.user.id;
+
+    // Resolved from storage, so a message can only carry this user's own files.
+    const attachments = attachmentIds?.length
+      ? await getChatAttachments(userId, attachmentIds)
+      : [];
+    // The model reads text only; this is how it learns a file came with the turn.
+    const attachmentNote = describeAttachments(attachments);
 
     // Fetch wallet via walletFunctions
     const wallet = await findWalletForUser(userId);
@@ -76,6 +85,7 @@ export async function POST(req: NextRequest) {
       role: "user",
       content: message.trim(),
       timestamp: new Date(),
+      ...(attachments.length ? { attachments } : {}),
     };
 
     // Build conversation history for the AI (last 10 messages)
@@ -83,7 +93,10 @@ export async function POST(req: NextRequest) {
       .slice(-10)
       .map((m: any) => ({
         role: m.role as "user" | "assistant",
-        content: m.content || "",
+        content:
+          [m.content || "", describeAttachments(m.attachments)]
+            .filter(Boolean)
+            .join("\n\n") || "",
       }));
 
     const aiContext = {
@@ -103,7 +116,7 @@ export async function POST(req: NextRequest) {
       ...history,
       {
         role: "user",
-        content: message.trim(),
+        content: [message.trim(), attachmentNote].filter(Boolean).join("\n\n"),
       },
     ];
 
@@ -327,8 +340,9 @@ export async function POST(req: NextRequest) {
     chatLog.messages.push(assistantMessage);
 
     if (!chatLog.title || chatLog.title === "New Chat") {
-      chatLog.title =
-        message.trim().slice(0, 35) + (message.trim().length > 35 ? "…" : "");
+      // An attachment-only message has no words to name the thread with.
+      const subject = message.trim() || attachments[0]?.name || "New Chat";
+      chatLog.title = subject.slice(0, 35) + (subject.length > 35 ? "…" : "");
     }
 
     await chatLog.save();

@@ -1,4 +1,5 @@
 /** Chat types and data structures for Jumpa Assistant. */
+import type { ChatAttachment } from "@/lib/chat-attachments";
 
 /** Muted lead-in followed by an emphasised value, e.g. "Fee **0.3 XLM**". */
 export type Stat = { lead?: string; value: string };
@@ -174,6 +175,8 @@ export type ChatItem =
    * `reveal` is set only on a reply that just arrived, so it types itself in.
    */
   | { kind: "text"; text: string; paragraph?: boolean; reveal?: boolean }
+  /** Files sent with a message — thumbnails for images, a row for anything else. */
+  | { kind: "attachments"; items: ChatAttachment[] }
   | { kind: "quote"; card: QuoteCard; isEditable?: boolean }
   | { kind: "bridge"; card: BridgeCard }
   | { kind: "receipt"; card: ReceiptCard }

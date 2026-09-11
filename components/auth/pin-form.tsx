@@ -8,9 +8,9 @@ import { PinNote } from "@/components/auth/pin-note";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 
-const PIN_LENGTH = 6;
+const PIN_LENGTH = 4;
 
-/** Transaction PIN entry. Advances on its own once six digits are in. */
+/** Transaction PIN entry. Advances on its own once the last digit is in. */
 export function PinForm({
   label,
   nextHref,

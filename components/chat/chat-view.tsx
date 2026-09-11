@@ -614,7 +614,7 @@ export function ChatView() {
         </ChatDock>
       )}
 
-      {/* 6-Digit PIN Sheet Overlay */}
+      {/* Transaction PIN Sheet Overlay */}
       {pinOpen ? (
         <TransferPinSheet
           error={pinError}

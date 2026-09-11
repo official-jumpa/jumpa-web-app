@@ -96,7 +96,7 @@ export async function createSavingsPlanExecution(
     return { ok: false, error: "No wallet found for user", status: 404 };
   }
 
-  // 1. Verify 6-digit PIN
+  // 1. Verify 4-digit PIN
   const pinCheck = await verifyWalletPin(wallet, pin, { userId });
   if (!pinCheck.ok) {
     return { ok: false, error: pinCheck.error, status: pinCheck.status };

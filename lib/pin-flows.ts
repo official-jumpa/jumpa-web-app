@@ -28,10 +28,7 @@ const SIGNING_NOTE = {
   body: "A PIN is used to sign transactions on your device. It's never sent to Jumpa servers.",
 };
 
-/**
- * Slots these screens draw. Presentation only — the PIN the app actually takes
- * is 6 digits everywhere, and changing one is not wired to a backend yet.
- */
+/** Slots these screens draw. Changing a PIN is not wired to a backend yet. */
 const TRANSACTION_SLOTS = 4;
 const LOGIN_SLOTS = 6;
 

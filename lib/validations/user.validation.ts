@@ -1,13 +1,13 @@
 import { z } from "zod";
 
 /**
- * Validates a 6-digit numeric transaction PIN.
+ * Validates a 4-digit numeric transaction PIN.
  */
 export const pinSchema = z
   .string({
     error: "PIN is required",
   })
-  .regex(/^\d{6}$/, "PIN must be exactly 6 digits");
+  .regex(/^\d{4}$/, "PIN must be exactly 4 digits");
 
 /**
  * Validation for /api/wallet/verify-pin.

@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
       return res;
     }
 
-    // New user: Redirect to set their 6-digit transaction PIN
+    // New user: Redirect to set their 4-digit transaction PIN
     return NextResponse.redirect(`${origin}/sign-up/pin`);
   } catch (err) {
     console.error("[Auth Callback] Error handling callback:", err);

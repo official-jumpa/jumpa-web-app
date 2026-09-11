@@ -7,7 +7,7 @@ import { SheetPortal } from "@/components/ui/sheet-portal";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 
-const PIN_LENGTH = 6;
+const PIN_LENGTH = 4;
 
 /** Stable, so the sheet's Escape listener is not rebound on every render. */
 const NOOP = () => {};

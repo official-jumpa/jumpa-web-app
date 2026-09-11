@@ -62,7 +62,7 @@ export function KycIntro({ onStart }: { onStart: () => void }) {
       </ul>
 
       <div className="mt-auto flex justify-center pt-10">
-        <RingedButton onClick={onStart}>Continue to verification</RingedButton>
+        <RingedButton onClick={onStart}>Complete verification</RingedButton>
       </div>
     </>
   );

@@ -29,6 +29,7 @@ export const SCHEMA_IDS = {
   sess: { prefix: "sess", length: 16, description: "Auth sessions" },
   acct: { prefix: "acct", length: 16, description: "OAuth linked accounts" },
   vrfy: { prefix: "vrfy", length: 16, description: "Verification tokens" },
+  kyc: { prefix: "kyc", length: 16, description: "KYC verification records" },
   card: { prefix: "card", length: 16, description: "Virtual cards" },
 
   // ── Utility Entities
@@ -108,7 +109,7 @@ export const generateReferralCode = (): string => {
 
 /**
  * Generates a 12 digit alphanumeric card reference number
- * @returns returns a string in the format cardref_xxxxxxxxxxxx 
+ * @returns returns a string in the format cardref_xxxxxxxxxxxx
  */
 export const generateCardReference = (): string => {
   return `cardref_${nanoid12()}`;

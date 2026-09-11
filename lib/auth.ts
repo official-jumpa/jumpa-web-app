@@ -66,14 +66,13 @@ export const auth = betterAuth({
     user: {
       create: {
         before: async (user) => {
-          const jumpaTag = await generateUniqueJumpaTag(user.name, user.email);
           const referralCode = await generateUniqueReferralCode();
           const country = await detectUserCountry();
           return {
             data: {
               ...user,
               country: (user as any).country || country,
-              jumpaTag: (user as any).jumpaTag || jumpaTag,
+              jumpaTag: (user as any).jumpaTag || null,
               referralCode: (user as any).referralCode || referralCode,
             },
           };

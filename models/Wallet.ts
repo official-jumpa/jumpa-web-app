@@ -24,6 +24,7 @@ export interface IWallet {
   pinHash: string;
   pinAttempts: number;
   pinLockedUntil: Date | null;
+  pinVersion?: "v1" | "v2";
   setupMethod?: "CREATED_SEED" | "IMPORTED_SEED" | "IMPORTED_PRIVATE_KEY";
   importedChain?: string | null;
   lastUsedAt?: Date | null;
@@ -54,6 +55,11 @@ const WalletSchema = new Schema<IWallet>(
     pinHash: { type: String, required: true },
     pinAttempts: { type: Number, default: 0 },
     pinLockedUntil: { type: Date, default: null },
+    pinVersion: { //delete once everyone has migrated to v2
+      type: String,
+      enum: ["v1", "v2"],
+      default: "v1",
+    },
     setupMethod: {
       type: String,
       enum: ["CREATED_SEED", "IMPORTED_SEED", "IMPORTED_PRIVATE_KEY"],

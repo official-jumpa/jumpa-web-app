@@ -33,11 +33,22 @@ export default function SplashPage() {
           return;
         }
 
-        const res = await fetch("/api/wallet/list");
+        const res = await fetch("/api/auth/wallet-setup");
         if (!active) return;
-        const wallets = await res.json();
-        const hasWallet = Array.isArray(wallets) && wallets.length > 0;
-        setNext(hasWallet ? "/home" : "/sign-up/pin");
+        if (!res.ok) {
+          setNext("/home");
+          return;
+        }
+        const status = await res.json();
+        if (!status.hasPassword) {
+          setNext("/sign-up/password");
+        } else if (!status.hasTag) {
+          setNext("/sign-up/tag");
+        } else if (!status.hasPin) {
+          setNext("/sign-up/pin");
+        } else {
+          setNext("/home");
+        }
       } catch {
         if (active) setNext("/onboarding");
       }

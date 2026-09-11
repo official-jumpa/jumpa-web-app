@@ -54,7 +54,6 @@ function AvailabilityChip({
 }
 
 /** Tag entry with live availability, then the confirmation sheet. */
-// TODO(backend): `checkTagAvailability` is a placeholder; claim the tag on Continue.
 export function JumpaTagForm({ nextHref }: { nextHref: string }) {
   const router = useRouter();
   const [handle, setHandle] = useState("");
@@ -99,9 +98,33 @@ export function JumpaTagForm({ nextHref }: { nextHref: string }) {
     setConfirming(true);
   };
 
-  const handleConfirm = () => {
-    writeSignUpValue(SIGN_UP_KEYS.tag, fullTag(handle));
-    router.push(nextHref);
+  const [claiming, setClaiming] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+
+  const handleConfirm = async () => {
+    setClaiming(true);
+    setClaimError(null);
+    try {
+      const res = await fetch("/api/auth/wallet-setup?step=tag", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tag: handle }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setClaimError(data.error || "Failed to claim tag. Please try again.");
+        setClaiming(false);
+        return;
+      }
+
+      writeSignUpValue(SIGN_UP_KEYS.tag, fullTag(handle));
+      setClaiming(false);
+      setConfirming(false);
+      router.push(nextHref);
+    } catch {
+      setClaimError("Network error. Please try again.");
+      setClaiming(false);
+    }
   };
 
   // Their own tag when it is free, otherwise the alternatives.
@@ -133,9 +156,6 @@ export function JumpaTagForm({ nextHref }: { nextHref: string }) {
 
         {chips.length ? (
           <div className="flex flex-col gap-2">
-            <p className="text-[10px] leading-3 font-medium text-jumpa-black">
-              Live Availability
-            </p>
             <div className="flex flex-wrap gap-2">
               {chips.map((option) => (
                 <AvailabilityChip
@@ -161,7 +181,7 @@ export function JumpaTagForm({ nextHref }: { nextHref: string }) {
       </form>
 
       {confirming ? (
-        <SheetPortal onClose={() => setConfirming(false)}>
+        <SheetPortal onClose={() => !claiming && setConfirming(false)}>
           <div className="flex flex-col items-center gap-4">
             <h2 className="text-base leading-4.5 font-semibold text-jumpa-black">
               Your Jumpa Tag
@@ -171,13 +191,20 @@ export function JumpaTagForm({ nextHref }: { nextHref: string }) {
               {fullTag(handle)}
             </p>
 
+            {claimError && (
+              <p className="text-center text-xs text-jumpa-danger">
+                {claimError}
+              </p>
+            )}
+
             <Button
               type="button"
               onClick={handleConfirm}
+              disabled={claiming}
               variant="gradient"
               size="lg"
             >
-              Continue
+              {claiming ? "Saving Tag..." : "Continue"}
             </Button>
           </div>
         </SheetPortal>

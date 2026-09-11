@@ -113,7 +113,7 @@ export function TransferSuccess({
           {titleFirst ? caption : heading}
           {titleFirst ? heading : caption}
           {note ? (
-            <p className="text-xs leading-5 text-jumpa-black">{note}</p>
+            <div className="text-xs leading-5 text-jumpa-black">{note}</div>
           ) : null}
         </div>
       </div>

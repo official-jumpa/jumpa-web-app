@@ -34,8 +34,8 @@ export async function verifyWalletPin(
 ): Promise<PinVerifyResult> {
   if (!wallet.pinHash) {
     // Wallet has no PIN set — skip verification (dev / migration path)
-    console.log("[verifyWalletPin] No pinHash on wallet, skipping check");
-    return { ok: true };
+    console.log("[verifyWalletPin] No pinHash on wallet");
+    return { ok: false, status: 401, error: "Invalid or missing pin" };
   }
 
   // The lock was being written and never read, so five wrong PINs marked the

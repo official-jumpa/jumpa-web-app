@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { CardRule } from "@/components/chat/chat-card";
 import { BadgePercentIcon } from "@/components/ui/icons/badge-percent";
@@ -364,7 +363,7 @@ export function ContactRow({
     >
       <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-surface bg-jumpa-white">
         {isUrl ? (
-          <Image
+          <img
             src={contact.avatar!}
             alt=""
             width={40}

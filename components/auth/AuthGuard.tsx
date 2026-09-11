@@ -1,7 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 
 export interface AuthUser {
@@ -13,10 +13,19 @@ export interface AuthUser {
   createdAt: Date;
   updatedAt: Date;
   jumpaTag?: string | null;
+  loginPasswordHash?: string | null;
   referralCode?: string | null;
   country?: string | null;
   activeWalletId?: string | null;
   [key: string]: any;
+}
+
+export interface OnboardingStatus {
+  hasPassword: boolean;
+  hasTag: boolean;
+  hasPin: boolean;
+  needsPinMigration?: boolean;//delete once everyone has migrated to v2
+  isComplete: boolean;
 }
 
 export interface AuthContextValue {
@@ -24,12 +33,13 @@ export interface AuthContextValue {
   user: AuthUser;
   isPending: boolean;
   isAuthenticated: boolean;
+  status: OnboardingStatus | null;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /**
- * Hook to consume the verified user and session anywhere under an AuthGuard.
+ * Hook to consume the verified user, session, and onboarding status anywhere under an AuthGuard.
  */
 export function useAuthContext(): AuthContextValue | null {
   return useContext(AuthContext);
@@ -42,25 +52,74 @@ interface AuthGuardProps {
 
 /**
  * Centralized authentication guard for protected areas.
- * - Displays a clean loading state while session rehydrates.
+ * - Displays a clean loading state while session & status resolve.
  * - Redirects unauthenticated users immediately to /onboarding.
- * - Provides verified session & user context to children.
+ * - Enforces progressive setup: Login Password -> Jumpa Tag -> Transaction PIN.
+ * - Provides verified session, user & setup context to children.
  */
 export function AuthGuard({ children, fallback }: AuthGuardProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { data: session, isPending } = useSession();
 
   const user = session?.user as AuthUser | undefined;
   const isAuthenticated = Boolean(user?.id);
 
+  const [status, setStatus] = useState<OnboardingStatus | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(true);
+
+  // 1. Handle unauthenticated users
   useEffect(() => {
     if (!isPending && !isAuthenticated) {
       router.replace("/onboarding");
     }
   }, [isPending, isAuthenticated, router]);
 
-  // While checking session, show minimal centered loading shell
-  if (isPending) {
+  const checkStatus = useCallback(async () => {
+    setCheckingStatus(true);
+    try {
+      const res = await fetch("/api/auth/wallet-setup");
+      if (!res.ok) throw new Error("Failed to load status");
+      const data: OnboardingStatus = await res.json();
+
+      setStatus(data);
+      setCheckingStatus(false);
+
+      // If on an auth/signup/migration page, don't interrupt
+      //delete once everyone has migrated to v2
+      if (
+        pathname?.startsWith("/sign-up") ||
+        pathname?.startsWith("/onboarding") ||
+        pathname?.startsWith("/migrate-pin")
+      ) {
+        return;
+      }
+
+      // Sequential onboarding check: Password -> Tag -> PIN / Migration
+      if (!data.hasPassword) {
+        router.replace("/sign-up/password");
+      } else if (!data.hasTag) {
+        router.replace("/sign-up/tag");
+      } else if (!data.hasPin) {
+        router.replace("/sign-up/pin");
+      } else if (data.needsPinMigration) {
+        router.replace("/migrate-pin");//delete once everyone has migrated to v2
+      }
+    } catch (err) {
+      console.error("[AuthGuard] Status check error:", err);
+      setCheckingStatus(false);
+    }
+  }, [pathname, router]);
+
+  // 2. Check onboarding status for authenticated users
+  useEffect(() => {
+    if (!isPending && isAuthenticated && user?.id) {
+      checkStatus();
+    }
+  }, [isPending, isAuthenticated, user?.id, checkStatus]);
+
+  // While checking session or onboarding status, show clean loading shell
+  if (isPending || (isAuthenticated && checkingStatus)) {
     if (fallback) return <>{fallback}</>;
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-3">
@@ -69,8 +128,8 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
     );
   }
 
-  // If unauthenticated, render nothing while redirect takes place
-  if (!isAuthenticated || !user) {
+  // If unauthenticated or setup is incomplete on a protected page, render nothing while redirect takes place
+  if (!isAuthenticated || !user || (!checkingStatus && status && !status.isComplete)) {
     return null;
   }
 
@@ -81,6 +140,7 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
         user,
         isPending,
         isAuthenticated,
+        status,
       }}
     >
       {children}

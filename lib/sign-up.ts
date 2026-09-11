@@ -74,18 +74,33 @@ export type TagAvailability = {
   suggestions: string[];
 };
 
-/** Placeholder lookup. Deterministic, not random — swap the body, keep the shape. */
+/** Check tag availability */
 export async function checkTagAvailability(
   tag: string,
 ): Promise<TagAvailability> {
   const handle = normaliseTag(tag);
-  // A short pause so the field's pending state is visible.
-  await new Promise((resolve) => setTimeout(resolve, 200));
+  if (handle.length < TAG_MIN_LENGTH) {
+    return { available: false, suggestions: [] };
+  }
 
-  // Visibly fake, so nothing here reads as real data.
+  try {
+    const res = await fetch(
+      `/api/auth/wallet-setup?checkTag=${encodeURIComponent(handle)}`,
+    );
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        available: Boolean(data.available),
+        suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
+      };
+    }
+  } catch (e) {
+    console.error("Failed to check tag availability:", e);
+  }
+
+  // Fallback if network offline
   const taken = ["jumpa", "admin", "support"];
   const available = handle.length >= TAG_MIN_LENGTH && !taken.includes(handle);
-
   const suggestions = available
     ? []
     : [`${handle}_`, `${handle}1`, `the${handle}`]

@@ -84,11 +84,6 @@ export async function ensureUserJumpaFields(
 
   let needsSave = false;
 
-  if (!user.jumpaTag) {
-    user.jumpaTag = await generateUniqueJumpaTag(user.name, user.email);
-    needsSave = true;
-  }
-
   if (!user.referralCode) {
     user.referralCode = await generateUniqueReferralCode();
     needsSave = true;

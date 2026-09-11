@@ -8,6 +8,7 @@ export interface IUser {
   emailVerified: boolean;
   image: string | null;
   jumpaTag?: string | null;
+  loginPasswordHash?: string | null;
   referralCode?: string | null;
   referredBy?: string | null;
   lastLoginAt?: Date | null;
@@ -32,6 +33,7 @@ const UserSchema = new Schema<IUser>(
     emailVerified: { type: Boolean, required: true, default: false },
     image: { type: String, default: null },
     jumpaTag: { type: String, unique: true, sparse: true, lowercase: true },
+    loginPasswordHash: { type: String, default: null },
     referralCode: { type: String, unique: true, sparse: true, lowercase: true },
     referredBy: { type: String, default: null },
     lastLoginAt: { type: Date, default: null },

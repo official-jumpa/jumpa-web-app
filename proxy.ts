@@ -38,12 +38,14 @@ export async function proxy(request: NextRequest) {
     pathname === "/onboarding" ||
     pathname.startsWith("/sign-in") ||
     pathname.startsWith("/sign-up") ||
-    pathname.startsWith("/import-wallet");
+    pathname.startsWith("/import-wallet") ||
+    pathname.startsWith("/migrate-pin");
 
   // Keep wallet setup and import routes open
   const isWalletSetupRoute =
     pathname.startsWith("/sign-up/pin") ||
-    pathname.startsWith("/import-wallet");
+    pathname.startsWith("/import-wallet") ||
+    pathname.startsWith("/migrate-pin");
 
   // "/" is deliberately absent: it is the splash, which resolves its own
   // destination. Redirecting it here meant the splash never rendered.
@@ -105,5 +107,6 @@ export const config = {
     "/sign-in(.*)",
     "/sign-up(.*)",
     "/import-wallet(.*)",
+    "/migrate-pin(.*)",
   ],
 };

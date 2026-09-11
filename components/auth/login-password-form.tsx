@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
@@ -27,7 +27,6 @@ function isWeak(value: string) {
 }
 
 /** Both halves of the password pair; `confirm` checks against the stored first entry. */
-// TODO(backend): persist the password on the confirm step instead of storing it.
 export function LoginPasswordForm({
   label,
   nextHref,
@@ -40,11 +39,42 @@ export function LoginPasswordForm({
   const password = usePinInput(PASSWORD_LENGTH);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  useKeypadKeys(password);
+  useKeypadKeys({ ...password, enabled: !submitting });
+
+  const handleSavePassword = useCallback(
+    async (value: string) => {
+      setSubmitting(true);
+      setError(null);
+
+      try {
+        const res = await fetch("/api/auth/wallet-setup?step=password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: value }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(data.error || "Failed to set password. Please try again.");
+          password.clear();
+          setSubmitting(false);
+          return;
+        }
+        clearSignUpValue(SIGN_UP_KEYS.password);
+        setSubmitting(false);
+        router.push(nextHref);
+      } catch {
+        setError("Network error. Please try again.");
+        password.clear();
+        setSubmitting(false);
+      }
+    },
+    [password.clear, nextHref, router],
+  );
 
   useEffect(() => {
-    if (!password.complete) return;
+    if (!password.complete || submitting) return;
 
     if (confirm) {
       const first = readSignUpValue(SIGN_UP_KEYS.password);
@@ -53,7 +83,7 @@ export function LoginPasswordForm({
         password.clear();
         return;
       }
-      clearSignUpValue(SIGN_UP_KEYS.password);
+      handleSavePassword(password.value);
     } else {
       if (isWeak(password.value)) {
         setError("Avoid sequences and repeated digits. Pick another password.");
@@ -61,10 +91,18 @@ export function LoginPasswordForm({
         return;
       }
       writeSignUpValue(SIGN_UP_KEYS.password, password.value);
+      router.push(nextHref);
     }
-
-    router.push(nextHref);
-  }, [password.complete, password.value, password.clear, confirm, nextHref, router]);
+  }, [
+    password.complete,
+    password.value,
+    password.clear,
+    confirm,
+    nextHref,
+    router,
+    submitting,
+    handleSavePassword,
+  ]);
 
   return (
     <>

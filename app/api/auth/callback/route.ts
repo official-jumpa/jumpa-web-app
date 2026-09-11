@@ -39,8 +39,8 @@ export async function GET(req: NextRequest) {
       return res;
     }
 
-    // New user: Redirect to set their 4-digit transaction PIN
-    return NextResponse.redirect(`${origin}/sign-up/pin`);
+    // New user without wallet: Redirect to /home where AuthGuard orchestrates sequential setup
+    return NextResponse.redirect(`${origin}/home`);
   } catch (err) {
     console.error("[Auth Callback] Error handling callback:", err);
     return NextResponse.redirect(`${origin}/onboarding`);

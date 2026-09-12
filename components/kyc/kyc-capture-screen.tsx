@@ -112,14 +112,18 @@ export function KycCaptureScreen({
       });
 
       const data = (await res.json()) as { mediaId?: string; error?: string };
+      console.log("[KYC Capture] Upload response data:", data);
+
       if (res.ok && data.mediaId) {
         setUploadedMediaId(data.mediaId);
       } else {
+        console.error("[KYC Capture] Upload error response:", data);
         setUploadError(
           data.error || "Failed to upload file. Please try again.",
         );
       }
-    } catch (_err) {
+    } catch (err) {
+      console.error("[KYC Capture] Upload network/runtime error:", err);
       setUploadError("Network connection error while uploading. Please retry.");
     } finally {
       setUploading(false);

@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth";
 import { saveKycMedia } from "@/lib/functions/kycFunctions";
 import type { KycIdType } from "@/models/KYCSchema";
 
+const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB max upload size
+
 export async function POST(req: NextRequest) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -37,7 +39,14 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+    console.log("uploading image of size", file.size);
 
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: "File size exceeds 3MB limit. Please upload a smaller image." },
+        { status: 400 },
+      );
+    }
 
     const myazaFormData = new FormData();
     myazaFormData.append("file", file);

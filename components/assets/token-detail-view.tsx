@@ -11,7 +11,6 @@ import {
   TransactionRule,
 } from "@/components/transactions/transaction-row";
 import { ArrowDownRightIcon } from "@/components/ui/icons/arrow-down-right";
-import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
 import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { EyeIcon } from "@/components/ui/icons/eye";
 import { EyeOffIcon } from "@/components/ui/icons/eye-off";
@@ -46,11 +45,12 @@ export function TokenDetailView({
   const router = useRouter();
   const [visible, setVisible] = useState(true);
   const [asking, setAsking] = useState<"wallet" | "deposit">();
+
   const ToggleIcon = visible ? EyeOffIcon : EyeIcon;
   const switchable = chains.length > 1;
 
-  // Add and Receive both end at the deposit address. The chain is already
-  // known unless the screen was opened directly, so it rarely has to ask.
+  // Receive, and Add's crypto rail, both end at the deposit address. The chain
+  // is already known unless the screen was opened directly.
   const deposit = () =>
     chain
       ? router.push(depositHref(asset.symbol, chain))
@@ -63,7 +63,6 @@ export function TokenDetailView({
   };
 
   const actions = [
-    { label: "Add", onClick: deposit, Icon: ArrowUpRightIcon },
     { label: "Receive", onClick: deposit, Icon: ArrowDownRightIcon },
     { label: "Swap", href: "/swap", Icon: SwitchHorizontalIcon },
   ];

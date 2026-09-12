@@ -2,10 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { LoadingModal } from "@/components/ui/loading-modal";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { UsdConfirm } from "@/components/usd/usd-confirm";
 import { UsdIntro } from "@/components/usd/usd-intro";
-import { UsdLoader } from "@/components/usd/usd-loader";
 import { UsdReady } from "@/components/usd/usd-ready";
 import { OPENING_MS } from "@/lib/usd-account";
 
@@ -48,7 +48,7 @@ export function UsdAccountView() {
       ) : null}
       {stage === "ready" ? <UsdReady detailsHref={DETAILS} /> : null}
 
-      {opening ? <UsdLoader label="Opening your USD account" /> : null}
+      {opening ? <LoadingModal label="Opening your USD account" /> : null}
     </div>
   );
 }

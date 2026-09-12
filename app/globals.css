@@ -131,6 +131,7 @@
 
   /* Elevation */
   --shadow-jumpa-sm: 0 2px 4px 0 rgb(27 28 29 / 0.04);
+  --shadow-jumpa-disc: 0 0 16px rgb(0 0 0 / 0.35); /* direction disc on a quote */
   --shadow-jumpa-card:
     0 6px 7px rgb(0 0 0 / 0.1), 2px 25px 12.5px rgb(0 0 0 / 0.09),
     4px 57px 17px rgb(0 0 0 / 0.05), 7px 101px 20px rgb(0 0 0 / 0.01);

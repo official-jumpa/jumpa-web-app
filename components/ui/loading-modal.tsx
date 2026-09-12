@@ -12,10 +12,10 @@ const CIRCUMFERENCE = 2 * Math.PI * 54;
 const ARC = (CIRCUMFERENCE * 225) / 360;
 
 /**
- * Opening the account. Portalled to the body and deliberately not dismissable —
- * there is nothing to go back to until it resolves.
+ * Work in progress, over a scrim. Portalled to the body and deliberately not
+ * dismissable — there is nothing to go back to until it resolves.
  */
-export function UsdLoader({ label }: { label: string }) {
+export function LoadingModal({ label }: { label: string }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   useScrollLock(true);

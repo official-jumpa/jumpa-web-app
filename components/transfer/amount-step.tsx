@@ -6,7 +6,7 @@ import { NumericKeypad } from "@/components/auth/numeric-keypad";
 import { CanvasError } from "@/components/ui/field-error";
 import { CloseIcon } from "@/components/ui/icons/close";
 import { getAssetLogo } from "@/lib/assets";
-import { formatAmount, QUICK_AMOUNTS } from "@/lib/transfer";
+import { formatAmount, QUICK_AMOUNTS, sanitiseAmount } from "@/lib/transfer";
 
 const CHIP =
   "tap flex shrink-0 items-center justify-center rounded-pill bg-jumpa-primary-50 " +
@@ -17,12 +17,6 @@ const CHIP_SIZE = {
   dense: "h-6.5 px-2.5 text-[10px] leading-3",
   roomy: "h-9.5 px-4 text-xs leading-4",
 } as const;
-
-/** Digits with one dot and two decimals, as the design shows the amount. */
-function sanitise(value: string): string {
-  const [whole = "", ...rest] = value.replace(/[^\d.]/g, "").split(".");
-  return rest.length ? `${whole}.${rest.join("").slice(0, 2)}` : whole;
-}
 
 /**
  * Purple amount canvas with the keypad below it. Shared by the bank and wallet
@@ -72,7 +66,7 @@ export function AmountStep({
   };
 
   const push = (digit: string) =>
-    change(sanitise(amount === "0" ? digit : amount + digit));
+    change(sanitiseAmount(amount === "0" ? digit : amount + digit));
 
   const review = () => {
     if (!Number(amount)) return setError("Enter an amount greater than 0");
@@ -92,7 +86,7 @@ export function AmountStep({
             inputMode="none" still lets a physical keyboard and paste through. */}
         <input
           value={formatAmount(amount)}
-          onChange={(event) => change(sanitise(event.target.value))}
+          onChange={(event) => change(sanitiseAmount(event.target.value))}
           inputMode="none"
           // biome-ignore lint/a11y/noAutofocus: the screen exists to take this entry
           autoFocus

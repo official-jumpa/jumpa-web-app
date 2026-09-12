@@ -26,7 +26,7 @@ export const RATE_TOKENS = [
 export type RateToken = (typeof RATE_TOKENS)[number];
 
 /** Units of the currency per US dollar, and the mark the rate prints with. */
-const FIAT: Record<string, { symbol: string; perUsd: number }> = {
+export const FIAT_RATES: Record<string, { symbol: string; perUsd: number }> = {
   USD: { symbol: "$", perUsd: 1 },
   NGN: { symbol: "₦", perUsd: 1450 },
   GHS: { symbol: "₵", perUsd: 15.2 },
@@ -36,7 +36,7 @@ const FIAT: Record<string, { symbol: string; perUsd: number }> = {
 
 /** Derived from the send flow's countries, so the two lists cannot drift. */
 export const RATE_CURRENCIES = COUNTRIES.filter(
-  ({ code, currency }) => currency in FIAT && code in FLAGS,
+  ({ code, currency }) => currency in FIAT_RATES && code in FLAGS,
 ).map(({ code, currency }) => ({ code: currency, flag: FLAGS[code] }));
 
 /** What the header pill opens on, and what the design draws. */
@@ -44,7 +44,7 @@ export const DEFAULT_RATE_CURRENCY = "NGN";
 
 /** One token's price, e.g. `1 XLM = ₦566`. */
 export function formatRate(token: RateToken, currency: string): string {
-  const fiat = FIAT[currency] ?? FIAT[DEFAULT_RATE_CURRENCY];
+  const fiat = FIAT_RATES[currency] ?? FIAT_RATES[DEFAULT_RATE_CURRENCY];
   const value = token.usd * fiat.perUsd;
   const amount = value.toLocaleString("en-US", {
     maximumFractionDigits: value >= 100 ? 0 : 2,

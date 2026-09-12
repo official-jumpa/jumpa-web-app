@@ -169,6 +169,12 @@ export const SWAP_QUOTE = {
 };
 
 /** The PIN the placeholder flows accept. Replace with a real verification call. */
+/** Digits with one dot and two decimals, as the design shows an amount. */
+export function sanitiseAmount(value: string): string {
+  const [whole = "", ...rest] = value.replace(/[^\d.]/g, "").split(".");
+  return rest.length ? `${whole}.${rest.join("").slice(0, 2)}` : whole;
+}
+
 /** Thousands separators, as the design prints every entered amount. */
 export function formatAmount(value: string): string {
   const [whole = "", decimals] = value.split(".");

@@ -1,11 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { formatBalance, SwapLeg } from "@/components/swap/swap-leg";
 import { SwapSettingsSheet } from "@/components/swap/swap-settings-sheet";
 import { CloseButton } from "@/components/transfer/close-button";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { PairPill } from "@/components/transfer/pair-pill";
+import {
+  assetOptions,
+  formatBalance,
+  QuoteLeg,
+} from "@/components/transfer/quote-leg";
+import { QuoteLockNote } from "@/components/transfer/quote-lock-note";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
@@ -14,10 +19,10 @@ import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field-error";
 import { ArrowDownArrowUpIcon } from "@/components/ui/icons/arrow-down-arrow-up";
 import { PlusIcon } from "@/components/ui/icons/plus";
-import { TriangleWarningIcon } from "@/components/ui/icons/triangle-warning";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { useSwapQuote } from "@/hooks/use-swap-quote";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
+import { SWAP_QUOTE } from "@/lib/transfer";
 
 /** Assets available on each chain/network. Extend when new chains are integrated. */
 const CHAIN_ASSETS = {
@@ -51,6 +56,7 @@ export function SwapView({
 
   // ── Swap pair ──
   const assets = CHAIN_ASSETS[`stellar:${network}`];
+  const tokenOptions = assetOptions(assets);
   const [fromToken, setFromToken] = useState<string>(assets[0]);
   const [toToken, setToToken] = useState<string>(assets[1]);
   const [amount, setAmount] = useState("");
@@ -227,11 +233,11 @@ export function SwapView({
         <div className="mt-6 flex flex-col gap-6">
           <div className="flex flex-col gap-4 rounded-surface bg-jumpa-neutral-95 px-2.5 pt-3 pb-2.5">
             <div className="relative flex flex-col gap-1">
-              <SwapLeg
+              <QuoteLeg
                 label="You send"
                 symbol={fromToken}
                 balance={balanceFor(fromToken)}
-                assets={assets}
+                options={tokenOptions}
                 onSymbolChange={(s) => {
                   if (s === toToken) flipPair();
                   else setFromToken(s);
@@ -248,22 +254,22 @@ export function SwapView({
                   className="w-full min-w-0 bg-transparent text-xl leading-6 font-medium text-jumpa-black caret-jumpa-primary-600 outline-none"
                   placeholder="0"
                 />
-              </SwapLeg>
+              </QuoteLeg>
 
               <button
                 type="button"
                 onClick={flipPair}
                 aria-label="Swap direction"
-                className="tap absolute top-1/2 left-1/2 flex size-8.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[0.66px] border-jumpa-black/10 bg-jumpa-primary-525 text-jumpa-alt-400 shadow-[0_0_16px_rgba(0,0,0,0.35)] active:scale-90"
+                className="tap absolute top-1/2 left-1/2 flex size-8.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[0.66px] border-jumpa-black/10 bg-jumpa-primary-525 text-jumpa-alt-400 shadow-jumpa-disc active:scale-90"
               >
                 <ArrowDownArrowUpIcon className="size-4" />
               </button>
 
-              <SwapLeg
+              <QuoteLeg
                 label="You receive"
                 symbol={toToken}
                 balance={balanceFor(toToken)}
-                assets={assets}
+                options={tokenOptions}
                 onSymbolChange={(s) => {
                   if (s === fromToken) flipPair();
                   else setToToken(s);
@@ -276,7 +282,7 @@ export function SwapView({
                     received
                   )}
                 </span>
-              </SwapLeg>
+              </QuoteLeg>
             </div>
 
             <span className="-mb-px block h-px w-full bg-jumpa-neutral-200" />
@@ -322,13 +328,7 @@ export function SwapView({
             </Button>
           </div>
 
-          <p className="mx-auto flex max-w-72 items-start justify-center text-xs leading-4 text-jumpa-black text-center">
-            <TriangleWarningIcon className="mt-px size-4 shrink-0 text-jumpa-warning" />
-            <span>
-              Your quote is locked for 30 seconds. After that, you'll need to
-              get a new quote
-            </span>
-          </p>
+          <QuoteLockNote seconds={SWAP_QUOTE.lockSeconds} />
         </div>
       ) : null}
 

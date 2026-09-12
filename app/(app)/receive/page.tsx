@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AssetPicker } from "@/components/assets/asset-picker";
-import { FiatDeposit } from "@/components/transfer/fiat-deposit";
+import { FiatDepositView } from "@/components/receive/fiat-deposit-view";
 import { ReceiveOptionList } from "@/components/transfer/receive-options";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { SUPPORTED_ASSETS } from "@/lib/wallet";
@@ -22,7 +22,7 @@ export async function generateMetadata({
 export default async function ReceivePage({ searchParams }: ReceivePageProps) {
   const { rail } = await searchParams;
 
-  if (rail === "fiat") return <FiatDeposit />;
+  if (rail === "fiat") return <FiatDepositView />;
   if (rail === "crypto") {
     return <AssetPicker assets={SUPPORTED_ASSETS} receive back="/receive" />;
   }

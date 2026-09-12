@@ -8,6 +8,9 @@ import { cn } from "@/lib/cn";
 
 const CONFIRM_MS = 2000;
 
+const PILL_LABEL = "text-sm leading-4 font-medium";
+const CHIP_LABEL = "text-[10px] leading-4";
+
 /** Copies `value` to the clipboard and confirms in place. */
 export function CopyButton({
   value,
@@ -21,8 +24,9 @@ export function CopyButton({
   label?: string;
   /** Accessible name for the icon-only form, when "Copy" alone is ambiguous. */
   name?: string;
-  /** `text` drops the pill and the icon, leaving the label alone. */
-  variant?: "pill" | "text";
+  /** `text` drops the pill and the icon; `chip` is the small purple tag the
+   *  payment instructions draw. */
+  variant?: "pill" | "text" | "chip";
   className?: string;
 }) {
   const [copied, setCopied] = useState(false);
@@ -39,6 +43,10 @@ export function CopyButton({
 
   const Icon = copied ? CheckIcon : CopyIcon;
   const bare = variant === "text";
+  const chip = variant === "chip";
+  const chipTone = copied
+    ? "bg-jumpa-success text-jumpa-white"
+    : "bg-jumpa-primary-525 text-jumpa-primary-50";
 
   return (
     <button
@@ -47,14 +55,15 @@ export function CopyButton({
       aria-label={label ? undefined : copied ? "Copied" : (name ?? "Copy")}
       className={cn(
         "flex items-center justify-center gap-2 transition-colors",
-        copied ? "text-jumpa-success" : "text-jumpa-primary-950",
-        label && !bare && "rounded-pill bg-jumpa-primary-50 px-5.5 py-2.5",
+        chip && `h-4.5 shrink-0 rounded-xl px-2.5 ${chipTone}`,
+        !chip && (copied ? "text-jumpa-success" : "text-jumpa-primary-950"),
+        label && !bare && !chip && "rounded-pill bg-jumpa-primary-50 px-5.5 py-2.5",
         className,
       )}
     >
-      {bare ? null : <Icon className="size-6 shrink-0" />}
+      {bare || chip ? null : <Icon className="size-6 shrink-0" />}
       {label ? (
-        <span className={bare ? undefined : "text-sm leading-4 font-medium"}>
+        <span className={chip ? CHIP_LABEL : bare ? undefined : PILL_LABEL}>
           {copied ? "Copied" : label}
         </span>
       ) : null}

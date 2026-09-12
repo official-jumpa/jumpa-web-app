@@ -16,14 +16,45 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || 'https://usejumpa.com'
+  ),
   title: {
-    default: "Jumpa",
-    template: "%s · Jumpa",
+    default: 'Jumpa',
+    template: '%s | Jumpa',
   },
-  description:
-    "Send, swap, save, and spend across currencies and chains all in one conversation.",
+  description: 'Send, swap, save, and spend across currencies and chains all in one conversation.',
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
+  openGraph: {
+    title: {
+      default: 'Jumpa',
+      template: '%s | Jumpa',
+    },
+    description: 'Send, swap, save, and spend across currencies and chains all in one conversation.',
+    siteName: 'Jumpa',
+    images: [
+      {
+        url: '/logo.png',
+        width: 512,
+        height: 512,
+        alt: 'Jumpa Logo',
+      },
+    ],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary',
+    title: {
+      default: 'Jumpa',
+      template: '%s | Jumpa',
+    },
+    description: 'Send, swap, save, and spend across currencies and chains all in one conversation.',
+    images: ['/logo.png'],
+  },
 };
-
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,

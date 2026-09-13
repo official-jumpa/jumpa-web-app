@@ -2,6 +2,8 @@ import { connectDB } from "@/lib/db";
 import { Transaction, type ITransaction } from "@/models/Transaction";
 import { SwitchService } from "@/lib/switch";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
+import { logUserActivity } from "@/lib/functions/userFunctions";
+import { createNotification } from "@/lib/functions/notificationFunctions";
 import type {
   TransactionDetailRow,
   TransactionKind,
@@ -83,6 +85,42 @@ export async function syncPendingSwitchTransaction(tx: any): Promise<any> {
       if (tx.userId) invalidateBalanceCache(tx.userId);
       if (tx.toAddress) invalidateBalanceCache(tx.toAddress);
       if (tx.fromAddress) invalidateBalanceCache(tx.fromAddress);
+
+      if (tx.userId) {
+        if (tx.type === "ONRAMP") {
+          logUserActivity({
+            userId: tx.userId,
+            action: "ONRAMP_COMPLETED",
+            details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
+          }).catch(() => {});
+
+          createNotification({
+            userId: tx.userId,
+            tab: "transactions",
+            type: "ONRAMP_COMPLETED",
+            title: "Deposit Successful",
+            body: `${tx.amount} ${tx.token} successfully deposited to your wallet`,
+            metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
+            link: "/transactions",
+          }).catch(() => {});
+        } else if (tx.type === "OFFRAMP") {
+          logUserActivity({
+            userId: tx.userId,
+            action: "OFFRAMP_COMPLETED",
+            details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
+          }).catch(() => {});
+
+          createNotification({
+            userId: tx.userId,
+            tab: "transactions",
+            type: "OFFRAMP_COMPLETED",
+            title: "Withdrawal Successful",
+            body: `${tx.amount} ${tx.token} sent to your bank account`,
+            metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
+            link: "/transactions",
+          }).catch(() => {});
+        }
+      }
     } else if (isFailed) {
       await Transaction.updateOne(
         { _id: tx._id },

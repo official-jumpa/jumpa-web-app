@@ -5,15 +5,32 @@ import Link from "next/link";
 import { BellIcon } from "@/components/ui/icons/bell";
 import { MessageCircleQuestionIcon } from "@/components/ui/icons/message-circle-question";
 import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
+import { useEffect, useState } from "react";
 import { useAuthContext } from "@/components/auth/AuthGuard";
 import { ACCOUNT } from "@/lib/wallet";
 
 const CONTROL =
-  "flex size-10 items-center justify-center rounded-full bg-jumpa-white/43 text-jumpa-primary-50";
+  "relative flex size-10 items-center justify-center rounded-full bg-jumpa-white/43 text-jumpa-primary-50";
 
 export function WalletHeader() {
   const auth = useAuthContext();
   const user = auth?.user;
+  const [hasUnread, setHasUnread] = useState(false);
+
+  useEffect(() => {
+    async function checkUnread() {
+      try {
+        const res = await fetch("/api/notifications?limit=1&unreadOnly=true");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.unreadCount > 0) {
+            setHasUnread(true);
+          }
+        }
+      } catch {}
+    }
+    checkUnread();
+  }, []);
 
   let displayName = ACCOUNT.firstName;
   if (user?.name) {
@@ -61,6 +78,9 @@ export function WalletHeader() {
           className={CONTROL}
         >
           <BellIcon className="size-6" />
+          {hasUnread ? (
+            <span className="absolute top-2 right-2 size-2 rounded-full bg-jumpa-danger ring-2 ring-jumpa-primary-600 animate-pulse" />
+          ) : null}
         </Link>
       </div>
     </header>

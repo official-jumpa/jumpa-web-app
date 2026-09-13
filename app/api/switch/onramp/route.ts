@@ -5,6 +5,8 @@ import { SwitchService } from "@/lib/switch";
 import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
 import { switchOnrampSchema } from "@/lib/validations/switch.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { logUserActivity } from "@/lib/functions/userFunctions";
+import { createNotification } from "@/lib/functions/notificationFunctions";
 
 export async function POST(req: NextRequest) {
   try {
@@ -64,6 +66,36 @@ export async function POST(req: NextRequest) {
         },
         executedAt: new Date(),
       });
+
+      const tokenName = cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC";
+
+      logUserActivity({
+        userId,
+        action: "ONRAMP_INITIATED",
+        details: {
+          reference,
+          fiatAmount,
+          fiatCurrency: "NGN",
+          cryptoAmount: destination.amount,
+          cryptoToken: tokenName,
+        },
+        req,
+      }).catch((e) => console.error("[Switch Onramp] ActivityLog error:", e));
+
+      createNotification({
+        userId,
+        tab: "transactions",
+        type: "ONRAMP_INITIATED",
+        title: "Deposit Initiated",
+        body: `Initiated deposit of ₦${fiatAmount.toLocaleString()} for ${destination.amount} ${tokenName}`,
+        metadata: {
+          reference,
+          fiatAmount,
+          cryptoAmount: destination.amount,
+          token: tokenName,
+        },
+        link: "/transactions",
+      }).catch((e) => console.error("[Switch Onramp] Notification error:", e));
     } catch (dbErr: any) {
       console.warn(`[Switch Onramp API] [User: ${userId}] DB record notice:`, dbErr.message);
     }

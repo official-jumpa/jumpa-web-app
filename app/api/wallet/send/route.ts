@@ -5,8 +5,11 @@ import { derivePath } from "ed25519-hd-key";
 import { Keypair as SolanaKeypair } from "@solana/web3.js";
 import { HDKey } from "@scure/bip32";
 import { auth } from "@/lib/auth";
-import { findWalletForUser } from "@/lib/functions/walletFunctions";
+import { findWalletForUser, findWalletByAddress } from "@/lib/functions/walletFunctions";
 import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
+import { createNotification } from "@/lib/functions/notificationFunctions";
+import { logUserActivity } from "@/lib/functions/userFunctions";
+import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { sendTokenSchema } from "@/lib/validations/wallet.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { decryptMnemonic } from "@/lib/crypto";
@@ -201,6 +204,107 @@ export async function POST(req: NextRequest) {
       feePaid: result.feePaid || undefined,
       executedAt: new Date(),
     });
+
+    const shortRecipient =
+      recipient.trim().length > 12
+        ? `${recipient.trim().slice(0, 6)}...${recipient.trim().slice(-4)}`
+        : recipient.trim();
+
+    // 1. Log Activity for sender
+    logUserActivity({
+      userId: session.user.id,
+      action: "TRANSFER_SENT",
+      details: {
+        txHash: result.txHash,
+        amount: String(amount),
+        token: asset,
+        chain: config.chain,
+        toAddress: recipient.trim(),
+      },
+      req,
+    }).catch((e) => console.error("[Wallet Send] ActivityLog error:", e));
+
+    // 2. Notification for sender
+    createNotification({
+      userId: session.user.id,
+      tab: "transactions",
+      type: "TRANSFER_SENT",
+      title: `Sent ${asset}`,
+      body: `You sent ${amount} ${asset} to ${shortRecipient}`,
+      metadata: {
+        txId: tx?._id,
+        txHash: result.txHash,
+        amount: String(amount),
+        token: asset,
+        chain: config.chain,
+        toAddress: recipient.trim(),
+      },
+      link: tx?._id ? `/transactions` : undefined,
+    }).catch((e) => console.error("[Wallet Send] Notification error:", e));
+
+    // 3. Detect internal recipient and notify them of funds received
+    try {
+      const recipientWallet = await findWalletByAddress(recipient.trim());
+      if (recipientWallet?.userId && recipientWallet.userId !== session.user.id) {
+        const shortSender =
+          result.fromAddress.length > 12
+            ? `${result.fromAddress.slice(0, 6)}...${result.fromAddress.slice(-4)}`
+            : result.fromAddress;
+
+        // Inbound transaction record for internal recipient
+        await createTransactionRecord({
+          userId: recipientWallet.userId,
+          walletId: recipientWallet._id,
+          type: "TRANSFER",
+          status: "CONFIRMED",
+          chain: config.chain,
+          network: config.network,
+          fromAddress: result.fromAddress,
+          toAddress: recipient.trim(),
+          amount: String(amount),
+          token: asset,
+          memo: memo?.trim() || undefined,
+          txHash: result.txHash,
+          explorerUrl: result.explorerUrl,
+          executedAt: new Date(),
+        });
+
+        // Recipient Activity Log
+        logUserActivity({
+          userId: recipientWallet.userId,
+          action: "TRANSFER_RECEIVED",
+          details: {
+            txHash: result.txHash,
+            amount: String(amount),
+            token: asset,
+            chain: config.chain,
+            fromAddress: result.fromAddress,
+          },
+        }).catch((e) => console.error("[Wallet Send] Recipient ActivityLog error:", e));
+
+        // Recipient Notification
+        createNotification({
+          userId: recipientWallet.userId,
+          tab: "transactions",
+          type: "FUNDS_RECEIVED",
+          title: "Payment Received",
+          body: `${amount} ${asset} received from ${shortSender}`,
+          metadata: {
+            txHash: result.txHash,
+            amount: String(amount),
+            token: asset,
+            chain: config.chain,
+            fromAddress: result.fromAddress,
+          },
+          link: "/transactions",
+        }).catch((e) => console.error("[Wallet Send] Recipient Notification error:", e));
+
+        invalidateBalanceCache(recipientWallet.userId);
+        invalidateBalanceCache(recipientWallet.address);
+      }
+    } catch (recipientErr) {
+      console.warn("[Wallet Send] Internal recipient notification notice:", recipientErr);
+    }
 
     return NextResponse.json({
       success: true,

@@ -9,6 +9,7 @@ import {
   settingsHref,
 } from "@/components/settings/sections";
 import { SecuritySettings } from "@/components/settings/security-settings";
+import { DevicesSettings } from "@/components/settings/devices-settings";
 import { SettingsIndex } from "@/components/settings/settings-index";
 import { StatementForm } from "@/components/settings/statement-form";
 import { StatementIndex } from "@/components/settings/statement-index";
@@ -43,6 +44,7 @@ export default async function SettingsPage({
   if (!isSettingsSection(section)) notFound();
 
   if (section === "security") return <SecuritySettings />;
+  if (section === "devices") return <DevicesSettings />;
   if (section === "notifications") return <NotificationSettings />;
   if (section === "rates") return <CurrencyRates />;
 

@@ -10,6 +10,7 @@ import { decryptMnemonic } from "@/lib/crypto";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { exportKeySchema } from "@/lib/validations/wallet.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { logUserActivity } from "@/lib/functions/userFunctions";
 
 /**
  * POST /api/wallet/export-key
@@ -53,6 +54,13 @@ export async function POST(req: NextRequest) {
   const selectedChain = chain.toLowerCase();
 
   if (selectedChain === "phrase" || selectedChain === "mnemonic") {
+    logUserActivity({
+      userId: session.user.id,
+      action: "SEED_PHRASE_EXPORTED",
+      details: { address: wallet.address },
+      req,
+    }).catch((e) => console.error("[ExportKey] ActivityLog error:", e));
+
     return NextResponse.json({
       chain: "phrase",
       phrase,
@@ -81,6 +89,13 @@ export async function POST(req: NextRequest) {
   } else {
     return NextResponse.json({ error: "Unsupported chain" }, { status: 400 });
   }
+
+  logUserActivity({
+    userId: session.user.id,
+    action: "PRIVATE_KEY_EXPORTED",
+    details: { chain: selectedChain, address: wallet.address },
+    req,
+  }).catch((e) => console.error("[ExportKey] ActivityLog error:", e));
 
   return NextResponse.json({
     chain: selectedChain,

@@ -17,7 +17,7 @@ export const SETTINGS_SECTIONS = {
     title: "Forgot Transaction PIN",
     parent: "security",
   },
-  devices: { title: "Your Devices", stub: true, parent: "security" },
+  devices: { title: "Your Devices", parent: "security" },
   "private-key": {
     title: "Export Private Key",
     stub: true,

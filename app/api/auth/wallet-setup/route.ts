@@ -16,11 +16,14 @@ import {
   getNextWalletName,
   findWalletByAddress,
   createWalletRecord,
+  updateWalletPin,
 } from "@/lib/functions/walletFunctions";
 import {
   setUserActiveWallet,
   recordUserActivity,
+  logUserActivity,
 } from "@/lib/functions/userFunctions";
+import { createNotification } from "@/lib/functions/notificationFunctions";
 import { connectDB } from "@/lib/db";
 import { User } from "@/models/User";
 import { Wallet } from "@/models/Wallet";
@@ -187,6 +190,12 @@ export async function POST(req: NextRequest) {
 
       const nextRoute = resolveNextOnboardingRoute(updatedUser, wallet);
 
+      logUserActivity({
+        userId: session.user.id,
+        action: "LOGIN_PASSWORD_SET",
+        req,
+      }).catch((e) => console.error("[WalletSetup] ActivityLog error:", e));
+
       return NextResponse.json({
         success: true,
         message: "Login password set successfully",
@@ -238,6 +247,23 @@ export async function POST(req: NextRequest) {
 
       const nextRoute = resolveNextOnboardingRoute(updatedUser, wallet);
 
+      logUserActivity({
+        userId: session.user.id,
+        action: "JUMPA_TAG_SET",
+        details: { jumpaTag: fullTag },
+        req,
+      }).catch((e) => console.error("[WalletSetup] ActivityLog error:", e));
+
+      createNotification({
+        userId: session.user.id,
+        tab: "activities",
+        type: "JUMPA_TAG_SET",
+        title: "Jumpa Tag Updated",
+        body: `Your Jumpa tag was updated to ${fullTag}`,
+        metadata: { jumpaTag: fullTag },
+        link: "/profile",
+      }).catch((e) => console.error("[WalletSetup] Notification error:", e));
+
       return NextResponse.json({
         success: true,
         jumpaTag: fullTag,
@@ -266,7 +292,7 @@ export async function POST(req: NextRequest) {
       });
       // If the user already has a wallet:
       const existingWallets = await listWalletsByUserId(session.user.id);
-      console.log("🟢🟢🟢 Existig user wallets", existingWallets)
+      console.log("🟢🟢🟢 Total user wallets", existingWallets.length)
       
       // Pre-validation path: Verify current 6-digit PIN before prompting for new PIN
       if (body.action === "validate-current" || body.action === "verify-current") {
@@ -473,25 +499,38 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const { encryptedMnemonic, iv, salt } = encryptMnemonic(
-        rawSecret,
+      const updatedWallet = await updateWalletPin({
+        userId: session.user.id,
+        walletId: wallet._id,
         newPin,
-      );
-      const newPinHash = await bcrypt.hash(newPin, 10);
-
-      await Wallet.findByIdAndUpdate(wallet._id, {
-        $set: {
-          encryptedMnemonic,
-          iv,
-          salt,
-          pinHash: newPinHash,
-          pinVersion: "v2",
-          pinAttempts: 0,
-          pinLockedUntil: null,
-        },
+        rawSecret,
       });
 
+      if (!updatedWallet) {
+        return NextResponse.json(
+          { error: "Failed to update wallet PIN" },
+          { status: 500 },
+        );
+      }
+
       console.log(`[MigratePIN][Standard] 🎉 Wallet ${wallet._id} re-encrypted and upgraded to pinVersion v2 successfully!`);
+
+      logUserActivity({
+        userId: session.user.id,
+        action: "PIN_MIGRATED",
+        details: { walletId: wallet._id },
+        req,
+      }).catch((e) => console.error("[MigratePIN] ActivityLog error:", e));
+
+      createNotification({
+        userId: session.user.id,
+        tab: "activities",
+        type: "PIN_MIGRATED",
+        title: "Transaction PIN Updated",
+        body: "Your transaction PIN was updated",
+        metadata: { walletId: wallet._id },
+        link: "/profile/settings?section=security",
+      }).catch((e) => console.error("[MigratePIN] Notification error:", e));
 
       return NextResponse.json({
         success: true,
@@ -516,7 +555,7 @@ export async function POST(req: NextRequest) {
     // If the user already has a wallet:
     const existingWallets = await listWalletsByUserId(session.user.id);
     const existingWallet = existingWallets[0];
-    console.log("🟢🟢🟢 Existig user wallets", existingWallets)
+    console.log("🟢🟢🟢 Total user wallets", existingWallets.length)
     
     if (existingWallet) {
       // If the wallet exists but is missing pinHash, complete the setup instead of throwing error:
@@ -624,7 +663,7 @@ export async function POST(req: NextRequest) {
     await setUserActiveWallet(session.user.id, wallet._id);
 
     // Log user activity
-    recordUserActivity({
+    logUserActivity({
       userId: session.user.id,
       action: action === "import" ? "WALLET_IMPORTED" : "WALLET_CREATED",
       details: {
@@ -633,7 +672,21 @@ export async function POST(req: NextRequest) {
         setupMethod,
         chain: chain || "multichain",
       },
+      req,
     }).catch((e) => console.error("[WalletSetup] ActivityLog error:", e));
+
+    createNotification({
+      userId: session.user.id,
+      tab: "activities",
+      type: action === "import" ? "WALLET_IMPORTED" : "WALLET_CREATED",
+      title: action === "import" ? "Wallet Imported" : "Wallet Created",
+      body:
+        action === "import"
+          ? "Your wallet was successfully imported."
+          : "Your wallet was successfully created.",
+      metadata: { walletId: wallet._id, address: wallet.address },
+      link: "/home",
+    }).catch((e) => console.error("[WalletSetup] Notification error:", e));
 
     const response = NextResponse.json(
       {

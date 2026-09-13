@@ -6,6 +6,8 @@ import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { executeSwap } from "@/lib/execution/stellar-swap";
 import { swapExecuteSchema } from "@/lib/validations/swap.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { logUserActivity } from "@/lib/functions/userFunctions";
+import { createNotification } from "@/lib/functions/notificationFunctions";
 
 /**
  * POST /api/swap/execute
@@ -69,6 +71,35 @@ export async function POST(req: NextRequest) {
         { status: result.status },
       );
     }
+
+    logUserActivity({
+      userId,
+      action: "SWAP_EXECUTED",
+      details: {
+        fromToken,
+        toToken,
+        fromAmount,
+        toAmount,
+        txHash: result.txHash,
+      },
+      req,
+    }).catch((e) => console.error("[Swap Execute] ActivityLog error:", e));
+
+    createNotification({
+      userId,
+      tab: "transactions",
+      type: "SWAP_COMPLETED",
+      title: "Swap Completed",
+      body: `Swapped ${fromAmount} ${fromToken} to ${toAmount} ${toToken}`,
+      metadata: {
+        fromToken,
+        toToken,
+        fromAmount,
+        toAmount,
+        txHash: result.txHash,
+      },
+      link: "/transactions",
+    }).catch((e) => console.error("[Swap Execute] Notification error:", e));
 
     return NextResponse.json({
       success: true,

@@ -1,19 +1,46 @@
-import mongoose, { Schema, Model } from "mongoose";
+import mongoose, { type Model, Schema } from "mongoose";
 import { generateId } from "@/lib/schema-ids";
+
+export type UserActivityAction =
+  // Auth & Session
+  | "USER_LOGIN"
+  | "USER_LOGOUT"
+  | "SESSION_REVOKED"
+  | "ALL_OTHER_SESSIONS_REVOKED"
+  | "ACCOUNT_DELETED"
+  // Security & Onboarding
+  | "LOGIN_PASSWORD_SET"
+  | "JUMPA_TAG_SET"
+  | "WALLET_CREATED"
+  | "WALLET_IMPORTED"
+  | "PIN_VERIFIED"
+  | "PIN_FAILED"
+  | "PIN_LOCKED"
+  | "PIN_CHANGED"
+  | "PIN_MIGRATED"
+  | "PRIVATE_KEY_EXPORTED"
+  | "SEED_PHRASE_EXPORTED"
+  // Financial Transactions
+  | "TRANSFER_SENT"
+  | "TRANSFER_RECEIVED"
+  | "FAUCET_REQUESTED"
+  | "SWAP_EXECUTED"
+  | "ONRAMP_INITIATED"
+  | "ONRAMP_COMPLETED"
+  | "OFFRAMP_INITIATED"
+  | "OFFRAMP_COMPLETED"
+  // Savings
+  | "SAVINGS_PLAN_CREATED"
+  | "SAVINGS_TOP_UP"
+  | "SAVINGS_WITHDRAWAL"
+  // Identity & KYC
+  | "KYC_STAGE_UPDATED"
+  | "KYC_SUBMITTED";
 
 export interface IUserActivityLog {
   _id: string;
   userId: string;
-  action:
-    | "USER_LOGIN"
-    | "WALLET_CREATED"
-    | "WALLET_IMPORTED"
-    | "PIN_VERIFIED"
-    | "PIN_FAILED"
-    | "PIN_LOCKED"
-    | "FAUCET_REQUESTED"
-    | "ONRAMP_INITIATED"
-    | "OFFRAMP_INITIATED";
+  action: UserActivityAction;
   details?: Record<string, any>;
   ipAddress?: string;
   userAgent?: string;
@@ -28,14 +55,34 @@ const UserActivityLogSchema = new Schema<IUserActivityLog>(
       type: String,
       enum: [
         "USER_LOGIN",
+        "USER_LOGOUT",
+        "SESSION_REVOKED",
+        "ALL_OTHER_SESSIONS_REVOKED",
+        "ACCOUNT_DELETED",
+        "LOGIN_PASSWORD_SET",
+        "JUMPA_TAG_SET",
         "WALLET_CREATED",
         "WALLET_IMPORTED",
         "PIN_VERIFIED",
         "PIN_FAILED",
         "PIN_LOCKED",
+        "PIN_CHANGED",
+        "PIN_MIGRATED",
+        "PRIVATE_KEY_EXPORTED",
+        "SEED_PHRASE_EXPORTED",
+        "TRANSFER_SENT",
+        "TRANSFER_RECEIVED",
         "FAUCET_REQUESTED",
+        "SWAP_EXECUTED",
         "ONRAMP_INITIATED",
+        "ONRAMP_COMPLETED",
         "OFFRAMP_INITIATED",
+        "OFFRAMP_COMPLETED",
+        "SAVINGS_PLAN_CREATED",
+        "SAVINGS_TOP_UP",
+        "SAVINGS_WITHDRAWAL",
+        "KYC_STAGE_UPDATED",
+        "KYC_SUBMITTED",
       ],
       required: true,
     },

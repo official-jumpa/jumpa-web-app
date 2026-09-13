@@ -31,6 +31,7 @@ export const SCHEMA_IDS = {
   vrfy: { prefix: "vrfy", length: 16, description: "Verification tokens" },
   kyc: { prefix: "kyc", length: 16, description: "KYC verification records" },
   card: { prefix: "card", length: 16, description: "Virtual cards" },
+  notif: { prefix: "notif", length: 16, description: "Notifications" },
 
   // ── Utility Entities
   cardref: { prefix: "cardref", length: 12, description: "Card references" },

@@ -5,6 +5,8 @@ import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { faucetRequestSchema } from "@/lib/validations/wallet.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { fundTestnetAccount, fetchStellarBalances } from "@/lib/chains/stellar";
+import { logUserActivity } from "@/lib/functions/userFunctions";
+import { createNotification } from "@/lib/functions/notificationFunctions";
 
 /**
  * POST /api/wallet/faucet
@@ -47,6 +49,25 @@ export async function POST(req: NextRequest) {
 
       const result = await fundTestnetAccount(stellarAddress);
       const balances = await fetchStellarBalances(stellarAddress);
+
+      if (result.success) {
+        logUserActivity({
+          userId: session.user.id,
+          action: "FAUCET_REQUESTED",
+          details: { chain, address: stellarAddress },
+          req,
+        }).catch((e) => console.error("[Faucet] ActivityLog error:", e));
+
+        createNotification({
+          userId: session.user.id,
+          tab: "transactions",
+          type: "FAUCET_CLAIMED",
+          title: "Faucet Claimed",
+          body: "Faucet tokens credited to your Stellar wallet",
+          metadata: { chain, address: stellarAddress },
+          link: "/transactions",
+        }).catch((e) => console.error("[Faucet] Notification error:", e));
+      }
 
       return NextResponse.json({
         success: result.success,

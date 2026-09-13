@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { clearSession } from "@/lib/session";
-import { deleteUserAndAccountData } from "@/lib/functions/userFunctions";
+import { deleteUserAndAccountData, logUserActivity } from "@/lib/functions/userFunctions";
 import { deleteAccountSchema } from "@/lib/validations/user.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 
@@ -29,6 +29,11 @@ export async function POST(req: NextRequest) {
   const userId = session.user.id;
 
   try {
+    await logUserActivity({
+      userId,
+      action: "ACCOUNT_DELETED",
+      req,
+    });
     await deleteUserAndAccountData(userId);
   } catch (err) {
     console.error("[DeleteAccount] Failed to delete user data:", err);

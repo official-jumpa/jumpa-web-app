@@ -5,6 +5,7 @@ import { Wallet } from "@/models/Wallet";
 import { ChatLog } from "@/models/ChatLog";
 import { Transaction } from "@/models/Transaction";
 import { Referral } from "@/models/Referral";
+import { Notification } from "@/models/Notification";
 
 /**
  * Retrieves a user by their unique user ID.
@@ -82,6 +83,40 @@ export async function recordUserActivity(params: {
 }
 
 /**
+ * Enhanced user activity logger that optionally accepts a NextRequest or Headers
+ * to automatically record IP address and User-Agent.
+ */
+export async function logUserActivity(params: {
+  userId: string;
+  action: IUserActivityLog["action"];
+  details?: Record<string, any>;
+  req?: { headers: Headers | { get(key: string): string | null } };
+  ipAddress?: string;
+  userAgent?: string;
+}): Promise<IUserActivityLog> {
+  let ip = params.ipAddress;
+  let ua = params.userAgent;
+
+  if (params.req) {
+    if (!ip) {
+      const forwarded = params.req.headers.get("x-forwarded-for");
+      ip = forwarded ? forwarded.split(",")[0].trim() : params.req.headers.get("x-real-ip") || undefined;
+    }
+    if (!ua) {
+      ua = params.req.headers.get("user-agent") || undefined;
+    }
+  }
+
+  return recordUserActivity({
+    userId: params.userId,
+    action: params.action,
+    details: params.details,
+    ipAddress: ip,
+    userAgent: ua,
+  });
+}
+
+/**
  * Permanently deletes a user and all their associated data.
  * Wallets are self-custodial: deleting drops Jumpa's copy, not the funds.
  * ‼️ Just don't call this function. It will affect the analytics, better to do a soft delete
@@ -94,6 +129,7 @@ export async function deleteUserAndAccountData(userId: string): Promise<void> {
     Wallet.deleteMany({ userId }),
     ChatLog.deleteMany({ userId }),
     Transaction.deleteMany({ userId }),
+    Notification.deleteMany({ userId }),
     UserActivityLog.deleteMany({ userId }),
     Referral.deleteMany({
       $or: [{ referrerId: userId }, { referredUserId: userId }],

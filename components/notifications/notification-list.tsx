@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { NotificationCard } from "@/components/notifications/notification-card";
 import { NotificationsEmpty } from "@/components/notifications/notifications-empty";
 import { ScreenHeader } from "@/components/ui/screen-header";
@@ -12,17 +12,71 @@ import {
 } from "@/lib/notifications";
 
 const CHIP =
-  "tap rounded-pill px-5.5 py-2.5 text-[10px] leading-3.5 font-medium text-jumpa-black active:scale-95";
+  "tap rounded-pill px-5.5 py-2.5 text-[10px] leading-3.5 font-medium text-jumpa-black active:scale-95 transition-colors";
 
-/** The feed, with the read state held locally until there is a service for it. */
-export function NotificationList({ items }: { items: Notification[] }) {
+export function NotificationList({
+  initialItems = [],
+}: {
+  initialItems?: Notification[];
+}) {
   const [tab, setTab] = useState<NotificationTab>("transactions");
-  const [read, setRead] = useState(
-    () => new Set(items.filter((item) => item.read).map((item) => item.id)),
-  );
+  const [items, setItems] = useState<Notification[]>(initialItems);
+  const [loading, setLoading] = useState(initialItems.length === 0);
+  const [tabCounts, setTabCounts] = useState<{ transactions: number; activities: number }>({
+    transactions: 0,
+    activities: 0,
+  });
 
-  const markRead = (id: string) =>
-    setRead((current) => new Set(current).add(id));
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/notifications`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.notifications) {
+          setItems(data.notifications);
+        }
+        if (data.tabCounts) {
+          setTabCounts(data.tabCounts);
+        }
+      }
+    } catch (err) {
+      console.warn("[NotificationList] Failed to load notifications:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const markRead = async (id: string) => {
+    // Optimistic local update
+    setItems((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, read: true } : item)),
+    );
+
+    try {
+      await fetch(`/api/notifications?id=${encodeURIComponent(id)}`, {
+        method: "PATCH",
+      });
+    } catch (err) {
+      console.error("[NotificationList] Error marking as read:", err);
+    }
+  };
+
+  const markAllRead = async () => {
+    // Optimistic local update
+    setItems((prev) => prev.map((item) => ({ ...item, read: true })));
+
+    try {
+      await fetch(`/api/notifications?action=read-all&tab=${tab}`, {
+        method: "PATCH",
+      });
+    } catch (err) {
+      console.error("[NotificationList] Error marking all as read:", err);
+    }
+  };
 
   const shown = items.filter((item) => item.tab === tab);
 
@@ -33,22 +87,21 @@ export function NotificationList({ items }: { items: Notification[] }) {
         title="Notifications"
         round
         action={
-          <button
-            type="button"
-            onClick={() => setRead(new Set(items.map((item) => item.id)))}
-            className="tap rounded-pill bg-jumpa-neutral-50 px-2.5 py-1.5 text-[10px] leading-3.5 font-medium text-jumpa-black active:scale-95"
-          >
-            Read All
-          </button>
+          shown.some((i) => !i.read) ? (
+            <button
+              type="button"
+              onClick={markAllRead}
+              className="tap rounded-pill bg-jumpa-neutral-50 px-2.5 py-1.5 text-[10px] leading-3.5 font-medium text-jumpa-black active:scale-95"
+            >
+              Read All
+            </button>
+          ) : null
         }
       />
 
       <div className="mt-5 flex items-center gap-2">
         {NOTIFICATION_TABS.map(({ id, label }) => {
-          const count = items.reduce(
-            (total, item) => (item.tab === id ? total + 1 : total),
-            0,
-          );
+          const count = tabCounts[id] ?? items.filter((item) => item.tab === id).length;
 
           return (
             <button
@@ -58,7 +111,7 @@ export function NotificationList({ items }: { items: Notification[] }) {
               onClick={() => setTab(id)}
               className={cn(
                 CHIP,
-                id === tab ? "bg-jumpa-primary-50" : "bg-jumpa-neutral-50",
+                id === tab ? "bg-jumpa-primary-50 font-semibold" : "bg-jumpa-neutral-50",
               )}
             >
               {count > 0 ? `${label} (${count})` : label}
@@ -67,13 +120,22 @@ export function NotificationList({ items }: { items: Notification[] }) {
         })}
       </div>
 
-      {shown.length > 0 ? (
+      {loading ? (
+        <div className="mt-6 flex flex-col gap-4">
+          {[1, 2, 3].map((n) => (
+            <div
+              key={n}
+              className="h-28 animate-pulse rounded-surface bg-jumpa-neutral-50/50"
+            />
+          ))}
+        </div>
+      ) : shown.length > 0 ? (
         <ul className="mt-4 flex flex-col gap-4">
           {shown.map((item) => (
             <li key={item.id}>
               <NotificationCard
                 item={item}
-                read={read.has(item.id)}
+                read={item.read}
                 onRead={() => markRead(item.id)}
               />
             </li>

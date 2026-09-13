@@ -53,7 +53,9 @@ export function PinFlow({ name }: { name: PinFlowName }) {
     flow.mode === "forgot" ? "intro" : "current",
   );
   const [contact, setContact] = useState("");
+  const [currentPin, setCurrentPin] = useState("");
   const [created, setCreated] = useState("");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
   const clearError = useCallback(() => setError(undefined), []);
@@ -73,22 +75,44 @@ export function PinFlow({ name }: { name: PinFlowName }) {
     [clearError],
   );
 
-  /**
-   * These screens draw the design's slot count, which is not the length the
-   * wallet's stored PIN has — so nothing here is checked against it, and
-   * nothing is persisted. Verify the current PIN once a change endpoint exists.
-   */
-  const checkCurrent = useCallback(() => step("create"), [step]);
+  const checkCurrent = useCallback(
+    (pin: string) => {
+      setCurrentPin(pin);
+      step("create");
+    },
+    [step],
+  );
 
   const confirmCreated = useCallback(
-    (pin: string) => {
+    async (pin: string) => {
       if (pin !== created) {
-        setError("Those PINs do not match. Enter the new PIN again.");
+        setError("PINs do not match. Enter the new PIN again.");
         return;
       }
-      step("done");
+      setBusy(true);
+      try {
+        const res = await fetch("/api/wallet/change-pin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            currentPin: currentPin || undefined,
+            newPin: pin,
+            kind: flow.kind,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || "Failed to update PIN");
+          return;
+        }
+        step("done");
+      } catch {
+        setError("Failed to connect to server. Try again.");
+      } finally {
+        setBusy(false);
+      }
     },
-    [created, step],
+    [created, currentPin, flow.kind, step],
   );
 
   const title = flow.title;
@@ -204,6 +228,7 @@ export function PinFlow({ name }: { name: PinFlowName }) {
           length={flow.length}
           note={flow.note}
           error={error}
+          busy={busy}
           onEdit={clearError}
           onSubmit={confirmCreated}
         />

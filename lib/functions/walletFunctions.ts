@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db";
+import { encryptMnemonic } from "@/lib/crypto";
 import { Wallet, type IWallet } from "@/models/Wallet";
 
 const MAX_ATTEMPTS = 5;
@@ -184,4 +185,58 @@ export async function verifyWalletPinAndLockout(
     valid: true,
     wallet,
   };
+}
+
+export interface UpdateWalletPinOptions {
+  userId: string;
+  walletId: string;
+  newPin: string;
+  rawSecret?: string;
+}
+
+/**
+ * Updates a wallet's PIN, re-encrypting its mnemonic, and resets lockout attempts.
+ * Enforces ownership by verifying both walletId and userId match in MongoDB.
+ */
+export async function updateWalletPin({
+  userId,
+  walletId,
+  newPin,
+  rawSecret,
+}: UpdateWalletPinOptions): Promise<IWallet | null> {
+  await connectDB();
+
+  const newPinHash = await bcrypt.hash(newPin, 10);
+  const updateData: Record<string, any> = {
+    pinHash: newPinHash,
+    pinVersion: "v2",
+    pinAttempts: 0,
+    pinLockedUntil: null,
+  };
+
+  if (rawSecret) {
+    const { encryptedMnemonic, iv, salt } = encryptMnemonic(rawSecret, newPin);
+    updateData.encryptedMnemonic = encryptedMnemonic;
+    updateData.iv = iv;
+    updateData.salt = salt;
+  }
+
+  // Atomically guarantees wallet belongs to the authenticated user
+  const updatedWallet = await Wallet.findOneAndUpdate(
+    { _id: walletId, userId },
+    { $set: updateData },
+    { new: true },
+  );
+
+  if (!updatedWallet) {
+    return null;
+  }
+
+  // Clear in-memory lockout attempts
+  pinAttempts.delete(`${userId}:default`);
+  if (updatedWallet.address) {
+    pinAttempts.delete(`${userId}:${updatedWallet.address.toLowerCase()}`);
+  }
+
+  return updatedWallet;
 }

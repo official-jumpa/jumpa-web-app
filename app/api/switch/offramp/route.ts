@@ -7,6 +7,8 @@ import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
 import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
 import { switchOfframpSchema } from "@/lib/validations/switch.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { logUserActivity } from "@/lib/functions/userFunctions";
+import { createNotification } from "@/lib/functions/notificationFunctions";
 
 export async function POST(req: NextRequest) {
   try {
@@ -109,6 +111,39 @@ export async function POST(req: NextRequest) {
         },
         executedAt: new Date(),
       });
+
+      const tokenName = cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC";
+
+      logUserActivity({
+        userId,
+        action: "OFFRAMP_INITIATED",
+        details: {
+          reference,
+          fiatAmount: destination.amount,
+          fiatCurrency: destination.currency,
+          cryptoAmount,
+          cryptoToken: tokenName,
+          bankName: bankMatch.name,
+          accountNumber,
+        },
+        req,
+      }).catch((e) => console.error("[Switch Offramp] ActivityLog error:", e));
+
+      createNotification({
+        userId,
+        tab: "transactions",
+        type: "OFFRAMP_INITIATED",
+        title: "Withdrawal Initiated",
+        body: `Initiated withdrawal of ${cryptoAmount} ${tokenName} to ${bankMatch.name} (${accountNumber}).`,
+        metadata: {
+          reference,
+          fiatAmount: destination.amount,
+          cryptoAmount,
+          token: tokenName,
+          bankName: bankMatch.name,
+        },
+        link: "/transactions",
+      }).catch((e) => console.error("[Switch Offramp] Notification error:", e));
     } catch (dbErr: any) {
       console.warn(`[Switch Offramp API] [User: ${userId}] DB record notice:`, dbErr.message);
     }

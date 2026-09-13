@@ -12,6 +12,9 @@ import { Referral } from "@/models/Referral";
 import { Wallet } from "@/models/Wallet";
 
 import { detectUserCountry } from "./location";
+import { recordUserActivity } from "./functions/userFunctions";
+import { createNotification } from "./functions/notificationFunctions";
+import { formatSignInDescription } from "./user-agent";
 
 await connectDB();
 
@@ -57,6 +60,33 @@ export const auth = betterAuth({
             );
 
             await ensureUserJumpaFields(userId);
+
+            // 1. Record in UserActivityLog
+            await recordUserActivity({
+              userId,
+              action: "USER_LOGIN",
+              ipAddress: session.ipAddress || undefined,
+              userAgent: session.userAgent || undefined,
+              details: { sessionId: session.id },
+            });
+
+            // 2. Create in-app activity notification
+            const loginBody = formatSignInDescription(
+              session.userAgent || undefined,
+              new Date(),
+            );
+            await createNotification({
+              userId,
+              tab: "activities",
+              type: "LOGIN",
+              title: "New Sign-in",
+              body: loginBody,
+              metadata: {
+                sessionId: session.id,
+                userAgent: session.userAgent || undefined,
+              },
+              link: "/profile/settings?section=devices",
+            });
           } catch (e) {
             console.error("[Auth Hook] Failed in session.create.after:", e);
           }

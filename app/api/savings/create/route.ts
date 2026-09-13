@@ -4,7 +4,8 @@ import { withAuth } from "@/lib/withAuth";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { createSavingsPlanRecord } from "@/lib/functions/savingsFunctions";
 import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
-import { setUserCreatedSavings } from "@/lib/functions/userFunctions";
+import { setUserCreatedSavings, logUserActivity } from "@/lib/functions/userFunctions";
+import { createNotification } from "@/lib/functions/notificationFunctions";
 import { createSavingsPlanSchema } from "@/lib/validations/savings.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
@@ -223,6 +224,23 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
     setUserCreatedSavings(userId).catch((err) =>
       console.warn("[SavingsCreate] Failed to update hasCreatedSavings:", err),
     );
+
+    logUserActivity({
+      userId,
+      action: "SAVINGS_PLAN_CREATED",
+      details: { planId: plan._id, name, kind, targetAmount, deposit: numDeposit },
+      req,
+    }).catch((e) => console.error("[SavingsCreate] ActivityLog error:", e));
+
+    createNotification({
+      userId,
+      tab: "transactions",
+      type: "SAVINGS_PLAN_CREATED" as any,
+      title: "Savings Plan Created",
+      body: `Created savings plan "${name}" with initial deposit of $${numDeposit} USDC.`,
+      metadata: { planId: plan._id, name, kind, deposit: numDeposit },
+      link: "/savings",
+    }).catch((e) => console.error("[SavingsCreate] Notification error:", e));
 
     return NextResponse.json(
       {

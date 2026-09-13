@@ -93,19 +93,6 @@ export function SecuritySettings() {
             />
           </SettingCard>
         </SettingSection>
-
-        <p className="mt-2 flex gap-2 text-jumpa-warning">
-          <SealAlertIcon className="mt-2.75 size-6 shrink-0" />
-          <span className="flex flex-col gap-1">
-            <span className="text-sm leading-3.5 font-semibold">
-              NO Security Enabled
-            </span>
-            <span className="text-xs leading-3.5">
-              A PIN is used to sign transactions on your device. It's never sent
-              to Jumpa servers.
-            </span>
-          </span>
-        </p>
       </div>
     </div>
   );

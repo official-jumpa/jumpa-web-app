@@ -5,7 +5,6 @@ export interface UserAccountInfo {
   avatar: string;
   verified: boolean;
   balance: string;
-  kyc: { completed: number; total: number };
 }
 
 export const ACCOUNT: UserAccountInfo = {
@@ -13,7 +12,6 @@ export const ACCOUNT: UserAccountInfo = {
   avatar: "/images/home/avatar-illustration.webp",
   verified: true,
   balance: "0.00",
-  kyc: { completed: 4, total: 5 },
 };
 
 export type Asset = {

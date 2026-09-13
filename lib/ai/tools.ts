@@ -260,8 +260,10 @@ const offrampNgn: DeepSeekTool = {
       "Initiate a withdrawal via Switch to sell crypto for Nigerian Naira (NGN) to a user's bank account. " +
       "The system automatically verifies the account number and bank with Paystack to ensure accuracy. " +
       "Supported Switch asset pairs: " +
-      "USDC: 'base:usdc', 'solana:usdc', 'ethereum:usdc', 'bsc:usdc'. " +
+      "USDC: 'base:usdc', 'solana:usdc', 'avalanche:usdc', 'ethereum:usdc', 'bsc:usdc'. " +
       "USDT: 'solana:usdt', 'tron:usdt', 'ethereum:usdt', 'bsc:usdt'. " +
+      "cNGN: 'base:cngn', 'bsc:cngn'. " +
+      "(USDT on Base and all assets on Stellar are NOT supported for NGN offramp). " +
       "Call this as soon as the user says they want to cash out, with WHATEVER they have given so far — " +
       "omit anything they have not said. The tool returns the chooser for the next missing detail " +
       "(which balance to sell, which account to pay, which bank holds that account), so the user taps " +
@@ -281,7 +283,7 @@ const offrampNgn: DeepSeekTool = {
         },
         cryptoToken: {
           type: "string",
-          description: "Token to sell ('USDC', 'USDT').",
+          description: "Token to sell ('USDC', 'USDT', 'cNGN').",
         },
         asset: {
           type: "string",

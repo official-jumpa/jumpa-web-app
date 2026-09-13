@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useAuthContext } from "@/components/auth/AuthGuard";
 import { SettingRow } from "@/components/settings/setting-row";
 import {
@@ -27,9 +28,49 @@ export function UsdConfirm({ onContinue }: { onContinue: () => void }) {
   const auth = useAuthContext();
   const user = auth?.user;
 
+  const [verified, setVerified] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    // Check localStorage cache first
+    try {
+      const savedKyc = localStorage.getItem("jumpa_kyc_completed");
+      if (savedKyc !== null) {
+        setVerified(savedKyc === "true");
+      }
+    } catch {}
+
+    // Fetch live status from /api/kyc
+    async function checkKyc() {
+      try {
+        const res = await fetch("/api/kyc");
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          const isDone = Boolean(
+            data?.isCompleted ||
+              data?.status === "approved" ||
+              data?.stage === "completed",
+          );
+          setVerified(isDone);
+          try {
+            localStorage.setItem("jumpa_kyc_completed", String(isDone));
+          } catch {}
+        }
+      } catch (err) {
+        console.warn("[UsdConfirm] Error checking KYC:", err);
+      }
+    }
+
+    checkKyc();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const name = user?.name || user?.jumpaTag || ACCOUNT.firstName;
   const email = user?.email || "Not added yet";
-  const verified = ACCOUNT.kyc.completed >= ACCOUNT.kyc.total;
 
   return (
     <>

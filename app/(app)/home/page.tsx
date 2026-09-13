@@ -22,6 +22,7 @@ export default function HomePage() {
   const [assets, setAssets] = useState<Asset[]>(ASSETS);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loadingTransactions, setLoadingTransactions] = useState(true);
+  const [kycComplete, setKycComplete] = useState<boolean>(false);
 
   // Restore cached balance, assets, & transactions from localStorage immediately on mount
   useEffect(() => {
@@ -45,7 +46,12 @@ export default function HomePage() {
           setLoadingTransactions(false);
         }
       }
-    } catch {}
+
+      const savedKyc = localStorage.getItem("jumpa_kyc_completed");
+      if (savedKyc !== null) {
+        setKycComplete(savedKyc === "true");
+      }
+    } catch { }
   }, []);
 
   useEffect(() => {
@@ -62,7 +68,7 @@ export default function HomePage() {
             setTransactions(list);
             try {
               localStorage.setItem("jumpa_last_transactions", JSON.stringify(list));
-            } catch {}
+            } catch { }
           }
         }
       } catch (err) {
@@ -91,7 +97,7 @@ export default function HomePage() {
             setTotalBalance(balanceData.totalUsd);
             try {
               localStorage.setItem("jumpa_last_balance", balanceData.totalUsd);
-            } catch {}
+            } catch { }
           }
           if (
             balanceData.tokens &&
@@ -102,7 +108,7 @@ export default function HomePage() {
             setAssets(unified);
             try {
               localStorage.setItem("jumpa_last_assets", JSON.stringify(unified));
-            } catch {}
+            } catch { }
           }
         }
       } catch (err) {
@@ -110,15 +116,35 @@ export default function HomePage() {
       }
     }
 
+    // Fetch KYC status
+    async function fetchKycStatus() {
+      try {
+        const res = await fetch("/api/kyc");
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          const isDone = Boolean(
+            data?.isCompleted ||
+            data?.status === "approved" ||
+            data?.stage === "completed",
+          );
+          setKycComplete(isDone);
+          try {
+            localStorage.setItem("jumpa_kyc_completed", String(isDone));
+          } catch { }
+        }
+      } catch (err) {
+        console.warn("[Home] Error fetching KYC status:", err);
+      }
+    }
+
     fetchTransactions();
     fetchBalances();
+    fetchKycStatus();
 
     return () => {
       isMounted = false;
     };
   }, [router]);
-
-  const kycComplete = ACCOUNT.kyc.completed >= ACCOUNT.kyc.total;
 
   return (
     <>
@@ -137,10 +163,7 @@ export default function HomePage() {
           {kycComplete ? (
             <AdBanner />
           ) : (
-            <KycCard
-              completed={ACCOUNT.kyc.completed}
-              total={ACCOUNT.kyc.total}
-            />
+            <KycCard />
           )}
         </RiseIn>
         <RiseIn index={2}>

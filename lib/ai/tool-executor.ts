@@ -117,6 +117,7 @@ function networkToSwitchChain(network?: string): string | null {
   const n = network.toLowerCase();
   if (n.includes("base")) return "base";
   if (n.includes("solana")) return "solana";
+  if (n.includes("tron")) return "tron";
   if (n.includes("ethereum") || (n.includes("mainnet") && !n.includes("stellar"))) return "ethereum";
   if (n.includes("bnb") || n.includes("bsc")) return "bsc";
   if (n.includes("polygon")) return "polygon";
@@ -867,6 +868,14 @@ export async function executeTool(
       let summaryForAI: string;
 
       try {
+        const cleanAsset = String(asset || "").toLowerCase();
+        if (cleanAsset.includes("stellar")) {
+          throw new Error("NGN fiat onramp is not available on Stellar. Please select Base, Solana, Avalanche, Ethereum, or BNB Chain.");
+        }
+        if (cleanAsset.includes("base") && cleanAsset.includes("usdt")) {
+          throw new Error("USDT is not supported on Base. Please choose Solana, Tron, Ethereum, or BNB Chain for USDT.");
+        }
+
         let amount: number;
         const cleanFiat = fiatAmount
           ? Number(String(fiatAmount).replace(/[^\d.]/g, ""))
@@ -1235,6 +1244,14 @@ export async function executeTool(
         const targetToken =
           effectiveToken || cryptoToken || targetAsset.split(":")[1]?.toUpperCase() || "USDC";
 
+        const cleanTargetAsset = targetAsset.toLowerCase();
+        if (cleanTargetAsset.includes("stellar")) {
+          throw new Error("NGN fiat offramp is not available on Stellar. Please select Base, Solana, Avalanche, Ethereum, or BNB Chain.");
+        }
+        if (cleanTargetAsset.includes("base") && cleanTargetAsset.includes("usdt")) {
+          throw new Error("USDT is not supported on Base. Please choose Solana, Tron, Ethereum, or BNB Chain for USDT.");
+        }
+
         if (cleanCrypto > 0) {
           amount = cleanCrypto;
         } else if (cleanFiat > 0) {
@@ -1407,8 +1424,16 @@ export async function executeTool(
       };
 
       // Resolve asset identifier if not explicitly provided
-      const targetAsset = asset || (token.toUpperCase() === "USDT" ? "solana:usdt" : "base:usdc");
-      const tokenSymbol = token.toUpperCase() === "USDT" ? "USDT" : "USDC";
+      const upperToken = (token || "USDC").toUpperCase();
+      const targetAsset =
+        asset ||
+        (upperToken === "USDT"
+          ? "solana:usdt"
+          : upperToken === "CNGN"
+            ? "base:cngn"
+            : "base:usdc");
+      const tokenSymbol =
+        upperToken === "USDT" ? "USDT" : upperToken === "CNGN" ? "cNGN" : "USDC";
 
       console.log(`[ToolExecutor] [User: ${userId}] get_ramp_rate →`, {
         direction,

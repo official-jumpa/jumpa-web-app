@@ -3,14 +3,7 @@ import { CornerUpRightIcon } from "@/components/ui/icons/corner-up-right";
 import { UserAlt1Icon } from "@/components/ui/icons/user-alt-1";
 
 /** Nudge to finish identity verification. Hidden once every step is done. */
-export function KycCard({
-  completed,
-  total,
-}: {
-  completed: number;
-  total: number;
-}) {
-  if (completed >= total) return null;
+export function KycCard() {
 
   return (
     <Link
@@ -24,11 +17,10 @@ export function KycCard({
 
         <span className="flex flex-col gap-1">
           <span className="text-xs leading-4 font-semibold text-jumpa-primary-950">
-            Complete your KYC ({completed}/{total})
+            Complete your KYC
           </span>
           <span className="text-[10px] leading-3.25 font-medium text-jumpa-neutral-300">
-            Verify your identity to unlock all features and keep your account
-            secure.
+            Verify your identity to unlock all features and keep your account secure
           </span>
         </span>
       </span>

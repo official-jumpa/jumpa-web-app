@@ -469,7 +469,7 @@ export async function fetchWalletBalances(
 
   const nonZeroBalances = tokens
     .filter((t) => (parseFloat(t.balance) || 0) > 0)
-    .map((t) => `${t.balance} ${t.symbol}`)
+    .map((t) => `${t.balance} ${t.symbol} [${t.network || "mainnet"}]`)
     .join(", ");
 
   console.log(

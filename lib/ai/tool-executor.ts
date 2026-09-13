@@ -1278,20 +1278,53 @@ export async function executeTool(
 
         // Check wallet balance to provide a clear error if insufficient
         try {
-          const balances = await getCachedWalletBalances(userId);
-          const tokenObj = balances?.tokens?.find(
-            (t) => t.symbol.toUpperCase() === targetToken.toUpperCase(),
+          let balances = await getCachedWalletBalances(userId);
+          const targetChain = targetAsset.split(":")[0]?.toLowerCase();
+
+          // Helper to match token on the specific target chain on mainnet
+          const getTokenForChain = (b: typeof balances) =>
+            b?.tokens?.find((t) => {
+              if (t.isTestnet) return false;
+              if (t.symbol.toUpperCase() !== targetToken.toUpperCase()) return false;
+              const net = (t.network || "").toLowerCase();
+              if (targetChain === "solana") return net.includes("solana");
+              if (targetChain === "base") return net.includes("base");
+              if (targetChain === "ethereum") return net.includes("ethereum") || (net.includes("mainnet") && !net.includes("stellar") && !net.includes("solana"));
+              if (targetChain === "bsc") return net.includes("bsc") || net.includes("bnb");
+              if (targetChain === "avalanche") return net.includes("avalanche");
+              if (targetChain === "polygon") return net.includes("polygon");
+              if (targetChain === "arbitrum") return net.includes("arbitrum");
+              if (targetChain === "optimism") return net.includes("optimism");
+              if (targetChain === "tron") return net.includes("tron");
+              return false;
+            });
+
+          let tokenObj = getTokenForChain(balances);
+          let currentBal = tokenObj ? Number(tokenObj.balance) || 0 : 0;
+
+          // If cached balance is insufficient and token is tracked, force-refresh once to ensure fresh on-chain data
+          if (tokenObj && currentBal < amount) {
+            balances = await getCachedWalletBalances(userId, undefined, true);
+            tokenObj = getTokenForChain(balances);
+            currentBal = tokenObj ? Number(tokenObj.balance) || 0 : 0;
+          }
+
+          const chainLabel = targetChain.charAt(0).toUpperCase() + targetChain.slice(1);
+          console.log(
+            `[ToolExecutor] [User: ${userId}] Balance check for ${targetAsset}: found ${currentBal} ${targetToken} on ${tokenObj?.network || chainLabel}, needed: ${amount}`,
           );
-          if (tokenObj) {
-            const currentBal = Number(tokenObj.balance) || 0;
-            if (currentBal < amount) {
-              return {
-                toolName: name,
-                summaryForAI: `Insufficient balance: you have ${currentBal.toFixed(2)} ${targetToken}, but ${amount} ${targetToken} (approx. ₦${cleanFiat ? cleanFiat.toLocaleString() : (appliedRate ? (amount * appliedRate).toLocaleString() : "")}) is required for this withdrawal. Please fund your wallet or choose a smaller amount.`,
-                cardHint: { type: "none" },
-                requiresConfirmation: false,
-              };
-            }
+
+          if (tokenObj && currentBal < amount) {
+            return {
+              toolName: name,
+              summaryForAI: `Insufficient balance: you have ${currentBal.toFixed(2)} ${targetToken} on ${chainLabel}, but ${amount} ${targetToken} (approx. ₦${cleanFiat ? cleanFiat.toLocaleString() : (appliedRate ? (amount * appliedRate).toLocaleString() : "")}) is required for this withdrawal. Please fund your ${chainLabel} wallet or choose a smaller amount.`,
+              cardHint: { type: "none" },
+              requiresConfirmation: false,
+            };
+          } else if (!tokenObj) {
+            console.log(
+              `[ToolExecutor] [User: ${userId}] Balance check for ${targetAsset}: token not tracked in wallet balances, proceeding without blocking.`,
+            );
           }
         } catch (balErr: any) {
           console.warn("[ToolExecutor] Balance pre-check notice:", balErr.message);

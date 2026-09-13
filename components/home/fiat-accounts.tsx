@@ -6,7 +6,7 @@ import { FiatBalance } from "./fiat-balance";
 
 /** USD has its own opening flow; NGN still starts with identity. */
 const CREATE: Record<FiatAccount["id"], string> = {
-  ngn: "/kyc",
+  ngn: "/usd-account",
   usd: "/usd-account",
 };
 

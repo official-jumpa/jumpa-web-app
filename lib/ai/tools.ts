@@ -218,6 +218,7 @@ const onrampNgn: DeepSeekTool = {
       "USDT: 'solana:usdt', 'tron:usdt', 'ethereum:usdt', 'bsc:usdt'. " +
       "cNGN: 'base:cngn', 'bsc:cngn'. " +
       "(USDT on Base and all assets on Stellar are NOT supported for NGN onramp). " +
+      "(All fiat onramps operate exclusively on MAINNET). " +
       "MANDATORY: Provide fiatAmount OR cryptoAmount, and target network/chain. If user specified cryptoAmount (e.g. 'buy 50 USDC with Naira'), the tool computes fiatAmount automatically using live rates.",
     parameters: {
       type: "object",
@@ -264,6 +265,7 @@ const offrampNgn: DeepSeekTool = {
       "USDT: 'solana:usdt', 'tron:usdt', 'ethereum:usdt', 'bsc:usdt'. " +
       "cNGN: 'base:cngn', 'bsc:cngn'. " +
       "(USDT on Base and all assets on Stellar are NOT supported for NGN offramp). " +
+      "(All fiat offramps operate exclusively on MAINNET). " +
       "Call this as soon as the user says they want to cash out, with WHATEVER they have given so far — " +
       "omit anything they have not said. The tool returns the chooser for the next missing detail " +
       "(which balance to sell, which account to pay, which bank holds that account), so the user taps " +

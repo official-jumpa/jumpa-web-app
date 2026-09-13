@@ -218,14 +218,19 @@ const onrampNgn: DeepSeekTool = {
       "USDT: 'solana:usdt', 'tron:usdt', 'ethereum:usdt', 'bsc:usdt'. " +
       "cNGN: 'base:cngn', 'bsc:cngn'. " +
       "(USDT on Base and all assets on Stellar are NOT supported for NGN onramp). " +
-      "MANDATORY: Do NOT call this tool if fiatAmount or target network/chain has not been explicitly provided by the user — ask them in chat first.",
+      "MANDATORY: Provide fiatAmount OR cryptoAmount, and target network/chain. If user specified cryptoAmount (e.g. 'buy 50 USDC with Naira'), the tool computes fiatAmount automatically using live rates.",
     parameters: {
       type: "object",
       properties: {
         fiatAmount: {
           type: "string",
           description:
-            "Exact amount of NGN to deposit provided by user (e.g. '10000', '50000'). Never assume.",
+            "Amount of NGN to deposit provided by user (e.g. '10000', '50000'). Pass this when user specifies Naira.",
+        },
+        cryptoAmount: {
+          type: "string",
+          description:
+            "Amount of crypto token the user wants to buy/receive (e.g. '50' for 50 USDC). If provided without fiatAmount, the tool calculates the required fiatAmount using live onramp rates.",
         },
         cryptoToken: {
           type: "string",
@@ -242,7 +247,7 @@ const onrampNgn: DeepSeekTool = {
             "User's wallet address on the target chain to receive the crypto.",
         },
       },
-      required: ["fiatAmount", "cryptoToken", "asset", "walletAddress"],
+      required: ["cryptoToken", "asset", "walletAddress"],
     },
   },
 };
@@ -260,14 +265,19 @@ const offrampNgn: DeepSeekTool = {
       "Call this as soon as the user says they want to cash out, with WHATEVER they have given so far — " +
       "omit anything they have not said. The tool returns the chooser for the next missing detail " +
       "(which balance to sell, which account to pay, which bank holds that account), so the user taps " +
-      "instead of being asked in prose. Never invent an amount, token, network, account number or bank.",
+      "instead of being asked in prose. Users can specify cryptoAmount (e.g. 'convert 20 USDC') OR fiatAmount (e.g. 'I want 20,000 naira in my bank account').",
     parameters: {
       type: "object",
       properties: {
         cryptoAmount: {
           type: "string",
           description:
-            "Amount of crypto to sell provided by user (e.g. '50'). Never assume.",
+            "Amount of crypto to sell provided by user (e.g. '50'). Pass this when user specifies crypto.",
+        },
+        fiatAmount: {
+          type: "string",
+          description:
+            "Desired amount of Nigerian Naira (NGN) the user wants to receive in their bank account (e.g. '20000'). Pass this when user specifies Naira (e.g. 'I want 20,000 naira in my account', 'send 50k NGN'). The tool will automatically compute the required crypto amount using live rates.",
         },
         cryptoToken: {
           type: "string",
@@ -292,7 +302,7 @@ const offrampNgn: DeepSeekTool = {
             "Optional account holder name. The system verifies and fetches the official registered name via Paystack automatically.",
         },
       },
-      required: ["cryptoAmount"],
+      required: [],
     },
   },
 };

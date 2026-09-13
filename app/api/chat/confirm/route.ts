@@ -54,13 +54,7 @@ export async function POST(req: NextRequest) {
       validation.data;
 
     const userId = session.user.id;
-    console.log("[Chat Confirm] User ID:", userId);
-    console.log("[Chat Confirm] Session ID:", sessionId);
-    console.log(
-      "[Chat Confirm] Message ID:",
-      messageId || "auto-detect pending",
-    );
-
+    console.log(`[Chat Confirm] User ID: ${userId}, sessionid: ${sessionId}, messageId: ${messageId}`);
 
     // Verify PIN against user's wallet
     const wallet = await Wallet.findOne({ userId });
@@ -78,7 +72,6 @@ export async function POST(req: NextRequest) {
 
     const chatLog = await ChatLog.findOne({ _id: sessionId, userId });
     if (!chatLog) {
-      console.warn("[Chat Confirm] Chat session not found for ID:", sessionId);
       return NextResponse.json(
         { error: "Chat session not found" },
         { status: 404 },
@@ -89,20 +82,15 @@ export async function POST(req: NextRequest) {
     const targetMsg = messageId
       ? chatLog.messages.find((m) => m.id === messageId)
       : [...chatLog.messages]
-          .reverse()
-          .find((m) => m.isTransaction && m.status === "pending");
+        .reverse()
+        .find((m) => m.isTransaction && m.status === "pending");
 
     if (!targetMsg) {
       console.warn(
         "[Chat Confirm] No pending transaction message found in session",
       );
     } else {
-      console.log(
-        "[Chat Confirm] Found target message:",
-        targetMsg.id,
-        "Type:",
-        targetMsg.cardType,
-      );
+      console.log(`[Chat Confirm] Found target message: ${targetMsg.id} Type: ${targetMsg.cardType}`);
     }
 
     if (targetMsg) {
@@ -133,8 +121,7 @@ export async function POST(req: NextRequest) {
     const effectiveCardData = updatedCardData || targetMsg?.cardData || {};
     const txParams = targetMsg?.transactionParams || {};
 
-    console.log("[Chat Confirm] Effective Card Data:", effectiveCardData);
-    console.log("[Chat Confirm] Transaction Params:", txParams);
+    console.log(`[Chat Confirm] Effective Card Data: ${JSON.stringify(effectiveCardData)}, params: ${JSON.stringify(txParams)}`);
 
     // User authorization message
     const userAuthMsg: IChatMessage = {
@@ -291,16 +278,13 @@ export async function POST(req: NextRequest) {
           executedAt: new Date(),
         });
       } catch (dbErr: any) {
-        console.warn(
-          "[Chat Confirm] Bridge Transaction log notice:",
-          dbErr.message,
-        );
+        console.warn(`[Chat Confirm] Bridge Transaction log notice: ${dbErr.message}`);
       }
 
       Wallet.updateOne(
         { _id: wallet._id },
         { $set: { lastUsedAt: new Date() } },
-      ).catch(() => {});
+      ).catch(() => { });
 
       receiptCardData = {
         title: "Bridge (Simulation)",
@@ -446,7 +430,6 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        console.log("[Chat Confirm] Decrypting keypair for payment...");
         const phrase = decryptMnemonic(
           wallet.encryptedMnemonic,
           wallet.iv,
@@ -458,10 +441,7 @@ export async function POST(req: NextRequest) {
           stellarKeys.secretKey,
         );
 
-        console.log(
-          "[Chat Confirm] Source keypair:",
-          sourceKeypair.publicKey(),
-        );
+        console.log(`[Chat Confirm] Source keypair: ${sourceKeypair.publicKey()}`);
 
         const server = getHorizonServer(network);
 
@@ -521,14 +501,14 @@ export async function POST(req: NextRequest) {
 
         const paymentOp = destExists
           ? StellarSdk.Operation.payment({
-              destination: destAddress,
-              asset: StellarSdk.Asset.native(),
-              amount: amount,
-            })
+            destination: destAddress,
+            asset: StellarSdk.Asset.native(),
+            amount: amount,
+          })
           : StellarSdk.Operation.createAccount({
-              destination: destAddress,
-              startingBalance: amount,
-            });
+            destination: destAddress,
+            startingBalance: amount,
+          });
 
         const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
           fee: StellarSdk.BASE_FEE,
@@ -541,7 +521,6 @@ export async function POST(req: NextRequest) {
 
         tx.sign(sourceKeypair);
 
-        console.log("[Chat Confirm] Submitting payment to Stellar Horizon...");
         const horizonRes = await server.submitTransaction(tx);
 
         txHash = horizonRes.hash;
@@ -550,8 +529,7 @@ export async function POST(req: NextRequest) {
           txHash,
           network === "testnet",
         );
-        console.log("[Chat Confirm] Payment SUCCESS! Tx Hash:", txHash);
-        console.log("[Chat Confirm] Explorer URL:", explorerUrl);
+        console.log(`[Chat Confirm] SUCCESS! Tx Hash: ${txHash}, network: ${network},explorerUrl: ${explorerUrl}`);
 
         // Record transaction in ledger
         Transaction.create({
@@ -572,13 +550,13 @@ export async function POST(req: NextRequest) {
           feePaid: "0.00001 XLM",
           executedAt: new Date(),
         }).catch((e) =>
-          console.error("[Chat Confirm] Transaction log error:", e),
+          console.error("[Chat Confirm] Transaction error:", e),
         );
 
         Wallet.updateOne(
           { _id: wallet._id },
           { $set: { lastUsedAt: new Date() } },
-        ).catch(() => {});
+        ).catch(() => { });
       } catch (payErr: any) {
         const resultCodes =
           payErr?.response?.data?.extras?.result_codes ||
@@ -720,8 +698,7 @@ export async function POST(req: NextRequest) {
 
       if (!transferResult.success || !transferResult.txHash) {
         console.error(
-          "[Chat Confirm] Offramp on-chain transfer failed:",
-          transferResult.error,
+          `[Chat Confirm] Offramp on-chain transfer failed: ${transferResult.error}`,
         );
         return NextResponse.json(
           {
@@ -735,7 +712,7 @@ export async function POST(req: NextRequest) {
       const explorerUrl = transferResult.explorerUrl || "";
 
       console.log(
-        `[Chat Confirm] Offramp on-chain transfer SUCCESS! TxHash: ${txHash}. Confirming with Switch...`,
+        `[Chat Confirm] Offramp SUCCESS! TxHash: ${txHash}. Confirming with Switch...`,
       );
 
       // Confirm payment with Switch provider
@@ -743,10 +720,7 @@ export async function POST(req: NextRequest) {
         await SwitchService.confirmPayment(reference, txHash);
         console.log(`[Chat Confirm] Switch payment confirmed for ${reference}`);
       } catch (switchConfirmErr) {
-        console.warn(
-          "[Chat Confirm] Notice: Switch confirmPayment call warning:",
-          switchConfirmErr,
-        );
+        console.warn(`[Chat Confirm] Notice: Switch confirmPayment warning: ${switchConfirmErr}`);
       }
 
       // Update Transaction in DB
@@ -769,7 +743,7 @@ export async function POST(req: NextRequest) {
       Wallet.updateOne(
         { _id: wallet._id },
         { $set: { lastUsedAt: new Date() } },
-      ).catch(() => {});
+      ).catch(() => { });
 
       receiptCardData = {
         title: "Withdrawal Sent",
@@ -846,9 +820,7 @@ export async function POST(req: NextRequest) {
 
     await chatLog.save();
     console.log(
-      "[Chat Confirm] Saved confirmed messages to ChatLog. Elapsed time:",
-      elapsedSeconds,
-      "s",
+      `[Chat Confirm] Saved confirmed messages to ChatLog. Elapsed time: ${elapsedSeconds} s`,
     );
 
     return NextResponse.json({
@@ -860,7 +832,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error("[Chat Confirm Error]", err);
     return NextResponse.json(
-      { error: err?.message || "Failed to confirm transaction" },
+      { error: "Failed to confirm transaction" },
       { status: 500 },
     );
   }

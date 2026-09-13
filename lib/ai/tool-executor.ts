@@ -95,7 +95,9 @@ function fundingOptions(tokens: TokenBalanceInfo[]): ChatOption[] {
     .filter(
       (token) =>
         OFFRAMPABLE.has(token.symbol.toUpperCase()) &&
-        Number(token.balance) > 0,
+        Number(token.balance) > 0 &&
+        !token.network?.toLowerCase().includes("stellar") &&
+        !token.isTestnet,
     )
     .map((token) => ({
       label: token.network
@@ -107,6 +109,21 @@ function fundingOptions(tokens: TokenBalanceInfo[]): ChatOption[] {
         ? `Sell my ${token.symbol} on ${token.network}`
         : `Sell my ${token.symbol}`,
     }));
+}
+
+/** Map a balance record's network label to a Switch-supported chain identifier. */
+function networkToSwitchChain(network?: string): string | null {
+  if (!network) return null;
+  const n = network.toLowerCase();
+  if (n.includes("base")) return "base";
+  if (n.includes("solana")) return "solana";
+  if (n.includes("ethereum") || (n.includes("mainnet") && !n.includes("stellar"))) return "ethereum";
+  if (n.includes("bnb") || n.includes("bsc")) return "bsc";
+  if (n.includes("polygon")) return "polygon";
+  if (n.includes("arbitrum")) return "arbitrum";
+  if (n.includes("optimism")) return "optimism";
+  if (n.includes("avalanche")) return "avalanche";
+  return null;
 }
 
 /** Banks that most often share a NUBAN, probed when only an account number is given. */
@@ -828,27 +845,55 @@ export async function executeTool(
 
     // ── Onramp NGN — powered by Switch
     case "onramp_ngn": {
-      const { fiatAmount, cryptoToken, asset, walletAddress } = toolArgs as {
-        fiatAmount: string;
+      const { fiatAmount, cryptoAmount, cryptoToken, asset, walletAddress } = toolArgs as {
+        fiatAmount?: string;
+        cryptoAmount?: string;
         cryptoToken: string;
         asset: string;
         walletAddress: string;
       };
 
-      console.log(`[ToolExecutor] [User: ${userId}] onramp_ngn →`, {
-        fiatAmount,
-        cryptoToken,
-        asset,
-        walletAddress,
-      });
+      console.log(
+        `[ToolExecutor] [User: ${userId}] onramp_ngn → ${JSON.stringify({
+          fiatAmount,
+          cryptoAmount,
+          cryptoToken,
+          asset,
+          walletAddress,
+        })}`,
+      );
 
       let cardData;
       let summaryForAI: string;
 
       try {
-        const amount = Number(fiatAmount);
+        let amount: number;
+        const cleanFiat = fiatAmount
+          ? Number(String(fiatAmount).replace(/[^\d.]/g, ""))
+          : 0;
+        const cleanCrypto = cryptoAmount
+          ? Number(String(cryptoAmount).replace(/[^\d.]/g, ""))
+          : 0;
+
+        if (cleanFiat > 0) {
+          amount = Math.round(cleanFiat);
+        } else if (cleanCrypto > 0) {
+          const rateRes = await SwitchService.getOnrampRate(asset);
+          if (!rateRes.success || !rateRes.rate) {
+            throw new Error(
+              rateRes.message || "Failed to fetch live onramp exchange rate"
+            );
+          }
+          amount = Math.round(cleanCrypto * rateRes.rate);
+          console.log(
+            `[ToolExecutor] [User: ${userId}] Computed onramp fiat amount: ₦${amount.toLocaleString()} for ${cleanCrypto} ${cryptoToken} (Rate: ₦${rateRes.rate})`
+          );
+        } else {
+          throw new Error("Please specify the amount in Naira (fiatAmount) or crypto (cryptoAmount).");
+        }
+
         if (isNaN(amount) || amount <= 0) {
-          throw new Error("Invalid fiatAmount");
+          throw new Error("Invalid onramp amount");
         }
 
         const result = await SwitchService.initiateOnRamp(
@@ -857,8 +902,7 @@ export async function executeTool(
           walletAddress,
         );
         console.log(
-          `[ToolExecutor] [User: ${userId}] onramp_ngn ← Switch result:`,
-          result,
+          `[ToolExecutor] [User: ${userId}] onramp_ngn ← Switch result: ${JSON.stringify(result)}`,
         );
 
         if (!result.success || !result.data) {
@@ -900,9 +944,10 @@ export async function executeTool(
           );
         }
 
+        const finalFiatAmount = String(amount);
         cardData = {
           title: "Buy Crypto / Deposit",
-          fiatAmount,
+          fiatAmount: finalFiatAmount,
           fiatCurrency: "NGN",
           cryptoAmount: String(destination.amount),
           cryptoToken,
@@ -916,7 +961,7 @@ export async function executeTool(
         };
 
         summaryForAI =
-          `Onramp initiated via Switch. User should transfer ₦${fiatAmount} to ${deposit.bank_name} ` +
+          `Onramp initiated via Switch. User should transfer ₦${amount.toLocaleString()} to ${deposit.bank_name} ` +
           `account ${deposit.account_number} (${deposit.account_name}). ` +
           `They will receive ${destination.amount} ${cryptoToken} on ${asset.split(":")[0]}. ` +
           `Reference: ${reference}.`;
@@ -927,7 +972,7 @@ export async function executeTool(
           cardHint: { type: "onramp", data: cardData },
           transactionParams: {
             type: "onramp",
-            fiatAmount,
+            fiatAmount: finalFiatAmount,
             fiatCurrency: "NGN",
             cryptoToken,
             asset,
@@ -952,28 +997,59 @@ export async function executeTool(
     case "offramp_ngn": {
       const {
         cryptoAmount,
+        fiatAmount,
         cryptoToken,
         asset,
         bankName,
         accountNumber,
         holderName,
       } = toolArgs as {
-        cryptoAmount: string;
-        cryptoToken: string;
-        asset: string;
+        cryptoAmount?: string;
+        fiatAmount?: string;
+        cryptoToken?: string;
+        asset?: string;
         bankName: string;
         accountNumber: string;
         holderName?: string;
       };
 
-      console.log(`[ToolExecutor] [User: ${userId}] offramp_ngn →`, {
-        cryptoAmount,
-        cryptoToken,
-        asset,
-        bankName,
-        accountNumber,
-        providedHolderName: holderName,
-      });
+      console.log(
+        `[ToolExecutor] [User: ${userId}] offramp_ngn → ${JSON.stringify({
+          cryptoAmount,
+          fiatAmount,
+          cryptoToken,
+          asset,
+          bankName,
+          accountNumber,
+          providedHolderName: holderName,
+        })}`,
+      );
+
+      let effectiveAsset = asset?.trim();
+      let effectiveToken = cryptoToken?.trim();
+
+      if (effectiveAsset && !effectiveToken) {
+        effectiveToken = effectiveAsset.split(":")[1]?.toUpperCase() || "USDC";
+      }
+
+      // If token is specified without network/asset, check if user holds that token on exactly 1 offrampable network
+      if (!effectiveAsset && effectiveToken) {
+        const balances = await getCachedWalletBalances(userId);
+        const matchingHoldings = (balances?.tokens || []).filter(
+          (t) =>
+            t.symbol.toUpperCase() === effectiveToken!.toUpperCase() &&
+            Number(t.balance) > 0 &&
+            !t.network?.toLowerCase().includes("stellar") &&
+            !t.isTestnet,
+        );
+
+        if (matchingHoldings.length === 1) {
+          const chain = networkToSwitchChain(matchingHoldings[0].network);
+          if (chain) {
+            effectiveAsset = `${chain}:${effectiveToken.toLowerCase()}`;
+          }
+        }
+      }
 
       // ── The designed cash-out conversation: one chooser per missing detail,
       // so the user taps rather than being asked for token, network and bank in prose.
@@ -981,9 +1057,16 @@ export async function executeTool(
         .trim()
         .replace(/\D/g, "");
 
-      if (!asset?.trim() || !cryptoToken?.trim()) {
+      if (!effectiveAsset || !effectiveToken) {
         const balances = await getCachedWalletBalances(userId);
-        const sources = fundingOptions(balances?.tokens || []);
+        const relevantTokens = effectiveToken
+          ? (balances?.tokens || []).filter(
+              (t) => t.symbol.toUpperCase() === effectiveToken!.toUpperCase(),
+            )
+          : (balances?.tokens || []);
+        const sources = fundingOptions(
+          relevantTokens.length > 0 ? relevantTokens : (balances?.tokens || []),
+        );
 
         if (sources.length > 0) {
           return {
@@ -993,7 +1076,9 @@ export async function executeTool(
             requiresConfirmation: false,
           };
         }
-        // No sellable balance — fall through and let the existing errors explain.
+        // No sellable balance on supported offramp networks — default to base:usdc for quotes/rate check
+        effectiveAsset = effectiveAsset || "base:usdc";
+        effectiveToken = effectiveToken || "USDC";
       }
 
       if (cleanedAccount.length !== 10) {
@@ -1136,15 +1221,69 @@ export async function executeTool(
           `[ToolExecutor] [User: ${userId}] Matched Switch Bank: "${switchBank.name}" (${switchBank.code})`,
         );
 
-        const amount = Number(cryptoAmount);
-        if (isNaN(amount) || amount <= 0) {
-          throw new Error("Invalid cryptoAmount");
+        const cleanCrypto = cryptoAmount
+          ? Number(String(cryptoAmount).replace(/[^\d.]/g, ""))
+          : 0;
+        const cleanFiat = fiatAmount
+          ? Number(String(fiatAmount).replace(/[^\d.]/g, ""))
+          : 0;
+
+        let amount: number;
+        let appliedRate: number | undefined;
+
+        const targetAsset = effectiveAsset || asset || "base:usdc";
+        const targetToken =
+          effectiveToken || cryptoToken || targetAsset.split(":")[1]?.toUpperCase() || "USDC";
+
+        if (cleanCrypto > 0) {
+          amount = cleanCrypto;
+        } else if (cleanFiat > 0) {
+          const rateRes = await SwitchService.getOfframpRate(targetAsset);
+          if (!rateRes.success || !rateRes.rate) {
+            throw new Error(
+              rateRes.message || "Failed to fetch live offramp rate for conversion",
+            );
+          }
+          appliedRate = rateRes.rate;
+          // Switch offramp expects amount in crypto. Round to 2 decimals for USDC/USDT:
+          amount = parseFloat((cleanFiat / appliedRate).toFixed(2));
+          if (amount <= 0) {
+            throw new Error("Calculated crypto amount is too small. Please enter a higher amount.");
+          }
+          console.log(
+            `[ToolExecutor] [User: ${userId}] Computed offramp crypto amount: ${amount} ${targetToken} for ₦${cleanFiat.toLocaleString()} (Rate: ₦${appliedRate})`,
+          );
+        } else {
+          throw new Error(
+            "Please specify either the crypto amount to withdraw or the Naira amount you wish to receive.",
+          );
+        }
+
+        // Check wallet balance to provide a clear error if insufficient
+        try {
+          const balances = await getCachedWalletBalances(userId);
+          const tokenObj = balances?.tokens?.find(
+            (t) => t.symbol.toUpperCase() === targetToken.toUpperCase(),
+          );
+          if (tokenObj) {
+            const currentBal = Number(tokenObj.balance) || 0;
+            if (currentBal < amount) {
+              return {
+                toolName: name,
+                summaryForAI: `Insufficient balance: you have ${currentBal.toFixed(2)} ${targetToken}, but ${amount} ${targetToken} (approx. ₦${cleanFiat ? cleanFiat.toLocaleString() : (appliedRate ? (amount * appliedRate).toLocaleString() : "")}) is required for this withdrawal. Please fund your wallet or choose a smaller amount.`,
+                cardHint: { type: "none" },
+                requiresConfirmation: false,
+              };
+            }
+          }
+        } catch (balErr: any) {
+          console.warn("[ToolExecutor] Balance pre-check notice:", balErr.message);
         }
 
         // 4. Initiate offramp order with Switch using the verified account name
         const result = await SwitchService.initiateOfframp(
           amount,
-          asset,
+          targetAsset,
           {
             holder_name: verifiedHolderName,
             account_number: cleanAccount,
@@ -1153,8 +1292,7 @@ export async function executeTool(
         );
 
         console.log(
-          `[ToolExecutor] [User: ${userId}] offramp_ngn ← Switch result:`,
-          result,
+          `[ToolExecutor] [User: ${userId}] offramp_ngn ← Switch result: ${JSON.stringify(result)}`,
         );
 
         if (!result.success || !result.data) {
@@ -1170,12 +1308,12 @@ export async function executeTool(
             userId,
             type: "OFFRAMP",
             status: "PENDING",
-            chain: mapAssetToTxChain(asset),
+            chain: mapAssetToTxChain(targetAsset),
             network: "mainnet",
             fromAddress: "USER_WALLET",
             toAddress: `${paystackBank.name} / ${cleanAccount} (${verifiedHolderName})`,
             amount: String(deposit.amount),
-            token: cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC",
+            token: targetToken,
             txHash: reference,
             feePaid: "0",
             rampDetails: {
@@ -1203,24 +1341,31 @@ export async function executeTool(
         const cardData = {
           title: "Withdrawal",
           cryptoAmount: String(deposit.amount),
-          cryptoToken:
-            cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC",
+          cryptoToken: targetToken,
           fiatAmount: String(destination.amount),
           fiatCurrency: "NGN",
           bankName: paystackBank.name,
           accountName: verifiedHolderName,
           accountNumber: cleanAccount,
           depositAddress: deposit.address,
-          asset,
+          asset: targetAsset,
           reference,
           status: "pending",
         };
 
-        const summaryForAI =
+        let summaryForAI =
           `Offramp draft created for ${deposit.amount} ${cardData.cryptoToken} via Switch. ` +
           `Account verified via Paystack as **${verifiedHolderName}** (${paystackBank.name} - ${cleanAccount}). ` +
           `The user will receive **₦${destination.amount.toLocaleString()}**. ` +
           `Ask the user to confirm to proceed with the withdrawal. Do NOT use emojis or tell them to click buttons.`;
+
+        if (cleanFiat > 0 && appliedRate) {
+          summaryForAI =
+            `Offramp draft created: Based on your request for ₦${cleanFiat.toLocaleString()}, at the current rate of 1 ${cardData.cryptoToken} = ₦${appliedRate.toLocaleString()}, you will withdraw ${deposit.amount} ${cardData.cryptoToken}. ` +
+            `Account verified via Paystack as **${verifiedHolderName}** (${paystackBank.name} - ${cleanAccount}). ` +
+            `The user will receive **₦${destination.amount.toLocaleString()}**. ` +
+            `Ask the user to confirm to proceed with the withdrawal. Do NOT use emojis or tell them to click buttons.`;
+        }
 
         return {
           toolName: name,
@@ -1230,7 +1375,7 @@ export async function executeTool(
             type: "offramp",
             cryptoAmount: String(deposit.amount),
             cryptoToken: cardData.cryptoToken,
-            asset,
+            asset: targetAsset,
             bankName: paystackBank.name,
             accountNumber: cleanAccount,
             holderName: verifiedHolderName,

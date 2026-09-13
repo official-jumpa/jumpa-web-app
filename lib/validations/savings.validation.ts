@@ -15,29 +15,66 @@ export const createSavingsPlanSchema = z.object({
     .trim()
     .min(1, "Goal name is required")
     .max(50, "Goal name cannot exceed 50 characters"),
-  category: z.string().trim().default("Other"),
+  category: z.string().trim().nullish().transform((val) => val || "Other"),
   targetAmount: z
     .union([z.number(), z.string()])
-    .optional()
-    .transform((val) => (val === undefined || val === "" ? undefined : Number(val)))
+    .nullish()
+    .transform((val) => (val === undefined || val === null || val === "" ? undefined : Number(val)))
     .refine((val) => val === undefined || (!isNaN(val) && val > 0), {
       message: "Target amount must be greater than 0",
     }),
   depositAmount: z
     .union([z.number(), z.string()])
-    .default(0)
-    .transform((val) => Number(val))
+    .nullish()
+    .transform((val) => (val === undefined || val === null || val === "" ? 0 : Number(val)))
     .refine((val) => !isNaN(val) && val >= 0, {
       message: "Initial deposit amount cannot be negative",
     }),
-  term: z.string().trim().default("30 DAYS"),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  frequency: z.string().trim().default("Weekly"),
-  debitDay: z.string().optional(),
-  fundingSource: z.enum(["crypto", "usd", "ngn"]).default("crypto"),
+  term: z.string().trim().nullish().transform((val) => val || "30 DAYS"),
+  startDate: z
+    .string()
+    .nullish()
+    .transform((val) => val || undefined)
+    .refine(
+      (val) => {
+        if (!val) return true;
+        const [year, month, day] = val.split(/[-/]/).map(Number);
+        if (!year || !month || !day) {
+          const date = new Date(val);
+          if (isNaN(date.getTime())) return false;
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          return date.getTime() >= today.getTime();
+        }
+        const inputDate = new Date(year, month - 1, day);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return inputDate.getTime() >= today.getTime();
+      },
+      { message: "Start date cannot be in the past" },
+    ),
+  endDate: z.string().nullish().transform((val) => val || undefined),
+  frequency: z.string().trim().nullish().transform((val) => val || "Weekly"),
+  debitDay: z
+    .union([z.string(), z.number()])
+    .nullish()
+    .transform((val) => (val == null || val === "" ? undefined : String(val).trim())),
+  fundingSource: z.enum(["crypto", "usd", "ngn"]).nullish().transform((val) => val || "crypto"),
   pin: pinSchema,
-});
+}).refine(
+  (data) => {
+    if (data.startDate && data.endDate) {
+      const s = new Date(data.startDate.replace(/-/g, "/")).getTime();
+      const e = new Date(data.endDate.replace(/-/g, "/")).getTime();
+      return e >= s;
+    }
+    return true;
+  },
+  {
+    message: "End date must be on or after start date",
+    path: ["endDate"],
+  },
+);
 
 export type CreateSavingsPlanInput = z.infer<typeof createSavingsPlanSchema>;
 

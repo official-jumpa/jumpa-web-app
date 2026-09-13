@@ -46,7 +46,7 @@ export function LockSavingsView() {
   const [amount, setAmount] = useState("");
   const [goal, setGoal] = useState("");
   const [term, setTerm] = useState(LOCK_TERMS[0].label);
-  const [from, setFrom] = useState("");
+  const [from, setFrom] = useState(() => addDays(0));
   const [until, setUntil] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const balance = useWalletBalance();
@@ -106,7 +106,8 @@ export function LockSavingsView() {
       ? Math.max(
           1,
           Math.round(
-            (new Date(until).getTime() - new Date(from).getTime()) /
+            (new Date(until.replace(/-/g, "/")).getTime() -
+              new Date(from.replace(/-/g, "/")).getTime()) /
               (1000 * 60 * 60 * 24),
           ),
         )
@@ -124,6 +125,7 @@ export function LockSavingsView() {
 
   const submit = () => {
     const next: Errors = {};
+    const today = addDays(0);
     // Caught here rather than by the vault, which answers a 403 that says nothing.
     if (!Number(amount)) next.amount = "Enter the amount you want to lock";
     else if (balance.ready && Number(amount) > balance.usdc)
@@ -131,6 +133,8 @@ export function LockSavingsView() {
     if (!goal.trim()) next.goal = "Tell us what you are saving for";
     if (custom && (!from || !until))
       next.range = "Pick the start and end of your lock";
+    else if (custom && from < today)
+      next.range = "Start date cannot be in the past";
     else if (custom && until <= from)
       next.range = "The end date has to come after the start date";
 
@@ -234,6 +238,7 @@ export function LockSavingsView() {
                   className="min-w-0 flex-1"
                   label="Start date"
                   value={from}
+                  min={addDays(0)}
                   invalid={Boolean(errors.range)}
                   onChange={(next) => {
                     setFrom(next);
@@ -247,6 +252,7 @@ export function LockSavingsView() {
                   className="min-w-0 flex-1"
                   label="End date"
                   value={until}
+                  min={from || addDays(0)}
                   invalid={Boolean(errors.range)}
                   onChange={(next) => {
                     setUntil(next);

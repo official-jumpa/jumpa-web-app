@@ -42,9 +42,11 @@ export function CreateCircleView() {
 
   const submit = () => {
     const next: Errors = {};
+    const today = addDays(0);
     if (!name.trim()) next.name = "Give your circle a name";
     if (!Number(target)) next.target = "Set the amount the circle is saving to";
     if (!date) next.date = "Pick the date the circle should reach its target";
+    else if (date < today) next.date = "The target date cannot be in the past";
 
     setErrors(next);
     if (Object.values(next).some(Boolean)) {
@@ -139,6 +141,7 @@ export function CreateCircleView() {
           <DateField
             label="Target date"
             value={date}
+            min={addDays(0)}
             invalid={Boolean(errors.date)}
             onChange={(next) => {
               setDate(next);

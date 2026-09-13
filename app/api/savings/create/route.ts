@@ -29,9 +29,21 @@ const defindexClient = new DefindexClient(
 export const POST = withAuth(async (req: NextRequest, { userId }) => {
   try {
     const body = await req.json().catch(() => ({}));
+    const sanitizedBody = {
+      ...body,
+      pin: body?.pin ? "****" : undefined,
+    };
+    console.log(`[SavingsCreate] Received request for user ${userId}:`, JSON.stringify(sanitizedBody));
+
     const validation = createSavingsPlanSchema.safeParse(body);
     if (!validation.success) {
-      return NextResponse.json(formatZodError(validation.error), { status: 400 });
+      const formatted = formatZodError(validation.error);
+      console.error(`[SavingsCreate] Validation failed for user ${userId}:`, {
+        error: formatted.error,
+        field: formatted.field,
+        issues: validation.error.issues,
+      });
+      return NextResponse.json(formatted, { status: 400 });
     }
 
     const {
@@ -49,8 +61,13 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
       pin,
     } = validation.data;
 
+    console.log(
+      `[SavingsCreate] Validated payload for user ${userId}: kind=${kind}, name="${name}", targetAmount=${targetAmount}, depositAmount=${depositAmount}, term=${term}, frequency=${frequency}`
+    );
+
     const wallet = await findWalletForUser(userId);
     if (!wallet) {
+      console.error(`[SavingsCreate] No wallet found for user ${userId}`);
       return NextResponse.json(
         { error: "No wallet found for user" },
         { status: 404 },
@@ -60,6 +77,7 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
     // 1. Verify 4-digit PIN
     const pinCheck = await verifyWalletPin(wallet, pin, { userId });
     if (!pinCheck.ok) {
+      console.warn(`[SavingsCreate] PIN verification failed for user ${userId}:`, pinCheck.error);
       return NextResponse.json(
         { error: pinCheck.error },
         { status: pinCheck.status },
@@ -174,9 +192,8 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
         },
         executedAt: new Date(),
       });
-    }
+    } 
 
-    // 4. Save SavingsPlan in MongoDB via savingsFunctions
     const plan = await createSavingsPlanRecord({
       userId,
       walletId: wallet._id,
@@ -200,6 +217,7 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
       penaltyFeePercent: 5,
       txHashes: txHash ? [txHash] : [],
     });
+    console.log(`[SavingsCreate] SavingsPlan saved successfully. Plan ID: ${plan._id}`);
 
     // 5. Update user flag hasCreatedSavings via userFunctions
     setUserCreatedSavings(userId).catch((err) =>

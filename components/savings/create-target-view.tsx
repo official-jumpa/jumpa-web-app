@@ -49,6 +49,13 @@ type Errors = {
 
 const MONTH_DAYS = Array.from({ length: 28 }, (_, index) => `${index + 1}`);
 
+function getDaysBetween(startIso: string, endIso: string): number {
+  if (!startIso || !endIso) return 0;
+  const s = new Date(startIso.replace(/-/g, "/")).getTime();
+  const e = new Date(endIso.replace(/-/g, "/")).getTime();
+  return Math.round((e - s) / (1000 * 60 * 60 * 24));
+}
+
 /** A personal target: what you are saving for, then how you will fund it. */
 export function CreateTargetView() {
   const fields = useRef<HTMLDivElement>(null);
@@ -57,8 +64,8 @@ export function CreateTargetView() {
   const [category, setCategory] = useState(SAVINGS_CATEGORIES[0]);
   const [target, setTarget] = useState("");
   const [term, setTerm] = useState(TARGET_TERMS[0].label);
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
+  const [start, setStart] = useState(() => addDays(0));
+  const [end, setEnd] = useState(() => addDays(30));
   const [deposit, setDeposit] = useState("");
   const [frequency, setFrequency] = useState(SAVINGS_FREQUENCIES[1]);
   const [day, setDay] = useState("");
@@ -78,19 +85,76 @@ export function CreateTargetView() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdTx, setCreatedTx] = useState<string>();
 
-  const days = TARGET_TERMS.find((option) => option.label === term)?.days;
-  const openEnded = days === null;
-  const endDate = openEnded ? "" : end || addDays(days ?? 0);
+  const openEnded = term === "No Deadline";
+  const planDays = !openEnded && start && end ? Math.max(0, getDaysBetween(start, end)) : 0;
   const total = `$${formatAmount(target)}`;
 
   const clear = (field: keyof Errors) =>
     setErrors((current) => ({ ...current, [field]: undefined }));
 
+  // Two-way synchronization: Changing preset chip recalculates end date
+  const handleTermChange = (nextTerm: string) => {
+    setTerm(nextTerm);
+    clear("dates");
+    const startDateObj = start ? new Date(start.replace(/-/g, "/")) : new Date();
+    if (nextTerm === "30 DAYS") {
+      setEnd(addDays(30, startDateObj));
+    } else if (nextTerm === "60 DAYS") {
+      setEnd(addDays(60, startDateObj));
+    } else if (nextTerm === "90 DAYS") {
+      setEnd(addDays(90, startDateObj));
+    } else if (nextTerm === "No Deadline") {
+      setEnd("");
+    } else if (nextTerm === "Custom") {
+      if (!end || end <= start) {
+        setEnd(addDays(30, startDateObj));
+      }
+    }
+  };
+
+  // Changing start date shifts preset duration or re-checks custom duration
+  const handleStartChange = (nextStart: string) => {
+    setStart(nextStart);
+    clear("dates");
+    const nextStartObj = new Date(nextStart.replace(/-/g, "/"));
+    if (term === "30 DAYS") {
+      setEnd(addDays(30, nextStartObj));
+    } else if (term === "60 DAYS") {
+      setEnd(addDays(60, nextStartObj));
+    } else if (term === "90 DAYS") {
+      setEnd(addDays(90, nextStartObj));
+    } else if (term === "Custom" && end) {
+      const diff = getDaysBetween(nextStart, end);
+      if (diff === 30) setTerm("30 DAYS");
+      else if (diff === 60) setTerm("60 DAYS");
+      else if (diff === 90) setTerm("90 DAYS");
+    }
+  };
+
+  // Changing end date calculates day count and updates the active preset chip
+  const handleEndChange = (nextEnd: string) => {
+    setEnd(nextEnd);
+    clear("dates");
+    if (start && nextEnd) {
+      const diff = getDaysBetween(start, nextEnd);
+      if (diff === 30) setTerm("30 DAYS");
+      else if (diff === 60) setTerm("60 DAYS");
+      else if (diff === 90) setTerm("90 DAYS");
+      else setTerm("Custom");
+    }
+  };
+
   const submitGoal = () => {
     const next: Errors = {};
+    const today = addDays(0);
     if (!goal.trim()) next.goal = "Tell us what you are saving for";
     if (!Number(target)) next.target = "Enter the amount you are saving toward";
-    if (!openEnded && !start) next.dates = "Pick the day your plan starts";
+    if (!openEnded) {
+      if (!start) next.dates = "Pick the day your plan starts";
+      else if (start < today) next.dates = "Start date cannot be in the past";
+      else if (!end) next.dates = "Pick the day your plan ends";
+      else if (end <= start) next.dates = "The end date has to come after the start date";
+    }
 
     setErrors(next);
     if (Object.values(next).some(Boolean)) {
@@ -127,7 +191,7 @@ export function CreateTargetView() {
       <DetailRow label="Frequency" value={schedule} />
       <DetailRow
         label="End date"
-        value={openEnded ? "No deadline" : displayDate(endDate)}
+        value={openEnded ? "No deadline" : displayDate(end)}
         rule={false}
       />
     </DetailList>
@@ -199,14 +263,15 @@ export function CreateTargetView() {
             <ChoiceChips
               options={TARGET_TERMS.map((option) => option.label)}
               value={term}
-              onChange={(next) => {
-                setTerm(next);
-                clear("dates");
-              }}
+              onChange={handleTermChange}
             />
           </div>
 
-          {openEnded ? null : (
+          {openEnded ? (
+            <p className="text-[11px] leading-4 font-medium text-jumpa-primary-600">
+              Save at your own pace with no fixed deadline
+            </p>
+          ) : (
             <>
               <SavingsRule />
               <div className="flex flex-col gap-3">
@@ -214,24 +279,32 @@ export function CreateTargetView() {
                 <DateField
                   label="Start date"
                   value={start}
+                  min={addDays(0)}
                   invalid={Boolean(errors.dates)}
-                  onChange={(next) => {
-                    setStart(next);
-                    clear("dates");
-                  }}
+                  onChange={handleStartChange}
                 />
-                <FieldError>{errors.dates}</FieldError>
               </div>
 
               <div className="flex flex-col gap-3">
                 <SavingsLabel>End date</SavingsLabel>
                 <DateField
                   label="End date"
-                  value={endDate}
-                  invalid={false}
-                  onChange={setEnd}
+                  value={end}
+                  min={start || addDays(0)}
+                  invalid={Boolean(errors.dates)}
+                  onChange={handleEndChange}
                 />
+                <FieldError>{errors.dates}</FieldError>
               </div>
+
+              {planDays > 0 ? (
+                <div className="flex items-center justify-between rounded-lg bg-jumpa-primary-50 px-3 py-2 text-xs font-medium text-jumpa-primary-700">
+                  <span>Saving duration</span>
+                  <span className="font-semibold">
+                    {planDays} {planDays === 1 ? "day" : "days"} ({term})
+                  </span>
+                </div>
+              ) : null}
             </>
           )}
         </SavingsPanel>
@@ -370,6 +443,14 @@ export function CreateTargetView() {
           <DetailList>
             <DetailRow label="Goal" value={goal} />
             <DetailRow label="Category" value={category} />
+            <DetailRow
+              label="Duration"
+              value={openEnded ? "No deadline" : `${planDays} days (${term})`}
+            />
+            <DetailRow
+              label="End date"
+              value={openEnded ? "No deadline" : displayDate(end)}
+            />
             <DetailRow label="Frequency" value={schedule} />
             <DetailRow label="From" value={source?.label ?? ""} rule={false} />
           </DetailList>
@@ -394,9 +475,13 @@ export function CreateTargetView() {
                   category,
                   targetAmount: Number(target),
                   depositAmount: Number(deposit) || 0,
-                  term,
+                  term: openEnded
+                    ? "No Deadline"
+                    : term === "Custom"
+                    ? `${planDays} DAYS`
+                    : term,
                   startDate: start || new Date().toISOString(),
-                  endDate: openEnded ? null : endDate,
+                  endDate: openEnded ? null : end,
                   frequency,
                   debitDay: day || null,
                   fundingSource: source?.id || "crypto",

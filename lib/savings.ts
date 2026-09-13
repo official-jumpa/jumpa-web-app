@@ -193,6 +193,7 @@ export const TARGET_TERMS: { label: string; days: number | null }[] = [
   { label: "30 DAYS", days: 30 },
   { label: "60 DAYS", days: 60 },
   { label: "90 DAYS", days: 90 },
+  { label: "Custom", days: null },
   { label: "No Deadline", days: null },
 ];
 

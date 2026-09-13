@@ -16,7 +16,7 @@ export interface ISavingsPlan {
   targetAmount: number;
   currentAmount: number;
   currency: string;
-  chain: "stellar";
+  chain: string; // e.g. stellar
 
   vaultAddress: string;
   sharesOwned: string;

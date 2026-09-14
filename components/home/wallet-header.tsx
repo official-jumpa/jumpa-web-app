@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { SupportSheet } from "@/components/support/support-sheet";
 import { BellIcon } from "@/components/ui/icons/bell";
 import { MessageCircleQuestionIcon } from "@/components/ui/icons/message-circle-question";
 import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
@@ -16,6 +17,7 @@ export function WalletHeader() {
   const auth = useAuthContext();
   const user = auth?.user;
   const [hasUnread, setHasUnread] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     async function checkUnread() {
@@ -68,9 +70,16 @@ export function WalletHeader() {
       </Link>
 
       <div className="flex items-center gap-2">
-        <Link href="/support" aria-label="Help and support" className={CONTROL}>
+        {/* The design raises the chooser here rather than navigating; the
+            same list lives at /support for a direct load. */}
+        <button
+          type="button"
+          onClick={() => setHelpOpen(true)}
+          aria-label="Help and support"
+          className={`${CONTROL} tap active:scale-95`}
+        >
           <MessageCircleQuestionIcon className="size-6" />
-        </Link>
+        </button>
 
         <Link
           href="/notifications"
@@ -83,6 +92,8 @@ export function WalletHeader() {
           ) : null}
         </Link>
       </div>
+
+      {helpOpen ? <SupportSheet onClose={() => setHelpOpen(false)} /> : null}
     </header>
   );
 }

@@ -6,14 +6,13 @@ import { PinFlow } from "@/components/settings/pin-flow/pin-flow";
 import {
   isSettingsSection,
   SETTINGS_SECTIONS,
-  settingsHref,
 } from "@/components/settings/sections";
 import { SecuritySettings } from "@/components/settings/security-settings";
 import { DevicesSettings } from "@/components/settings/devices-settings";
+import { ExportSecret } from "@/components/settings/export-secret";
 import { SettingsIndex } from "@/components/settings/settings-index";
 import { StatementForm } from "@/components/settings/statement-form";
 import { StatementIndex } from "@/components/settings/statement-index";
-import { ComingSoon } from "@/components/ui/coming-soon";
 import { isPinFlow } from "@/lib/pin-flows";
 import { isStatementKind, statementTitle } from "@/lib/statements";
 
@@ -47,6 +46,9 @@ export default async function SettingsPage({
   if (section === "devices") return <DevicesSettings />;
   if (section === "notifications") return <NotificationSettings />;
   if (section === "rates") return <CurrencyRates />;
+  if (section === "private-key" || section === "seed-phrase") {
+    return <ExportSecret kind={section} />;
+  }
 
   if (section === "statements") {
     if (!kind) return <StatementIndex />;
@@ -56,12 +58,6 @@ export default async function SettingsPage({
 
   if (isPinFlow(section)) return <PinFlow name={section} />;
 
-  const entry = SETTINGS_SECTIONS[section];
-  const parent = "parent" in entry ? entry.parent : undefined;
-  return (
-    <ComingSoon
-      feature={entry.title}
-      back={parent === "security" ? settingsHref("security") : settingsHref()}
-    />
-  );
+  // Every section has a screen now; the registry is exhaustive.
+  notFound();
 }

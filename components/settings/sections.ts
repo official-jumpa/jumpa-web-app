@@ -8,7 +8,6 @@ export const SETTINGS_SECTIONS = {
   notifications: { title: "Notifications" },
   statements: { title: "Statement and report" },
   rates: { title: "Currency Rates" },
-  support: { title: "Help & Support", stub: true },
   // Reached from Security, so that is where their back goes.
   "login-pin": { title: "Change Login PIN", parent: "security" },
   "transaction-pin": { title: "Change Transaction PIN", parent: "security" },
@@ -18,19 +17,11 @@ export const SETTINGS_SECTIONS = {
     parent: "security",
   },
   devices: { title: "Your Devices", parent: "security" },
-  "private-key": {
-    title: "Export Private Key",
-    stub: true,
-    parent: "security",
-  },
-  "seed-phrase": {
-    title: "Export Seed Phrase",
-    stub: true,
-    parent: "security",
-  },
+  "private-key": { title: "Export Private key", parent: "security" },
+  "seed-phrase": { title: "Export Seed Phrase", parent: "security" },
 } as const satisfies Record<
   string,
-  { title: string; stub?: true; parent?: string }
+  { title: string; parent?: string }
 >;
 
 export type SettingsSection = keyof typeof SETTINGS_SECTIONS;

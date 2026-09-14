@@ -1,6 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
+import { AccountSheet } from "@/components/settings/account-sheet";
 import { settingsHref } from "@/components/settings/sections";
 import {
   SettingCard,
@@ -8,59 +10,43 @@ import {
   SettingSection,
 } from "@/components/settings/setting-section";
 import { SettingsHeader } from "@/components/settings/settings-header";
+import { Button } from "@/components/ui/button";
+import { LaptopIcon } from "@/components/ui/icons/laptop";
 import { LogOutIcon } from "@/components/ui/icons/log-out";
 import { MobileIcon } from "@/components/ui/icons/mobile";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
-import { formatNotificationTime } from "@/lib/notifications";
+import {
+  deviceName,
+  deviceTrace,
+  formatSignIn,
+  type SessionItem,
+} from "@/lib/sessions";
 
-export interface SessionItem {
-  id: string;
-  isCurrent: boolean;
-  ipAddress: string;
-  userAgent: string;
-  os: string;
-  browser: string;
-  deviceType: "desktop" | "mobile" | "tablet";
-  deviceLabel: string;
-  createdAt: string;
-  updatedAt: string;
-  expiresAt: string;
-}
+const NOTICE_MS = 3500;
 
-function LaptopIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-      {...props}
-    >
-      <rect x="3" y="4" width="18" height="12" rx="2" />
-      <line x1="2" y1="20" x2="22" y2="20" />
-    </svg>
-  );
-}
+const META = "text-[10px] leading-3.5 text-jumpa-neutral-400";
+
+/** A phone gets the handset; everything else gets the laptop. */
+const glyphFor = (type: SessionItem["deviceType"]) =>
+  type === "desktop" ? LaptopIcon : MobileIcon;
+
+/** Which confirmation is up: one device by id, or every other device. */
+type Confirming = { id: string; name: string } | "others";
 
 export function DevicesSettings() {
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [revokingId, setRevokingId] = useState<string | null>(null);
-  const [revokingOthers, setRevokingOthers] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<Confirming>();
+  const [revoking, setRevoking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const fetchSessions = useCallback(async () => {
+  const loadSessions = useCallback(async () => {
     try {
       const res = await fetch("/api/auth/sessions");
       if (res.ok) {
         const data = await res.json();
-        if (data.sessions) {
-          setSessions(data.sessions);
-        }
+        if (data.sessions) setSessions(data.sessions);
       }
     } catch (err) {
       console.warn("[DevicesSettings] Failed to fetch sessions:", err);
@@ -70,175 +56,226 @@ export function DevicesSettings() {
   }, []);
 
   useEffect(() => {
-    fetchSessions();
-  }, [fetchSessions]);
+    loadSessions();
+  }, [loadSessions]);
 
-  const currentSession = sessions.find((s) => s.isCurrent) || sessions[0];
-  const otherSessions = sessions.filter((s) => !s.isCurrent);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), NOTICE_MS);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
-  const handleRevokeSingle = async (id: string) => {
-    setRevokingId(id);
-    setMessage(null);
+  const current = sessions.find((s) => s.isCurrent) ?? sessions[0];
+  const others = sessions.filter((s) => !s.isCurrent);
+
+  const revoke = async () => {
+    if (!confirming) return;
+    const others_ = confirming === "others";
+
+    setRevoking(true);
+    setError(null);
     try {
-      const res = await fetch(
-        `/api/auth/sessions?id=${encodeURIComponent(id)}`,
-        {
-          method: "DELETE",
-        },
-      );
-      if (res.ok) {
-        setSessions((prev) => prev.filter((s) => s.id !== id));
-        setMessage("Session revoked successfully");
-        setTimeout(() => setMessage(null), 3500);
-      }
-    } catch (err) {
-      console.error("[DevicesSettings] Error revoking session:", err);
-    } finally {
-      setRevokingId(null);
-    }
-  };
-
-  const handleRevokeOthers = async () => {
-    if (!confirm("Are you sure you want to log out of all other devices?")) {
-      return;
-    }
-    setRevokingOthers(true);
-    setMessage(null);
-    try {
-      const res = await fetch("/api/auth/sessions?target=others", {
+      const query = others_
+        ? "target=others"
+        : `id=${encodeURIComponent(confirming.id)}`;
+      const res = await fetch(`/api/auth/sessions?${query}`, {
         method: "DELETE",
       });
-      if (res.ok) {
-        setSessions((prev) => prev.filter((s) => s.isCurrent));
-        setMessage("Logged out of all other sessions.");
-        setTimeout(() => setMessage(null), 3500);
+      if (!res.ok) {
+        setError("That didn't go through. Try again in a moment.");
+        return;
       }
+
+      setSessions((prev) =>
+        others_
+          ? prev.filter((s) => s.isCurrent)
+          : prev.filter((s) => s.id !== confirming.id),
+      );
+      setNotice(
+        others_
+          ? "Logged out of every other device."
+          : `${confirming.name} is signed out.`,
+      );
+      setConfirming(undefined);
     } catch (err) {
-      console.error("[DevicesSettings] Error revoking other sessions:", err);
+      console.error("[DevicesSettings] Error revoking session:", err);
+      setError("Check your connection and try again.");
     } finally {
-      setRevokingOthers(false);
+      setRevoking(false);
     }
   };
+
+  const closeSheet = () => {
+    setConfirming(undefined);
+    setError(null);
+  };
+
+  const CurrentGlyph = glyphFor(current?.deviceType ?? "desktop");
 
   return (
     <div className="px-4.5 pt-[calc(env(safe-area-inset-top)+21px)] pb-12">
       <SettingsHeader back={settingsHref("security")} title="Your Devices" />
 
-      {message && (
-        <div className="mt-4 rounded-xl bg-jumpa-primary-50 px-4 py-3 text-xs font-medium text-jumpa-primary-700">
-          {message}
-        </div>
-      )}
+      {notice ? (
+        <p
+          role="status"
+          className="mt-4 rounded-tile bg-jumpa-primary-50 px-4 py-3 text-xs leading-4 font-medium text-jumpa-primary-950"
+        >
+          {notice}
+        </p>
+      ) : null}
 
       {loading ? (
         <div className="mt-6 flex flex-col gap-5">
-          <div className="h-32 animate-pulse rounded-surface bg-jumpa-neutral-50/60" />
-          <div className="h-44 animate-pulse rounded-surface bg-jumpa-neutral-50/60" />
+          <div className="h-34 animate-pulse rounded-key bg-jumpa-neutral-50" />
+          <div className="h-44 animate-pulse rounded-surface bg-jumpa-neutral-50" />
         </div>
       ) : (
         <div className="mt-6 flex flex-col gap-6">
-          {/* Current Device Section */}
-          <SettingSection label="Current Session">
-            <SettingCard className="border-jumpa-primary-300/40 bg-gradient-to-b from-jumpa-neutral-50 to-jumpa-primary-50/20">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-jumpa-primary-600 to-jumpa-primary-400 text-white">
-                    {currentSession?.deviceType === "mobile" ? (
-                      <MobileIcon className="size-5" />
-                    ) : (
-                      <LaptopIcon className="size-5" />
-                    )}
-                  </span>
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-jumpa-black">
-                        {currentSession?.os || "Current Device"}
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-jumpa-primary-100 px-2 py-0.5 text-[10px] font-medium text-jumpa-primary-800">
-                        <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        This device
-                      </span>
-                    </div>
-                    <p className="text-xs text-jumpa-neutral-400">
-                      {currentSession?.browser || "Browser"} • Active now
-                    </p>
-                  </div>
+          <SettingSection label="This device">
+            <section className="relative isolate overflow-hidden rounded-key bg-[image:var(--gradient-jumpa-hero)] px-5 py-5">
+              <Image
+                src="/images/home/hero-grid.svg"
+                alt=""
+                aria-hidden="true"
+                width={287}
+                height={264}
+                className="pointer-events-none absolute -top-8 left-1/2 -z-10 max-w-none -translate-x-1/2"
+              />
+
+              <div className="flex items-center gap-3">
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-panel bg-jumpa-white/22 text-jumpa-white">
+                  <CurrentGlyph className="size-6" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-base leading-5 font-semibold text-jumpa-white">
+                    {current ? deviceName(current) : "This device"}
+                  </p>
+                  <p className="mt-1 flex items-center gap-1.5 text-xs leading-4 text-jumpa-white/68">
+                    <span className="size-1.5 rounded-full bg-jumpa-success" />
+                    Active now
+                  </p>
                 </div>
               </div>
-            </SettingCard>
+
+              <dl className="mt-4 flex items-end justify-between gap-3 border-t border-jumpa-white/22 pt-4 text-jumpa-white">
+                <div className="min-w-0">
+                  <dt className="text-[10px] leading-3.5 text-jumpa-white/68">
+                    Signed in
+                  </dt>
+                  <dd className="mt-1 truncate text-xs leading-4 font-medium">
+                    {current ? formatSignIn(current.createdAt) : "—"}
+                  </dd>
+                </div>
+                <div className="min-w-0 text-right">
+                  <dt className="text-[10px] leading-3.5 text-jumpa-white/68">
+                    IP address
+                  </dt>
+                  <dd className="mt-1 truncate text-xs leading-4 font-medium">
+                    {current?.ipAddress || "Unknown"}
+                  </dd>
+                </div>
+              </dl>
+            </section>
           </SettingSection>
 
-          {/* Other Devices Section */}
-          <SettingSection label={`Other Devices (${otherSessions.length})`}>
-            {otherSessions.length > 0 ? (
-              <div className="flex flex-col gap-3">
+          <SettingSection
+            label={
+              others.length
+                ? `Other devices (${others.length})`
+                : "Other devices"
+            }
+          >
+            {others.length ? (
+              <>
                 <SettingCard>
-                  {otherSessions.map((session, index) => (
-                    <div key={session.id} className="flex flex-col gap-3">
-                      {index > 0 && <SettingRule />}
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-jumpa-neutral-100 text-jumpa-neutral-500">
-                            {session.deviceType === "mobile" ? (
-                              <MobileIcon className="size-4.5" />
-                            ) : (
-                              <LaptopIcon className="size-4.5" />
-                            )}
-                          </span>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-xs font-semibold text-jumpa-black">
-                              {session.os || "Device"} • {session.browser}
-                            </span>
-                            <span className="text-[10px] text-jumpa-neutral-400">
-                              Logged in{" "}
-                              {formatNotificationTime(session.createdAt)}
-                            </span>
-                          </div>
-                        </div>
+                  {others.map((session, index) => {
+                    const Glyph = glyphFor(session.deviceType);
+                    const name = deviceName(session);
 
-                        <button
-                          type="button"
-                          disabled={revokingId === session.id}
-                          onClick={() => handleRevokeSingle(session.id)}
-                          className="tap rounded-pill border border-jumpa-danger/30 bg-jumpa-danger/10 px-3 py-1.5 text-[10px] font-medium text-jumpa-danger transition-transform active:scale-95 disabled:opacity-50"
-                        >
-                          {revokingId === session.id ? "Revoking..." : "Revoke"}
-                        </button>
+                    return (
+                      <div key={session.id} className="flex flex-col gap-4">
+                        {index > 0 ? <SettingRule /> : null}
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className="flex size-10 shrink-0 items-center justify-center rounded-panel bg-jumpa-primary-50 text-jumpa-primary-600">
+                              <Glyph className="size-5" />
+                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm leading-4.5 font-medium text-jumpa-black">
+                                {name}
+                              </p>
+                              <p className={`mt-1 truncate ${META}`}>
+                                {deviceTrace(session)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setConfirming({ id: session.id, name })
+                            }
+                            aria-label={`Log out ${name}`}
+                            className="tap flex size-9 shrink-0 items-center justify-center rounded-pill bg-jumpa-danger-50 text-jumpa-danger active:scale-95"
+                          >
+                            <LogOutIcon className="size-4.5" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </SettingCard>
 
-                {/* Log Out of All Other Sessions Button */}
-                <button
-                  type="button"
-                  disabled={revokingOthers}
-                  onClick={handleRevokeOthers}
-                  className="tap mt-2 flex w-full items-center justify-center gap-2 rounded-surface bg-jumpa-danger/15 px-4 py-3.5 text-xs font-semibold text-jumpa-danger active:scale-98 disabled:opacity-50 transition-colors hover:bg-jumpa-danger/20"
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => setConfirming("others")}
                 >
-                  <LogOutIcon className="size-4" />
-                  {revokingOthers
-                    ? "Logging out other devices..."
-                    : "Log out of all other sessions"}
-                </button>
-              </div>
+                  Log out of all other devices
+                </Button>
+              </>
             ) : (
               <SettingCard className="items-center py-8 text-center">
                 <span className="flex size-12 items-center justify-center rounded-full bg-jumpa-primary-50 text-jumpa-primary-600">
                   <ShieldCheckIcon className="size-6" />
                 </span>
-                <p className="mt-2 text-xs font-semibold text-jumpa-black">
+                <p className="text-sm leading-4.5 font-medium text-jumpa-black">
                   No other active sessions
                 </p>
-                <p className="max-w-[240px] text-[11px] text-jumpa-neutral-300">
-                  You are only signed in on this device. If you sign in
-                  elsewhere, it will appear here.
+                <p className={`max-w-60 ${META}`}>
+                  You are only signed in here. Anywhere else you sign in will
+                  show up on this screen.
                 </p>
               </SettingCard>
             )}
           </SettingSection>
         </div>
       )}
+
+      {confirming ? (
+        <AccountSheet
+          icon={<LogOutIcon className="size-8" />}
+          tone="danger"
+          title={
+            confirming === "others"
+              ? "Log out of all other devices?"
+              : `Log out ${confirming.name}?`
+          }
+          error={error}
+          confirmLabel="Yes, log out"
+          pendingLabel="Logging out..."
+          pending={revoking}
+          onConfirm={revoke}
+          onClose={closeSheet}
+        >
+          <p className="text-center text-sm leading-5 text-jumpa-neutral-700">
+            {confirming === "others"
+              ? "Every session except this one ends straight away. Signing back in needs your login PIN."
+              : "That session ends straight away. Signing back in needs your login PIN."}
+          </p>
+        </AccountSheet>
+      ) : null}
     </div>
   );
 }

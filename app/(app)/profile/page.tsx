@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/auth/copy-button";
-import { settingsHref } from "@/components/settings/sections";
 import { SettingLink, SettingRow } from "@/components/settings/setting-row";
 import {
   SettingCard,
@@ -286,7 +285,7 @@ export default function ProfilePage() {
             />
             <SettingRule />
             <SettingLink
-              href={settingsHref("support")}
+              href="/support"
               icon={HeartAltIcon}
               label="Help & Support"
             />

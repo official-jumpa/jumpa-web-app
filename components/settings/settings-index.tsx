@@ -83,7 +83,7 @@ export function SettingsIndex() {
               />
               <SettingRule />
               <SettingLink
-                href={settingsHref("support")}
+                href="/support"
                 icon={HeartAltIcon}
                 label="Help & Support"
               />

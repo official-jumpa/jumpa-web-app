@@ -28,11 +28,22 @@ import {
 /** How tall the field is allowed to grow before it starts scrolling. */
 const MAX_LINES = 3;
 
+/** The field's own surface. `plain` is for a composer on a white screen. */
+const TONES = {
+  dock: "bg-jumpa-white",
+  plain: "bg-jumpa-neutral-50",
+} as const;
+
 interface ChatComposerProps {
   value?: string;
   onChange?: (val: string) => void;
   onSend?: (attachments?: ChatAttachment[]) => void;
   disabled?: boolean;
+  placeholder?: string;
+  /** `cn` is a plain join, so the surface is a prop rather than a className. */
+  tone?: keyof typeof TONES;
+  /** Focuses on mount. Off where the composer is not the point of the screen. */
+  autoFocus?: boolean;
 }
 
 /** Message entry with live Speech-to-Text dictation support. */
@@ -41,6 +52,9 @@ export function ChatComposer({
   onChange,
   onSend,
   disabled = false,
+  placeholder = "Tap to start typing...",
+  tone = "dock",
+  autoFocus = true,
 }: ChatComposerProps) {
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
@@ -248,7 +262,9 @@ export function ChatComposer({
       <AttachmentStrip items={pending} onRemove={removeAttachment} />
 
       <div className="flex items-end gap-2.5">
-        <div className="flex min-h-13 flex-1 items-end gap-2.5 rounded-surface bg-jumpa-white p-1">
+        <div
+          className={`flex min-h-13 flex-1 items-end gap-2.5 rounded-surface p-1 ${TONES[tone]}`}
+        >
           <button
             type="button"
             onClick={() => setSheetOpen(true)}
@@ -266,9 +282,9 @@ export function ChatComposer({
             onKeyDown={handleKeyDown}
             disabled={disabled}
             aria-label="Message Jumpa"
-            placeholder="Tap to start typing..."
+            placeholder={placeholder}
             className="my-3 min-w-0 flex-1 resize-none overflow-y-auto pr-2.5 text-[13px] leading-5 font-medium text-jumpa-black outline-none [scrollbar-width:none] placeholder:text-jumpa-black/30 disabled:opacity-50"
-            autoFocus
+            autoFocus={autoFocus}
           />
         </div>
 

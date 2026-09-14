@@ -15,17 +15,10 @@ import { FieldError } from "@/components/ui/field-error";
 import { SheetPortal } from "@/components/ui/sheet-portal";
 
 /**
- * Fiat or crypto, raised from the home hero and from a wallet. Picking a row
- * marks it; Continue acts on the choice.
+ * Fiat or crypto, raised from the home hero. Picking a row marks it; Continue
+ * acts on the choice.
  */
-export function ReceiveOptionsSheet({
-  onClose,
-  onSelect,
-}: {
-  onClose: () => void;
-  /** Overrides where a rail goes — a wallet screen already knows its chain. */
-  onSelect?: (id: ReceiveOptionId) => void;
-}) {
+export function ReceiveOptionsSheet({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [picked, setPicked] = useState<ReceiveOptionId>();
   const [error, setError] = useState<string>();
@@ -37,8 +30,7 @@ export function ReceiveOptionsSheet({
       return;
     }
 
-    if (onSelect) onSelect(option.id);
-    else router.push(option.href);
+    router.push(option.href);
   };
 
   return (

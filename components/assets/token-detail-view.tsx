@@ -49,8 +49,8 @@ export function TokenDetailView({
   const ToggleIcon = visible ? EyeOffIcon : EyeIcon;
   const switchable = chains.length > 1;
 
-  // Receive, and Add's crypto rail, both end at the deposit address. The chain
-  // is already known unless the screen was opened directly.
+  // Receive ends at the deposit address. The chain is already known unless the
+  // screen was opened directly.
   const deposit = () =>
     chain
       ? router.push(depositHref(asset.symbol, chain))

@@ -16,14 +16,14 @@ import { CircleInformationIcon } from "@/components/ui/icons/circle-information"
 import { GlobeIcon } from "@/components/ui/icons/globe";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
 import { SegmentedToggle } from "@/components/ui/segmented-toggle";
+import { getAssetLogo } from "@/lib/assets";
 import { MOBILE_NETWORKS, PHONE_NUMBER_MIN } from "@/lib/bills";
+import { supportedBanks } from "@/lib/constants/banks";
 import {
   ACCOUNT_NUMBER_MIN,
   BANKS,
-  type BankAccount,
   COUNTRIES,
   type Country,
-  RECENT_BANK_ACCOUNTS,
   ROUTING_NUMBER_LENGTH,
   resolveAccountName,
 } from "@/lib/transfer";
@@ -46,8 +46,46 @@ export type BankForm = {
   name: string;
   note: string;
   network: string;
+  asset: string;
   phone: string;
 };
+
+export interface BankAccountItem {
+  id: string;
+  name: string;
+  bank: string;
+  number: string;
+  country?: string;
+}
+
+export const OFFRAMP_NETWORKS = ["Base", "Solana", "Ethereum"] as const;
+
+export const OFFRAMP_NETWORK_CONFIGS: Record<
+  string,
+  { name: string; chain: "base" | "solana" | "eth"; assets: readonly string[] }
+> = {
+  Base: {
+    name: "Base",
+    chain: "base",
+    assets: ["USDC"],
+  },
+  Solana: {
+    name: "Solana",
+    chain: "solana",
+    assets: ["USDC", "USDT"],
+  },
+  Ethereum: {
+    name: "Ethereum",
+    chain: "eth",
+    assets: ["USDC", "USDT"],
+  },
+};
+
+export const OFFRAMP_NETWORK_OPTIONS = OFFRAMP_NETWORKS.map((net) => ({
+  value: net,
+  label: net,
+  icon: getAssetLogo(net),
+}));
 
 export const EMPTY_BANK_FORM: BankForm = {
   destination: "bank",
@@ -57,7 +95,8 @@ export const EMPTY_BANK_FORM: BankForm = {
   routing: "",
   name: "",
   note: "",
-  network: "",
+  network: "Base",
+  asset: "USDC",
   phone: "",
 };
 
@@ -76,6 +115,8 @@ const NETWORK_OPTIONS = MOBILE_NETWORKS.map((network) => ({
   label: `Momo - ${network.label}`,
   icon: network.logo,
 }));
+
+const NIGERIA_BANK_OPTIONS = supportedBanks.map((b) => b.name);
 
 type BankField = keyof BankForm;
 
@@ -125,21 +166,67 @@ function validate(
 /** Recipient details. Recents are offered until a country picks the rails. */
 export function BankTransferForm({
   form,
+  defaultCountry,
   onChange,
   onPickRecent,
   onContinue,
 }: {
   form: BankForm;
+  defaultCountry?: string;
   onChange: (next: BankForm) => void;
-  onPickRecent: (account: BankAccount) => void;
+  onPickRecent: (account: BankAccountItem) => void;
   onContinue: () => void;
 }) {
-  const country = COUNTRIES.find((entry) => entry.label === form.country);
-  const momo = form.destination === "momo";
-
+  const [recentAccounts, setRecentAccounts] = useState<BankAccountItem[]>([]);
   const [resolving, setResolving] = useState(false);
   const [errors, setErrors] = useState<FormErrors<BankField>>({});
   const fields = useRef<HTMLDivElement>(null);
+
+  // Initialize country from defaultCountry if not yet set
+  useEffect(() => {
+    if (!form.country && defaultCountry) {
+      const match =
+        COUNTRIES.find(
+          (c) =>
+            c.label.toLowerCase() === defaultCountry.toLowerCase() ||
+            c.code.toLowerCase() === defaultCountry.toLowerCase(),
+        )?.label || defaultCountry;
+      onChange({ ...form, country: match });
+    }
+  }, [defaultCountry, form, onChange]);
+
+  // Load saved beneficiaries for bank transfers
+  useEffect(() => {
+    let live = true;
+    async function loadBeneficiaries() {
+      try {
+        const res = await fetch("/api/beneficiaries?type=bank");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (live && Array.isArray(data.beneficiaries)) {
+          const mapped: BankAccountItem[] = data.beneficiaries.map(
+            (b: any) => ({
+              id: b._id,
+              name: b.name,
+              bank: b.details?.bankName || "",
+              number: b.details?.accountNumber || "",
+              country: b.details?.country || "Nigeria",
+            }),
+          );
+          setRecentAccounts(mapped);
+        }
+      } catch {
+        // keep fallback
+      }
+    }
+    loadBeneficiaries();
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const country = COUNTRIES.find((entry) => entry.label === form.country);
+  const momo = form.destination === "momo";
 
   // Editing a field clears its message; the rest stay until the next attempt.
   const set = (patch: Partial<BankForm>) => {
@@ -157,29 +244,58 @@ export function BankTransferForm({
     if (Object.keys(found).length === 0) onContinue();
     else revealFirstError(fields.current);
   };
+
   // Whichever pair identifies the recipient on the rail in play.
   const holder = momo ? form.network : form.bank;
   const reference = momo ? form.phone : form.account;
   const minimum = momo ? PHONE_NUMBER_MIN : ACCOUNT_NUMBER_MIN;
 
-  // The lookup resolves after a delay; patch whatever the form holds by then,
-  // not the snapshot it started from, or a narration typed meanwhile is lost.
   const latest = useRef(form);
   latest.current = form;
 
-  // Only the pair above should retrigger the lookup — re-running it on every
-  // other keystroke would overwrite a name the user has edited.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: onChange is read through latest.current, and adding it would refire on every keystroke
+  // Real live account name resolution via /api/bank/resolve
   useEffect(() => {
-    if (digitsOf(reference).length < minimum || !holder) return;
+    const cleanRef = digitsOf(reference);
+    if (cleanRef.length < minimum || !holder) return;
 
     let live = true;
 
     async function runResolve() {
       setResolving(true);
       try {
-        const name = await resolveAccountName(holder, reference);
-        if (live) onChange({ ...latest.current, name });
+        if (!momo) {
+          const res = await fetch(
+            `/api/bank/resolve?accountNumber=${cleanRef}&bank=${encodeURIComponent(holder)}`,
+          );
+          const data = await res.json();
+          if (live) {
+            if (res.ok && data.success && data.accountName) {
+              onChange({ ...latest.current, name: data.accountName });
+              setErrors((prev) => {
+                const next = { ...prev };
+                delete next.name;
+                delete next.account;
+                return next;
+              });
+            } else {
+              setErrors((prev) => ({
+                ...prev,
+                name: data.error || "Could not verify account name",
+              }));
+            }
+          }
+        } else {
+          // Mobile money fallback
+          const name = await resolveAccountName(holder, reference);
+          if (live) onChange({ ...latest.current, name });
+        }
+      } catch {
+        if (live) {
+          setErrors((prev) => ({
+            ...prev,
+            name: "Failed to connect to verification service",
+          }));
+        }
       } finally {
         if (live) setResolving(false);
       }
@@ -190,7 +306,22 @@ export function BankTransferForm({
     return () => {
       live = false;
     };
-  }, [holder, reference, minimum]);
+  }, [holder, reference, minimum, momo, onChange]);
+
+  const isNigeria =
+    country?.code === "NG" || form.country.toLowerCase().includes("nigeria");
+  const bankOptions = isNigeria
+    ? NIGERIA_BANK_OPTIONS
+    : BANKS[country?.code ?? ""] ?? [];
+
+  const currentNetworkConfig =
+    OFFRAMP_NETWORK_CONFIGS[form.network || "Base"] ||
+    OFFRAMP_NETWORK_CONFIGS.Base;
+  const assetOptions = currentNetworkConfig.assets.map((symbol) => ({
+    value: symbol,
+    label: symbol,
+    icon: getAssetLogo(symbol),
+  }));
 
   return (
     <div ref={fields} className="flex flex-1 flex-col gap-5 pt-6">
@@ -210,6 +341,27 @@ export function BankTransferForm({
         value={form.destination}
         onChange={(destination) => set({ destination })}
       />
+
+      {/* Show recent beneficiaries when account number field is empty */}
+      {!form.account && recentAccounts.length > 0 && !momo && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-xs leading-5 font-medium text-jumpa-black">
+            Recent accounts
+          </h2>
+          <ul className="flex flex-col gap-4 rounded-surface bg-jumpa-primary-50 px-4 py-4">
+            {recentAccounts.slice(0, 4).map((entry) => (
+              <li key={entry.id}>
+                <OptionRow
+                  Icon={CircleInformationIcon}
+                  title={entry.name}
+                  caption={`${entry.bank} - ${entry.number}`}
+                  onClick={() => onPickRecent(entry)}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {momo ? (
         <>
@@ -254,8 +406,8 @@ export function BankTransferForm({
             <Combobox
               label="Search bank"
               value={form.bank}
-              options={BANKS[country?.code ?? ""] ?? []}
-              placeholder="Search"
+              options={bankOptions}
+              placeholder="Search bank"
               invalid={Boolean(errors.bank)}
               onValueChange={(next) => set({ bank: next })}
             />
@@ -275,17 +427,41 @@ export function BankTransferForm({
             </Field>
           ) : null}
 
+          {/* Network and Asset Selectors */}
+          <SelectField
+            label="Network"
+            icon={<GlobeIcon aria-hidden="true" className="size-6 shrink-0" />}
+            value={form.network || "Base"}
+            options={OFFRAMP_NETWORK_OPTIONS}
+            onChange={(network) => {
+              const defaultAsset =
+                OFFRAMP_NETWORK_CONFIGS[network]?.assets[0] || "USDC";
+              set({ network, asset: defaultAsset });
+            }}
+          />
+
+          <SelectField
+            label="Asset to send"
+            value={form.asset || "USDC"}
+            options={assetOptions}
+            onChange={(asset) => set({ asset })}
+          />
+
           {country ? (
             <>
+              {/* Read-Only Account Name */}
               <Field label="Account name" error={errors.name}>
                 <input
                   value={form.name}
-                  onChange={(event) => set({ name: event.target.value })}
+                  readOnly
+                  disabled
                   placeholder={
-                    resolving ? "Verifying account…" : "Account name"
+                    resolving
+                      ? "Verifying account…"
+                      : "Account name (auto-verified)"
                   }
                   aria-invalid={Boolean(errors.name)}
-                  className={FIELD_INPUT}
+                  className={`${FIELD_INPUT} cursor-not-allowed bg-jumpa-neutral-100 text-jumpa-black/80 font-medium`}
                 />
               </Field>
 
@@ -306,31 +482,11 @@ export function BankTransferForm({
                 <span className="text-[10px] leading-3.5 font-medium text-jumpa-primary-600">
                   {country.routing
                     ? "ACH transfer typically arrives within 1-2 business days"
-                    : `${country.currency} transfers typically arrive within minutes`}
+                    : `${country.currency} transfers typically arrive within seconds`}
                 </span>
               </p>
             </>
-          ) : (
-            RECENT_BANK_ACCOUNTS.length > 0 && (
-              <section className="flex flex-col gap-3">
-                <h2 className="text-xs leading-5 font-medium text-jumpa-black">
-                  Recent accounts
-                </h2>
-                <ul className="flex flex-col gap-4 rounded-surface bg-jumpa-primary-50 px-4 py-4">
-                  {RECENT_BANK_ACCOUNTS.map((entry) => (
-                    <li key={entry.id}>
-                      <OptionRow
-                        Icon={CircleInformationIcon}
-                        title={entry.name}
-                        caption={`${entry.bank} - ${entry.number}`}
-                        onClick={() => onPickRecent(entry)}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )
-          )}
+          ) : null}
         </>
       )}
 

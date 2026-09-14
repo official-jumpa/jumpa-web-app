@@ -6,6 +6,11 @@ import { ChatLog } from "@/models/ChatLog";
 import { Transaction } from "@/models/Transaction";
 import { Referral } from "@/models/Referral";
 import { Notification } from "@/models/Notification";
+import {
+  Beneficiary,
+  type IBeneficiary,
+  type BeneficiaryType,
+} from "@/models/Beneficiary";
 
 /**
  * Retrieves a user by their unique user ID.
@@ -131,6 +136,7 @@ export async function deleteUserAndAccountData(userId: string): Promise<void> {
     Transaction.deleteMany({ userId }),
     Notification.deleteMany({ userId }),
     UserActivityLog.deleteMany({ userId }),
+    Beneficiary.deleteMany({ userId }),
     Referral.deleteMany({
       $or: [{ referrerId: userId }, { referredUserId: userId }],
     }),
@@ -145,4 +151,77 @@ export async function deleteUserAndAccountData(userId: string): Promise<void> {
 
   // 3. Delete user document
   await User.deleteOne({ _id: userId });
+}
+
+/**
+ * Retrieves the user's saved beneficiaries, optionally filtered by type (bank, wallet, jumpa, momo).
+ */
+export async function getUserBeneficiaries(
+  userId: string,
+  type?: BeneficiaryType,
+  limit = 20,
+): Promise<IBeneficiary[]> {
+  await connectDB();
+  const query: Record<string, any> = { userId };
+  if (type) query.type = type;
+
+  return Beneficiary.find(query)
+    .sort({ lastUsedAt: -1 })
+    .limit(limit)
+    .lean<IBeneficiary[]>();
+}
+
+/**
+ * Saves or updates a beneficiary for the user upon successful transfer.
+ * Upserts by (userId, type, identifier) and bumps lastUsedAt.
+ */
+export async function saveOrUpdateBeneficiary(
+  userId: string,
+  data: {
+    type: BeneficiaryType;
+    name: string;
+    identifier: string;
+    details?: IBeneficiary["details"];
+  },
+): Promise<IBeneficiary> {
+  await connectDB();
+
+  const filter = {
+    userId,
+    type: data.type,
+    identifier: data.identifier.trim().toLowerCase(),
+  };
+
+  const update = {
+    $set: {
+      name: data.name.trim(),
+      details: data.details || {},
+      lastUsedAt: new Date(),
+    },
+    $setOnInsert: {
+      userId,
+      type: data.type,
+      identifier: data.identifier.trim().toLowerCase(),
+    },
+  };
+
+  const doc = await Beneficiary.findOneAndUpdate(filter, update, {
+    upsert: true,
+    new: true,
+    setDefaultsOnInsert: true,
+  });
+
+  return doc;
+}
+
+/**
+ * Deletes a saved beneficiary belonging to the user.
+ */
+export async function deleteBeneficiary(
+  userId: string,
+  beneficiaryId: string,
+): Promise<boolean> {
+  await connectDB();
+  const result = await Beneficiary.deleteOne({ _id: beneficiaryId, userId });
+  return (result.deletedCount || 0) > 0;
 }

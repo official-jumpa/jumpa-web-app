@@ -89,6 +89,7 @@ export const switchOfframpSchema = z.object({
     })
     .trim()
     .min(1, "bankName is required"),
+  pin: z.string().trim().optional(),
 });
 
 export type SwitchOfframpInput = z.infer<typeof switchOfframpSchema>;

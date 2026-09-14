@@ -123,7 +123,7 @@ export function DateField({
               ? "border-jumpa-danger"
               : "border-jumpa-grey-100",
           !statement &&
-            (value ? "text-jumpa-primary-950" : "text-jumpa-secondary-200"),
+            (value ? "text-jumpa-primary-950" : "text-jumpa-grey-400"),
           className,
         )}
       >
@@ -139,7 +139,7 @@ export function DateField({
         {statement ? (
           <CaretDownIcon className="size-6 shrink-0 text-jumpa-black" />
         ) : icon === "globe" ? (
-          <GlobeIcon className="size-6 shrink-0 text-jumpa-primary-600" />
+          <GlobeIcon className="size-6 shrink-0 text-jumpa-primary-950" />
         ) : (
           <CalendarIcon className="size-4.5 shrink-0 text-jumpa-primary-600" />
         )}

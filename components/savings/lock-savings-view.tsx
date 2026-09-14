@@ -283,7 +283,7 @@ export function LockSavingsView() {
             <div className="flex flex-col gap-3">
               <SavingsLabel>Maturity date</SavingsLabel>
               <span className="flex h-11.5 items-center gap-2 rounded-surface border border-jumpa-grey-100 bg-jumpa-white px-3 text-sm leading-4 font-medium text-jumpa-primary-950">
-                <GlobeIcon className="size-6 shrink-0 text-jumpa-primary-600" />
+                <GlobeIcon className="size-6 shrink-0 text-jumpa-primary-950" />
                 <span className="flex-1">{displayDate(maturity)}</span>
                 <CaretDownIcon className="size-6 shrink-0 text-jumpa-primary-950" />
               </span>

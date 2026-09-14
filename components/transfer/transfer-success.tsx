@@ -8,6 +8,7 @@ import { TransferHeader } from "@/components/transfer/transfer-header";
 import { Button } from "@/components/ui/button";
 import { ShareArrowIcon } from "@/components/ui/icons/share-arrow";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
+import { cn } from "@/lib/cn";
 
 const ACTION =
   "tap flex h-13 flex-1 items-center justify-center gap-2 rounded-tile bg-jumpa-neutral-50 " +
@@ -29,6 +30,7 @@ export function TransferSuccess({
   titleFirst,
   actionsFirst,
   actions: actionsOverride,
+  compact,
   onShare,
 }: {
   back: string;
@@ -44,18 +46,34 @@ export function TransferSuccess({
   actionsFirst?: boolean;
   /** Replaces the More details / Share pair, as the bill flows do. */
   actions?: ReactNode;
+  /** The savings receipts draw a 32px amount under a 16px title. */
+  compact?: boolean;
   onShare?: () => void;
 }) {
   const router = useRouter();
   const [showDetails, setShowDetails] = useState(false);
 
   const heading = (
-    <p className="text-[54px] leading-14.5 font-bold text-jumpa-black">
+    <p
+      className={
+        compact
+          ? "text-[32px] leading-8.5 font-bold text-jumpa-black"
+          : "text-[54px] leading-14.5 font-bold text-jumpa-black"
+      }
+    >
       {amount}
     </p>
   );
   const caption = (
-    <p className="text-xl leading-6.75 font-medium text-jumpa-black">{title}</p>
+    <p
+      className={
+        compact
+          ? "text-base font-medium text-jumpa-black"
+          : "text-xl leading-6.75 font-medium text-jumpa-black"
+      }
+    >
+      {title}
+    </p>
   );
 
   const slot = showDetails && details ? details : null;
@@ -109,11 +127,24 @@ export function TransferSuccess({
           className="-mt-7.75 -mb-20.5 h-62.5 w-49.75 max-w-none"
         />
 
-        <div className="mt-8.75 flex flex-col items-center gap-1">
+        <div
+          className={cn(
+            "mt-8.75 flex flex-col items-center",
+            compact ? "gap-4" : "gap-1",
+          )}
+        >
           {titleFirst ? caption : heading}
           {titleFirst ? heading : caption}
           {note ? (
-            <div className="text-xs leading-5 text-jumpa-black">{note}</div>
+            <div
+              className={
+                compact
+                  ? "max-w-53.5 text-xs leading-4 font-medium text-jumpa-black"
+                  : "text-xs leading-5 text-jumpa-black"
+              }
+            >
+              {note}
+            </div>
           ) : null}
         </div>
       </div>

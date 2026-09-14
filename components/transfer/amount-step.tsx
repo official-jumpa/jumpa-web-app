@@ -31,6 +31,7 @@ export function AmountStep({
   checkBalance = true,
   rate,
   caption,
+  ctaLabel = "Review",
   onAmountChange,
   onReview,
 }: {
@@ -50,6 +51,8 @@ export function AmountStep({
   /** Conversion line opposite the balance, where the flow shows one. */
   rate?: string;
   caption?: ReactNode;
+  /** The savings top-up reads "Proceed" where the send flows read "Review". */
+  ctaLabel?: string;
   onAmountChange: (next: string) => void;
   onReview: () => void;
 }) {
@@ -163,7 +166,7 @@ export function AmountStep({
           onClick={review}
           className="tap flex h-14 w-full items-center justify-center rounded-pill bg-jumpa-primary-50 text-base leading-4 font-semibold text-jumpa-primary-500 active:scale-[0.98]"
         >
-          Review
+          {ctaLabel}
         </button>
         <CanvasError>{error}</CanvasError>
         {caption ? (

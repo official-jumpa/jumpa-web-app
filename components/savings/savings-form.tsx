@@ -1,6 +1,6 @@
 import type { ReactNode, RefObject } from "react";
 import { TransferHeader } from "@/components/transfer/transfer-header";
-import { Button } from "@/components/ui/button";
+import { Button, type ButtonVariant } from "@/components/ui/button";
 
 /** Header, fields and a bottom-anchored CTA — the shell both create flows use. */
 export function SavingsForm({
@@ -8,6 +8,7 @@ export function SavingsForm({
   onBack,
   title,
   cta,
+  ctaVariant = "gradient",
   fields,
   onSubmit,
   children,
@@ -17,6 +18,8 @@ export function SavingsForm({
   onBack?: () => void;
   title: string;
   cta: string;
+  /** The lock and circle forms draw the sheet-toned label; target keeps the lime one. */
+  ctaVariant?: ButtonVariant;
   /** Scope `revealFirstError` scrolls within. */
   fields: RefObject<HTMLDivElement | null>;
   onSubmit: () => void;
@@ -36,7 +39,7 @@ export function SavingsForm({
         {children}
       </div>
 
-      <Button type="submit" variant="gradient" size="lg" className="mt-auto">
+      <Button type="submit" variant={ctaVariant} size="lg" className="mt-auto">
         {cta}
       </Button>
     </form>
@@ -46,7 +49,7 @@ export function SavingsForm({
 /** Tinted block the terms and dates sit in, under the plain fields. */
 export function SavingsPanel({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-4 rounded-surface bg-jumpa-primary-50 px-2.5 pt-4 pb-2.5">
+    <div className="flex flex-col gap-3 rounded-surface bg-jumpa-primary-50 px-2.5 pt-4 pb-2.5">
       {children}
     </div>
   );

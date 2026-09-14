@@ -4,8 +4,6 @@ import Image from "next/image";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 
-import type { SavingsKind } from "@/lib/savings";
-
 /** What each product promises, raised over the landing before you commit. */
 export type SavingsIntro = {
   art: string;
@@ -19,19 +17,15 @@ export type SavingsIntro = {
 };
 
 export function SavingsIntroSheet({
-  kind,
   intro,
   onClose,
-  onCta,
 }: {
-  kind?: SavingsKind;
   intro: SavingsIntro;
   onClose: () => void;
-  onCta?: (kind: SavingsKind) => void;
 }) {
   return (
     <BottomSheet onClose={onClose} pb="pb-7.5">
-      <div className="flex flex-col items-center gap-4 pt-2">
+      <div className="flex flex-col items-center gap-6 pt-2">
         <Image
           src={intro.art}
           alt=""
@@ -40,40 +34,24 @@ export function SavingsIntroSheet({
           height={intro.height}
         />
 
-        <div className="flex flex-col items-center gap-2 text-center">
-          <h2 className="text-2xl leading-7 font-semibold text-jumpa-black">
+        <div className="flex flex-col items-center gap-2.5 text-center">
+          <h2 className="text-2xl leading-6.5 font-medium text-jumpa-black">
             {intro.title}
           </h2>
-          <p className="text-xs leading-4.5 text-jumpa-neutral-700">
+          <p className="max-w-62.5 text-xs leading-3.5 text-jumpa-black">
             {intro.body}
           </p>
         </div>
 
-        <ul className="flex list-disc flex-col gap-2 rounded-surface bg-jumpa-primary-50 py-4 pr-4 pl-8 text-xs leading-4.5 font-medium text-jumpa-black w-full">
+        <ul className="w-full list-disc rounded-surface bg-jumpa-primary-50 p-4 pl-8.5 text-xs leading-5 font-semibold text-jumpa-black">
           {intro.terms.map((term) => (
             <li key={term}>{term}</li>
           ))}
         </ul>
 
-        {onCta && kind ? (
-          <Button
-            onClick={() => onCta(kind)}
-            variant="gradient"
-            size="lg"
-            className="mt-2"
-          >
-            {intro.cta}
-          </Button>
-        ) : (
-          <Button
-            href={intro.href}
-            variant="gradient"
-            size="lg"
-            className="mt-2"
-          >
-            {intro.cta}
-          </Button>
-        )}
+        <Button href={intro.href} variant="gradientSheet" size="lg">
+          {intro.cta}
+        </Button>
       </div>
     </BottomSheet>
   );

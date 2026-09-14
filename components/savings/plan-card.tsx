@@ -12,13 +12,20 @@ const STATUS_COLORS: Record<string, string> = {
 export function PlanCard({ plan, href }: { plan: SavingsPlan; href?: string }) {
   const isClosed = plan.status === "Closed";
   const isMatured = plan.status === "Matured" || plan.daysLeft === 0;
-  const timeLabel = isClosed ? "Closed" : isMatured ? "Matured" : `${plan.daysLeft} days left`;
+  const timeLabel = isClosed
+    ? "Closed"
+    : isMatured
+      ? "Matured"
+      : `${plan.daysLeft} days left`;
+  const figure = isClosed ? "text-jumpa-neutral-600" : "text-jumpa-primary-500";
 
   const body = (
     <>
       <div className="flex flex-col gap-1">
-        <div className="flex items-start gap-1">
-          <h3 className={`flex-1 text-lg font-semibold ${isClosed ? "text-jumpa-neutral-600" : "text-jumpa-black"}`}>
+        <div className="flex items-center justify-between gap-1">
+          <h3
+            className={`text-lg font-semibold ${isClosed ? "text-jumpa-neutral-600" : "text-jumpa-black"}`}
+          >
             {plan.name}
           </h3>
           {plan.members ? (
@@ -31,22 +38,25 @@ export function PlanCard({ plan, href }: { plan: SavingsPlan; href?: string }) {
                   : "border-jumpa-white/43 bg-jumpa-primary-300 text-jumpa-white"
               }`}
             >
-              {plan.kind === "lock" ? "Locked" : "Target"}
+              {/* TODO: `rate` comes from the vault's APY once the API reports it per plan. */}
+              {plan.kind === "lock" ? (plan.rate ?? "Locked") : "Target"}
             </span>
           )}
         </div>
 
         <div className="flex items-center justify-between">
           <p className="flex-1 text-[10px] leading-3.5 text-jumpa-grey-600">
-            {plan.kind === "lock" ? "Maturity date - " : "End date - "}
-            <span className="font-bold">{plan.endDate}</span>
+            {plan.kind === "lock" ? "Maturity date" : "End date"}
+            <span className="font-bold"> - {plan.endDate}</span>
           </p>
           {plan.members ? (
             <span className="text-[10px] leading-3 font-semibold text-jumpa-success">
               {plan.members.length + 2} members
             </span>
           ) : (
-            <span className={`text-[10px] leading-3 font-semibold ${STATUS_COLORS[plan.status] || "text-jumpa-success"}`}>
+            <span
+              className={`text-[10px] leading-3 font-semibold ${STATUS_COLORS[plan.status] || "text-jumpa-success"}`}
+            >
               {plan.status}
             </span>
           )}
@@ -57,21 +67,12 @@ export function PlanCard({ plan, href }: { plan: SavingsPlan; href?: string }) {
         {plan.kind === "lock" ? (
           <p className="text-[10px] leading-5 font-medium text-jumpa-black">
             Locked balance{" "}
-            <span className={`font-bold ${isClosed ? "text-jumpa-neutral-600" : "text-jumpa-primary-500"}`}>
-              {plan.saved}
-            </span>
+            <span className={`font-bold ${figure}`}>{plan.saved}</span>
           </p>
         ) : (
           <p className="text-[10px] leading-5 font-medium text-jumpa-black">
-            Saved{" "}
-            <span className={`font-bold ${isClosed ? "text-jumpa-neutral-600" : "text-jumpa-primary-500"}`}>
-              {plan.saved}
-            </span>
-            {" / "}
-            <span className={`font-bold ${isClosed ? "text-jumpa-neutral-500" : "text-jumpa-primary-500"}`}>
-              {plan.target}
-            </span>{" "}
-            target
+            Saved {plan.saved} /{" "}
+            <span className={`font-bold ${figure}`}>{plan.target} target</span>
           </p>
         )}
         <div className="h-1 w-full overflow-hidden bg-jumpa-primary-200">
@@ -82,20 +83,27 @@ export function PlanCard({ plan, href }: { plan: SavingsPlan; href?: string }) {
             style={{ width: `${plan.percent}%` }}
           />
         </div>
-        <div className="flex items-center justify-between text-[8px] leading-2.5 font-semibold text-jumpa-secondary-950">
-          <span className={isClosed ? "text-jumpa-neutral-400" : ""}>{timeLabel}</span>
-          <span className={isClosed ? "text-jumpa-neutral-400" : ""}>
-            {plan.kind === "lock" ? `${plan.percent}% term elapsed` : `${plan.percent}%`}
+        <div
+          className={`flex items-center justify-between text-[8px] leading-2.5 font-semibold ${
+            isClosed ? "text-jumpa-neutral-400" : "text-jumpa-secondary-950"
+          }`}
+        >
+          <span>{timeLabel}</span>
+          <span>
+            {plan.kind === "lock"
+              ? `${plan.percent}% term elapsed`
+              : `${plan.percent}%`}
           </span>
         </div>
       </div>
     </>
   );
 
-  const shell = `flex flex-col gap-6 rounded-surface border p-4 transition-all ${
+  // inset-ring: the design's stroke is inside, so the card stays its drawn size.
+  const shell = `flex flex-col gap-6 rounded-surface p-4 inset-ring-1 transition-all ${
     isClosed
-      ? "border-jumpa-neutral-200 bg-jumpa-neutral-50/70 opacity-80"
-      : "border-jumpa-primary-300 bg-jumpa-secondary-50"
+      ? "bg-jumpa-neutral-50/70 opacity-80 inset-ring-jumpa-neutral-200"
+      : "bg-jumpa-secondary-50 inset-ring-jumpa-primary-300"
   }`;
 
   return href ? (
@@ -114,18 +122,22 @@ function Members({ members }: { members: SavingsPlan["members"] }) {
   return (
     <span className="flex shrink-0 items-center">
       {members.slice(0, 2).map((member, index) => (
-        <Image
+        <span
           key={member.id}
-          src={member.avatar}
-          alt=""
-          width={24}
-          height={24}
-          className={`size-6 rounded-full object-cover ring-2 ring-jumpa-secondary-50 ${
+          className={`flex size-5.5 items-center justify-center overflow-hidden rounded-full bg-jumpa-white ${
             index > 0 ? "-ml-2" : ""
           }`}
-        />
+        >
+          <Image
+            src={member.avatar}
+            alt=""
+            width={22}
+            height={22}
+            className="size-5.5 object-cover"
+          />
+        </span>
       ))}
-      <span className="-ml-2 flex size-6 items-center justify-center rounded-full bg-jumpa-primary-950 text-[8px] font-semibold text-jumpa-white ring-2 ring-jumpa-secondary-50">
+      <span className="-ml-2 flex size-5.5 items-center justify-center rounded-full bg-jumpa-primary-950 text-[8px] leading-3 font-semibold text-jumpa-secondary-50">
         +{members.length}
       </span>
     </span>

@@ -23,6 +23,8 @@ export type SavingsPlan = {
   startDate: string;
   endDateLong: string;
   frequency: string;
+  /** "1.5% p.a." — the pill on a lock plan's card. */
+  rate?: string;
   members?: SavingsMember[];
 };
 
@@ -95,15 +97,6 @@ export const SAVINGS_PRODUCTS: Record<
     emptyTitle: "No recent plans",
     seeded: true,
   },
-};
-
-/** What the masthead reports across every product. */
-export const SAVINGS_SUMMARY = {
-  goals: 0,
-  saved: "0.00",
-  target: "0.00",
-  percent: 0,
-  remaining: "0.00",
 };
 
 const MEMBERS: SavingsMember[] = [
@@ -236,17 +229,19 @@ export const INDIVIDUAL_SAVINGS_TERMS = [
 ];
 
 /** Terms for Locked savings (fixed commitment with early break fee). */
+// TODO: replace the 0.6% with the real daily rate once the vault reports it.
 export const LOCK_SAVINGS_TERMS = [
-  "Earn interest daily on your locked funds",
-  "Funds remain locked until your selected maturity date",
-  "You will pay an early break fee of 5% if you withdraw before maturity",
+  "Earn 0.6% daily on your Savings",
+  "You can only make withdrawal after you crossed 50% on your saving goal",
+  "You will pay a break fee of 5% if you want to withdraw before the maturity date",
 ];
 
 /** Backwards-compatible alias */
 export const SAVINGS_TERMS = INDIVIDUAL_SAVINGS_TERMS;
 
+// TODO: replace the 0.6% with the real daily rate once the vault reports it.
 export const CIRCLE_TERMS = [
-  "Earn interest daily on your Savings",
+  "Earn 0.6% daily on your Savings",
   "Withdrawals require group consensus after 50% of goal",
   "You will pay a break fee of 5% if you withdraw before the maturity date",
 ];
@@ -269,6 +264,17 @@ export function addDays(days: number, from = new Date()): string {
 /** `2026/09/27` — how the design prints a date outside an input. */
 export function displayDate(iso: string): string {
   return iso.replace(/-/g, "/");
+}
+
+/** "September 27, 2026" — the form the warning and review quote. */
+export function longDate(iso: string): string {
+  const [year, month, day] = iso.split(/[/-]/).map(Number);
+  if (!year || !month || !day) return "";
+  return new Date(year, month - 1, day).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 /** "Sep 27" — the short form the yield row quotes. */

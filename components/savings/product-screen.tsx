@@ -96,7 +96,7 @@ export function ProductScreen({
         </Link>
       </div>
 
-      <section className="mt-5 flex flex-col gap-3">
+      <section className="mt-6 flex flex-col gap-3">
         <h2 className="text-xs font-medium text-jumpa-black">{listLabel}</h2>
         {plans.length === 0 ? (
           <EmptyPlans title={emptyTitle} caption={emptyCaption} />

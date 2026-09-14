@@ -7,7 +7,8 @@ import { SheetPortal } from "@/components/ui/sheet-portal";
 
 /**
  * Confirmation sheet shared by every transfer. `summary` is the row under the
- * title (who it is going to), `children` the boxed detail list.
+ * title (who it is going to; the savings flows draw none), `children` the
+ * boxed detail list.
  */
 export function ReviewSheet({
   title = "Review",
@@ -20,7 +21,7 @@ export function ReviewSheet({
   children,
 }: {
   title?: string;
-  summary: ReactNode;
+  summary?: ReactNode;
   headline: string;
   headlineLabel?: string;
   confirmLabel: string;
@@ -38,7 +39,7 @@ export function ReviewSheet({
           <CloseButton onClick={onClose} label="Close review" size="sm" />
         </div>
 
-        {summary}
+        {summary ?? null}
 
         <span className="-mb-px block h-px w-full bg-jumpa-neutral-100" />
 

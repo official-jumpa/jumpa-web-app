@@ -1,26 +1,20 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { CopyButton } from "@/components/auth/copy-button";
 import { ChoiceChips } from "@/components/savings/choice-chips";
+import { PlanAction, PlanActions } from "@/components/savings/plan-actions";
 import {
   SAVINGS_INPUT,
   SavingsField,
   SavingsLabel,
+  savingsShell,
 } from "@/components/savings/savings-field";
 import { SavingsForm, SavingsPanel } from "@/components/savings/savings-form";
-import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { DateField } from "@/components/ui/date-field";
 import { FieldError } from "@/components/ui/field-error";
-import { UsersIcon } from "@/components/ui/icons/users";
-import {
-  addDays,
-  CIRCLE_INVITE,
-  displayDate,
-  SAVINGS_CATEGORIES,
-} from "@/lib/savings";
-import { formatAmount } from "@/lib/transfer";
+import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
+import { addDays, SAVINGS_CATEGORIES } from "@/lib/savings";
 import { revealFirstError } from "@/lib/validation";
 
 type Errors = { name?: string; target?: string; date?: string };
@@ -34,8 +28,6 @@ export function CreateCircleView() {
   const [date, setDate] = useState(addDays(60));
   const [errors, setErrors] = useState<Errors>({});
   const [done, setDone] = useState(false);
-
-  const total = `₦${formatAmount(target)}`;
 
   const clear = (field: keyof Errors) =>
     setErrors((current) => ({ ...current, [field]: undefined }));
@@ -59,34 +51,25 @@ export function CreateCircleView() {
   if (done) {
     return (
       <TransferSuccess
+        compact
         back="/savings/circles"
-        title="Your Circle is ready"
+        title="Successful"
         titleFirst
-        actionsFirst
-        amount={total}
-        ctaLabel="View circle"
-        ctaHref="/savings/circles"
+        amount="Your Circle is ready"
+        note={`${name} has been created.`}
+        // Neither destination is designed yet; both land on the circles list.
         actions={
-          <div className="flex flex-col gap-3">
-            <DetailList tone="secondary">
-              <DetailRow label="Circle" value={name} />
-              <DetailRow label="Category" value={category} />
-              <DetailRow
-                label="Target date"
-                value={displayDate(date)}
-                rule={false}
-              />
-            </DetailList>
-
-            <div className="flex items-center gap-3 rounded-surface bg-jumpa-primary-50 px-3 py-3.5">
-              <UsersIcon className="size-5 shrink-0 text-jumpa-primary-600" />
-              <span className="min-w-0 flex-1 truncate text-xs leading-4 font-medium text-jumpa-primary-950">
-                {CIRCLE_INVITE}
-              </span>
-              <CopyButton value={CIRCLE_INVITE} label="Invite link" />
-            </div>
-          </div>
+          <PlanActions>
+            <PlanAction href="/savings/circles" icon={ShieldCheckIcon}>
+              Invite members
+            </PlanAction>
+            <PlanAction href="/savings/circles" icon={ShieldCheckIcon}>
+              View circle
+            </PlanAction>
+          </PlanActions>
         }
+        ctaLabel="Back to home"
+        ctaHref="/home"
       />
     );
   }
@@ -96,29 +79,31 @@ export function CreateCircleView() {
       back="/savings/circles"
       title="Create circle"
       cta="Continue"
+      ctaVariant="gradientSheet"
       fields={fields}
       onSubmit={submit}
     >
-      <SavingsField label="Name your circle" error={errors.name}>
-        <input
-          value={name}
-          onChange={(event) => {
-            setName(event.target.value);
-            clear("name");
-          }}
-          placeholder="What is this circle for?"
-          aria-invalid={Boolean(errors.name)}
-          className={SAVINGS_INPUT}
-        />
-      </SavingsField>
-
+      {/* The category chips sit inside the name group, with no label of their own. */}
       <div className="flex flex-col gap-3">
-        <SavingsLabel>Category</SavingsLabel>
+        <SavingsLabel>Name your circle</SavingsLabel>
+        <label className={savingsShell(Boolean(errors.name))}>
+          <input
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              clear("name");
+            }}
+            placeholder="December Hangout"
+            aria-invalid={Boolean(errors.name)}
+            className={SAVINGS_INPUT}
+          />
+        </label>
         <ChoiceChips
           options={SAVINGS_CATEGORIES}
           value={category}
           onChange={setCategory}
         />
+        <FieldError>{errors.name}</FieldError>
       </div>
 
       <SavingsField label="Set your target" error={errors.target}>
@@ -129,7 +114,7 @@ export function CreateCircleView() {
             clear("target");
           }}
           inputMode="decimal"
-          placeholder="Enter amount e.g ₦500,000"
+          placeholder="₦500,000"
           aria-invalid={Boolean(errors.target)}
           className={SAVINGS_INPUT}
         />
@@ -140,6 +125,7 @@ export function CreateCircleView() {
           <SavingsLabel>Target date</SavingsLabel>
           <DateField
             label="Target date"
+            icon="globe"
             value={date}
             min={addDays(0)}
             invalid={Boolean(errors.date)}

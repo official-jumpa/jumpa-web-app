@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ChoiceChips } from "@/components/savings/choice-chips";
 import { FundingSheet } from "@/components/savings/funding-sheet";
@@ -14,13 +15,14 @@ import {
   SavingsRule,
 } from "@/components/savings/savings-form";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
-import { RecipientTag } from "@/components/transfer/recipient-tag";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { DateField } from "@/components/ui/date-field";
 import { FieldError } from "@/components/ui/field-error";
 import { CaretDownIcon } from "@/components/ui/icons/caret-down";
+import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
+import { DownloadIcon } from "@/components/ui/icons/download";
 import { GlobeIcon } from "@/components/ui/icons/globe";
 import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
 import { ResultSheet } from "@/components/ui/result-sheet";
@@ -32,6 +34,7 @@ import {
   type FundingSource,
   LOCK_SOURCES,
   LOCK_TERMS,
+  longDate,
   shortDate,
 } from "@/lib/savings";
 import { formatAmount } from "@/lib/transfer";
@@ -148,35 +151,48 @@ export function LockSavingsView() {
 
   const details = (
     <DetailList>
-      <DetailRow label="Goal" value={goal} />
-      <DetailRow
-        label="Duration"
-        value={custom ? `${lockDays} days (Custom)` : term}
-      />
-      <DetailRow label="Maturity date" value={displayDate(maturity)} />
+      <DetailRow label="Name" value={goal} />
+      <DetailRow label="Unlock date" value={longDate(maturity)} />
+      <DetailRow label="Lock duration" value={`${lockDays} days`} />
+      <DetailRow label="Funding source" value={source?.label ?? ""} />
       <DetailRow
         label="Estimated yield"
         value={
-          apyRate > 0
-            ? `+$${formatAmount(estimatedYield.toFixed(2))} (${apyRate.toFixed(1)}% p.a.)`
-            : "$0.00"
+          <span className="text-jumpa-primary-400">
+            {formatAmount(estimatedYield.toFixed(2))} USDC
+          </span>
         }
       />
-      <DetailRow label="From" value={source?.label ?? ""} rule={false} />
     </DetailList>
   );
 
   if (done) {
     return (
       <TransferSuccess
+        compact
         back="/savings/lock"
-        title="Locked Successfully"
+        title="Successful"
         titleFirst
-        actionsFirst
-        amount={total}
-        details={details}
-        ctaLabel="Back to savings"
-        ctaHref="/savings/lock"
+        amount={`${total} locked`}
+        note={
+          <>
+            Your savings is now locked until <b>{longDate(maturity)}.</b>
+          </>
+        }
+        actions={
+          <Link
+            href="/savings/lock"
+            className="tap flex h-16 w-full items-center justify-between rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-6 text-xs leading-3.5 text-jumpa-black active:scale-[0.99]"
+          >
+            <span className="flex items-center gap-2">
+              <DownloadIcon className="size-6 text-jumpa-primary-600" />
+              View savings
+            </span>
+            <ChevronRightIcon className="size-5" />
+          </Link>
+        }
+        ctaLabel="Back to home"
+        ctaHref="/home"
       />
     );
   }
@@ -185,12 +201,13 @@ export function LockSavingsView() {
     <>
       <SavingsForm
         back="/savings/lock"
-        title="Lock savings"
+        title="Lock funds"
         cta="Continue"
+        ctaVariant="gradientSheet"
         fields={fields}
         onSubmit={submit}
       >
-        <SavingsField label="Amount" error={errors.amount}>
+        <SavingsField label="How much do you want to lock?" error={errors.amount}>
           <input
             value={amount}
             onChange={(event) => {
@@ -204,14 +221,14 @@ export function LockSavingsView() {
           />
         </SavingsField>
 
-        <SavingsField label="Goal name" error={errors.goal}>
+        <SavingsField label="What are you saving for?" error={errors.goal}>
           <input
             value={goal}
             onChange={(event) => {
               setGoal(event.target.value);
               clear("goal");
             }}
-            placeholder="What are you saving for?"
+            placeholder="December trip"
             aria-invalid={Boolean(errors.goal)}
             className={SAVINGS_INPUT}
           />
@@ -219,7 +236,7 @@ export function LockSavingsView() {
 
         <SavingsPanel>
           <div className="flex flex-col gap-3">
-            <SavingsLabel>Lock duration</SavingsLabel>
+            <SavingsLabel>How long do you want to lock it?</SavingsLabel>
             <ChoiceChips
               options={LOCK_TERMS.map((option) => option.label)}
               value={term}
@@ -265,29 +282,22 @@ export function LockSavingsView() {
           ) : (
             <div className="flex flex-col gap-3">
               <SavingsLabel>Maturity date</SavingsLabel>
-              <span className="flex h-11.5 items-center gap-2 rounded-surface border border-jumpa-grey-100 bg-jumpa-white px-3 text-xs leading-4 font-medium text-jumpa-primary-950">
-                <GlobeIcon className="size-4.5 shrink-0 text-jumpa-primary-600" />
+              <span className="flex h-11.5 items-center gap-2 rounded-surface border border-jumpa-grey-100 bg-jumpa-white px-3 text-sm leading-4 font-medium text-jumpa-primary-950">
+                <GlobeIcon className="size-6 shrink-0 text-jumpa-primary-600" />
                 <span className="flex-1">{displayDate(maturity)}</span>
-                <CaretDownIcon className="size-3 shrink-0 text-jumpa-primary-950" />
+                <CaretDownIcon className="size-6 shrink-0 text-jumpa-primary-950" />
               </span>
             </div>
           )}
 
           <SavingsRule />
 
-          <div className="flex items-center justify-between text-[10px] leading-3.5 font-medium text-jumpa-primary-950">
-            <span>
-              Estimated yield:{" "}
-              <span className="font-bold text-jumpa-success">
-                +${formatAmount(estimatedYield.toFixed(2))}
-              </span>
-              {apyRate > 0 ? (
-                <span className="ml-1 text-jumpa-grey-600 font-normal">
-                  ({apyRate.toFixed(1)}% p.a.)
-                </span>
-              ) : null}
+          <div className="flex items-center justify-between px-2.5">
+            <span className="text-[10px] leading-4 text-jumpa-black/50">
+              Estimated yield: +${formatAmount(estimatedYield.toFixed(2))}
+              {apyRate > 0 ? ` (${apyRate.toFixed(1)}% p.a.)` : ""}
             </span>
-            <span>
+            <span className="text-xs leading-5 font-medium text-jumpa-black">
               {maturity
                 ? `Unlocks ${shortDate(maturity)}`
                 : "Select lock period"}
@@ -295,17 +305,17 @@ export function LockSavingsView() {
           </div>
         </SavingsPanel>
 
-        <p className="flex items-start gap-2 text-[10px] leading-3.5 font-medium text-jumpa-warning">
-          <SealAlertIcon className="size-3.5 shrink-0" />
-          Funds stay locked until the maturity date. Breaking a lock early costs
-          a 5% fee.
+        <p className="flex items-center gap-2 text-xs leading-3.5 text-jumpa-warning">
+          <SealAlertIcon className="size-6 shrink-0" />
+          Your money will remain locked until{" "}
+          {maturity ? longDate(maturity) : "the maturity date"}.
         </p>
       </SavingsForm>
 
       {sheet === "wallet" ? (
         <FundingSheet
           sources={LOCK_SOURCES}
-          note="Locked funds cannot be spent until they mature."
+          note="You won't be able to withdraw these funds before the unlock date."
           onClose={() => setSheet(null)}
           onContinue={(picked) => {
             setSource(picked);
@@ -316,10 +326,9 @@ export function LockSavingsView() {
 
       {sheet === "review" ? (
         <ReviewSheet
-          summary={<RecipientTag primary={goal} secondary={`${term} lock`} />}
-          headline={total}
-          headlineLabel="YOU ARE LOCKING"
-          confirmLabel="Confirm lock"
+          headline={`${formatAmount(amount)} USDC`}
+          headlineLabel="AMOUNT"
+          confirmLabel="Confirm payment"
           onConfirm={() => setSheet("pin")}
           onClose={() => setSheet(null)}
         >
@@ -395,5 +404,3 @@ export function LockSavingsView() {
     </>
   );
 }
-
-/** One half of the custom lock range. */

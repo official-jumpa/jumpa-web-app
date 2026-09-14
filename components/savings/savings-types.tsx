@@ -2,7 +2,7 @@
 
 import type { ComponentType } from "react";
 import { CircleUserIcon } from "@/components/ui/icons/circle-user";
-import { LockAltIcon } from "@/components/ui/icons/lock-alt";
+import { LockIcon } from "@/components/ui/icons/lock";
 import { UsersIcon } from "@/components/ui/icons/users";
 import type { SavingsKind } from "@/lib/savings";
 
@@ -24,7 +24,7 @@ const TYPES: SavingsType[] = [
     kind: "lock",
     label: "Lock savings",
     caption: "Save towards something personal.",
-    Icon: LockAltIcon,
+    Icon: LockIcon,
   },
   {
     kind: "circle",
@@ -66,7 +66,8 @@ export function SavingsTypes({
 
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-xs font-medium text-jumpa-black">Savings types</h2>
+      {/* The frame heads the list "Loan types"; kept verbatim. */}
+      <h2 className="text-xs font-medium text-jumpa-black">Loan types</h2>
 
       <div className="flex items-start gap-3">
         {[individual, lock].map(({ kind, label, caption, Icon }) => (

@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  RECEIVE_ROW,
+  RECEIVE_ROW_PICKED,
+  RECEIVE_ROW_RESTING,
+} from "@/components/transfer/receive-options";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
+import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
 import { CoinFrontIcon } from "@/components/ui/icons/coin-front";
 import { DollarSignIcon } from "@/components/ui/icons/dollar-sign";
 import { NairaSignIcon } from "@/components/ui/icons/naira-sign";
@@ -131,14 +137,15 @@ export function FundingSheet({
     <BottomSheet onClose={onClose} pb="pb-7.5">
       <h2
         id="funding-title"
-        className="pt-2 text-lg leading-normal font-semibold text-jumpa-black"
+        className="pt-2 text-center text-base leading-4.5 font-semibold text-jumpa-black"
       >
         Select wallet
       </h2>
 
+      {/* Same row as the Add money chooser, so the two sheets cannot drift. */}
       <fieldset
         aria-labelledby="funding-title"
-        className="mt-4 flex flex-col gap-3"
+        className="mt-6 flex flex-col gap-2"
       >
         {sources.map((source) => {
           const Icon = GLYPH[source.icon];
@@ -147,11 +154,7 @@ export function FundingSheet({
           return (
             <label
               key={source.id}
-              className={`tap flex items-center gap-3 rounded-tile px-3 py-4 ${
-                active
-                  ? "bg-jumpa-primary-50 ring-1 ring-jumpa-primary-600"
-                  : "bg-jumpa-neutral-50"
-              }`}
+              className={`${RECEIVE_ROW} ${active ? RECEIVE_ROW_PICKED : RECEIVE_ROW_RESTING}`}
             >
               <input
                 type="radio"
@@ -161,22 +164,25 @@ export function FundingSheet({
                 onChange={() => setSelected(source)}
                 className="sr-only"
               />
-              <span className="flex size-9 items-center justify-center rounded-full bg-jumpa-primary-100 text-jumpa-primary-600">
-                <Icon className="size-5" />
+              <span className="flex items-center gap-2">
+                <Icon className="size-6 text-jumpa-primary-600" />
+                <span className="text-sm leading-4.5 font-medium text-jumpa-black">
+                  {source.label}
+                </span>
               </span>
-              <span className="flex-1 text-sm leading-4.5 font-medium text-jumpa-black">
-                {source.label}
-              </span>
-              <span className="text-sm leading-4.5 font-semibold text-jumpa-black">
-                {source.balance}
+              <span className="flex items-center gap-2">
+                <span className="text-base leading-4.5 font-semibold text-jumpa-black">
+                  {source.balance}
+                </span>
+                <ChevronRightIcon className="size-6 text-jumpa-black" />
               </span>
             </label>
           );
         })}
       </fieldset>
 
-      <p className="mt-4 flex items-start gap-2 text-xs leading-4.5 text-jumpa-warning">
-        <SealAlertIcon className="mt-px size-4 shrink-0" />
+      <p className="mt-6 flex items-center gap-2 text-xs leading-3.5 text-jumpa-warning">
+        <SealAlertIcon className="size-6 shrink-0" />
         {note}
       </p>
 
@@ -191,7 +197,7 @@ export function FundingSheet({
       ) : null}
 
       <Button
-        variant="gradient"
+        variant="gradientSheet"
         size="lg"
         className="mt-6"
         onClick={() => onContinue(selected)}

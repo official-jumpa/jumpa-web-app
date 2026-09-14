@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withAuth } from "@/lib/withAuth";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { listSavingsPlansByUserId } from "@/lib/functions/savingsFunctions";
 import { getUserById } from "@/lib/functions/userFunctions";
 import { formatPlanForUI, getLiveVaultApy } from "@/lib/savings-service";
 import { environment } from "@/lib/environment";
 import type { SavingsKind } from "@/lib/savings";
 
-export const GET = withAuth(async (req: NextRequest, { userId }) => {
+export async function GET(req: NextRequest) {
+  const auth = await requireActiveUser();
+  if (!auth.ok) return auth.response;
+  const { userId } = auth;
   try {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type"); // "individual" | "lock" | "circle" | null
@@ -81,4 +84,4 @@ export const GET = withAuth(async (req: NextRequest, { userId }) => {
       { status: 500 },
     );
   }
-});
+}

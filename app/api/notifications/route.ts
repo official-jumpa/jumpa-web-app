@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import {
   createNotification,
   getUserNotifications,
@@ -30,13 +30,9 @@ import type { NotificationTab } from "@/models/Notification";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await requireActiveUser();
+    if (!authResult.ok) return authResult.response;
+    const session = authResult.session;
 
     const searchParams = req.nextUrl.searchParams;
     const tab = searchParams.get("tab") as NotificationTab | null;
@@ -71,13 +67,9 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await requireActiveUser();
+    if (!authResult.ok) return authResult.response;
+    const session = authResult.session;
 
     const searchParams = req.nextUrl.searchParams;
     const id = searchParams.get("id");
@@ -120,13 +112,9 @@ export async function PATCH(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await requireActiveUser();
+    if (!authResult.ok) return authResult.response;
+    const session = authResult.session;
 
     const body = await req.json().catch(() => ({}));
     if (!body.title || !body.body || !body.tab || !body.type) {

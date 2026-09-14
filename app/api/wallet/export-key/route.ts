@@ -5,7 +5,7 @@ import * as bip39 from "bip39";
 import { Keypair as SolanaKeypair } from "@solana/web3.js";
 import { HDKey } from "@scure/bip32";
 import { deriveStellarKeypairFromMnemonic } from "@/lib/chains/stellar";
-import { auth } from "@/lib/auth";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { decryptMnemonic } from "@/lib/crypto";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { exportKeySchema } from "@/lib/validations/wallet.validation";
@@ -18,13 +18,9 @@ import { logUserActivity } from "@/lib/functions/userFunctions";
  * Returns decrypted private key or mnemonic phrase.
  */
 export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const authResult = await requireActiveUser();
+  if (!authResult.ok) return authResult.response;
+  const session = authResult.session;
 
   const body = await req.json().catch(() => ({}));
   const validation = exportKeySchema.safeParse(body);

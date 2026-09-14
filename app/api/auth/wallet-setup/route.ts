@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { generateMnemonic, validateMnemonic } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 import bcrypt from "bcryptjs";
-import { auth } from "@/lib/auth";
+import { requireAuth } from "@/lib/functions/permissionFunctions";
 import { encryptMnemonic, decryptMnemonic } from "@/lib/crypto";
 import {
   deriveAddresses,
@@ -62,13 +62,9 @@ function resolveNextOnboardingRoute(user: any, wallet: any): string {
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await requireAuth();
+    if (!authResult.ok) return authResult.response;
+    const session = authResult.session;
 
     await connectDB();
     const checkTag = req.nextUrl.searchParams.get("checkTag");
@@ -124,6 +120,7 @@ export async function GET(req: NextRequest) {
       hasPin,
       needsPinMigration,
       nextRoute,
+      userStatus: user?.status || "active",
       isComplete: hasPassword && hasTag && hasPin && !needsPinMigration,//delete once everyone has migrated to v2
     });
   } catch (err) {
@@ -145,13 +142,9 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await requireAuth();
+    if (!authResult.ok) return authResult.response;
+    const session = authResult.session;
 
     const body = await req.json().catch(() => ({}));
     const step = req.nextUrl.searchParams.get("step") || body.step || body.action;

@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withAuth } from "@/lib/withAuth";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { markSavingsIntroSeen } from "@/lib/functions/userFunctions";
 import { savingsIntroSeenSchema } from "@/lib/validations/savings.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 
-export const POST = withAuth(async (req: NextRequest, { userId }) => {
+export async function POST(req: NextRequest) {
+  const auth = await requireActiveUser();
+  if (!auth.ok) return auth.response;
+  const { userId } = auth;
+
   try {
     const { searchParams } = new URL(req.url);
     let kind = searchParams.get("kind");
@@ -31,4 +35,4 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
       { status: 500 },
     );
   }
-});
+}

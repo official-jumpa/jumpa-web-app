@@ -6,7 +6,7 @@ import { sendOtpEmail } from "./email-otp-mail";
 import { environment } from "./environment";
 import { generateId } from "./schema-ids";
 
-import { generateUniqueJumpaTag, generateUniqueReferralCode, ensureUserJumpaFields } from "./user-profile";
+import { generateUniqueReferralCode, ensureUserJumpaFields } from "./user-profile";
 import { User } from "@/models/User";
 import { Referral } from "@/models/Referral";
 import { Wallet } from "@/models/Wallet";
@@ -23,6 +23,11 @@ export const auth = betterAuth({
   database: mongodbAdapter(getDb()),
   user: {
     additionalFields: {
+      status: {
+        type: "string",
+        required: false,
+        defaultValue: "active",
+      },
       country: {
         type: "string",
         required: false,
@@ -101,6 +106,7 @@ export const auth = betterAuth({
           return {
             data: {
               ...user,
+              status: (user as any).status || "active",
               country: (user as any).country || country,
               jumpaTag: (user as any).jumpaTag || null,
               referralCode: (user as any).referralCode || referralCode,

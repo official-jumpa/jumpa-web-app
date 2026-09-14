@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import {
   formatDbTransaction,
   getTransactionById,
@@ -15,10 +15,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await requireActiveUser();
+    if (!authResult.ok) return authResult.response;
+    const session = authResult.session;
 
     const { id } = await params;
     const transaction = await getTransactionById(id, session.user.id);

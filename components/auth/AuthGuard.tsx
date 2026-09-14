@@ -9,6 +9,7 @@ export interface AuthUser {
   name: string | null;
   email: string;
   emailVerified: boolean;
+  status?: "pending" | "active" | "banned" | "suspended" | "deleted";
   image?: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -26,6 +27,7 @@ export interface OnboardingStatus {
   hasPin: boolean;
   needsPinMigration?: boolean;//delete once everyone has migrated to v2
   nextRoute?: string;
+  userStatus?: "pending" | "active" | "banned" | "suspended" | "deleted";
   isComplete: boolean;
 }
 
@@ -149,6 +151,23 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-3">
         <div className="size-8 animate-spin rounded-full border-2 border-jumpa-primary-600 border-t-transparent" />
+      </div>
+    );
+  }
+
+  //later the UI will be improved
+  const userStatus = user?.status || status?.userStatus || "active";
+  if (userStatus === "banned" || userStatus === "suspended") {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center p-6 text-center">
+        <div className="max-w-sm space-y-3 rounded-2xl border border-red-200 bg-red-50/50 p-6">
+          <h2 className="text-lg font-bold text-red-700">Account Suspended</h2>
+          <p className="text-sm text-neutral-600">
+            {userStatus === "banned"
+              ? "Your account has been permanently restricted from accessing Jumpa."
+              : "Your account is temporarily suspended. Please contact support for assistance."}
+          </p>
+        </div>
       </div>
     );
   }

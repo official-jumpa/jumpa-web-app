@@ -12,15 +12,15 @@ import type { BeneficiaryType } from "@/models/Beneficiary";
  */
 export async function GET(req: NextRequest) {
   try {
-    const authResult = await requireActiveUser();
-    if (!authResult.ok) return authResult.response;
-    const session = authResult.session;
+    const auth = await requireActiveUser();
+    if (!auth.ok) return auth.response;
+    const userId = auth.userId;
 
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") as BeneficiaryType | null;
 
     const beneficiaries = await getUserBeneficiaries(
-      session.user.id,
+      userId,
       type || undefined,
     );
 
@@ -39,9 +39,9 @@ export async function GET(req: NextRequest) {
  */
 export async function DELETE(req: NextRequest) {
   try {
-    const authResult = await requireActiveUser();
-    if (!authResult.ok) return authResult.response;
-    const session = authResult.session;
+    const auth = await requireActiveUser();
+    if (!auth.ok) return auth.response;
+    const userId = auth.userId;
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
@@ -53,7 +53,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const deleted = await deleteBeneficiary(session.user.id, id);
+    const deleted = await deleteBeneficiary(userId, id);
 
     if (!deleted) {
       return NextResponse.json(

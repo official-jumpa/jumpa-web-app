@@ -1,7 +1,7 @@
 import mongoose, { Schema, model, models } from "mongoose";
 
 export interface IUser {
-  _id: string; // Better-Auth uses custom generated string IDs (e.g. user_...)
+  _id: string;
   name: string | null;
   status: "pending" | "active" | "banned" | "suspended" | "deleted";
   country: string | null;

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { isImageAttachment } from "@/lib/chat-attachments";
 import { readChatAttachment } from "@/lib/functions/chatAttachmentFunctions";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 
 /** An SVG opened in a tab can run script on our origin, so it never goes inline. */
 function isInline(mime: string) {
@@ -18,13 +19,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireActiveUser();
+    if (!auth.ok) return auth.response;
+    const userId = auth.userId;
 
     const { id } = await params;
-    const file = await readChatAttachment(session.user.id, id);
+    const file = await readChatAttachment(userId, id);
     if (!file) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }

@@ -9,7 +9,6 @@ import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { decryptMnemonic } from "@/lib/crypto";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
-import { connectDB } from "@/lib/db";
 
 /**
  * POST /api/wallet/change-pin
@@ -31,7 +30,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await connectDB();
     const wallet = await findWalletForUser(session.user.id);
 
     if (!wallet) {

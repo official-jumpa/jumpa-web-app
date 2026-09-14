@@ -17,16 +17,20 @@ import {
   findWalletByAddress,
   createWalletRecord,
   updateWalletPin,
+  findWalletById,
+  findWalletForUser,
+  updateWalletById,
 } from "@/lib/functions/walletFunctions";
 import {
+  getUserById,
+  findUserByJumpaTag,
+  setUserLoginPassword,
+  setUserJumpaTag,
   setUserActiveWallet,
   recordUserActivity,
   logUserActivity,
 } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
-import { connectDB } from "@/lib/db";
-import { User } from "@/models/User";
-import { Wallet } from "@/models/Wallet";
 import { walletSetupSchema } from "@/lib/validations/user.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 
@@ -66,7 +70,6 @@ export async function GET(req: NextRequest) {
     if (!authResult.ok) return authResult.response;
     const session = authResult.session;
 
-    await connectDB();
     const checkTag = req.nextUrl.searchParams.get("checkTag");
 
     if (checkTag !== null) {
@@ -84,9 +87,9 @@ export async function GET(req: NextRequest) {
       }
 
       const candidate = `${handle}@jumpa`;
-      const existing = await User.findOne({ jumpaTag: candidate });
+      const existing = await findUserByJumpaTag(candidate);
 
-      const available = !existing || existing._id === session.user.id;
+      const available = !existing || existing._id.toString() === session.user.id;
       const suggestions = available
         ? []
         : [`${handle}_`, `${handle}1`, `the${handle}`]
@@ -100,13 +103,10 @@ export async function GET(req: NextRequest) {
     }
 
     // Default: Check onboarding completion status
-    const user = await User.findById(session.user.id);
+    const user = await getUserById(session.user.id);
     const wallet = user?.activeWalletId
-      ? await Wallet.findById(user.activeWalletId)
-      : await Wallet.findOne({
-          userId: session.user.id,
-          pinHash: { $exists: true, $ne: "" },
-        });
+      ? await findWalletById(user.activeWalletId)
+      : await findWalletForUser(session.user.id);
 
     const hasPassword = Boolean(user?.loginPasswordHash);
     const hasTag = Boolean(user?.jumpaTag);
@@ -149,8 +149,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const step = req.nextUrl.searchParams.get("step") || body.step || body.action;
 
-    await connectDB();
-
     // Step 1: Set Login Password (6 digits)
     if (step === "password") {
       const password = String(body.password || "").trim();
@@ -168,18 +166,14 @@ export async function POST(req: NextRequest) {
       }
 
       const loginPasswordHash = await bcrypt.hash(password, 10);
-      const updatedUser = await User.findByIdAndUpdate(
+      const updatedUser = await setUserLoginPassword(
         session.user.id,
-        { $set: { loginPasswordHash } },
-        { new: true },
+        loginPasswordHash,
       );
 
       const wallet = updatedUser?.activeWalletId
-        ? await Wallet.findById(updatedUser.activeWalletId)
-        : await Wallet.findOne({
-            userId: session.user.id,
-            pinHash: { $exists: true, $ne: "" },
-          });
+        ? await findWalletById(updatedUser.activeWalletId)
+        : await findWalletForUser(session.user.id);
 
       const nextRoute = resolveNextOnboardingRoute(updatedUser, wallet);
 
@@ -213,30 +207,20 @@ export async function POST(req: NextRequest) {
       }
 
       const fullTag = `${handle}@jumpa`;
-      const duplicate = await User.findOne({
-        jumpaTag: fullTag,
-        _id: { $ne: session.user.id },
-      });
+      const duplicate = await findUserByJumpaTag(fullTag);
 
-      if (duplicate) {
+      if (duplicate && duplicate._id.toString() !== session.user.id) {
         return NextResponse.json(
           { error: "That Jumpa tag is already taken" },
           { status: 409 },
         );
       }
 
-      const updatedUser = await User.findByIdAndUpdate(
-        session.user.id,
-        { $set: { jumpaTag: fullTag } },
-        { new: true },
-      );
+      const updatedUser = await setUserJumpaTag(session.user.id, fullTag);
 
       const wallet = updatedUser?.activeWalletId
-        ? await Wallet.findById(updatedUser.activeWalletId)
-        : await Wallet.findOne({
-            userId: session.user.id,
-            pinHash: { $exists: true, $ne: "" },
-          });
+        ? await findWalletById(updatedUser.activeWalletId)
+        : await findWalletForUser(session.user.id);
 
       const nextRoute = resolveNextOnboardingRoute(updatedUser, wallet);
 
@@ -297,10 +281,10 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        const user = await User.findById(session.user.id);
+        const user = await getUserById(session.user.id);
         const wallet = user?.activeWalletId
-          ? await Wallet.findById(user.activeWalletId)
-          : await Wallet.findOne({ userId: session.user.id });
+          ? await findWalletById(user.activeWalletId)
+          : await findWalletForUser(session.user.id);
 
         if (!wallet) {
           return NextResponse.json(
@@ -354,10 +338,10 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        const user = await User.findById(session.user.id);
+        const user = await getUserById(session.user.id);
         const wallet = user?.activeWalletId
-          ? await Wallet.findById(user.activeWalletId)
-          : await Wallet.findOne({ userId: session.user.id });
+          ? await findWalletById(user.activeWalletId)
+          : await findWalletForUser(session.user.id);
 
         if (!wallet) {
           console.warn(`[MigratePIN][ConfirmExisting] ⚠️ No active wallet found for user ${session.user.id}`);
@@ -404,12 +388,10 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        await Wallet.findByIdAndUpdate(wallet._id, {
-          $set: {
-            pinVersion: "v2",
-            pinAttempts: 0,
-            pinLockedUntil: null,
-          },
+        await updateWalletById(wallet._id, {
+          pinVersion: "v2",
+          pinAttempts: 0,
+          pinLockedUntil: null,
         });
 
         console.log(`[MigratePIN][ConfirmExisting] 🎉 Successfully upgraded wallet ${wallet._id} to pinVersion v2.`);
@@ -446,10 +428,10 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const user = await User.findById(session.user.id);
+      const user = await getUserById(session.user.id);
       const wallet = user?.activeWalletId
-        ? await Wallet.findById(user.activeWalletId)
-        : await Wallet.findOne({ userId: session.user.id });
+        ? await findWalletById(user.activeWalletId)
+        : await findWalletForUser(session.user.id);
 
       if (!wallet) {
         console.warn(`[MigratePIN][Standard] ⚠️ No active wallet found to migrate for user ${session.user.id}`);
@@ -554,8 +536,9 @@ export async function POST(req: NextRequest) {
       // If the wallet exists but is missing pinHash, complete the setup instead of throwing error:
       if (!existingWallet.pinHash) {
         const pinHash = await bcrypt.hash(pin, 10);
-        await Wallet.findByIdAndUpdate(existingWallet._id, {
-          $set: { pinHash, pinVersion: "v2" }
+        await updateWalletById(existingWallet._id, {
+          pinHash,
+          pinVersion: "v2",
         });
         return NextResponse.json({ success: true, walletId: existingWallet._id });
       }

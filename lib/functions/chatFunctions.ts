@@ -162,3 +162,37 @@ export async function cancelPendingChatMessage(params: {
     assistantMessage: cancelMsg,
   };
 }
+
+/**
+ * Updates the messages array for a chat log session.
+ * Used when synchronizing settled transaction card statuses.
+ */
+export async function updateChatLogMessages(
+  sessionId: string,
+  userId: string,
+  messages: any[],
+): Promise<boolean> {
+  await connectDB();
+  const res = await ChatLog.updateOne(
+    { _id: sessionId, userId },
+    { $set: { messages } },
+  );
+  return res.matchedCount > 0;
+}
+
+/**
+ * Updates the title of a chat session.
+ * Used when auto-titling or renaming chat sessions.
+ */
+export async function updateChatLogTitle(
+  sessionId: string,
+  userId: string,
+  title: string,
+): Promise<boolean> {
+  await connectDB();
+  const res = await ChatLog.updateOne(
+    { _id: sessionId, userId },
+    { $set: { title } },
+  );
+  return res.matchedCount > 0;
+}

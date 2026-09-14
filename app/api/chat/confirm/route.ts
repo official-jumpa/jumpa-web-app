@@ -1,7 +1,6 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { headers } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { getExplorerTxUrl } from "@/lib/blockchain";
 import { executeOfframpTransfer } from "@/lib/chains/offramp-transfer";
 import {
@@ -9,16 +8,22 @@ import {
   getHorizonServer,
 } from "@/lib/chains/stellar";
 import { decryptMnemonic } from "@/lib/crypto";
-import { connectDB } from "@/lib/db";
 import { executeSwap } from "@/lib/execution/stellar-swap";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { generateId } from "@/lib/schema-ids";
 import { SwitchService } from "@/lib/switch";
 import { confirmChatActionSchema } from "@/lib/validations/chat.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
-import { ChatLog, type IChatMessage } from "@/models/ChatLog";
-import { Transaction } from "@/models/Transaction";
-import { Wallet } from "@/models/Wallet";
+import { type IChatMessage } from "@/models/ChatLog";
+import { getChatLogById } from "@/lib/functions/chatFunctions";
+import {
+  findWalletForUser,
+  updateWalletById,
+} from "@/lib/functions/walletFunctions";
+import {
+  createTransactionRecord,
+  updateTransactionByReference,
+} from "@/lib/functions/transactionFunctions";
 import {
   createSavingsPlanExecution,
   depositSavingsExecution,
@@ -35,14 +40,9 @@ export async function POST(req: NextRequest) {
   console.log(" [CHAT CONFIRM START]");
 
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      console.warn("[Chat Confirm] Unauthorized request - no active session");
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireActiveUser();
+    if (!auth.ok) return auth.response;
+    const session = auth.session;
 
     const body = await req.json().catch(() => ({}));
     const validation = confirmChatActionSchema.safeParse(body);
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     console.log(`[Chat Confirm] User ID: ${userId}, sessionid: ${sessionId}, messageId: ${messageId}`);
 
     // Verify PIN against user's wallet
-    const wallet = await Wallet.findOne({ userId });
+    const wallet = await findWalletForUser(userId);
     if (!wallet) {
       return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
     }
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const chatLog = await ChatLog.findOne({ _id: sessionId, userId });
+    const chatLog = await getChatLogById(sessionId, userId);
     if (!chatLog) {
       return NextResponse.json(
         { error: "Chat session not found" },
@@ -80,10 +80,10 @@ export async function POST(req: NextRequest) {
 
     // Find the target action message (always pick the latest one if messageId not provided)
     const targetMsg = messageId
-      ? chatLog.messages.find((m) => m.id === messageId)
+      ? chatLog.messages.find((m: IChatMessage) => m.id === messageId)
       : [...chatLog.messages]
         .reverse()
-        .find((m) => m.isTransaction && m.status === "pending");
+        .find((m: IChatMessage) => m.isTransaction && m.status === "pending");
 
     if (!targetMsg) {
       console.warn(
@@ -251,7 +251,7 @@ export async function POST(req: NextRequest) {
 
       // Log for bridge transaction (Simulated Staging)
       try {
-        await Transaction.create({
+        await createTransactionRecord({
           userId,
           walletId: wallet._id,
           sessionId,
@@ -281,10 +281,7 @@ export async function POST(req: NextRequest) {
         console.warn(`[Chat Confirm] Bridge Transaction log notice: ${dbErr.message}`);
       }
 
-      Wallet.updateOne(
-        { _id: wallet._id },
-        { $set: { lastUsedAt: new Date() } },
-      ).catch(() => { });
+      updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});
 
       receiptCardData = {
         title: "Bridge (Simulation)",
@@ -532,7 +529,7 @@ export async function POST(req: NextRequest) {
         console.log(`[Chat Confirm] SUCCESS! Tx Hash: ${txHash}, network: ${network},explorerUrl: ${explorerUrl}`);
 
         // Record transaction in ledger
-        Transaction.create({
+        createTransactionRecord({
           userId,
           walletId: wallet._id,
           sessionId,
@@ -553,10 +550,7 @@ export async function POST(req: NextRequest) {
           console.error("[Chat Confirm] Transaction error:", e),
         );
 
-        Wallet.updateOne(
-          { _id: wallet._id },
-          { $set: { lastUsedAt: new Date() } },
-        ).catch(() => { });
+        updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});
       } catch (payErr: any) {
         const resultCodes =
           payErr?.response?.data?.extras?.result_codes ||
@@ -586,7 +580,7 @@ export async function POST(req: NextRequest) {
           userErrorMsg = `Payment failed: ${resultCodes}`;
         }
 
-        Transaction.create({
+        createTransactionRecord({
           userId,
           walletId: wallet._id,
           sessionId,
@@ -725,25 +719,17 @@ export async function POST(req: NextRequest) {
 
       // Update Transaction in DB
       try {
-        await Transaction.findOneAndUpdate(
-          { txHash: reference },
-          {
-            $set: {
-              status: "CONFIRMED",
-              txHash,
-              explorerUrl,
-              executedAt: new Date(),
-            },
-          },
-        );
+        await updateTransactionByReference(reference, {
+          status: "CONFIRMED",
+          txHash,
+          explorerUrl,
+          executedAt: new Date(),
+        });
       } catch (dbErr: any) {
         console.warn("[Chat Confirm] DB update notice:", dbErr.message);
       }
 
-      Wallet.updateOne(
-        { _id: wallet._id },
-        { $set: { lastUsedAt: new Date() } },
-      ).catch(() => { });
+      updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});
 
       receiptCardData = {
         title: "Withdrawal Sent",

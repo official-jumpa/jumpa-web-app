@@ -240,3 +240,32 @@ export async function updateWalletPin({
 
   return updatedWallet;
 }
+
+/**
+ * Finds a wallet by its unique ID.
+ * Use when querying a wallet with an explicit walletId
+ */
+export async function findWalletById(
+  walletId: string,
+): Promise<IWallet | null> {
+  await connectDB();
+  const wallet = await Wallet.findById(walletId).lean<IWallet>();
+  return wallet ?? null;
+}
+
+/**
+ * Updates a wallet document by its ID.
+ * Use for updating wallet metadata, keys, addresses, or status.
+ */
+export async function updateWalletById(
+  walletId: string,
+  updateData: Partial<IWallet> | Record<string, any>,
+): Promise<IWallet | null> {
+  await connectDB();
+  const updated = await Wallet.findByIdAndUpdate(
+    walletId,
+    { $set: updateData },
+    { new: true },
+  ).lean<IWallet>();
+  return updated ?? null;
+}

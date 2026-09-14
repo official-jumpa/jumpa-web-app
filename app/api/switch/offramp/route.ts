@@ -4,7 +4,10 @@ import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { SwitchService } from "@/lib/switch";
 import { resolveBankCode } from "@/lib/switch-banks";
 import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
-import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
+import {
+  createTransactionRecord,
+  updateTransactionRecord,
+} from "@/lib/functions/transactionFunctions";
 import { switchOfframpSchema } from "@/lib/validations/switch.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import {
@@ -17,7 +20,6 @@ import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { decryptMnemonic } from "@/lib/crypto";
 import { executeOfframpTransfer } from "@/lib/chains/offramp-transfer";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
-import { Transaction } from "@/models/Transaction";
 
 
 /**
@@ -261,12 +263,10 @@ export async function POST(req: NextRequest) {
 
       // Update Transaction in DB
       if (txRecord?._id) {
-        await Transaction.findByIdAndUpdate(txRecord._id, {
-          $set: {
-            status: "CONFIRMED",
-            txHash: transferResult.txHash,
-            explorerUrl: transferResult.explorerUrl,
-          },
+        await updateTransactionRecord(txRecord._id, {
+          status: "CONFIRMED",
+          txHash: transferResult.txHash,
+          explorerUrl: transferResult.explorerUrl,
         }).catch(() => {});
       }
 

@@ -583,3 +583,94 @@ export async function updateTransactionStatus(params: {
   );
 }
 
+/**
+ * Finds a transaction by its Switch ramp reference or blockchain txHash.
+ * Used for querying status updates or webhook callbacks.
+ */
+export async function findTransactionByReference(
+  reference: string,
+): Promise<ITransaction | null> {
+  await connectDB();
+  const tx = await Transaction.findOne({
+    $or: [
+      { "rampDetails.reference": reference },
+      { txHash: reference },
+    ],
+  }).lean<ITransaction>();
+  return tx ?? null;
+}
+
+/**
+ * Updates a transaction record matching a Switch reference or txHash.
+ * Used during payment settlement checks.
+ */
+export async function updateTransactionByReference(
+  reference: string,
+  data: Partial<ITransaction> | Record<string, any>,
+): Promise<boolean> {
+  await connectDB();
+  const res = await Transaction.updateOne(
+    {
+      $or: [
+        { "rampDetails.reference": reference },
+        { txHash: reference },
+      ],
+    },
+    { $set: data },
+  );
+  return res.matchedCount > 0;
+}
+
+/**
+ * Finds confirmed transactions matching any of the provided references or txHashes for a user.
+ * Used for syncing chat card statuses with settled transactions.
+ */
+export async function findConfirmedTransactionsByReferences(
+  userId: string,
+  references: string[],
+): Promise<ITransaction[]> {
+  await connectDB();
+  return Transaction.find({
+    userId,
+    status: "CONFIRMED",
+    $or: [
+      { "rampDetails.reference": { $in: references } },
+      { txHash: { $in: references } },
+    ],
+  }).lean();
+}
+
+/**
+ * Updates a transaction record by its ID.
+ * Use for updating status, metadata, blockchain hashes, or settlement details.
+ */
+export async function updateTransactionRecord(
+  id: string,
+  data: Partial<ITransaction> | Record<string, any>,
+): Promise<ITransaction | null> {
+  await connectDB();
+  const updated = await Transaction.findByIdAndUpdate(
+    id,
+    { $set: data },
+    { new: true },
+  ).lean<ITransaction>();
+  return updated ?? null;
+}
+
+/**
+ * Finds recent transactions for a user after a specified cutoff date, filtered by type.
+ * Used in chat history and context generation.
+ */
+export async function findRecentUserTransactions(
+  userId: string,
+  cutoff: Date,
+  types: ITransaction["type"][] = ["TRANSFER", "SWAP"],
+): Promise<ITransaction[]> {
+  await connectDB();
+  return Transaction.find({
+    userId,
+    type: { $in: types },
+    createdAt: { $gte: cutoff },
+  }).lean();
+}
+

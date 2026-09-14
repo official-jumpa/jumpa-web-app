@@ -1,32 +1,20 @@
-import { headers } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { connectDB, getDb } from "@/lib/db";
-import { logUserActivity } from "@/lib/functions/userFunctions";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
+import {
+  getUserActiveSessions,
+  deleteUserActiveSession,
+  deleteOtherUserSessions,
+  logUserActivity,
+} from "@/lib/functions/userFunctions";
 import { parseUserAgent } from "@/lib/user-agent";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const auth = await requireActiveUser();
+    if (!auth.ok) return auth.response;
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    await connectDB();
-    const db = getDb();
-
-    // Query active sessions that have not expired yet
-    const rawSessions = await db
-      .collection("session")
-      .find({
-        userId: session.user.id,
-        expiresAt: { $gt: new Date() },
-      })
-      .sort({ createdAt: -1 })
-      .toArray();
+    const session = auth.session;
+    const rawSessions = await getUserActiveSessions(session.user.id);
 
     const currentToken = session.session?.token;
     const currentId = session.session?.id;
@@ -69,49 +57,38 @@ export async function GET(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const auth = await requireActiveUser();
+    if (!auth.ok) return auth.response;
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
+    const session = auth.session;
     const searchParams = req.nextUrl.searchParams;
     const target = searchParams.get("target");
     const targetId = searchParams.get("id");
 
-    await connectDB();
-    const db = getDb();
     const currentToken = session.session?.token;
     const currentId = session.session?.id;
 
     if (target === "others") {
-      // Delete all sessions for user EXCEPT the current session
-      const filter: Record<string, any> = { userId: session.user.id };
-      if (currentId) {
-        filter._id = { $ne: currentId };
-      } else if (currentToken) {
-        filter.token = { $ne: currentToken };
-      }
-
-      const result = await db.collection("session").deleteMany(filter);
+      const deletedCount = await deleteOtherUserSessions(
+        session.user.id,
+        currentId,
+        currentToken,
+      );
 
       await logUserActivity({
         userId: session.user.id,
         action: "ALL_OTHER_SESSIONS_REVOKED",
-        details: { count: result.deletedCount },
+        details: { count: deletedCount },
         req,
       });
 
       return NextResponse.json({
         success: true,
-        revokedCount: result.deletedCount,
+        revokedCount: deletedCount,
       });
     }
 
     if (targetId) {
-      // Cannot delete current session via this route (use standard logout for current)
       if (targetId === currentId) {
         return NextResponse.json(
           {
@@ -121,10 +98,7 @@ export async function DELETE(req: NextRequest) {
         );
       }
 
-      const result = await db.collection("session").deleteOne({
-        _id: targetId as any,
-        userId: session.user.id,
-      });
+      const deleted = await deleteUserActiveSession(session.user.id, targetId);
 
       await logUserActivity({
         userId: session.user.id,
@@ -135,7 +109,7 @@ export async function DELETE(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        deleted: result.deletedCount > 0,
+        deleted,
       });
     }
 

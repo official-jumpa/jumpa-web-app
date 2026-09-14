@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
-import { Transaction } from "@/models/Transaction";
-import { ChatLog } from "@/models/ChatLog";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import {
   listRecentChatSessions,
   getLatestChatLog,
   getChatLogById,
   deleteChatSession,
+  updateChatLogMessages,
 } from "@/lib/functions/chatFunctions";
+import { findConfirmedTransactionsByReferences } from "@/lib/functions/transactionFunctions";
 import { chatHistoryQuerySchema } from "@/lib/validations/chat.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 
@@ -36,15 +34,10 @@ async function syncMessagesWithSettledTransactions(
   const references = pendingOnramps.map((m) => m.cardData.reference);
 
   try {
-    await connectDB();
-    const confirmedTxs = await Transaction.find({
+    const confirmedTxs = await findConfirmedTransactionsByReferences(
       userId,
-      status: "CONFIRMED",
-      $or: [
-        { "rampDetails.reference": { $in: references } },
-        { txHash: { $in: references } },
-      ],
-    }).lean();
+      references,
+    );
 
     if (confirmedTxs.length === 0) return messages;
 
@@ -68,10 +61,7 @@ async function syncMessagesWithSettledTransactions(
     }
 
     if (hasUpdates && chatId) {
-      ChatLog.updateOne(
-        { _id: chatId, userId },
-        { $set: { messages } },
-      ).catch((err) =>
+      updateChatLogMessages(chatId, userId, messages).catch((err) =>
         console.warn(
           "[Chat History] Notice updating ChatLog messages:",
           err?.message,
@@ -90,15 +80,10 @@ async function syncMessagesWithSettledTransactions(
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const auth = await requireActiveUser();
+    if (!auth.ok) return auth.response;
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const userId = session.user.id;
+    const userId = auth.session.user.id;
     const { searchParams } = new URL(req.url);
 
     const validation = chatHistoryQuerySchema.safeParse({
@@ -202,13 +187,8 @@ export async function GET(req: NextRequest) {
  */
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireActiveUser();
+    if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get("sessionId");
@@ -220,7 +200,7 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    await deleteChatSession(sessionId, session.user.id);
+    await deleteChatSession(sessionId, auth.session.user.id);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[Chat History Error]", err);

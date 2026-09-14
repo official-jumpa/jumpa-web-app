@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { SwitchService } from "@/lib/switch";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { switchStatusQuerySchema } from "@/lib/validations/switch.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
-import { Transaction } from "@/models/Transaction";
+import {
+  findTransactionByReference,
+  updateTransactionByReference,
+} from "@/lib/functions/transactionFunctions";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const auth = await requireActiveUser();
+    if (!auth.ok) return auth.response;
 
-    if (!session?.user?.id) {
-      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
-    }
-
+    const session = auth.session;
     const reference = req.nextUrl.searchParams.get("reference");
     const validation = switchStatusQuerySchema.safeParse({ reference });
     if (!validation.success) {
@@ -26,13 +23,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Return instantly if already settled in our database
-    await connectDB();
-    const existingTx = await Transaction.findOne({
-      $or: [
-        { "rampDetails.reference": validation.data.reference },
-        { txHash: validation.data.reference },
-      ],
-    }).lean();
+    const existingTx = await findTransactionByReference(validation.data.reference);
 
     if (existingTx && existingTx.status === "CONFIRMED") {
       return NextResponse.json({
@@ -92,23 +83,12 @@ export async function GET(req: NextRequest) {
       const explorerUrl = result.data?.meta?.explorer_url || null;
 
       try {
-        await connectDB();
-        await Transaction.updateOne(
-          {
-            $or: [
-              { "rampDetails.reference": validation.data.reference },
-              { txHash: validation.data.reference },
-            ],
-          },
-          {
-            $set: {
-              status: "CONFIRMED",
-              txHash,
-              ...(explorerUrl ? { explorerUrl } : {}),
-              updatedAt: new Date(),
-            },
-          },
-        );
+        await updateTransactionByReference(validation.data.reference, {
+          status: "CONFIRMED",
+          txHash,
+          ...(explorerUrl ? { explorerUrl } : {}),
+          updatedAt: new Date(),
+        });
         invalidateBalanceCache(session.user.id);
       } catch (dbErr: any) {
         console.warn("[Switch Status API] Notice updating transaction status:", dbErr?.message);
@@ -116,21 +96,10 @@ export async function GET(req: NextRequest) {
     } else if (isFailed) {
       humanMessage = "Transaction failed or expired. Please initiate a new transaction.";
       try {
-        await connectDB();
-        await Transaction.updateOne(
-          {
-            $or: [
-              { "rampDetails.reference": validation.data.reference },
-              { txHash: validation.data.reference },
-            ],
-          },
-          {
-            $set: {
-              status: "FAILED",
-              updatedAt: new Date(),
-            },
-          },
-        );
+        await updateTransactionByReference(validation.data.reference, {
+          status: "FAILED",
+          updatedAt: new Date(),
+        });
       } catch (dbErr: any) {
         console.warn("[Switch Status API] Notice updating failed transaction status:", dbErr?.message);
       }

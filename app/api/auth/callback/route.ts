@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { connectDB } from "@/lib/db";
-import { Wallet } from "@/models/Wallet";
+import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { environment } from "@/lib/environment";
 
 /**
@@ -12,7 +11,9 @@ import { environment } from "@/lib/environment";
  * - New user without wallet -> /sign-up/pin (Set Transaction PIN)
  */
 export async function GET(req: NextRequest) {
-  const origin = environment.BETTER_AUTH_URL || environment.AUTH_URL ||
+  const origin =
+    environment.BETTER_AUTH_URL ||
+    environment.AUTH_URL ||
     req.nextUrl.origin;
 
   try {
@@ -24,8 +25,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${origin}/onboarding`);
     }
 
-    await connectDB();
-    const existingWallet = await Wallet.findOne({ userId: session.user.id });
+    const existingWallet = await findWalletForUser(session.user.id);
 
     if (existingWallet) {
       const res = NextResponse.redirect(`${origin}/home`);

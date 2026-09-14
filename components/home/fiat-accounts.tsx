@@ -4,15 +4,15 @@ import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
 import { FIAT_ACCOUNTS, type FiatAccount } from "@/lib/wallet";
 import { FiatBalance } from "./fiat-balance";
 
-/** USD has its own opening flow; NGN still starts with identity. */
+/** Each currency has its own opening flow. */
 const CREATE: Record<FiatAccount["id"], string> = {
-  ngn: "/usd-account",
+  ngn: "/ngn-account",
   usd: "/usd-account",
 };
 
 /** A funded account opens the details money is sent to. */
 const DETAILS: Record<FiatAccount["id"], string> = {
-  ngn: "/receive?rail=fiat",
+  ngn: "/ngn-account?view=details",
   usd: "/usd-account?view=details",
 };
 

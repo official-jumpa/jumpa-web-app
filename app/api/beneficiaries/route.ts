@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import {
   getUserBeneficiaries,
   deleteBeneficiary,
 } from "@/lib/functions/userFunctions";
-import type { BeneficiaryType } from "@/models/Beneficiary";
+import {
+  listBeneficiariesQuerySchema,
+  deleteBeneficiaryQuerySchema,
+} from "@/lib/validations/beneficiary.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 /**
  * GET /api/beneficiaries?type=bank|wallet|jumpa|momo
@@ -17,7 +20,17 @@ export async function GET(req: NextRequest) {
     const userId = auth.userId;
 
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type") as BeneficiaryType | null;
+    const validation = listBeneficiariesQuerySchema.safeParse({
+      type: searchParams.get("type") || undefined,
+    });
+
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), {
+        status: 400,
+      });
+    }
+
+    const { type } = validation.data;
 
     const beneficiaries = await getUserBeneficiaries(
       userId,
@@ -44,14 +57,17 @@ export async function DELETE(req: NextRequest) {
     const userId = auth.userId;
 
     const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
+    const validation = deleteBeneficiaryQuerySchema.safeParse({
+      id: searchParams.get("id") || undefined,
+    });
 
-    if (!id) {
-      return NextResponse.json(
-        { error: "Beneficiary ID is required" },
-        { status: 400 },
-      );
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), {
+        status: 400,
+      });
     }
+
+    const { id } = validation.data;
 
     const deleted = await deleteBeneficiary(userId, id);
 

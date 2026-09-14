@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
 import { supportedBanks } from "@/lib/constants/banks";
+import { resolveAccountQuerySchema } from "@/lib/validations/bank.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 /**
  * GET /api/bank/resolve?accountNumber=...&bank=...
@@ -10,36 +11,26 @@ import { supportedBanks } from "@/lib/constants/banks";
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireActiveUser();
+    if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(req.url);
-    const accountNumber = searchParams.get("accountNumber") || "";
-    const bankParam =
-      searchParams.get("bank") ||
-      searchParams.get("bankName") ||
-      searchParams.get("bankCode") ||
-      "";
+    const validation = resolveAccountQuerySchema.safeParse({
+      accountNumber: searchParams.get("accountNumber") || "",
+      bank:
+        searchParams.get("bank") ||
+        searchParams.get("bankName") ||
+        searchParams.get("bankCode") ||
+        "",
+    });
 
-    const cleanAccount = accountNumber.replace(/\D/g, "");
-    if (cleanAccount.length !== 10) {
-      return NextResponse.json(
-        { error: "Account number must be exactly 10 digits" },
-        { status: 400 },
-      );
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), {
+        status: 400,
+      });
     }
 
-    if (!bankParam) {
-      return NextResponse.json(
-        { error: "Bank name or code is required" },
-        { status: 400 },
-      );
-    }
+    const { accountNumber: cleanAccount, bank: bankParam } = validation.data;
 
     // Match by code first or fuzzy match bank name
     const bankByCode = supportedBanks.find((b) => b.code === bankParam);

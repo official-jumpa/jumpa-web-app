@@ -8,7 +8,10 @@ import {
   updateChatLogMessages,
 } from "@/lib/functions/chatFunctions";
 import { findConfirmedTransactionsByReferences } from "@/lib/functions/transactionFunctions";
-import { chatHistoryQuerySchema } from "@/lib/validations/chat.validation";
+import {
+  chatHistoryQuerySchema,
+  deleteChatSessionQuerySchema,
+} from "@/lib/validations/chat.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 
 /**
@@ -191,16 +194,17 @@ export async function DELETE(req: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(req.url);
-    const sessionId = searchParams.get("sessionId");
+    const validation = deleteChatSessionQuerySchema.safeParse({
+      sessionId: searchParams.get("sessionId") || undefined,
+    });
 
-    if (!sessionId) {
-      return NextResponse.json(
-        { error: "sessionId is required" },
-        { status: 400 },
-      );
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), {
+        status: 400,
+      });
     }
 
-    await deleteChatSession(sessionId, auth.session.user.id);
+    await deleteChatSession(validation.data.sessionId, auth.session.user.id);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[Chat History Error]", err);

@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import {
@@ -7,22 +6,21 @@ import {
   markAllNotificationsAsRead,
   markNotificationAsRead,
 } from "@/lib/functions/notificationFunctions";
-import type { NotificationTab } from "@/models/Notification";
+import {
+  listNotificationsQuerySchema,
+  updateNotificationQuerySchema,
+  createNotificationSchema,
+} from "@/lib/validations/notification.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 /**
  * Single unified API endpoint for all notification operations.
  *
  * GET /api/notifications
- *   Query params:
- *   - tab: 'transactions' | 'activities'
- *   - unreadOnly: 'true' | 'false'
- *   - limit: number
- *   - skip: number
+ *   Query params: tab, unreadOnly, limit, skip
  *
  * PATCH /api/notifications
- *   Query params:
- *   - id: notificationId (marks single notification as read)
- *   - action: 'read-all' (marks all as read, optionally filtered by ?tab=)
+ *   Query params: id, action ('read-all'), tab
  *
  * POST /api/notifications
  *   Body: { tab, type, title, body, metadata?, link? }
@@ -35,18 +33,23 @@ export async function GET(req: NextRequest) {
     const session = authResult.session;
 
     const searchParams = req.nextUrl.searchParams;
-    const tab = searchParams.get("tab") as NotificationTab | null;
-    const unreadOnly = searchParams.get("unreadOnly") === "true";
-    const limitParam = searchParams.get("limit");
-    const limit = limitParam ? parseInt(limitParam, 10) : 30;
-    const skipParam = searchParams.get("skip");
-    const skip = skipParam ? parseInt(skipParam, 10) : 0;
+    const validation = listNotificationsQuerySchema.safeParse({
+      tab: searchParams.get("tab") || undefined,
+      unreadOnly: searchParams.get("unreadOnly") || undefined,
+      limit: searchParams.get("limit") || undefined,
+      skip: searchParams.get("skip") || undefined,
+    });
+
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), {
+        status: 400,
+      });
+    }
+
+    const { tab, unreadOnly, limit, skip } = validation.data;
 
     const data = await getUserNotifications(session.user.id, {
-      tab:
-        tab && (tab === "transactions" || tab === "activities")
-          ? tab
-          : undefined,
+      tab,
       unreadOnly,
       limit,
       skip,
@@ -72,16 +75,25 @@ export async function PATCH(req: NextRequest) {
     const session = authResult.session;
 
     const searchParams = req.nextUrl.searchParams;
-    const id = searchParams.get("id");
-    const action = searchParams.get("action");
-    const tab = searchParams.get("tab") as NotificationTab | null;
+    const validation = updateNotificationQuerySchema.safeParse({
+      id: searchParams.get("id") || undefined,
+      action: searchParams.get("action") || undefined,
+      tab: searchParams.get("tab") || undefined,
+      readAll: searchParams.get("readAll") || undefined,
+    });
 
-    if (action === "read-all" || searchParams.get("readAll") === "true") {
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), {
+        status: 400,
+      });
+    }
+
+    const { id, action, tab, readAll } = validation.data;
+
+    if (action === "read-all" || readAll === "true") {
       const modifiedCount = await markAllNotificationsAsRead(
         session.user.id,
-        tab && (tab === "transactions" || tab === "activities")
-          ? tab
-          : undefined,
+        tab,
       );
       return NextResponse.json({
         success: true,
@@ -117,24 +129,25 @@ export async function POST(req: NextRequest) {
     const session = authResult.session;
 
     const body = await req.json().catch(() => ({}));
-    if (!body.title || !body.body || !body.tab || !body.type) {
-      return NextResponse.json(
-        {
-          error:
-            "Missing required notification fields (title, body, tab, type)",
-        },
-        { status: 400 },
-      );
+    const validation = createNotificationSchema.safeParse(body);
+
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), {
+        status: 400,
+      });
     }
+
+    const { tab, type, title, body: notifBody, metadata, link } =
+      validation.data;
 
     const created = await createNotification({
       userId: session.user.id,
-      tab: body.tab,
-      type: body.type,
-      title: body.title,
-      body: body.body,
-      metadata: body.metadata,
-      link: body.link,
+      tab,
+      type,
+      title,
+      body: notifBody,
+      metadata,
+      link,
     });
 
     return NextResponse.json(

@@ -70,3 +70,15 @@ export const chatHistoryQuerySchema = z.object({
 });
 
 export type ChatHistoryQueryInput = z.infer<typeof chatHistoryQuerySchema>;
+
+/**
+ * Validation for deleting a chat session (DELETE /api/chat/history)
+ */
+export const deleteChatSessionQuerySchema = z.object({
+  sessionId: z
+    .string({ error: "sessionId is required" })
+    .trim()
+    .min(1, "sessionId is required"),
+});
+
+export type DeleteChatSessionQueryInput = z.infer<typeof deleteChatSessionQuerySchema>;

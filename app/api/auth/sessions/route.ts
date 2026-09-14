@@ -7,6 +7,8 @@ import {
   logUserActivity,
 } from "@/lib/functions/userFunctions";
 import { parseUserAgent } from "@/lib/user-agent";
+import { deleteSessionQuerySchema } from "@/lib/validations/user.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 export async function GET(req: NextRequest) {
   try {
@@ -62,9 +64,18 @@ export async function DELETE(req: NextRequest) {
 
     const session = auth.session;
     const searchParams = req.nextUrl.searchParams;
-    const target = searchParams.get("target");
-    const targetId = searchParams.get("id");
+    const validation = deleteSessionQuerySchema.safeParse({
+      target: searchParams.get("target") || undefined,
+      id: searchParams.get("id") || undefined,
+    });
 
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), {
+        status: 400,
+      });
+    }
+
+    const { target, id: targetId } = validation.data;
     const currentToken = session.session?.token;
     const currentId = session.session?.id;
 

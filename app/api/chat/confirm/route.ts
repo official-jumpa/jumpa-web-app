@@ -54,8 +54,6 @@ export async function POST(req: NextRequest) {
       validation.data;
 
     const userId = session.user.id;
-    console.log(`[Chat Confirm] User ID: ${userId}, sessionid: ${sessionId}, messageId: ${messageId}`);
-
     // Verify PIN against user's wallet
     const wallet = await findWalletForUser(userId);
     if (!wallet) {

@@ -9,6 +9,8 @@ import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { decryptMnemonic } from "@/lib/crypto";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
+import { changePinSchema } from "@/lib/validations/wallet.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 /**
  * POST /api/wallet/change-pin
@@ -21,14 +23,14 @@ export async function POST(req: NextRequest) {
     const session = authResult.session;
 
     const body = await req.json().catch(() => ({}));
-    const { currentPin, newPin, kind = "transaction" } = body;
-
-    if (!newPin || typeof newPin !== "string" || !/^\d{4}$/.test(newPin)) {
-      return NextResponse.json(
-        { error: "New PIN must be 4 digits." },
-        { status: 400 },
-      );
+    const validation = changePinSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), {
+        status: 400,
+      });
     }
+
+    const { currentPin, newPin, kind } = validation.data;
 
     const wallet = await findWalletForUser(session.user.id);
 

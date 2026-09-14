@@ -31,19 +31,15 @@ import {
   logUserActivity,
 } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
-import { walletSetupSchema } from "@/lib/validations/user.validation";
+import {
+  walletSetupSchema,
+  setLoginPasswordSchema,
+  setJumpaTagSchema,
+  checkTagQuerySchema,
+  migratePinSchema,
+  isWeakPassword,
+} from "@/lib/validations/user.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
-
-/** Detect weak 6-digit passwords (repeated digits or consecutive sequences) */
-function isWeakPassword(value: string): boolean {
-  if (/^(\d)\1+$/.test(value)) return true;
-  const digits = value.split("").map(Number);
-  const step = digits[1] - digits[0];
-  return (
-    Math.abs(step) === 1 &&
-    digits.every((digit, index) => index === 0 || digit - digits[index - 1] === step)
-  );
-}
 
 /** Resolves the next route a user must complete in onboarding */
 function resolveNextOnboardingRoute(user: any, wallet: any): string {
@@ -73,19 +69,15 @@ export async function GET(req: NextRequest) {
     const checkTag = req.nextUrl.searchParams.get("checkTag");
 
     if (checkTag !== null) {
-      const handle = checkTag
-        .replace(/^@+/, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9_]/g, "")
-        .slice(0, 20);
-
-      if (handle.length < 3) {
+      const validation = checkTagQuerySchema.safeParse({ checkTag });
+      if (!validation.success) {
         return NextResponse.json({
           available: false,
           suggestions: [],
         });
       }
 
+      const handle = validation.data.checkTag;
       const candidate = `${handle}@jumpa`;
       const existing = await findUserByJumpaTag(candidate);
 
@@ -151,20 +143,14 @@ export async function POST(req: NextRequest) {
 
     // Step 1: Set Login Password (6 digits)
     if (step === "password") {
-      const password = String(body.password || "").trim();
-      if (!/^\d{6}$/.test(password)) {
-        return NextResponse.json(
-          { error: "Password must be exactly 6 digits" },
-          { status: 400 },
-        );
-      }
-      if (isWeakPassword(password)) {
-        return NextResponse.json(
-          { error: "Avoid sequences and repeated digits. Pick another password." },
-          { status: 400 },
-        );
+      const validation = setLoginPasswordSchema.safeParse(body);
+      if (!validation.success) {
+        return NextResponse.json(formatZodError(validation.error), {
+          status: 400,
+        });
       }
 
+      const { password } = validation.data;
       const loginPasswordHash = await bcrypt.hash(password, 10);
       const updatedUser = await setUserLoginPassword(
         session.user.id,
@@ -192,20 +178,14 @@ export async function POST(req: NextRequest) {
 
     // Step 2: Set Jumpa Tag
     if (step === "tag") {
-      const rawTag = String(body.tag || "").trim();
-      const handle = rawTag
-        .replace(/^@+/, "")
-        .toLowerCase()
-        .replace(/[^a-z0-9_]/g, "")
-        .slice(0, 20);
-
-      if (handle.length < 3) {
-        return NextResponse.json(
-          { error: "Jumpa tag must be at least 3 characters" },
-          { status: 400 },
-        );
+      const validation = setJumpaTagSchema.safeParse(body);
+      if (!validation.success) {
+        return NextResponse.json(formatZodError(validation.error), {
+          status: 400,
+        });
       }
 
+      const handle = validation.data.tag;
       const fullTag = `${handle}@jumpa`;
       const duplicate = await findUserByJumpaTag(fullTag);
 
@@ -251,20 +231,22 @@ export async function POST(req: NextRequest) {
     // ‼️ delete once everyone has migrated to v2
     // Step: Migrate legacy PIN to 4-digit PIN (v1 -> v2)
     if (step === "migrate-pin") {
-      const isConfirmExisting =
-        body.action === "confirm-existing" ||
-        Boolean(body.existing4DigitPin) ||
-        (!body.oldPin && Boolean(body.pin));
+      const validation = migratePinSchema.safeParse(body);
+      if (!validation.success) {
+        return NextResponse.json(formatZodError(validation.error), {
+          status: 400,
+        });
+      }
 
-      console.log(`[MigratePIN] 📥 Received request for user ${session.user.id}:`, {
-        action: body.action,
-        isConfirmExisting,
+      const isConfirmExisting =
+        validation.data.action === "confirm-existing" ||
+        Boolean(body.existing4DigitPin) ||
+        (!validation.data.oldPin && Boolean(validation.data.pin));
+
+      console.log("[MigratePIN] Triggered with action:", body.action, {
         hasOldPin: Boolean(body.oldPin),
-        oldPinLength: body.oldPin ? String(body.oldPin).length : 0,
         hasNewPin: Boolean(body.newPin),
-        newPinLength: body.newPin ? String(body.newPin).length : 0,
         hasPin: Boolean(body.pin),
-        pinLength: body.pin ? String(body.pin).length : 0,
         hasExisting4DigitPin: Boolean(body.existing4DigitPin),
       });
       // If the user already has a wallet:
@@ -273,13 +255,7 @@ export async function POST(req: NextRequest) {
       
       // Pre-validation path: Verify current 6-digit PIN before prompting for new PIN
       if (body.action === "validate-current" || body.action === "verify-current") {
-        const oldPin = String(body.oldPin || body.pin || "").trim();
-        if (!/^\d{6}$/.test(oldPin)) {
-          return NextResponse.json(
-            { error: "Current PIN must be exactly 6 digits" },
-            { status: 400 },
-          );
-        }
+        const oldPin = (validation.data.oldPin || body.pin)!;
 
         const user = await getUserById(session.user.id);
         const wallet = user?.activeWalletId
@@ -329,14 +305,7 @@ export async function POST(req: NextRequest) {
 
       // Fallback path: User already has a 4-digit PIN and wants to confirm it
       if (isConfirmExisting) {
-        const pinCandidate = String(body.existing4DigitPin || body.pin || "").trim();
-        if (!/^\d{4}$/.test(pinCandidate)) {
-          console.warn(`[MigratePIN][ConfirmExisting] ⚠️ Validation failed: PIN candidate length is ${pinCandidate.length}, expected 4 digits.`);
-          return NextResponse.json(
-            { error: "PIN must be exactly 4 digits" },
-            { status: 400 },
-          );
-        }
+        const pinCandidate = (validation.data.existing4DigitPin || validation.data.pin || validation.data.oldPin)!;
 
         const user = await getUserById(session.user.id);
         const wallet = user?.activeWalletId
@@ -403,30 +372,8 @@ export async function POST(req: NextRequest) {
       }
 
       // Standard path: Migrating from 6-digit old PIN to new 4-digit PIN
-      const oldPin = String(body.oldPin || "").trim();
-      const newPin = String(body.newPin || "").trim();
-
-      if (!/^\d{6}$/.test(oldPin)) {
-        console.warn(`[MigratePIN][Standard] ⚠️ Validation failed: oldPin length is ${oldPin.length}, expected 6 digits.`);
-        return NextResponse.json(
-          { error: "Current PIN must be exactly 6 digits" },
-          { status: 400 },
-        );
-      }
-      if (!/^\d{4}$/.test(newPin)) {
-        console.warn(`[MigratePIN][Standard] ⚠️ Validation failed: newPin length is ${newPin.length}, expected 4 digits.`);
-        return NextResponse.json(
-          { error: "New PIN must be exactly 4 digits" },
-          { status: 400 },
-        );
-      }
-      if (isWeakPassword(newPin)) {
-        console.warn(`[MigratePIN][Standard] ⚠️ Validation failed: newPin is weak (consecutive or repeated).`);
-        return NextResponse.json(
-          { error: "Avoid sequences and repeated digits for your new PIN." },
-          { status: 400 },
-        );
-      }
+      const oldPin = validation.data.oldPin!;
+      const newPin = validation.data.newPin!;
 
       const user = await getUserById(session.user.id);
       const wallet = user?.activeWalletId

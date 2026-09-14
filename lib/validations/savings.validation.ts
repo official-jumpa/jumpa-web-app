@@ -147,3 +147,12 @@ export const savingsIntroSeenSchema = z.object({
 });
 
 export type SavingsIntroSeenInput = z.infer<typeof savingsIntroSeenSchema>;
+
+/**
+ * Validates query parameters for listing savings plans (GET /api/savings).
+ */
+export const listSavingsPlansQuerySchema = z.object({
+  type: z.enum(["individual", "lock", "circle"]).optional(),
+});
+
+export type ListSavingsPlansQueryInput = z.infer<typeof listSavingsPlansQuerySchema>;

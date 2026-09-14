@@ -100,4 +100,26 @@ export const selectWalletSchema = z.object({
 
 export type SelectWalletInput = z.infer<typeof selectWalletSchema>;
 
+/**
+ * Validation for /api/wallet/change-pin
+ */
+export const changePinSchema = z.object({
+  newPin: z
+    .string({ error: "New PIN is required" })
+    .trim()
+    .regex(/^\d{4}$/, "New PIN must be 4 digits."),
+  currentPin: z
+    .string()
+    .trim()
+    .regex(/^\d{4}$/, "Current PIN must be 4 digits.")
+    .optional(),
+  kind: z
+    .enum(["transaction", "login"], {
+      error: "Kind must be either 'transaction' or 'login'",
+    })
+    .default("transaction"),
+});
+
+export type ChangePinInput = z.infer<typeof changePinSchema>;
+
 

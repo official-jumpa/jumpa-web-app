@@ -4,7 +4,8 @@ import { listSavingsPlansByUserId } from "@/lib/functions/savingsFunctions";
 import { getUserById } from "@/lib/functions/userFunctions";
 import { formatPlanForUI, getLiveVaultApy } from "@/lib/savings-service";
 import { environment } from "@/lib/environment";
-import type { SavingsKind } from "@/lib/savings";
+import { listSavingsPlansQuerySchema } from "@/lib/validations/savings.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
 
 export async function GET(req: NextRequest) {
   const auth = await requireActiveUser();
@@ -12,14 +13,20 @@ export async function GET(req: NextRequest) {
   const { userId } = auth;
   try {
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type"); // "individual" | "lock" | "circle" | null
-    const validKind =
-      type && ["individual", "lock", "circle"].includes(type)
-        ? (type as SavingsKind)
-        : undefined;
+    const validation = listSavingsPlansQuerySchema.safeParse({
+      type: searchParams.get("type") || undefined,
+    });
+
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), {
+        status: 400,
+      });
+    }
+
+    const type = validation.data.type;
 
     const [plans, user] = await Promise.all([
-      listSavingsPlansByUserId(userId, validKind),
+      listSavingsPlansByUserId(userId, type),
       getUserById(userId),
     ]);
 

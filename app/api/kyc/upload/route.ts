@@ -1,21 +1,15 @@
-import { headers } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { saveKycMedia } from "@/lib/functions/kycFunctions";
+import { requireAuth } from "@/lib/functions/permissionFunctions";
 import type { KycIdType } from "@/models/KYCSchema";
 
 const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB max upload size
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 },
-      );
-    }
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
+    const userId = auth.userId;
     const apiKey = process.env.MYAZA_TRUST_SECRET_KEY || process.env.MYAZA_TRUST_SANDBOX_KEY;
     const baseUrl = process.env.MYAZA_TRUST_BASE_URL;
     if (!apiKey || !baseUrl) {
@@ -53,7 +47,7 @@ export async function POST(req: NextRequest) {
     myazaFormData.append("type", type);
 
     console.log(
-      `[Myaza Upload] Uploading file for user: ${session.user.id} Type: ${type}`
+      `[Myaza Upload] Uploading file for user: ${userId} Type: ${type}`
     );
 
     const response = await fetch(`${baseUrl}/upload`, {
@@ -75,7 +69,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Persist media ID to user's KYC record in MongoDB
-    await saveKycMedia(session.user.id, {
+    await saveKycMedia(userId, {
       type: type === "selfie" ? "selfie" : "document",
       mediaId: data.mediaId,
       idType,

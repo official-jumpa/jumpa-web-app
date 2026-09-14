@@ -1,20 +1,13 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { getOrCreateKycRecord } from "@/lib/functions/kycFunctions";
+import { requireAuth } from "@/lib/functions/permissionFunctions";
 
 export async function GET() {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
 
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized. User must be authenticated." },
-        { status: 401 },
-      );
-    }
-
-    const kycRecord = await getOrCreateKycRecord(session.user.id);
+    const kycRecord = await getOrCreateKycRecord(auth.userId);
     return NextResponse.json(kycRecord, { status: 200 });
   } catch (error) {
     console.error("[KYC API] Failed to fetch KYC status:", error);

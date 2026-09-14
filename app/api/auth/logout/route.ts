@@ -3,12 +3,13 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { clearSession } from "@/lib/session";
 import { logUserActivity } from "@/lib/functions/userFunctions";
+import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 
 /** POST /api/auth/logout — signs out the BetterAuth session */
 export async function POST() {
   try {
     const reqHeaders = await headers();
-    const session = await auth.api.getSession({ headers: reqHeaders });
+    const session = await getCachedAuthSession();
     if (session?.user?.id) {
       await logUserActivity({
         userId: session.user.id,

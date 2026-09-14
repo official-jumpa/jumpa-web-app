@@ -1,18 +1,14 @@
-import { headers } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { updateKycStage } from "@/lib/functions/kycFunctions";
+import { requireAuth } from "@/lib/functions/permissionFunctions";
 import { kycStageSchema } from "@/lib/validations/kyc.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
 
     const body = await req.json().catch(() => ({}));
     const validation = kycStageSchema.safeParse(body);
@@ -23,10 +19,10 @@ export async function POST(req: NextRequest) {
     }
 
     const { stage, currentStep } = validation.data;
-    const updated = await updateKycStage(session.user.id, stage, currentStep);
+    const updated = await updateKycStage(auth.userId, stage, currentStep);
 
     logUserActivity({
-      userId: session.user.id,
+      userId: auth.userId,
       action: "KYC_STAGE_UPDATED",
       details: { stage, currentStep },
       req,

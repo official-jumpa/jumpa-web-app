@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
 import { environment } from "@/lib/environment";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import {
   listWalletsByUserId,
   findWalletForUser,
@@ -18,15 +17,10 @@ import { formatZodError } from "@/lib/validations/validation-helper";
  * Returns all wallets owned by the authenticated user, with an isSelected flag.
  */
 export async function GET(req: NextRequest) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const auth = await requireActiveUser();
+  if (!auth.ok) return auth.response;
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const wallets = await listWalletsByUserId(session.user.id);
+  const wallets = await listWalletsByUserId(auth.userId);
   const selectedAddress = req.cookies.get("selected_wallet_address")?.value;
 
   const result = wallets.map((w, index) => ({
@@ -60,13 +54,8 @@ export async function GET(req: NextRequest) {
  * Rename a wallet. Body: { address: string, name: string }
  */
 export async function PATCH(req: NextRequest) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireActiveUser();
+  if (!auth.ok) return auth.response;
 
   const body = await req.json().catch(() => ({}));
   const validation = renameWalletSchema.safeParse(body);
@@ -75,7 +64,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const { address, name } = validation.data;
-  const result = await renameUserWallet(session.user.id, address, name);
+  const result = await renameUserWallet(auth.userId, address, name);
 
   if (!result.success) {
     const status = result.error?.includes("not found") ? 404 : 400;
@@ -94,13 +83,8 @@ export async function PATCH(req: NextRequest) {
  * Sets selected_wallet_address httpOnly cookie.
  */
 export async function PUT(req: NextRequest) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireActiveUser();
+  if (!auth.ok) return auth.response;
 
   const body = await req.json().catch(() => ({}));
   const validation = selectWalletSchema.safeParse(body);
@@ -109,7 +93,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const { address } = validation.data;
-  const wallet = await findWalletForUser(session.user.id, address);
+  const wallet = await findWalletForUser(auth.userId, address);
   if (!wallet) {
     return NextResponse.json(
       { error: "Wallet not found or not owned by user" },

@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import {
   buildSystemPrompt,
@@ -6,7 +5,7 @@ import {
   runDeepSeekStep,
 } from "@/lib/ai/deepseek";
 import { executeTool } from "@/lib/ai/tool-executor";
-import { auth } from "@/lib/auth";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { detectTargetChains } from "@/lib/blockchain";
 import { describeAttachments } from "@/lib/chat-attachments";
 import { getChatAttachments } from "@/lib/functions/chatAttachmentFunctions";
@@ -28,13 +27,8 @@ import { type IChatMessage } from "@/models/ChatLog";
  */
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireActiveUser();
+    if (!auth.ok) return auth.response;
 
     const body = await req.json().catch(() => ({}));
     const validation = sendMessageSchema.safeParse(body);
@@ -43,7 +37,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { sessionId, message, attachmentIds } = validation.data;
-    const userId = session.user.id;
+    const userId = auth.userId;
 
     // Resolved from storage, so a message can only carry this user's own files.
     const attachments = attachmentIds?.length
@@ -190,7 +184,7 @@ export async function POST(req: NextRequest) {
         );
         const toolResult = await executeTool(tc.toolName, tc.toolArgs, {
           stellarAddress,
-          userId: session.user.id,
+          userId,
         });
 
         console.log(

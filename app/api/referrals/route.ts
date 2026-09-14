@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { getReferralStatsForUser } from "@/lib/functions/referralFunctions";
 
 /**
@@ -9,15 +8,10 @@ import { getReferralStatsForUser } from "@/lib/functions/referralFunctions";
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const auth = await requireActiveUser();
+    if (!auth.ok) return auth.response;
 
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const stats = await getReferralStatsForUser(session.user.id);
+    const stats = await getReferralStatsForUser(auth.userId);
     return NextResponse.json(stats);
   } catch (err: any) {
     console.error("[ReferralsAPI] Error:", err);

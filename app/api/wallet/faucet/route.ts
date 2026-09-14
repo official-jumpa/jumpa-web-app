@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { faucetRequestSchema } from "@/lib/validations/wallet.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { fundTestnetAccount, fetchStellarBalances } from "@/lib/chains/stellar";
@@ -15,13 +14,8 @@ import { createNotification } from "@/lib/functions/notificationFunctions";
  */
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireActiveUser({ requireWallet: true });
+    if (!auth.ok) return auth.response;
 
     const body = await req.json().catch(() => ({}));
     const validation = faucetRequestSchema.safeParse(body);
@@ -30,7 +24,7 @@ export async function POST(req: NextRequest) {
     }
 
     const chain = (validation.data.chain || "stellar").toLowerCase();
-    const wallet = await findWalletForUser(session.user.id);
+    const wallet = await findWalletForUser(auth.userId);
 
     if (!wallet) {
       return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
@@ -52,14 +46,14 @@ export async function POST(req: NextRequest) {
 
       if (result.success) {
         logUserActivity({
-          userId: session.user.id,
+          userId: auth.userId,
           action: "FAUCET_REQUESTED",
           details: { chain, address: stellarAddress },
           req,
         }).catch((e) => console.error("[Faucet] ActivityLog error:", e));
 
         createNotification({
-          userId: session.user.id,
+          userId: auth.userId,
           tab: "transactions",
           type: "FAUCET_CLAIMED",
           title: "Faucet Claimed",

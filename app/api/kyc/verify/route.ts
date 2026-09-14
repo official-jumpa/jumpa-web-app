@@ -1,10 +1,9 @@
-import { headers } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import {
   completeKycVerification,
   syncKycToUserProfile,
 } from "@/lib/functions/kycFunctions";
+import { requireAuth } from "@/lib/functions/permissionFunctions";
 import { kycVerifySchema } from "@/lib/validations/kyc.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import type { IKycDetails } from "@/models/KYCSchema";
@@ -17,14 +16,9 @@ const MYAZA_TYPE_MAP: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-
-    if (!session?.user?.id) {
-      return NextResponse.json(
-        { error: "Unauthorized. User must be authenticated." },
-        { status: 401 },
-      );
-    }
+    const auth = await requireAuth();
+    if (!auth.ok) return auth.response;
+    const userId = auth.userId;
 
     const body = await req.json().catch(() => ({}));
     const validation = kycVerifySchema.safeParse(body);
@@ -51,14 +45,14 @@ export async function POST(req: NextRequest) {
       country: "NG",
       idType: myazaIdType,
       idNumber,
-      externalUserId: session.user.id,
+      externalUserId: userId,
       mediaIds: { documentFront: docMediaId, selfie: selfieMediaId },
       metadata: { source: "jumpa_web_kyc", requestId: `req_${Date.now()}` },
     };
 
     console.log(
       "[Myaza Verify] Submitting verification for user:",
-      session.user.id,
+      userId,
       "Payload:",
       JSON.stringify(verifyPayload, null, 2),
     );
@@ -88,7 +82,7 @@ export async function POST(req: NextRequest) {
     if (!isSuccess) {
       const errorMsg =
         data.message || data.error || "Identity verification failed";
-      await completeKycVerification(session.user.id, {
+      await completeKycVerification(userId, {
         verificationId,
         status: "failed",
         isCompleted: false,
@@ -138,7 +132,7 @@ export async function POST(req: NextRequest) {
     };
 
     // Finalize KYC verification in database
-    await completeKycVerification(session.user.id, {
+    await completeKycVerification(userId, {
       verificationId,
       status: "approved",
       isCompleted: true,
@@ -148,7 +142,7 @@ export async function POST(req: NextRequest) {
     });
 
     // Sync verified details to User profile
-    await syncKycToUserProfile(session.user.id, verifiedDetails);
+    await syncKycToUserProfile(userId, verifiedDetails);
 
     return NextResponse.json(
       {

@@ -1,8 +1,7 @@
-import { headers } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { formatFileSize, MAX_ATTACHMENT_BYTES } from "@/lib/chat-attachments";
 import { saveChatAttachment } from "@/lib/functions/chatAttachmentFunctions";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 
 /**
  * POST /api/chat/attachments
@@ -11,10 +10,9 @@ import { saveChatAttachment } from "@/lib/functions/chatAttachmentFunctions";
  */
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireActiveUser();
+    if (!auth.ok) return auth.response;
+    const userId = auth.userId;
 
     const form = await req.formData().catch(() => null);
     const file = form?.get("file");
@@ -31,7 +29,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const attachment = await saveChatAttachment(session.user.id, file);
+    const attachment = await saveChatAttachment(userId, file);
     return NextResponse.json({ attachment });
   } catch (err) {
     console.error("[Chat Attachment Upload Error]", err);

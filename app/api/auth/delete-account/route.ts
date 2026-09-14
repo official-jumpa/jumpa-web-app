@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { clearSession } from "@/lib/session";
+import { requireAuth } from "@/lib/functions/permissionFunctions";
 import { deleteUserAndAccountData, logUserActivity } from "@/lib/functions/userFunctions";
 import { deleteAccountSchema } from "@/lib/validations/user.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
@@ -14,11 +15,8 @@ import { formatZodError } from "@/lib/validations/validation-helper";
  * address, not the funds. Recovering them needs the user's recovery phrase.
  */
 export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: await headers() });
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const authResult = await requireAuth();
+  if (!authResult.ok) return authResult.response;
 
   const body = await req.json().catch(() => ({}));
   const validation = deleteAccountSchema.safeParse(body);
@@ -26,7 +24,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(formatZodError(validation.error), { status: 400 });
   }
 
-  const userId = session.user.id;
+  const userId = authResult.userId;
 
   try {
     await logUserActivity({

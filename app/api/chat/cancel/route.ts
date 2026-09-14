@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
 import { cancelPendingChatMessage } from "@/lib/functions/chatFunctions";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { cancelChatActionSchema } from "@/lib/validations/chat.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 
@@ -12,13 +11,8 @@ import { formatZodError } from "@/lib/validations/validation-helper";
  */
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireActiveUser();
+    if (!auth.ok) return auth.response;
 
     const body = await req.json().catch(() => ({}));
     const validation = cancelChatActionSchema.safeParse(body);
@@ -30,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     const result = await cancelPendingChatMessage({
       sessionId,
-      userId: session.user.id,
+      userId: auth.userId,
       messageId,
     });
 

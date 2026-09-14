@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { verifyWalletPinAndLockout } from "@/lib/functions/walletFunctions";
 import { verifyPinSchema } from "@/lib/validations/user.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
@@ -11,13 +10,8 @@ import { formatZodError } from "@/lib/validations/validation-helper";
  * Verifies PIN against pinHash for the selected wallet with rate limiting & lockout.
  */
 export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireActiveUser();
+  if (!auth.ok) return auth.response;
 
   const body = await req.json().catch(() => ({}));
   const validation = verifyPinSchema.safeParse(body);
@@ -30,7 +24,7 @@ export async function POST(req: NextRequest) {
   const targetAddress = address || cookieAddress;
 
   const result = await verifyWalletPinAndLockout(
-    session.user.id,
+    auth.userId,
     pin,
     targetAddress,
   );

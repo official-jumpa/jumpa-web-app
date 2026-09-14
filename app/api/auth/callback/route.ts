@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { environment } from "@/lib/environment";
 
@@ -17,9 +16,7 @@ export async function GET(req: NextRequest) {
     req.nextUrl.origin;
 
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const session = await getCachedAuthSession();
 
     if (!session) {
       return NextResponse.redirect(`${origin}/onboarding`);

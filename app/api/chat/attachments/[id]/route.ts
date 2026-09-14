@@ -1,6 +1,4 @@
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { isImageAttachment } from "@/lib/chat-attachments";
 import { readChatAttachment } from "@/lib/functions/chatAttachmentFunctions";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";

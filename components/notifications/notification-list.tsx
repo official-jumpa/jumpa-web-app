@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { NotificationCard } from "@/components/notifications/notification-card";
 import { NotificationsEmpty } from "@/components/notifications/notifications-empty";
 import { ScreenHeader } from "@/components/ui/screen-header";
@@ -15,17 +15,23 @@ const CHIP =
   "tap rounded-pill px-5.5 py-2.5 text-[10px] leading-3.5 font-medium text-jumpa-black active:scale-95 transition-colors";
 
 export function NotificationList({
-  initialItems = [],
+  initialItems,
+  initialTabCounts,
 }: {
   initialItems?: Notification[];
+  initialTabCounts?: { transactions: number; activities: number };
 }) {
+  const hasServerData = initialItems !== undefined;
   const [tab, setTab] = useState<NotificationTab>("transactions");
-  const [items, setItems] = useState<Notification[]>(initialItems);
-  const [loading, setLoading] = useState(initialItems.length === 0);
-  const [tabCounts, setTabCounts] = useState<{ transactions: number; activities: number }>({
-    transactions: 0,
-    activities: 0,
-  });
+  const [items, setItems] = useState<Notification[]>(initialItems ?? []);
+  const [loading, setLoading] = useState(!hasServerData);
+  const [tabCounts, setTabCounts] = useState<{ transactions: number; activities: number }>(
+    initialTabCounts || {
+      transactions: 0,
+      activities: 0,
+    },
+  );
+  const isFirstMount = useRef(true);
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -47,8 +53,10 @@ export function NotificationList({
   }, []);
 
   useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
+    if (!hasServerData) {
+      fetchNotifications();
+    }
+  }, [hasServerData, fetchNotifications]);
 
   const markRead = async (id: string) => {
     // Optimistic local update

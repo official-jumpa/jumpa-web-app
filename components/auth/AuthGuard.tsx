@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 
@@ -70,6 +70,7 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
 
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(true);
+  const hasVerifiedOnce = useRef(false);
 
   // 1. Handle unauthenticated users
   useEffect(() => {
@@ -79,13 +80,16 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
   }, [isPending, isAuthenticated, router]);
 
   const checkStatus = useCallback(async () => {
-    setCheckingStatus(true);
+    if (!hasVerifiedOnce.current) {
+      setCheckingStatus(true);
+    }
     try {
       const res = await fetch("/api/auth/wallet-setup");
       if (!res.ok) throw new Error("Failed to load status");
       const data: OnboardingStatus = await res.json();
 
       setStatus(data);
+      hasVerifiedOnce.current = true;
       setCheckingStatus(false);
 
       // If user is on an onboarding step they have ALREADY completed, forward them to the next required step
@@ -134,6 +138,7 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
       }
     } catch (err) {
       console.error("[AuthGuard] Status check error:", err);
+      hasVerifiedOnce.current = true;
       setCheckingStatus(false);
     }
   }, [pathname, router]);
@@ -141,9 +146,18 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
   // 2. Check onboarding status for authenticated users
   useEffect(() => {
     if (!isPending && isAuthenticated && user?.id) {
+      // If user has already completed onboarding, don't re-check on sibling tab switches
+      if (
+        status?.isComplete &&
+        !pathname?.startsWith("/sign-up") &&
+        !pathname?.startsWith("/onboarding") &&
+        !pathname?.startsWith("/migrate-pin")
+      ) {
+        return;
+      }
       checkStatus();
     }
-  }, [isPending, isAuthenticated, user?.id, checkStatus]);
+  }, [isPending, isAuthenticated, user?.id, checkStatus, status?.isComplete, pathname]);
 
   // While checking session or onboarding status, show clean loading shell
   if (isPending || (isAuthenticated && checkingStatus)) {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Fragment } from "react";
 import { CircleUserIcon } from "@/components/ui/icons/circle-user";
 import { CreditCardNavIcon } from "@/components/ui/icons/credit-card-nav";
@@ -20,6 +20,19 @@ const TABS = [
 /** Floating tab bar. The chat action sits at the centre, between tabs 2 and 3. */
 export function BottomNav() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // Only render on primary tab roots, not inside modal-like subflows (e.g. chat, tx-detail, notifications)
+  const isTabRoute =
+    pathname === "/home" ||
+    pathname.startsWith("/cards") ||
+    (pathname === "/transactions" && !searchParams?.get("id")) ||
+    pathname === "/profile";
+
+  if (!isTabRoute) {
+    return null;
+  }
+
   const middle = TABS.length / 2;
 
   return (
@@ -30,6 +43,7 @@ export function BottomNav() {
             {index === middle ? (
               <Link
                 href="/home/chat"
+                prefetch={true}
                 aria-label="Chat"
                 className="flex items-center justify-center rounded-pill bg-[image:var(--gradient-jumpa-nav-chat)] p-2.5 text-jumpa-alt-400"
               >
@@ -39,6 +53,7 @@ export function BottomNav() {
 
             <Link
               href={href}
+              prefetch={true}
               aria-current={pathname === href ? "page" : undefined}
               className={cn(
                 "flex flex-1 flex-col items-center gap-0.5 rounded-pill px-2 py-1.5",

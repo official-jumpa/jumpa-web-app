@@ -5,7 +5,8 @@ import { DepositInfo } from "@/components/assets/deposit-info";
 import { TokenDetailView } from "@/components/assets/token-detail-view";
 import { unifyTokens } from "@/lib/assets";
 import { chainsFor, resolveChainAddresses } from "@/lib/blockchain";
-import { getSession } from "@/lib/session";
+import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
+import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import {
   queryUserTransactions,
   formatDbTransaction,
@@ -49,11 +50,10 @@ export async function generateMetadata({
  * Every supported wallet, carrying the USD value of what the user actually
  * holds. The list never shrinks — an untouched wallet still shows its row.
  */
-async function walletAssets(): Promise<Asset[]> {
-  const session = await getSession();
-  if (!session?.userId) return SUPPORTED_ASSETS;
+async function walletAssets(userId?: string): Promise<Asset[]> {
+  if (!userId) return SUPPORTED_ASSETS;
 
-  const balances = await getCachedWalletBalances(session.userId).catch(
+  const balances = await getCachedWalletBalances(userId).catch(
     () => null,
   );
   if (!balances?.tokens?.length) return SUPPORTED_ASSETS;
@@ -71,10 +71,12 @@ async function walletAssets(): Promise<Asset[]> {
 
 export default async function AssetsPage({ searchParams }: AssetsPageProps) {
   const { token, network, deposit } = await searchParams;
+  const session = await getCachedAuthSession();
+  const userId = session?.user?.id;
 
   // 1. List View: Render full asset list when no specific token is selected
   if (!token) {
-    return <AssetPicker assets={await walletAssets()} />;
+    return <AssetPicker assets={await walletAssets(userId)} />;
   }
 
   const asset = SUPPORTED_ASSETS.find(
@@ -84,12 +86,20 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
 
   // 2. Deposit View: Render receive / deposit information
   if (deposit === "1" || deposit === "true") {
-    const session = await getSession();
-    if (!session?.userId || !session.addresses) redirect("/onboarding");
+    if (!userId) redirect("/onboarding");
+    const wallet = await findWalletForUser(userId);
+    if (!wallet?.addresses && !wallet?.address) redirect("/onboarding");
+
+    const walletAddresses = wallet.addresses || {
+      eth: wallet.address,
+      base: wallet.address,
+      sol: wallet.address,
+      xlm: wallet.address,
+    };
 
     const [chains, priceUsd] = await Promise.all([
       Promise.resolve(
-        resolveChainAddresses(session.addresses, chainsFor(asset.symbol)),
+        resolveChainAddresses(walletAddresses as any, chainsFor(asset.symbol)),
       ),
       getAssetPriceUsd(asset.symbol),
     ]);
@@ -112,19 +122,18 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
   const chain =
     chains.find((entry) => entry.id === network) ?? chains[0];
 
-  const session = await getSession();
   let transactions: Transaction[] = [];
   const displayAsset = { ...asset };
 
-  if (session?.userId) {
+  if (userId) {
     const [txResult, balancesResult] = await Promise.all([
       queryUserTransactions({
-        userId: session.userId,
+        userId,
         token: asset.symbol,
         chain: chain.id,
         limit: 5,
       }).catch(() => ({ transactions: [], total: 0 })),
-      getCachedWalletBalances(session.userId).catch(() => null),
+      getCachedWalletBalances(userId).catch(() => null),
     ]);
 
     transactions = (txResult.transactions || []).map(formatDbTransaction);

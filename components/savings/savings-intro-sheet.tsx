@@ -19,9 +19,11 @@ export type SavingsIntro = {
 export function SavingsIntroSheet({
   intro,
   onClose,
+  onContinue,
 }: {
   intro: SavingsIntro;
   onClose: () => void;
+  onContinue?: () => void;
 }) {
   return (
     <BottomSheet onClose={onClose} pb="pb-7.5">
@@ -49,7 +51,15 @@ export function SavingsIntroSheet({
           ))}
         </ul>
 
-        <Button href={intro.href} variant="gradientSheet" size="lg">
+        <Button
+          href={intro.href}
+          variant="gradientSheet"
+          size="lg"
+          onClick={() => {
+            onContinue?.();
+            onClose();
+          }}
+        >
           {intro.cta}
         </Button>
       </div>

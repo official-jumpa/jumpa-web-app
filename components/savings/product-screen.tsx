@@ -21,7 +21,8 @@ export function ProductScreen({
   listLabel,
   emptyTitle,
   emptyCaption,
-  plans: initialPlans = [],
+  plans: initialPlans,
+  initialBalance,
 }: {
   kind: SavingsKind;
   title: string;
@@ -30,18 +31,26 @@ export function ProductScreen({
   emptyTitle: string;
   emptyCaption?: string;
   plans?: SavingsPlan[];
+  initialBalance?: {
+    badge: string;
+    amount: string;
+    rate?: string;
+  };
 }) {
+  const hasServerData = initialPlans !== undefined;
   const newHref = savingsHref(kind, { create: true });
-  const [plans, setPlans] = useState<SavingsPlan[]>(initialPlans);
+  const [plans, setPlans] = useState<SavingsPlan[]>(initialPlans ?? []);
   const defaultBalance = SAVINGS_BALANCE[kind];
   const [balance, setBalance] = useState<{
     badge: string;
     amount: string;
     rate?: string;
-  }>(defaultBalance);
-  const [loading, setLoading] = useState(true);
+  }>(initialBalance || defaultBalance);
+  const [loading, setLoading] = useState(!hasServerData);
 
   useEffect(() => {
+    if (hasServerData) return;
+
     async function loadPlans() {
       try {
         setLoading(true);

@@ -26,7 +26,7 @@ export async function connectDB(): Promise<mongoose.Connection> {
   cached = conn.connection;
   global._mongooseConn = cached;
 
-  console.log("[DB] MongoDB connected:", cached.host);
+  console.log("DB connected:", cached.host);
   return cached;
 }
 
@@ -38,7 +38,7 @@ export function getDb(): Db {
   const client = mongoose.connection.getClient();
   if (!client) {
     throw new Error(
-      "[DB] MongoClient is not available. Ensure connectDB() has been awaited before calling getDb().",
+      "DB unavailable. Ensure connectDB() has been awaited before calling getDb()",
     );
   }
   return client.db();

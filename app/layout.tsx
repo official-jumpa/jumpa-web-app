@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   },
   description: 'Send, swap, save, and spend across currencies and chains all in one conversation.',
   icons: {
-    icon: '/logo.png',
+    // icon: '/logo.png', // its affecting the main favicon
     apple: '/logo.png',
   },
   openGraph: {

@@ -84,8 +84,14 @@ export function AmountStep({
     onAmountChange(next);
   };
 
-  const push = (digit: string) =>
+  const push = (digit: string) => {
+    if (digit === ".") {
+      if (amount.includes(".")) return;
+      change(amount ? `${amount}.` : "0.");
+      return;
+    }
     change(sanitiseAmount(amount === "0" ? digit : amount + digit));
+  };
 
   const review = () => {
     if (!Number(amount)) return setError("Enter an amount greater than 0");
@@ -138,7 +144,14 @@ export function AmountStep({
           ) : null}
           <input
             value={formatAmount(amount)}
-            onChange={(event) => change(sanitiseAmount(event.target.value))}
+            onChange={(event) => {
+              const raw = event.target.value;
+              if (raw === ".") {
+                change("0.");
+                return;
+              }
+              change(sanitiseAmount(raw));
+            }}
             inputMode="none"
             // biome-ignore lint/a11y/noAutofocus: the screen exists to take this entry
             autoFocus
@@ -235,6 +248,7 @@ export function AmountStep({
       <NumericKeypad
         onDigit={push}
         onBackspace={() => change(amount.slice(0, -1))}
+        withDecimal
         className="-mx-2 rounded-sheet bg-jumpa-white px-5.75 py-7.5"
       />
     </div>

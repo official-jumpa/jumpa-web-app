@@ -18,6 +18,7 @@ export function NumericKeypad({
   onBackspace,
   disabled,
   className,
+  withDecimal = false,
 }: {
   onDigit: (digit: string) => void;
   onBackspace: () => void;
@@ -25,13 +26,30 @@ export function NumericKeypad({
   disabled?: boolean;
   /** Panel around the grid, if the screen calls for one. */
   className?: string;
+  /** Show a decimal point (.) in the bottom-left position */
+  withDecimal?: boolean;
 }) {
+  const keys = [
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    withDecimal ? "." : "",
+    "0",
+    "del",
+  ];
+
   return (
     <div className={className}>
       <div className="grid h-69.5 grid-cols-3 grid-rows-4 gap-x-3 gap-y-2.5">
-        {KEYS.map((key) =>
+        {keys.map((key, index) =>
           key === "" ? (
-            <span key="blank" />
+            <span key={`blank-${index}`} />
           ) : key === "del" ? (
             <button
               key={key}

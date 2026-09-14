@@ -6,6 +6,7 @@ export function ScreenHeader({
   back,
   onBack,
   title,
+  titleWeight = "semibold",
   action,
   round,
 }: {
@@ -14,6 +15,9 @@ export function ScreenHeader({
   /** Steps back inside the screen instead of through history. */
   onBack?: () => void;
   title?: string;
+  /** The card frames draw a medium title; everywhere else it is semibold.
+   *  A prop rather than a className — `cn` is a plain join. */
+  titleWeight?: "semibold" | "medium";
   action?: ReactNode;
   /** Circled corner-up-left arrow, as the card screens draw it. */
   round?: boolean;
@@ -29,7 +33,11 @@ export function ScreenHeader({
       )}
 
       {title ? (
-        <h1 className="pointer-events-none absolute inset-x-11 text-center text-base leading-4.5 font-semibold text-jumpa-black">
+        <h1
+          className={`pointer-events-none absolute inset-x-11 text-center text-base leading-4.5 text-jumpa-black ${
+            titleWeight === "medium" ? "font-medium" : "font-semibold"
+          }`}
+        >
           {title}
         </h1>
       ) : null}

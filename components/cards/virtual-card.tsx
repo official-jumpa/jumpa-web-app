@@ -30,7 +30,7 @@ function Chip() {
 /** Card face. The gradient is an exported render; everything on top is markup. */
 export function VirtualCardFace({ card }: { card: Card }) {
   return (
-    <div className="relative isolate aspect-[357/200] w-full overflow-hidden rounded-card">
+    <div className="relative isolate aspect-[357/200] w-full overflow-hidden rounded-3xl">
       <Image
         src="/images/cards/card-face.webp"
         alt=""
@@ -40,7 +40,8 @@ export function VirtualCardFace({ card }: { card: Card }) {
         priority
       />
 
-      <div className="flex h-full flex-col justify-between p-7">
+      {/* The frame pins the three bands at 9 / 83 / 160 inside a 200px face. */}
+      <div className="flex h-full flex-col px-7 pt-2.25 pb-5.5">
         <div className="flex items-start justify-between">
           <Image
             src="/logo/wordmark/white.png"
@@ -58,17 +59,15 @@ export function VirtualCardFace({ card }: { card: Card }) {
           />
         </div>
 
-        <span className="text-jumpa-white">
+        <span className="mt-8 text-jumpa-white">
           <Chip />
         </span>
 
-        <div className="flex items-baseline justify-between text-jumpa-white">
-          <span className="text-lg leading-5.25 font-medium">
+        <div className="mt-auto flex items-center justify-between text-jumpa-white/90">
+          <span className="text-base leading-4.5 font-medium">
             **** {card.last4}
           </span>
-          <span className="text-[10px] leading-4 font-medium tracking-[0.02em]">
-            {card.holder}
-          </span>
+          <span className="text-xs leading-3.5 font-medium">{card.holder}</span>
         </div>
       </div>
     </div>

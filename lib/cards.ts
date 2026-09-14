@@ -7,6 +7,8 @@ export type VirtualCard = {
   id: string;
   /** Masked PAN as printed on the card face. */
   last4: string;
+  /** Spendable on the card, already formatted. */
+  balance: string;
   holder: string;
   number: string;
   expiry: string;
@@ -15,10 +17,12 @@ export type VirtualCard = {
   frozen: boolean;
 };
 
+/** TODO: replace with the processor's real cards once the service exists. */
 export const CARDS: VirtualCard[] = [
   {
     id: "primary",
     last4: "2638",
+    balance: "$ 1,372.00",
     holder: "ADEMOLA M. OLAYINKA",
     number: "3728 2748 4920 2191",
     expiry: "04/31",
@@ -29,6 +33,7 @@ export const CARDS: VirtualCard[] = [
   {
     id: "second",
     last4: "4392",
+    balance: "$ 240.18",
     holder: "ADEMOLA M. OLAYINKA",
     number: "5417 9920 1183 4392",
     expiry: "11/29",
@@ -39,6 +44,7 @@ export const CARDS: VirtualCard[] = [
   {
     id: "third",
     last4: "2141",
+    balance: "$ 0.00",
     holder: "ADEMOLA M. OLAYINKA",
     number: "4024 0071 5563 2141",
     expiry: "08/30",
@@ -118,13 +124,6 @@ export const CARD_PERKS = [
   "Zero cost",
 ];
 
-export const CARD_CATEGORIES = [
-  { value: "debit", label: "Debit Card" },
-  { value: "credit", label: "Credit Card" },
-] as const;
-
-export type CardCategory = (typeof CARD_CATEGORIES)[number]["value"];
-
 export type CardKind = "virtual" | "physical";
 
 export const CARD_KINDS: { kind: CardKind; title: string; blurb: string }[] = [
@@ -144,3 +143,22 @@ export const CARD_KINDS: { kind: CardKind; title: string; blurb: string }[] = [
 
 /** PIN handed back after a card is created. Placeholder until the processor issues one. */
 export const NEW_CARD_PIN = "2345";
+
+/**
+ * Wallets a card can be funded from. TODO: replace with the user's real
+ * balances once the card processor exposes a funding endpoint.
+ */
+export type FundingAccount = {
+  id: string;
+  /** Wallet the money leaves, e.g. "USD". */
+  label: string;
+  /** Spendable, already formatted. */
+  balance: string;
+  /** Asset whose mark and ticker the amount screen shows. */
+  symbol: string;
+};
+
+export const FUNDING_ACCOUNTS: FundingAccount[] = [
+  { id: "usdc", label: "USD", balance: "$1,239.00", symbol: "USDC" },
+  { id: "usdt", label: "USD", balance: "$450.50", symbol: "USDT" },
+];

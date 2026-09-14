@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CardActions } from "@/components/cards/card-actions";
 import { CardDetailsSheet } from "@/components/cards/card-details-sheet";
 import { CardPinSheet } from "@/components/cards/card-pin-sheet";
 import { CardSettings } from "@/components/cards/card-settings";
 import { ConfirmSheet } from "@/components/cards/confirm-sheet";
+import { FundingAccountSheet } from "@/components/cards/funding-account-sheet";
 import { VirtualCardFace } from "@/components/cards/virtual-card";
 import { BottomNav } from "@/components/home/bottom-nav";
 import { PromotionList } from "@/components/home/promotion-list";
@@ -14,10 +16,10 @@ import { PlusIcon } from "@/components/ui/icons/plus";
 import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
 import { SnowIcon } from "@/components/ui/icons/snow";
 import { ScreenHeader } from "@/components/ui/screen-header";
-import type { VirtualCard } from "@/lib/cards";
+import { FUNDING_ACCOUNTS, type VirtualCard } from "@/lib/cards";
 import type { Promotion } from "@/lib/wallet";
 
-type Sheet = "details" | "pin" | "freeze" | "delete" | null;
+type Sheet = "details" | "pin" | "fund" | "freeze" | "delete" | null;
 
 /** Cards screen. Every action on it opens one of four sheets. */
 export function CardsView({
@@ -27,6 +29,7 @@ export function CardsView({
   cards: VirtualCard[];
   promotions: Promotion[];
 }) {
+  const router = useRouter();
   const [sheet, setSheet] = useState<Sheet>(null);
   const [active, setActive] = useState(0);
   const card = cards[active];
@@ -41,14 +44,14 @@ export function CardsView({
             action={
               <Link
                 href="/cards?view=new"
-                className="flex h-9.5 items-center gap-2 rounded-pill border border-jumpa-primary-600 px-3 text-xs leading-3.5 font-medium text-jumpa-primary-600"
+                className="flex items-center gap-1 rounded-pill bg-jumpa-primary-50 px-2 py-2.5 text-[10px] leading-3.5 font-medium text-jumpa-primary-950 inset-ring-1 inset-ring-jumpa-primary-200"
               >
                 <PlusIcon className="size-4" />
                 Add new card
               </Link>
             }
           />
-          <h1 className="text-base leading-4.5 font-semibold text-jumpa-black">
+          <h1 className="text-base leading-4.5 font-medium text-jumpa-black">
             Your Virtual Cards
           </h1>
         </div>
@@ -57,7 +60,7 @@ export function CardsView({
           <VirtualCardFace card={card} />
 
           {cards.length > 1 ? (
-            <div className="mx-auto flex h-3.5 items-center gap-1 rounded-pill bg-jumpa-primary-50 px-0.5">
+            <div className="mx-auto flex items-center gap-0.5 rounded-pill bg-jumpa-primary-50 p-1 inset-ring-1 inset-ring-jumpa-primary-100">
               {cards.map((item, index) => (
                 <button
                   key={item.id}
@@ -65,10 +68,10 @@ export function CardsView({
                   aria-label={`Card ending ${item.last4}`}
                   aria-current={index === active}
                   onClick={() => setActive(index)}
-                  className={`h-2.5 rounded-pill transition-[width] ${
+                  className={`h-2 rounded-pill transition-[width] ${
                     index === active
-                      ? "w-10.5 bg-jumpa-primary-600"
-                      : "w-4 bg-jumpa-primary-100"
+                      ? "w-10 bg-jumpa-primary-600"
+                      : "w-4.25 bg-jumpa-primary-100"
                   }`}
                 />
               ))}
@@ -80,6 +83,7 @@ export function CardsView({
           frozen={card.frozen}
           onDetails={() => setSheet("details")}
           onFreeze={() => setSheet("freeze")}
+          onFund={() => setSheet("fund")}
           onPin={() => setSheet("pin")}
         />
 
@@ -94,6 +98,16 @@ export function CardsView({
       ) : null}
 
       {sheet === "pin" ? <CardPinSheet pin={card.pin} onClose={close} /> : null}
+
+      {sheet === "fund" ? (
+        <FundingAccountSheet
+          accounts={FUNDING_ACCOUNTS}
+          onContinue={(account) =>
+            router.push(`/cards?view=fund&account=${account.id}`)
+          }
+          onClose={close}
+        />
+      ) : null}
 
       {sheet === "freeze" ? (
         <ConfirmSheet

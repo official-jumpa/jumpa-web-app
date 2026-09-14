@@ -3,10 +3,12 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/auth/copy-button";
+import { ReceiptSheet } from "@/components/transactions/receipt-sheet";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { getAssetLogo } from "@/lib/assets";
 import { cn } from "@/lib/cn";
+import type { Receipt } from "@/lib/receipt";
 import type { Transaction } from "@/lib/wallet";
 
 const STATUS_LABEL = {
@@ -15,10 +17,27 @@ const STATUS_LABEL = {
   failed: "Failed",
 } as const;
 
+/** The detail screen already holds everything the receipt prints. */
+function toReceipt(transaction: Transaction): Receipt {
+  return {
+    reference: transaction.id,
+    title: transaction.heading || transaction.title,
+    amount: transaction.headline || transaction.amount,
+    status: STATUS_LABEL[transaction.status],
+    timestamp: transaction.timestamp || "",
+    // `copy` holds the full hash or reference where the row shows a short one.
+    rows: (transaction.rows ?? []).map((row) => ({
+      label: row.label,
+      value: row.copy || row.value,
+    })),
+  };
+}
+
 /** One entry in full: asset, amount, outcome, then every detail we hold on it. */
 export function TransactionDetail({ id }: { id: string }) {
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [missing, setMissing] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -118,11 +137,19 @@ export function TransactionDetail({ id }: { id: string }) {
       {transaction ? (
         <button
           type="button"
+          onClick={() => setReceiptOpen(true)}
           className="tap mt-8 flex h-16 items-center justify-center gap-2 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-6 text-xs leading-3.5 text-jumpa-black active:scale-[0.98]"
         >
           <FileDownloadIcon className="size-6 text-jumpa-primary-600" />
           Download Receipt
         </button>
+      ) : null}
+
+      {transaction && receiptOpen ? (
+        <ReceiptSheet
+          receipt={toReceipt(transaction)}
+          onClose={() => setReceiptOpen(false)}
+        />
       ) : null}
     </div>
   );

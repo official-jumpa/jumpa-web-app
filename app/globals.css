@@ -62,8 +62,10 @@
   --color-jumpa-neutral-275: #b2b2b2; /* label on a chat Cancel button */
   --color-jumpa-neutral-300: #a1a1a1; /* KYC card supporting copy */
   --color-jumpa-neutral-350: #979797; /* asset ticker name */
+  --color-jumpa-neutral-375: #8f8f8f; /* field label inside a card sheet */
   --color-jumpa-neutral-400: #818181; /* transaction date */
   --color-jumpa-neutral-425: #767676; /* notification read state */
+  --color-jumpa-neutral-450: #646464; /* label on a "Coming Soon" row */
   --color-jumpa-neutral-500: #4f4f4f; /* captions, "Or Sign Up With" */
   --color-jumpa-neutral-550: #555555; /* asset amount on a transfer card */
   --color-jumpa-neutral-600: #464646; /* social button label */

@@ -8,8 +8,10 @@ import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
+import { ReceiptSheet } from "@/components/transactions/receipt-sheet";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { type DataPlan, getNetwork, getPeriodLabel } from "@/lib/bills";
+import { newReference, type Receipt } from "@/lib/receipt";
 import { DEMO_PIN } from "@/lib/transfer";
 
 type Stage = "form" | "plans" | "done";
@@ -23,8 +25,32 @@ export function MobileDataView() {
   const [phone, setPhone] = useState("");
   const [networkId, setNetworkId] = useState("");
   const [plan, setPlan] = useState<DataPlan | null>(null);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  // Stamped once the payment lands, so the receipt reads the same every time.
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
 
   const network = getNetwork(networkId);
+
+  const settle = () => {
+    if (!plan || !network) return;
+
+    setReceipt({
+      // TODO: replace with the reference the bills provider returns.
+      reference: newReference("DATA"),
+      title: "Data purchase",
+      amount: plan.price,
+      status: "Successful",
+      timestamp: new Date().toLocaleString(),
+      rows: [
+        { label: "From", value: "Jumpa wallet" },
+        { label: "Type", value: "Data" },
+        { label: "Network", value: network.label },
+        { label: "Phone number", value: phone },
+        { label: "Plan", value: plan.validity },
+      ],
+    });
+    setStage("done");
+  };
 
   if (stage === "done" && plan) {
     return (
@@ -36,13 +62,23 @@ export function MobileDataView() {
         amount={plan.price}
         ctaLabel="Back to home"
         actions={
-          <button
-            type="button"
-            className="tap flex h-13 w-full items-center gap-3 rounded-tile bg-jumpa-neutral-50 px-4.5 text-xs leading-4 font-medium text-jumpa-black active:scale-[0.98]"
-          >
-            <FileDownloadIcon className="size-5 text-jumpa-primary-600" />
-            Download Receipt
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setReceiptOpen(true)}
+              className="tap flex h-13 w-full items-center gap-3 rounded-tile bg-jumpa-neutral-50 px-4.5 text-xs leading-4 font-medium text-jumpa-black active:scale-[0.98]"
+            >
+              <FileDownloadIcon className="size-5 text-jumpa-primary-600" />
+              Download Receipt
+            </button>
+
+            {receiptOpen && receipt ? (
+              <ReceiptSheet
+                receipt={receipt}
+                onClose={() => setReceiptOpen(false)}
+              />
+            ) : null}
+          </>
         }
       />
     );
@@ -90,7 +126,7 @@ export function MobileDataView() {
             onRetry={() => setPinError(false)}
             onClose={() => setSheet("review")}
             onComplete={(pin) => {
-              if (pin === DEMO_PIN) setStage("done");
+              if (pin === DEMO_PIN) settle();
               else setPinError(true);
             }}
           />

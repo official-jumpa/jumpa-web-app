@@ -4,7 +4,10 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { EmptyPlans } from "@/components/savings/empty-plans";
 import { PlanCard } from "@/components/savings/plan-card";
-import { AmountScreen } from "@/components/transfer/amount-screen";
+import {
+  SAVINGS_INPUT,
+  SavingsField,
+} from "@/components/savings/savings-field";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { RecipientTag } from "@/components/transfer/recipient-tag";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
@@ -12,14 +15,17 @@ import { TransferHeader } from "@/components/transfer/transfer-header";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { useGoBack } from "@/components/ui/back-link";
+import { Button } from "@/components/ui/button";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { type FriendlyError, friendlyError } from "@/lib/errors";
-import { type SavingsPlan, savingsHref } from "@/lib/savings";
-import { formatAmount } from "@/lib/transfer";
+import {
+  type SavingsPlan,
+  savingsHref,
+  WITHDRAW_PERCENTAGES,
+} from "@/lib/savings";
+import { formatAmount, sanitiseAmount } from "@/lib/transfer";
 
 type Sheet = "review" | "pin" | null;
-
-const WITHDRAW_AMOUNTS = [25, 50, 100] as const;
 
 export function SavingsWithdrawView() {
   const searchParams = useSearchParams();
@@ -51,6 +57,7 @@ export function SavingsWithdrawView() {
   });
   const [hasFetched, setHasFetched] = useState(false);
   const [amount, setAmount] = useState("");
+  const [amountError, setAmountError] = useState<string>();
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
   const [failure, setFailure] = useState<FriendlyError>();
@@ -126,6 +133,35 @@ export function SavingsWithdrawView() {
   const netPayout = Math.max(0, numAmount - penaltyFee);
 
   const payoutTotal = `$${formatAmount(netPayout.toFixed(2))}`;
+
+  const savedNum =
+    Number(String(selectedPlan?.saved || "0").replace(/[^\d.]/g, "")) || 0;
+
+  const applyPercent = (pct: number) => {
+    const next = (savedNum * pct) / 100;
+    setAmount(next % 1 === 0 ? String(next) : next.toFixed(2));
+    setAmountError(undefined);
+  };
+
+  const activePercent = WITHDRAW_PERCENTAGES.find(
+    (pct) =>
+      savedNum > 0 && Math.abs((savedNum * pct) / 100 - numAmount) < 0.005,
+  );
+
+  const proceed = () => {
+    if (!numAmount) {
+      setAmountError("Enter an amount greater than 0");
+      return;
+    }
+    if (numAmount > savedNum) {
+      setAmountError(
+        `Your balance is ${selectedPlan?.saved}. Enter less than that.`,
+      );
+      return;
+    }
+    setAmountError(undefined);
+    setSheet("review");
+  };
 
   const details = selectedPlan ? (
     <DetailList>
@@ -205,29 +241,80 @@ export function SavingsWithdrawView() {
     );
   }
 
-  // Instant render: AmountScreen is rendered immediately with zero spinner!
+  // Instant render: the amount screen is up immediately with zero spinner.
   return (
     <>
-      <AmountScreen
-        recipient={
-          <RecipientTag
-            primary="Jumpa wallet"
-            secondary={
-              selectedPlan ? `From: ${selectedPlan.name}` : "From savings"
-            }
-          />
-        }
-        // Picked in the selector? Go back to it. The plan detail page it would
-        // otherwise land on is one this route never came from.
-        onClose={() => (planId ? goBack() : setSelectedPlan(null))}
-        amount={amount}
-        symbol="USDC"
-        balance={selectedPlan?.saved || "$0.00"}
-        chips={WITHDRAW_AMOUNTS}
-        chipUnit="USDC"
-        onAmountChange={setAmount}
-        onReview={() => setSheet("review")}
-      />
+      <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+        <TransferHeader
+          back={backUrl}
+          // Picked in the selector? Go back to it. The plan detail page it
+          // would otherwise land on is one this route never came from.
+          onBack={() => (planId ? goBack() : setSelectedPlan(null))}
+          title="Withdraw savings"
+        />
+
+        <div className="mt-6 flex flex-col gap-5">
+          <SavingsField label="Amount" error={amountError}>
+            <span className="text-xs leading-4 font-medium text-jumpa-primary-950">
+              $
+            </span>
+            <input
+              value={amount}
+              onChange={(event) => {
+                setAmount(sanitiseAmount(event.target.value));
+                setAmountError(undefined);
+              }}
+              inputMode="decimal"
+              placeholder="0.00"
+              aria-invalid={Boolean(amountError)}
+              className={SAVINGS_INPUT}
+            />
+          </SavingsField>
+
+          <div className="flex gap-2">
+            {WITHDRAW_PERCENTAGES.map((pct) => {
+              const active = pct === activePercent;
+              return (
+                <button
+                  key={pct}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => applyPercent(pct)}
+                  className={`tap flex h-9 flex-1 items-center justify-center rounded-pill text-xs leading-4 font-medium active:scale-95 ${
+                    active
+                      ? "bg-jumpa-primary-600 text-jumpa-primary-50"
+                      : "border-[1.32px] border-jumpa-primary-100 bg-jumpa-primary-50 text-jumpa-primary-950"
+                  }`}
+                >
+                  {pct}%
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="text-xs leading-4 font-medium text-jumpa-neutral-400">
+            Current saving balance: {selectedPlan?.saved || "$0.00"}
+          </p>
+
+          <DetailList>
+            {/* Nominal figures from the frame — no fee-estimation API exists yet. */}
+            <DetailRow label="Breaking fee" value="0.001 XLM (~$0.001)" />
+            {penaltyFee > 0 ? (
+              <DetailRow
+                label="Early withdrawal fee (5%)"
+                value={`-$${penaltyFee.toFixed(2)}`}
+              />
+            ) : null}
+            <DetailRow label="Slippage" value="0.5%" rule={false} />
+          </DetailList>
+        </div>
+
+        <div className="mt-auto pt-8">
+          <Button variant="gradient" size="lg" onClick={proceed}>
+            Continue
+          </Button>
+        </div>
+      </div>
 
       {sheet === "review" && selectedPlan ? (
         <ReviewSheet

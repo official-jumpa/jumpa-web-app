@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { CategoryChips, resolveCategory } from "@/components/savings/category-chips";
 import { ChoiceChips } from "@/components/savings/choice-chips";
 import { FundingSheet } from "@/components/savings/funding-sheet";
 import {
@@ -32,6 +33,7 @@ import {
   SAVINGS_FREQUENCIES,
   TARGET_SOURCES,
   TARGET_TERMS,
+  WEEK_INTERVALS,
   WEEKDAYS,
 } from "@/lib/savings";
 import { formatAmount } from "@/lib/transfer";
@@ -62,6 +64,7 @@ export function CreateTargetView() {
   const [stage, setStage] = useState<Stage>("goal");
   const [goal, setGoal] = useState("");
   const [category, setCategory] = useState(SAVINGS_CATEGORIES[0]);
+  const [customCategory, setCustomCategory] = useState("");
   const [target, setTarget] = useState("");
   const [term, setTerm] = useState(TARGET_TERMS[0].label);
   const [start, setStart] = useState(() => addDays(0));
@@ -69,6 +72,7 @@ export function CreateTargetView() {
   const [deposit, setDeposit] = useState("");
   const [frequency, setFrequency] = useState(SAVINGS_FREQUENCIES[1]);
   const [day, setDay] = useState("");
+  const [weekInterval, setWeekInterval] = useState(WEEK_INTERVALS[0]);
   const [errors, setErrors] = useState<Errors>({});
   const balance = useWalletBalance();
   const [source, setSource] = useState<FundingSource>();
@@ -88,6 +92,31 @@ export function CreateTargetView() {
   const openEnded = term === "No Deadline";
   const planDays = !openEnded && start && end ? Math.max(0, getDaysBetween(start, end)) : 0;
   const total = `$${formatAmount(target)}`;
+  const categoryValue = resolveCategory(category, customCategory);
+
+  // Rough months-to-target, so the money stage can tell the user what their
+  // chosen cadence actually gets them to.
+  const projection = (() => {
+    const depNum = Number.parseFloat(deposit) || 0;
+    const tgtNum = Number.parseFloat(target) || 0;
+    if (depNum <= 0 || tgtNum <= 0) return null;
+
+    const weekFactor =
+      weekInterval === "Every 2 weeks" ? 0.5 : weekInterval === "Every 4 weeks" ? 0.25 : 1;
+    const perMonth =
+      frequency === "Daily"
+        ? depNum * 30
+        : frequency === "Weekly"
+          ? depNum * 4.345 * weekFactor
+          : depNum;
+    if (perMonth <= 0) return null;
+
+    const remaining = Math.max(0, tgtNum - depNum);
+    const months = Math.max(1, Math.ceil(remaining / perMonth));
+    const period = frequency === "Daily" ? "day" : frequency === "Weekly" ? "week" : "month";
+
+    return `At $${formatAmount(deposit)}/${period}, you'll reach your ${total} target in approximately ${months} ${months === 1 ? "month" : "months"}.`;
+  })();
 
   const clear = (field: keyof Errors) =>
     setErrors((current) => ({ ...current, [field]: undefined }));
@@ -182,12 +211,16 @@ export function CreateTargetView() {
   };
 
   const schedule =
-    frequency === "Daily" ? "Daily" : `${day || "—"}, ${frequency}`;
+    frequency === "Daily"
+      ? "Daily"
+      : frequency === "Weekly"
+        ? `${day || "—"}, ${weekInterval}`
+        : `${day || "—"}, ${frequency}`;
 
   const details = (
     <DetailList>
       <DetailRow label="Goal" value={goal} />
-      <DetailRow label="Category" value={category} />
+      <DetailRow label="Category" value={categoryValue} />
       <DetailRow label="Frequency" value={schedule} />
       <DetailRow
         label="End date"
@@ -236,10 +269,11 @@ export function CreateTargetView() {
 
         <div className="flex flex-col gap-3">
           <SavingsLabel>Category</SavingsLabel>
-          <ChoiceChips
-            options={SAVINGS_CATEGORIES}
+          <CategoryChips
             value={category}
+            custom={customCategory}
             onChange={setCategory}
+            onCustomChange={setCustomCategory}
           />
         </div>
 
@@ -278,6 +312,7 @@ export function CreateTargetView() {
                 <SavingsLabel>Start date</SavingsLabel>
                 <DateField
                   label="Start date"
+                  icon="globe"
                   value={start}
                   min={addDays(0)}
                   invalid={Boolean(errors.dates)}
@@ -286,9 +321,10 @@ export function CreateTargetView() {
               </div>
 
               <div className="flex flex-col gap-3">
-                <SavingsLabel>End date</SavingsLabel>
+                <SavingsLabel>End date (Optional)</SavingsLabel>
                 <DateField
                   label="End date"
+                  icon="globe"
                   value={end}
                   min={start || addDays(0)}
                   invalid={Boolean(errors.dates)}
@@ -405,6 +441,23 @@ export function CreateTargetView() {
             </div>
           )}
 
+          {frequency === "Weekly" ? (
+            <div className="flex flex-col gap-3">
+              <SavingsLabel>Select week</SavingsLabel>
+              <Select
+                variant="savings"
+                label="Select week"
+                placeholder="Select week"
+                value={weekInterval}
+                onValueChange={setWeekInterval}
+                options={WEEK_INTERVALS.map((option) => ({
+                  value: option,
+                  label: option,
+                }))}
+              />
+            </div>
+          ) : null}
+
           <SavingsRule />
 
           <p className="text-[10px] leading-3.5 font-medium text-jumpa-primary-600">
@@ -412,6 +465,12 @@ export function CreateTargetView() {
               ? "We will move money into this goal every day until you reach your target."
               : `We will move money into this goal every ${day || "chosen day"} until you reach your target.`}
           </p>
+
+          {projection ? (
+            <p className="text-[10px] leading-3.5 font-medium text-jumpa-primary-600">
+              {projection}
+            </p>
+          ) : null}
         </SavingsPanel>
       </SavingsForm>
 
@@ -442,7 +501,7 @@ export function CreateTargetView() {
         >
           <DetailList>
             <DetailRow label="Goal" value={goal} />
-            <DetailRow label="Category" value={category} />
+            <DetailRow label="Category" value={categoryValue} />
             <DetailRow
               label="Duration"
               value={openEnded ? "No deadline" : `${planDays} days (${term})`}
@@ -472,7 +531,7 @@ export function CreateTargetView() {
                 body: JSON.stringify({
                   kind: "individual",
                   name: goal,
-                  category,
+                  category: categoryValue,
                   targetAmount: Number(target),
                   depositAmount: Number(deposit) || 0,
                   term: openEnded
@@ -484,7 +543,8 @@ export function CreateTargetView() {
                   endDate: openEnded ? null : end,
                   frequency,
                   debitDay: day || null,
-                  fundingSource: source?.id || "crypto",
+                  weekInterval: frequency === "Weekly" ? weekInterval : null,
+                  fundingSource: source?.id || "usd",
                   pin,
                 }),
               });
@@ -531,5 +591,3 @@ export function CreateTargetView() {
     </>
   );
 }
-
-/** Bordered date field, matching the savings form shell. */

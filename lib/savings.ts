@@ -157,9 +157,9 @@ export function findPlan(kind: SavingsKind, id: string) {
 /** Balance the masthead shows on a product's own landing. */
 export const SAVINGS_BALANCE = {
   individual: {
-    badge: "Personal savings",
+    badge: "Referral Earnings",
     amount: "0.00",
-    rate: "0.0% p.a.",
+    rate: "1.5% p.a.",
   },
   lock: { badge: "Locked savings", amount: "0.00", rate: "0.0% p.a." },
   circle: { badge: "Group savings", amount: "0.00" },
@@ -186,11 +186,16 @@ export const TARGET_TERMS: { label: string; days: number | null }[] = [
   { label: "30 DAYS", days: 30 },
   { label: "60 DAYS", days: 60 },
   { label: "90 DAYS", days: 90 },
-  { label: "Custom", days: null },
   { label: "No Deadline", days: null },
 ];
 
 export const SAVINGS_FREQUENCIES = ["Daily", "Weekly", "Monthly"];
+
+/** How often a weekly debit repeats. */
+export const WEEK_INTERVALS = ["Every week", "Every 2 weeks", "Every 4 weeks"];
+
+/** Quick-fill fractions of the saved balance on the withdraw amount screen. */
+export const WITHDRAW_PERCENTAGES = [25, 50, 75, 100] as const;
 
 export const WEEKDAYS = [
   "Monday",
@@ -215,9 +220,9 @@ export const LOCK_SOURCES: FundingSource[] = [
   { id: "ngn", label: "NGN Balance", balance: "₦0.00", icon: "naira" },
 ];
 
-/** The individual flow draws from crypto or NGN wallets. */
+/** The individual flow draws from the same USD/NGN wallets as lock. */
 export const TARGET_SOURCES: FundingSource[] = [
-  { id: "crypto", label: "Crypto", balance: "$0.00", icon: "crypto" },
+  { id: "usd", label: "USD Balance", balance: "$0.00", icon: "dollar" },
   { id: "ngn", label: "NGN Balance", balance: "₦0.00", icon: "naira" },
 ];
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ChoiceChips } from "@/components/savings/choice-chips";
+import { CategoryChips } from "@/components/savings/category-chips";
 import { PlanAction, PlanActions } from "@/components/savings/plan-actions";
 import {
   SAVINGS_INPUT,
@@ -24,6 +24,7 @@ export function CreateCircleView() {
   const fields = useRef<HTMLDivElement>(null);
   const [name, setName] = useState("");
   const [category, setCategory] = useState(SAVINGS_CATEGORIES[0]);
+  const [customCategory, setCustomCategory] = useState("");
   const [target, setTarget] = useState("");
   const [date, setDate] = useState(addDays(60));
   const [errors, setErrors] = useState<Errors>({});
@@ -98,10 +99,11 @@ export function CreateCircleView() {
             className={SAVINGS_INPUT}
           />
         </label>
-        <ChoiceChips
-          options={SAVINGS_CATEGORIES}
+        <CategoryChips
           value={category}
+          custom={customCategory}
           onChange={setCategory}
+          onCustomChange={setCustomCategory}
         />
         <FieldError>{errors.name}</FieldError>
       </div>

@@ -184,13 +184,18 @@ async function lastPayoutAccount(userId: string) {
   return saved?.accountNumber && saved.bankName ? saved : null;
 }
 
-/** Savings goal categories */
+/** Savings goal categories. A Custom row opens a field in the card. */
 const SAVINGS_CATEGORIES: ChatOption[] = [
   { label: "Rent", icon: "savings", reply: "Rent" },
   { label: "Travel", icon: "savings", reply: "Travel" },
   { label: "Groceries", icon: "savings", reply: "Groceries" },
   { label: "Transportation", icon: "savings", reply: "Transportation" },
-  { label: "Others", icon: "savings", reply: "Others" },
+  {
+    label: "Others",
+    icon: "savings",
+    custom: true,
+    placeholder: "Enter a category",
+  },
 ];
 
 /** The savings choosers the design draws. A Custom row opens a field in the card. */

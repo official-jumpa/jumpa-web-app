@@ -2,9 +2,9 @@ import Image from "next/image";
 import { CopyButton } from "@/components/auth/copy-button";
 import { PlanAction, PlanActions } from "@/components/savings/plan-actions";
 import { PlanCard } from "@/components/savings/plan-card";
+import { WithdrawAction } from "@/components/savings/withdraw-action";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { TransferHeader } from "@/components/transfer/transfer-header";
-import { ArrowUpFromArcIcon } from "@/components/ui/icons/arrow-up-from-arc";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
 import { CIRCLE_INVITE, type SavingsPlan } from "@/lib/savings";
 
@@ -39,9 +39,10 @@ export function PlanDetail({
                 Top up
               </PlanAction>
             ) : null}
-            <PlanAction href={withdrawHref} icon={ArrowUpFromArcIcon}>
-              Withdraw
-            </PlanAction>
+            <WithdrawAction
+              href={withdrawHref}
+              warn={plan.status === "Active"}
+            />
           </PlanActions>
         )}
 

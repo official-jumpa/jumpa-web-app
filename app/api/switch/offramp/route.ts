@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
 
     const {
       cryptoAmount,
+      fiatAmount,
       cryptoToken,
       asset,
       holderName,
@@ -170,7 +171,7 @@ export async function POST(req: NextRequest) {
         rampDetails: {
           provider: "switch",
           fiatCurrency: "NGN",
-          fiatAmount: destination.amount,
+          fiatAmount: destination?.amount || fiatAmount || 0,
           reference,
         },
         executedAt: new Date(),
@@ -181,8 +182,8 @@ export async function POST(req: NextRequest) {
         action: "OFFRAMP_INITIATED",
         details: {
           reference,
-          fiatAmount: destination.amount,
-          fiatCurrency: destination.currency,
+          fiatAmount: destination?.amount || fiatAmount || 0,
+          fiatCurrency: destination?.currency || "NGN",
           cryptoAmount,
           cryptoToken: tokenName,
           bankName: bankMatch.name,

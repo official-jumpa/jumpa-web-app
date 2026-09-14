@@ -82,7 +82,13 @@ export async function POST(req: NextRequest) {
   } else if (selectedChain === "sol" || selectedChain === "solana") {
     const solDerived = derivePath("m/44'/501'/0'/0'", seed.toString("hex")).key;
     const solKeypair = SolanaKeypair.fromSeed(solDerived);
-    privateKey = Buffer.from(solKeypair.secretKey).toString("hex");
+    try {
+      // @ts-expect-error untyped bs58 module
+      const bs58 = (await import("bs58")).default;
+      privateKey = bs58.encode(Buffer.from(solKeypair.secretKey));
+    } catch {
+      privateKey = Buffer.from(solKeypair.secretKey).toString("hex");
+    }
   } else if (selectedChain === "xlm" || selectedChain === "stellar") {
     const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
     privateKey = stellarKeys.secretKey;

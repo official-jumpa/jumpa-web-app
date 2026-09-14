@@ -64,6 +64,13 @@ export const switchOfframpSchema = z.object({
     .refine((val) => !isNaN(val) && val > 0, {
       message: "cryptoAmount must be a positive number",
     }),
+  fiatAmount: z
+    .union([z.number(), z.string()])
+    .transform((val) => Number(val))
+    .refine((val) => !isNaN(val) && val > 0, {
+      message: "fiatAmount must be a positive number",
+    })
+    .optional(),
   cryptoToken: z.string().trim().optional(),
   asset: z
     .string({

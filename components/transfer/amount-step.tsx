@@ -29,9 +29,14 @@ export function AmountStep({
   chips = QUICK_AMOUNTS,
   chipUnit,
   checkBalance = true,
+  maxAmount,
+  inputPrefix,
   rate,
   caption,
   ctaLabel = "Review",
+  currencyMode,
+  currencyOptions,
+  onCurrencyModeChange,
   onAmountChange,
   onReview,
 }: {
@@ -48,11 +53,19 @@ export function AmountStep({
    * balance neither gates the amount nor makes a MAX chip meaningful.
    */
   checkBalance?: boolean;
+  /** Optional override for the numeric max value when typing in alternate currency. */
+  maxAmount?: string | number;
+  /** Optional currency symbol/prefix before amount (e.g. ₦ or $) */
+  inputPrefix?: string;
   /** Conversion line opposite the balance, where the flow shows one. */
   rate?: string;
   caption?: ReactNode;
   /** The savings top-up reads "Proceed" where the send flows read "Review". */
   ctaLabel?: string;
+  /** Currency mode selector state */
+  currencyMode?: "crypto" | "fiat";
+  currencyOptions?: readonly { value: "crypto" | "fiat"; label: string }[];
+  onCurrencyModeChange?: (mode: "crypto" | "fiat") => void;
   onAmountChange: (next: string) => void;
   onReview: () => void;
 }) {
@@ -60,7 +73,10 @@ export function AmountStep({
 
   const size = CHIP_SIZE[chips.length > 3 ? "dense" : "roomy"];
   const unit = chipUnit ?? symbol;
-  const spendable = Number(balance.replace(/[^\d.]/g, ""));
+  const spendable =
+    maxAmount !== undefined
+      ? Number(String(maxAmount).replace(/[^\d.]/g, ""))
+      : Number(balance.replace(/[^\d.]/g, ""));
   const low = checkBalance && Number(amount) > spendable;
 
   const change = (next: string) => {
@@ -80,26 +96,60 @@ export function AmountStep({
 
   return (
     <div className="flex flex-1 flex-col rounded-t-dock bg-jumpa-primary-575 px-4.5 pt-6 pb-2.5">
-      <p className="text-xs leading-2.5 text-jumpa-primary-50">
-        {low ? "Low balance" : "Enter amount"}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs leading-2.5 text-jumpa-primary-50">
+          {low ? "Low balance" : "Enter amount"}
+        </p>
+        {onCurrencyModeChange && currencyOptions ? (
+          <div className="inline-flex rounded-pill bg-jumpa-white/15 p-0.5">
+            {currencyOptions.map((opt) => {
+              const selected = opt.value === currencyMode;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => onCurrencyModeChange(opt.value)}
+                  className={`tap rounded-pill px-2.5 py-1 text-[10px] leading-3 font-semibold transition-all ${
+                    selected
+                      ? "bg-jumpa-white text-jumpa-primary-600 shadow-sm"
+                      : "text-jumpa-primary-50 hover:text-jumpa-white"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
 
       <div className="mt-3 flex items-center justify-between gap-3">
         {/* The design's pad is the keyboard here, so the OS one stays down —
             inputMode="none" still lets a physical keyboard and paste through. */}
-        <input
-          value={formatAmount(amount)}
-          onChange={(event) => change(sanitiseAmount(event.target.value))}
-          inputMode="none"
-          // biome-ignore lint/a11y/noAutofocus: the screen exists to take this entry
-          autoFocus
-          placeholder="0.00"
-          aria-label="Amount"
-          aria-invalid={low}
-          className={`min-w-0 flex-1 bg-transparent text-[56px] leading-none font-medium caret-jumpa-alt-400 outline-none placeholder:text-jumpa-primary-500 ${
-            low ? "text-jumpa-danger-400" : "text-jumpa-white"
-          }`}
-        />
+        <div className="flex min-w-0 flex-1 items-center">
+          {inputPrefix ? (
+            <span
+              className={`mr-1 select-none text-[36px] font-medium leading-none ${
+                low ? "text-jumpa-danger-400" : "text-jumpa-primary-50/70"
+              }`}
+            >
+              {inputPrefix}
+            </span>
+          ) : null}
+          <input
+            value={formatAmount(amount)}
+            onChange={(event) => change(sanitiseAmount(event.target.value))}
+            inputMode="none"
+            // biome-ignore lint/a11y/noAutofocus: the screen exists to take this entry
+            autoFocus
+            placeholder="0.00"
+            aria-label="Amount"
+            aria-invalid={low}
+            className={`min-w-0 flex-1 bg-transparent text-[56px] leading-none font-medium caret-jumpa-alt-400 outline-none placeholder:text-jumpa-primary-500 ${
+              low ? "text-jumpa-danger-400" : "text-jumpa-white"
+            }`}
+          />
+        </div>
         {amount ? (
           <button
             type="button"
@@ -131,7 +181,13 @@ export function AmountStep({
         {checkBalance ? (
           <button
             type="button"
-            onClick={() => change(balance.replace(/[^\d.]/g, ""))}
+            onClick={() =>
+              change(
+                maxAmount !== undefined
+                  ? String(maxAmount).replace(/[^\d.]/g, "")
+                  : balance.replace(/[^\d.]/g, "")
+              )
+            }
             className={`${CHIP} ${size}`}
           >
             MAX

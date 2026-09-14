@@ -25,6 +25,8 @@ type Sheet = "review" | "pin" | null;
 
 /** Standard crypto amount chips (e.g. 25, 50, 100 USDC) */
 const CRYPTO_CHIPS = [25, 50, 100] as const;
+/** Standard fiat amount chips in Naira (e.g. 10k, 25k, 50k, 100k NGN) */
+const FIAT_CHIPS = [10000, 25000, 50000, 100000] as const;
 
 export function BankTransferView({
   defaultCountry = "Nigeria",
@@ -36,6 +38,7 @@ export function BankTransferView({
   const [pinError, setPinError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
+  const [currencyMode, setCurrencyMode] = useState<"crypto" | "fiat">("crypto");
   const [form, setForm] = useState<BankForm>({
     ...EMPTY_BANK_FORM,
     country: defaultCountry,
@@ -131,10 +134,47 @@ export function BankTransferView({
     };
   }, [selectedAsset, selectedChain]);
 
-  const numCryptoAmount = parseFloat(amount) || 0;
-  const estimatedFiatAmount = Math.floor(numCryptoAmount * offrampRate);
+  const rawTypedNumber = parseFloat(amount) || 0;
+
+  // Bidirectional conversions
+  const numCryptoAmount =
+    currencyMode === "crypto"
+      ? rawTypedNumber
+      : offrampRate > 0
+        ? Number((rawTypedNumber / offrampRate).toFixed(2))
+        : 0;
+
+  const targetFiatAmount =
+    currencyMode === "fiat"
+      ? rawTypedNumber
+      : Math.floor(rawTypedNumber * offrampRate);
 
   const displayBalance = `${cryptoBalance.toFixed(2)} ${selectedAsset}`;
+  const maxFiatSpendable = Math.floor(cryptoBalance * offrampRate);
+
+  // Smooth mode toggle with live conversion
+  const handleCurrencyModeChange = (newMode: "crypto" | "fiat") => {
+    if (newMode === currencyMode) return;
+    if (!amount || parseFloat(amount) === 0) {
+      setCurrencyMode(newMode);
+      return;
+    }
+    const currentVal = parseFloat(amount);
+    if (newMode === "fiat") {
+      const converted = Math.floor(currentVal * offrampRate);
+      setAmount(converted > 0 ? String(converted) : "");
+    } else {
+      const converted =
+        offrampRate > 0 ? Number((currentVal / offrampRate).toFixed(2)) : 0;
+      setAmount(converted > 0 ? String(converted) : "");
+    }
+    setCurrencyMode(newMode);
+  };
+
+  const currencyOptions = [
+    { value: "crypto" as const, label: selectedAsset },
+    { value: "fiat" as const, label: "NGN (₦)" },
+  ];
 
   const rows = momo
     ? [
@@ -153,7 +193,11 @@ export function BankTransferView({
         { label: "Recipient", value: form.name || "—" },
         {
           label: "You'll receive",
-          value: `₦${estimatedFiatAmount.toLocaleString()} ${fiatCurrency}`,
+          value: `₦${targetFiatAmount.toLocaleString()} ${fiatCurrency}`,
+        },
+        {
+          label: "You'll pay",
+          value: `${numCryptoAmount} ${selectedAsset}`,
         },
         {
           label: "Exchange rate",
@@ -189,6 +233,7 @@ export function BankTransferView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cryptoAmount: numCryptoAmount,
+          fiatAmount: targetFiatAmount,
           cryptoToken: selectedAsset,
           asset: assetKey,
           holderName: form.name.trim(),
@@ -224,7 +269,7 @@ export function BankTransferView({
     return (
       <TransferSuccess
         back="/home"
-        amount={`${amount} ${selectedAsset} (≈ ₦${estimatedFiatAmount.toLocaleString()})`}
+        amount={`${numCryptoAmount} ${selectedAsset} (≈ ₦${targetFiatAmount.toLocaleString()})`}
         note={
           <>
             Your money is on its way to{" "}
@@ -239,6 +284,19 @@ export function BankTransferView({
   }
 
   if (stage === "amount") {
+    const rateSubtitle =
+      currencyMode === "crypto"
+        ? `1 ${selectedAsset} ≈ ₦${offrampRate.toLocaleString()}${
+            numCryptoAmount > 0
+              ? ` (≈ ₦${targetFiatAmount.toLocaleString()})`
+              : ""
+          }`
+        : `1 ${selectedAsset} ≈ ₦${offrampRate.toLocaleString()}${
+            targetFiatAmount > 0
+              ? ` (≈ ${numCryptoAmount} ${selectedAsset})`
+              : ""
+          }`;
+
     return (
       <>
         <AmountScreen
@@ -254,14 +312,21 @@ export function BankTransferView({
           onClose={() => setStage("form")}
           amount={amount}
           symbol={selectedAsset}
-          balance={displayBalance}
-          rate={`1 ${selectedAsset} ≈ ₦${offrampRate.toLocaleString()}${
-            numCryptoAmount > 0
-              ? ` (≈ ₦${estimatedFiatAmount.toLocaleString()})`
-              : ""
-          }`}
-          chips={CRYPTO_CHIPS}
-          chipUnit={selectedAsset}
+          balance={
+            currencyMode === "crypto"
+              ? displayBalance
+              : `₦${maxFiatSpendable.toLocaleString()} (${displayBalance})`
+          }
+          maxAmount={
+            currencyMode === "crypto" ? cryptoBalance : maxFiatSpendable
+          }
+          inputPrefix={currencyMode === "fiat" ? "₦" : undefined}
+          rate={rateSubtitle}
+          chips={currencyMode === "crypto" ? CRYPTO_CHIPS : FIAT_CHIPS}
+          chipUnit={currencyMode === "crypto" ? selectedAsset : "₦"}
+          currencyMode={currencyMode}
+          currencyOptions={currencyOptions}
+          onCurrencyModeChange={handleCurrencyModeChange}
           onAmountChange={setAmount}
           onReview={() => setSheet("review")}
         />
@@ -294,7 +359,11 @@ export function BankTransferView({
                 />
               </div>
             }
-            headline={`${amount} ${selectedAsset}`}
+            headline={
+              currencyMode === "fiat"
+                ? `₦${targetFiatAmount.toLocaleString()} (${numCryptoAmount} ${selectedAsset})`
+                : `${numCryptoAmount} ${selectedAsset}`
+            }
             confirmLabel="Confirm payment"
             onConfirm={() => setSheet("pin")}
             onClose={() => setSheet(null)}

@@ -2,6 +2,42 @@
 
 export type ExportKind = "private-key" | "seed-phrase";
 
+export type ExportChainId = "stellar" | "base" | "ethereum" | "solana";
+
+export interface ExportChainOption {
+  id: ExportChainId;
+  name: string;
+  symbol: string;
+  badge: string;
+}
+
+export const EXPORT_CHAINS: ExportChainOption[] = [
+  {
+    id: "stellar",
+    name: "Stellar",
+    symbol: "XLM",
+    badge: "Stellar (XLM)",
+  },
+  {
+    id: "base",
+    name: "Base",
+    symbol: "BASE",
+    badge: "Base (EVM)",
+  },
+  {
+    id: "ethereum",
+    name: "Ethereum",
+    symbol: "ETH",
+    badge: "Ethereum (EVM)",
+  },
+  {
+    id: "solana",
+    name: "Solana",
+    symbol: "SOL",
+    badge: "Solana (SPL)",
+  },
+];
+
 interface ExportCopy {
   /** Centred title in the header. */
   bar: string;
@@ -10,15 +46,10 @@ interface ExportCopy {
   lead: string;
   strong: string;
   tail: string;
-  /** `chain` for POST /api/wallet/export-key. */
+  /** Default `chain` for POST /api/wallet/export-key. */
   chain: string;
 }
 
-/**
- * The frame gives the private-key screen the seed phrase's description
- * ("your 12 or 24-word recovery phrase"), which is the seed screen's copy
- * pasted across. Corrected here — flagged to the designer.
- */
 export const EXPORT_COPY: Record<ExportKind, ExportCopy> = {
   "private-key": {
     bar: "Export Private key",
@@ -26,8 +57,6 @@ export const EXPORT_COPY: Record<ExportKind, ExportCopy> = {
     lead: "Export your ",
     strong: "private key",
     tail: " to import this wallet into another app. Anyone who has it controls the wallet.",
-    // TODO(backend): the design draws no chain picker, so this exports the
-    // Stellar key. Change it here if the default should be another chain.
     chain: "stellar",
   },
   "seed-phrase": {

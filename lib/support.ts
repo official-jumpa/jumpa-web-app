@@ -4,7 +4,7 @@
  * TODO(backend): replace with the real support inbox before launch. The Email
  * Us row opens the device's mail client against this address.
  */
-export const SUPPORT_EMAIL = "support@jumpa.app";
+export const SUPPORT_EMAIL = "support@usejumpa.com";
 
 export const SUPPORT_SUBJECT = "Jumpa support request";
 

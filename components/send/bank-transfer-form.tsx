@@ -465,6 +465,7 @@ export function BankTransferForm({
                 />
               </Field>
 
+              {/* this field is never used. Consider removing it  */}
               <Field label="Narration/Remark (Optional)">
                 <input
                   value={form.note}

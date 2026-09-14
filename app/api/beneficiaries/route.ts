@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import {
   getUserBeneficiaries,
   deleteBeneficiary,
@@ -12,13 +12,9 @@ import type { BeneficiaryType } from "@/models/Beneficiary";
  */
 export async function GET(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await requireActiveUser();
+    if (!authResult.ok) return authResult.response;
+    const session = authResult.session;
 
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") as BeneficiaryType | null;
@@ -43,13 +39,9 @@ export async function GET(req: NextRequest) {
  */
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const authResult = await requireActiveUser();
+    if (!authResult.ok) return authResult.response;
+    const session = authResult.session;
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");

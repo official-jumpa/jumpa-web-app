@@ -4,7 +4,7 @@ import * as bip39 from "bip39";
 import { derivePath } from "ed25519-hd-key";
 import { Keypair as SolanaKeypair } from "@solana/web3.js";
 import { HDKey } from "@scure/bip32";
-import { auth } from "@/lib/auth";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { findWalletForUser, findWalletByAddress } from "@/lib/functions/walletFunctions";
 import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
@@ -60,13 +60,9 @@ function resolveChainPrivateKey(
  * Body: { recipient: string, amount: string, asset: string, network: string, memo?: string, pin: string }
  */
 export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireActiveUser();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   const body = await req.json().catch(() => ({}));
   const validation = sendTokenSchema.safeParse(body);

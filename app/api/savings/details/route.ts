@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withAuth } from "@/lib/withAuth";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { getRawSavingsPlanById } from "@/lib/functions/savingsFunctions";
 import { savingsPlanDetailsQuerySchema } from "@/lib/validations/savings.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
@@ -9,7 +9,10 @@ import {
   getLiveVaultApy,
 } from "@/lib/savings-service";
 
-export const GET = withAuth(async (req: NextRequest, { userId }) => {
+export async function GET(req: NextRequest) {
+  const auth = await requireActiveUser();
+  if (!auth.ok) return auth.response;
+  const { userId } = auth;
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
@@ -68,4 +71,4 @@ export const GET = withAuth(async (req: NextRequest, { userId }) => {
       { status: 500 },
     );
   }
-});
+}

@@ -1,8 +1,13 @@
-import { NextResponse } from "next/server";
-import { withAuth } from "@/lib/withAuth";
+import { NextRequest, NextResponse } from "next/server";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { getCachedWalletBalances } from "@/lib/wallet-balances";
 
-export const GET = withAuth(async (req, { address, userId }) => {
+export async function GET(req: NextRequest) {
+  const auth = await requireActiveUser();
+  if (!auth.ok) return auth.response;
+
+  const { address, userId } = auth;
+
   try {
     const url = new URL(req.url);
     const forceRefresh = url.searchParams.get("refresh") === "true";
@@ -24,4 +29,4 @@ export const GET = withAuth(async (req, { address, userId }) => {
       { status: 500 },
     );
   }
-});
+}

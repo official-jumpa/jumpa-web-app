@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { withAuth } from "@/lib/withAuth";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { getRawSavingsPlanById } from "@/lib/functions/savingsFunctions";
 import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
@@ -23,7 +23,10 @@ const defindexClient = new DefindexClient(
   "testnet",
 );
 
-export const POST = withAuth(async (req: NextRequest, { userId }) => {
+export async function POST(req: NextRequest) {
+  const auth = await requireActiveUser();
+  if (!auth.ok) return auth.response;
+  const { userId } = auth;
   try {
     const { searchParams } = new URL(req.url);
     const body = await req.json().catch(() => ({}));
@@ -185,4 +188,4 @@ export const POST = withAuth(async (req: NextRequest, { userId }) => {
       { status: 500 },
     );
   }
-});
+}

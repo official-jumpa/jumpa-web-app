@@ -3,6 +3,7 @@ import mongoose, { Schema, model, models } from "mongoose";
 export interface IUser {
   _id: string; // Better-Auth uses custom generated string IDs (e.g. user_...)
   name: string | null;
+  status: "pending" | "active" | "banned" | "suspended" | "deleted";
   country: string | null;
   email: string;
   emailVerified: boolean;
@@ -28,6 +29,7 @@ const UserSchema = new Schema<IUser>(
   {
     _id: { type: String, required: true },
     name: { type: String, default: null },
+    status: { type: String, default: "active" },
     country: { type: String, default: null },
     email: { type: String, required: true, unique: true, lowercase: true },
     emailVerified: { type: Boolean, required: true, default: false },

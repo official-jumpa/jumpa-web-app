@@ -1,11 +1,6 @@
 import { connectDB, getDb } from "@/lib/db";
 import { User, type IUser } from "@/models/User";
 import { UserActivityLog, type IUserActivityLog } from "@/models/UserActivityLog";
-import { Wallet } from "@/models/Wallet";
-import { ChatLog } from "@/models/ChatLog";
-import { Transaction } from "@/models/Transaction";
-import { Referral } from "@/models/Referral";
-import { Notification } from "@/models/Notification";
 import {
   Beneficiary,
   type IBeneficiary,
@@ -122,35 +117,23 @@ export async function logUserActivity(params: {
 }
 
 /**
- * Permanently deletes a user and all their associated data.
- * Wallets are self-custodial: deleting drops Jumpa's copy, not the funds.
- * ‼️ Just don't call this function. It will affect the analytics, better to do a soft delete
+ * Soft-deletes a user and revokes their active sessions.
+ * User data and analytics (wallets, transactions, activity logs, referrals, etc.) are retained for 30 days before permanent deletion
  */
 export async function deleteUserAndAccountData(userId: string): Promise<void> {
   await connectDB();
 
-  // 1. Delete user data
-  await Promise.all([
-    Wallet.deleteMany({ userId }),
-    ChatLog.deleteMany({ userId }),
-    Transaction.deleteMany({ userId }),
-    Notification.deleteMany({ userId }),
-    UserActivityLog.deleteMany({ userId }),
-    Beneficiary.deleteMany({ userId }),
-    Referral.deleteMany({
-      $or: [{ referrerId: userId }, { referredUserId: userId }],
-    }),
-  ]);
+  // 1. Soft-delete user: update status to "deleted" and record deletion timestamp
+  await User.findByIdAndUpdate(userId, {
+    $set: {
+      status: "deleted",
+      deletedAt: new Date(),
+    },
+  });
 
-  // 2. Delete auth data
+  // 2. Invalidate active sessions immediately so user is signed out everywhere
   const db = getDb();
-  await Promise.all([
-    db.collection("session").deleteMany({ userId }),
-    db.collection("account").deleteMany({ userId }),
-  ]);
-
-  // 3. Delete user document
-  await User.deleteOne({ _id: userId });
+  await db.collection("session").deleteMany({ userId });
 }
 
 /**

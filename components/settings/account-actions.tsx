@@ -59,7 +59,7 @@ export function AccountActions() {
 
   return (
     <>
-      <SettingSection label="Account">
+      <SettingSection label="Danger Zone">
         <SettingCard>
           <SettingAction
             icon={LogOutIcon}

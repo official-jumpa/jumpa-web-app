@@ -30,29 +30,7 @@ export function SettingsIndex() {
         <SettingsHeader back="/profile" title="Settings" />
 
         <div className="mt-4.25 flex flex-col gap-8.5">
-          <SettingSection label="Profile Information">
-            <SettingCard>
-              <SettingLink
-                href="/profile"
-                icon={CircleUserIcon}
-                label="My Profile"
-              />
-              <SettingRule />
-              <SettingLink
-                href={settingsHref("security")}
-                icon={ShieldCheckIcon}
-                label="Security"
-              />
-              <SettingRule />
-              <SettingLink
-                href="/kyc"
-                icon={IdCardIcon}
-                label="KYC Verification"
-              />
-            </SettingCard>
-          </SettingSection>
-
-          <SettingSection label="Preference's">
+          <SettingSection label="Preferences">
             <SettingCard>
               <SettingLink
                 href={settingsHref("notifications")}
@@ -80,6 +58,12 @@ export function SettingsIndex() {
                 icon={ClipboardTextIcon}
                 label="Request Account Statements"
                 onClick={() => setStatementsOpen(true)}
+              />
+              <SettingRule />
+              <SettingLink
+                href={settingsHref("security")}
+                icon={ShieldCheckIcon}
+                label="Security"
               />
               <SettingRule />
               <SettingLink

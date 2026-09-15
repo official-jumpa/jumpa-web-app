@@ -69,7 +69,7 @@ export function ReferralsView({
 
   return (
     <div className="flex flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+21px)] pb-12">
-      <SettingsHeader back="/profile" title="Referrals" />
+      <SettingsHeader back="/profile/settings" title="Referrals" />
 
       <section className="mt-6 flex flex-col gap-2">
         <div className="relative isolate flex h-28.25 flex-col items-center justify-center overflow-hidden rounded-card bg-[image:var(--gradient-jumpa-hero)]">

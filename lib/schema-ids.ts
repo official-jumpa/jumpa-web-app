@@ -35,6 +35,7 @@ export const SCHEMA_IDS = {
   benef: { prefix: "benef", length: 16, description: "Transfer beneficiaries" },
   pref: { prefix: "pref", length: 16, description: "User preferences" },
   supt: { prefix: "supt", length: 16, description: "Support chat session logs" },
+  wait: { prefix: "wait", length: 16, description: "Waitlist entries" },
 
   // ── Utility Entities
   cardref: { prefix: "cardref", length: 12, description: "Card references" },

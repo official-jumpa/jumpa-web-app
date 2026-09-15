@@ -39,9 +39,8 @@ export default async function TransactionsPage({
         page: 1,
       });
       initialTransactions = rawTx.map(formatDbTransaction);
-      console.log("[TransactionsPage SSR] session user:", session.user.id, "count:", initialTransactions.length);
     } else {
-      console.log("[TransactionsPage SSR] No session found");
+      console.log("No session found");
     }
   } catch (error) {
     console.warn("[TransactionsPage]:", error);

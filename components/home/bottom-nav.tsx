@@ -9,6 +9,7 @@ import { HouseLineIcon } from "@/components/ui/icons/house-line";
 import { MessageCircleDotsIcon } from "@/components/ui/icons/message-circle-dots";
 import { ReceiptAltIcon } from "@/components/ui/icons/receipt-alt";
 import { cn } from "@/lib/cn";
+import { triggerHaptic } from "@/lib/haptics";
 
 const TABS = [
   { label: "Home", href: "/home", Icon: HouseLineIcon },
@@ -45,7 +46,8 @@ export function BottomNav() {
                 href="/home/chat"
                 prefetch={true}
                 aria-label="Chat"
-                className="flex items-center justify-center rounded-pill bg-[image:var(--gradient-jumpa-nav-chat)] p-2.5 text-jumpa-alt-400"
+                onClick={() => triggerHaptic("light")}
+                className="flex items-center justify-center rounded-pill bg-[image:var(--gradient-jumpa-nav-chat)] p-2.5 text-jumpa-alt-400 active:scale-90 transition-transform duration-75"
               >
                 <MessageCircleDotsIcon className="size-6" />
               </Link>
@@ -54,9 +56,10 @@ export function BottomNav() {
             <Link
               href={href}
               prefetch={true}
+              onClick={() => triggerHaptic("light")}
               aria-current={pathname === href ? "page" : undefined}
               className={cn(
-                "flex flex-1 flex-col items-center gap-0.5 rounded-pill px-2 py-1.5",
+                "flex flex-1 flex-col items-center gap-0.5 rounded-pill px-2 py-1.5 active:scale-90 transition-transform duration-75",
                 pathname === href
                   ? "text-jumpa-primary-950"
                   : "text-jumpa-grey-500",

@@ -69,6 +69,11 @@ export function NotificationSettings({
     const previous = prefs[key];
     // 1. Optimistic update
     setPrefs((prev) => ({ ...prev, [key]: value }));
+    if (key === "haptics") {
+      try {
+        localStorage.setItem("jumpa_haptics", String(value));
+      } catch {}
+    }
 
     // 2. Persist to DB
     try {

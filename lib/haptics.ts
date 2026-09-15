@@ -1,31 +1,25 @@
 /**
- * Jumpa Haptics & Vibration Utility
+ * Haptics & Vibration Utility
  *
  * Provides tactile feedback for mobile browsers via the Web Vibration API (navigator.vibrate).
  * Gracefully no-ops on desktop / Mac browsers while logging in development for debugging.
  * Integrates with user settings (defaults to enabled).
  */
 
-export type HapticFeedbackType =
-  | "selection"
-  | "light"
-  | "medium"
-  | "success"
-  | "warning"
-  | "error";
+export type HapticPreset = "selection" | "light" | "medium" | "heavy";
+export type HapticFeedbackType = HapticPreset | number;
 
-const HAPTIC_PATTERNS: Record<HapticFeedbackType, number | number[]> = {
-  selection: 8,
-  light: 12,
-  medium: 22,
-  success: [12, 40, 12],
-  warning: [25, 50, 25],
-  error: [35, 60, 35],
+const HAPTIC_PATTERNS: Record<HapticPreset, number> = {
+  selection: 35,
+  light: 50,
+  medium: 80,
+  heavy: 120,
 };
 
 /**
  * Triggers a tactile vibration pulse on supported devices.
- * Safely falls back on desktop and unsupported browsers without throwing.
+ * Accepts either a preset name ("selection", "light", "medium", "heavy") or millisecond duration.
+ * Defaults to 50ms.
  */
 export function triggerHaptic(type: HapticFeedbackType = "light"): boolean {
   if (typeof window === "undefined") return false;
@@ -38,10 +32,9 @@ export function triggerHaptic(type: HapticFeedbackType = "light"): boolean {
     // Ignore storage restriction errors in private browsing
   }
 
-  const pattern = HAPTIC_PATTERNS[type] ?? 12;
+  const pattern =
+    typeof type === "number" ? type : (HAPTIC_PATTERNS[type] ?? 50);
 
-  //delete the log later. Just for debugging
-  console.log(`[Haptics] ${type} (${Array.isArray(pattern) ? pattern.join("-") : pattern}ms)`);
   if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
     try {
       return navigator.vibrate(pattern);

@@ -16,22 +16,11 @@ interface SupportMessage {
   attachments?: ChatAttachment[];
 }
 
-/**
- * TODO(backend): there is no support service yet. Replace `OPENING` and `reply`
- * with the real transcript and the agent's response, and drop `REPLY_MS`.
- */
 const OPENING: SupportMessage = {
   id: "opening",
   from: "agent",
   text: "Hi, you're through to Jumpa Support. Tell us what's going on and we'll pick it up from here.",
 };
-
-/** Stands in for the time a real agent takes to answer. */
-const REPLY_MS = 1400;
-
-/** TODO(backend): the canned acknowledgement, replaced by the agent's reply. */
-const ACKNOWLEDGEMENT =
-  "Thanks — that's with the team now. Someone will come back to you on this chat shortly.";
 
 /** `/support?view=chat`. */
 export function SupportChat() {
@@ -40,34 +29,107 @@ export function SupportChat() {
   const [waiting, setWaiting] = useState(false);
   const foot = useRef<HTMLDivElement>(null);
 
-  // Follow the conversation down as it grows, the same as the main transcript.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the lengths are the trigger, the body never reads them
+  // Load persistent support history from the database on mount
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadHistory() {
+      try {
+        const res = await fetch("/api/support-agent");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data.messages && data.messages.length > 0) {
+          setMessages(
+            data.messages.map((m: any) => ({
+              id: m.id,
+              from: m.role === "assistant" ? "agent" : "user",
+              text: m.content,
+              attachments: m.attachments,
+            })),
+          );
+        }
+      } catch (err) {
+        console.warn("[SupportChat] Failed to load previous transcript:", err);
+      }
+    }
+
+    loadHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Follow the conversation down as it grows
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the lengths are the trigger
   useEffect(() => {
     foot.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, waiting]);
 
-  useEffect(() => {
-    if (!waiting) return;
-    const timer = window.setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        { id: crypto.randomUUID(), from: "agent", text: ACKNOWLEDGEMENT },
-      ]);
-      setWaiting(false);
-    }, REPLY_MS);
-    return () => window.clearTimeout(timer);
-  }, [waiting]);
-
-  const send = (attachments?: ChatAttachment[]) => {
+  const send = async (attachments?: ChatAttachment[]) => {
     const text = draft.trim();
     if (!text && !attachments?.length) return;
 
+    const messageText =
+      text ||
+      (attachments?.length
+        ? `I have attached ${attachments.map((a) => a.name).join(", ")}`
+        : "");
+
+    const userMsgId = crypto.randomUUID();
+
     setMessages((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), from: "user", text, attachments },
+      { id: userMsgId, from: "user", text: messageText, attachments },
     ]);
     setDraft("");
     setWaiting(true);
+
+    try {
+      const res = await fetch("/api/support-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: messageText,
+          attachments: attachments || [],
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.reply) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: data.assistantMessageId || crypto.randomUUID(),
+            from: "agent",
+            text: data.reply,
+          },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            from: "agent",
+            text:
+              data?.error ||
+              "I'm having trouble connecting to our support network right now. Please try again or email us at support@usejumpa.com.",
+          },
+        ]);
+      }
+    } catch (err) {
+      console.error("[SupportChat Send Error]", err);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          from: "agent",
+          text: "A connection error occurred. Please check your network and try again, or write to support@usejumpa.com.",
+        },
+      ]);
+    } finally {
+      setWaiting(false);
+    }
   };
 
   return (
@@ -112,8 +174,7 @@ export function SupportChat() {
           </div>
         ))}
 
-        {/* The indicator carries its own 14px gutter, for the main chat where
-            it sits outside the transcript. This screen has its own. */}
+        {/* The indicator carries its own 14px gutter */}
         {waiting ? (
           <div className="-mx-3.5">
             <TypingIndicator />

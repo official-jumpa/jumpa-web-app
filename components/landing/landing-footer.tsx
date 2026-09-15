@@ -6,9 +6,9 @@ import { FOOTER } from "@/lib/landing";
 
 const COLUMN = "flex flex-col gap-40 lg:w-160";
 const COLUMN_TITLE =
-  "text-u-24/20 font-medium tracking-jumpa-wide text-jumpa-white";
+  "text-u-16/18 font-medium tracking-jumpa-wide text-jumpa-white lg:text-u-24/20";
 const COLUMN_LINK =
-  "tap text-u-24/20 font-medium tracking-jumpa-wide text-jumpa-white/50 hover:text-jumpa-alt-400";
+  "tap text-u-14/16 font-medium tracking-jumpa-wide text-jumpa-white/50 hover:text-jumpa-alt-400 lg:text-u-24/20";
 
 function Column({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -48,7 +48,7 @@ export function LandingFooter() {
               {FOOTER.tagline}
             </p>
           </div>
-          <p className="flex gap-20 text-u-24/20 font-medium tracking-jumpa-wide text-jumpa-white">
+          <p className="flex gap-20 text-u-16/18 font-medium tracking-jumpa-wide text-jumpa-white lg:text-u-24/20">
             <span>{FOOTER.copyright.year}</span>
             <span>{FOOTER.copyright.owner}</span>
           </p>

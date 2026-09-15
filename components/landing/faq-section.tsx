@@ -41,7 +41,7 @@ export function FaqSection() {
             </h2>
           </div>
 
-          <ul className="flex w-full flex-col gap-10 lg:gap-24">
+          <ul className="flex w-full flex-col gap-10 px-8 lg:gap-24 lg:px-0">
             {FAQ.items.map((item, index) => {
               const isOpen = openIndex === index;
 
@@ -58,7 +58,7 @@ export function FaqSection() {
                     type="button"
                     aria-expanded={isOpen}
                     onClick={() => toggle(index)}
-                    className="flex w-full items-center justify-between py-10 pr-20 pl-10 text-left lg:p-30"
+                    className="flex w-full items-center justify-between py-14 pr-20 pl-14 text-left lg:p-30"
                   >
                     <span className="flex items-center gap-20 lg:gap-23">
                       <span className="flex size-25.25 shrink-0 items-center justify-center rounded-full bg-jumpa-black text-u-8/9 font-medium tracking-jumpa text-jumpa-white lg:size-50 lg:text-u-16/18">

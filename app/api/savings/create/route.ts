@@ -4,7 +4,11 @@ import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { createSavingsPlanRecord } from "@/lib/functions/savingsFunctions";
 import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
-import { setUserCreatedSavings, logUserActivity } from "@/lib/functions/userFunctions";
+import {
+  setUserCreatedSavings,
+  markSavingsIntroSeen,
+  logUserActivity,
+} from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { createSavingsPlanSchema } from "@/lib/validations/savings.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
@@ -223,9 +227,12 @@ export async function POST(req: NextRequest) {
     });
     console.log(`[SavingsCreate] SavingsPlan saved successfully. Plan ID: ${plan._id}`);
 
-    // 5. Update user flag hasCreatedSavings via userFunctions
+    // 5. Update user flag hasCreatedSavings & mark intro seen via userFunctions
     setUserCreatedSavings(userId).catch((err) =>
       console.warn("[SavingsCreate] Failed to update hasCreatedSavings:", err),
+    );
+    markSavingsIntroSeen(userId, kind).catch((err) =>
+      console.warn("[SavingsCreate] Failed to markSavingsIntroSeen:", err),
     );
 
     logUserActivity({

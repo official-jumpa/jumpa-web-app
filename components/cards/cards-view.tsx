@@ -10,7 +10,6 @@ import { CardSettings } from "@/components/cards/card-settings";
 import { ConfirmSheet } from "@/components/cards/confirm-sheet";
 import { FundingAccountSheet } from "@/components/cards/funding-account-sheet";
 import { VirtualCardFace } from "@/components/cards/virtual-card";
-import { BottomNav } from "@/components/home/bottom-nav";
 import { PromotionList } from "@/components/home/promotion-list";
 import { PlusIcon } from "@/components/ui/icons/plus";
 import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
@@ -90,8 +89,6 @@ export function CardsView({
         <PromotionList promotions={promotions} />
         <CardSettings onDelete={() => setSheet("delete")} />
       </div>
-
-      <BottomNav />
 
       {sheet === "details" ? (
         <CardDetailsSheet card={card} onClose={close} />

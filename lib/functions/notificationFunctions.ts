@@ -5,15 +5,20 @@ import {
   Notification,
   type NotificationTab,
 } from "@/models/Notification";
-
-
+import { shouldSendNotification } from "@/lib/functions/userPreferenceFunctions";
 
 /**
- * Creates and persists a new in-app notification in MongoDB.
+ * Creates and persists a new in-app notification respecting the user's notification preferences.
  */
 export async function createNotification(
   data: Partial<INotification>,
-): Promise<INotification> {
+): Promise<INotification | null> {
+  if (data.userId && data.type) {
+    const allowed = await shouldSendNotification(data.userId, data.type);
+    if (!allowed) {
+      return null;
+    }
+  }
   await connectDB();
   return Notification.create(data);
 }

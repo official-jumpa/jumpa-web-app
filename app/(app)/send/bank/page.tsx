@@ -1,15 +1,12 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
+import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import { getUserById } from "@/lib/functions/userFunctions";
 import { BankTransferView } from "@/components/send/bank-transfer-view";
 
 export const metadata: Metadata = { title: "Bank transfer" };
 
 export default async function BankTransferPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getCachedAuthSession();
 
   let defaultCountry = "Nigeria";
   if (session?.user?.id) {

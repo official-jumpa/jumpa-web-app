@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SwapView } from "@/components/swap/swap-view";
-import { getSession } from "@/lib/session";
+import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
+import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { fetchStellarBalances } from "@/lib/chains/stellar";
 
 export const metadata: Metadata = { title: "Swap" };
@@ -11,18 +12,21 @@ export default async function SwapPage() {
   let stellarTestnetBalances = { xlm: "0.00", usdc: "0.00" };
 
   try {
-    const session = await getSession();
-    const xlmAddress = session?.addresses?.xlm;
+    const session = await getCachedAuthSession();
+    if (session?.user?.id) {
+      const wallet = await findWalletForUser(session.user.id);
+      const xlmAddress = wallet?.addresses?.xlm || wallet?.address;
 
-    if (xlmAddress) {
-      const result = await fetchStellarBalances(xlmAddress);
-      stellarTestnetBalances = {
-        xlm: result.testnet.native,
-        usdc: result.testnet.usdc,
-      };
+      if (xlmAddress) {
+        const result = await fetchStellarBalances(xlmAddress);
+        stellarTestnetBalances = {
+          xlm: result.testnet.native,
+          usdc: result.testnet.usdc,
+        };
+      }
     }
-  } catch {
-    // Non-fatal — swap view will show 0.00 and live quote still works
+  } catch (err) {
+    console.warn("[SwapPage SSR]", err);
   }
 
   return <SwapView stellarTestnetBalances={stellarTestnetBalances} />;

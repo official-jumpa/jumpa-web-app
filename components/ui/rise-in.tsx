@@ -1,13 +1,13 @@
-import type { CSSProperties, ReactNode } from "react";
+"use client";
+
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
+let hasAnimatedOnce = false;
+
 /**
- * Fades a block up into place, `index * 55ms` after the ones above it.
- *
- * A plain wrapper rather than a prop on each section, so nothing in the section
- * itself changes; it animates `opacity`/`transform` only, so no verified
- * geometry moves. Don't put a `fixed` child under one — the transform would
- * become its containing block for the length of the animation.
+ * Fades a block up into place on first entrance.
+ * Subsequent visits within the session render immediately without 0-opacity flickering.
  */
 export function RiseIn({
   index = 0,
@@ -18,10 +18,16 @@ export function RiseIn({
   className?: string;
   children: ReactNode;
 }) {
+  const [animate] = useState(!hasAnimatedOnce);
+
+  useEffect(() => {
+    hasAnimatedOnce = true;
+  }, []);
+
   return (
     <div
-      className={cn("animate-rise stagger", className)}
-      style={{ "--i": index } as CSSProperties}
+      className={cn(animate && "animate-rise stagger", className)}
+      style={animate ? ({ "--i": index } as CSSProperties) : undefined}
     >
       {children}
     </div>

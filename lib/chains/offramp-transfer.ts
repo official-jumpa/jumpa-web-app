@@ -15,6 +15,7 @@ import {
   getOrCreateAssociatedTokenAccount,
   createTransferInstruction,
   getAssociatedTokenAddress,
+  createAssociatedTokenAccountInstruction,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import * as bip39 from "bip39";
@@ -183,7 +184,10 @@ export async function executeOfframpTransfer(options: {
 
     // ── 2. Solana Transfer
     if (config.chain === "solana") {
-      const solRpc = environment.NEXT_PUBLIC_SOLANA_RPC;
+      const solRpc =
+        environment.ALCHEMY_MAINNET_RPC ||
+        environment.SOL_MAINNET ||
+        environment.NEXT_PUBLIC_SOLANA_RPC;
       const connection = new Connection(solRpc, "confirmed");
 
       const seed = bip39.mnemonicToSeedSync(mnemonic);
@@ -235,28 +239,56 @@ export async function executeOfframpTransfer(options: {
 
       // Check destination ATA
       let finalDestAddress = recipientPubkey;
-      const accountInfo = await connection.getAccountInfo(recipientPubkey);
+      const recipientAccountInfo = await connection.getAccountInfo(recipientPubkey);
+
+      const transaction = new SolTransaction();
 
       if (
-        accountInfo &&
-        accountInfo.owner.toBase58() === TOKEN_PROGRAM_ID.toBase58()
+        recipientAccountInfo &&
+        recipientAccountInfo.owner.toBase58() === TOKEN_PROGRAM_ID.toBase58()
       ) {
+        // Recipient is already a Token Account
         finalDestAddress = recipientPubkey;
       } else {
-        const destATAObj = await getOrCreateAssociatedTokenAccount(
-          connection,
-          solKeypair,
+        // Recipient is a wallet owner or PDA: resolve its ATA
+        const destATA = await getAssociatedTokenAddress(
           mintPubkey,
           recipientPubkey,
+          true, // allowOwnerOffCurve
         );
-        finalDestAddress = destATAObj.address;
+        finalDestAddress = destATA;
+
+        const destAtaInfo = await connection.getAccountInfo(destATA);
+        if (!destAtaInfo) {
+          // Destination ATA does not exist yet. Check if sender has enough SOL for rent exemption (~0.00204 SOL)
+          const rentLamports = await connection.getMinimumBalanceForRentExemption(165);
+          const requiredLamports = rentLamports + 10000; // Rent + transaction fees
+          if (lamports < requiredLamports) {
+            return {
+              success: false,
+              error: `Insufficient SOL balance. You have ${solBalance.toFixed(5)} SOL, but at least ${(requiredLamports / 1e9).toFixed(5)} SOL is required`,
+            };
+          }
+
+          console.log(
+            `[OfframpTransfer] Destination ATA not found. Prepending createAssociatedTokenAccountInstruction: ${destATA.toBase58()}`,
+          );
+          transaction.add(
+            createAssociatedTokenAccountInstruction(
+              solKeypair.publicKey,
+              destATA,
+              recipientPubkey,
+              mintPubkey,
+            ),
+          );
+        }
       }
 
       const amountRaw = BigInt(
         Math.floor(numAmount * Math.pow(10, config.decimals)),
       );
 
-      const transaction = new SolTransaction().add(
+      transaction.add(
         createTransferInstruction(
           sourceATA.address,
           finalDestAddress,

@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { BottomNav } from "@/components/home/bottom-nav";
+import { useEffect, useRef, useState } from "react";
 import { FilterSheet } from "@/components/transactions/filter-sheet";
 import { HistoryMenuSheet } from "@/components/transactions/history-menu-sheet";
 import { TransactionList } from "@/components/transactions/transaction-list";
@@ -55,7 +54,7 @@ function buildFilterParams(selected: Record<string, string>): string {
 
 /** Transaction history. The funnel button opens the export/filter menu. */
 export function TransactionsView({
-  transactions: initialTransactions = [],
+  transactions: initialTransactions,
   filters,
   initialChain,
 }: {
@@ -73,11 +72,20 @@ export function TransactionsView({
   const [selectedFilters, setSelectedFilters] = useState<Record<string, string>>(
     defaultChainOption ? { Chain: defaultChainOption } : {},
   );
-  const [transactions, setTransactions] =
-    useState<Transaction[]>(initialTransactions);
-  const [loading, setLoading] = useState(true);
+  const hasServerData = initialTransactions !== undefined;
+  const [transactions, setTransactions] = useState<Transaction[]>(
+    initialTransactions ?? [],
+  );
+  const [loading, setLoading] = useState(!hasServerData);
+  const prevFiltersRef = useRef<Record<string, string>>(selectedFilters);
 
   useEffect(() => {
+    // If server provided hydrated data, only fetch when filters actually change
+    if (hasServerData && prevFiltersRef.current === selectedFilters) {
+      return;
+    }
+    prevFiltersRef.current = selectedFilters;
+
     let isMounted = true;
 
     async function loadTransactions() {
@@ -103,7 +111,7 @@ export function TransactionsView({
     return () => {
       isMounted = false;
     };
-  }, [selectedFilters]);
+  }, [selectedFilters, hasServerData]);
 
   const hasActiveFilters = Object.values(selectedFilters).some(
     (val) => val && val !== "Show All",
@@ -160,8 +168,6 @@ export function TransactionsView({
           <TransactionList transactions={visible} />
         )}
       </div>
-
-      <BottomNav />
 
       {sheet === "menu" ? (
         <HistoryMenuSheet

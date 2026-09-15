@@ -6,15 +6,20 @@ import { LockSavingsView } from "@/components/savings/lock-savings-view";
 import { PlanDetail } from "@/components/savings/plan-detail";
 import { ProductScreen } from "@/components/savings/product-screen";
 import { TopUpView } from "@/components/savings/top-up-view";
-import { getSavingsPlanById } from "@/lib/functions/savingsFunctions";
+import {
+  getSavingsPlanById,
+  listSavingsPlansByUserId,
+} from "@/lib/functions/savingsFunctions";
+import { formatPlanForUI } from "@/lib/savings-service";
 import {
   findPlan,
   kindFromSlug,
   plansOf,
   SAVINGS_PRODUCTS,
+  SAVINGS_BALANCE,
   savingsHref,
 } from "@/lib/savings";
-import { getSession } from "@/lib/session";
+import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 
 interface SavingsProductPageProps {
   params: Promise<{ kind: string }>;
@@ -56,12 +61,12 @@ export default async function SavingsProductPage({
   }
 
   if (id) {
-    const session = await getSession();
-    if (!session?.userId) redirect("/onboarding");
+    const session = await getCachedAuthSession();
+    if (!session?.user?.id) redirect("/onboarding");
 
     // Circles has no stored plans yet, so it falls back to the placeholder.
     const plan =
-      (await getSavingsPlanById(id, session.userId, kind)) ??
+      (await getSavingsPlanById(id, session.user.id, kind)) ??
       findPlan(kind, id);
     if (!plan) notFound();
 
@@ -81,11 +86,39 @@ export default async function SavingsProductPage({
   }
 
   const product = SAVINGS_PRODUCTS[kind];
+  let hydratedPlans: any[] = product.seeded ? plansOf(kind) : [];
+  let initialBalance: any = undefined;
+
+  try {
+    const session = await getCachedAuthSession();
+    if (session?.user?.id) {
+      const rawPlans = await listSavingsPlansByUserId(session.user.id, kind);
+      if (rawPlans.length > 0) {
+        let totalSaved = 0;
+        hydratedPlans = rawPlans.map((p) => {
+          if (p.status === "Active") {
+            totalSaved += p.currentAmount || 0;
+          }
+          return formatPlanForUI(p);
+        });
+        const defaultBal = SAVINGS_BALANCE[kind];
+        initialBalance = {
+          badge: defaultBal.badge,
+          amount: `$${totalSaved.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          rate: "rate" in defaultBal ? (defaultBal as any).rate : undefined,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("[SavingsProductPage SSR] Prefetch fallback:", err);
+  }
+
   return (
     <ProductScreen
       kind={kind}
       {...product}
-      plans={product.seeded ? plansOf(kind) : []}
+      plans={hydratedPlans}
+      initialBalance={initialBalance}
     />
   );
 }

@@ -83,6 +83,7 @@ export function WalletHeader() {
 
         <Link
           href="/notifications"
+          prefetch={true}
           aria-label="Notifications"
           className={CONTROL}
         >

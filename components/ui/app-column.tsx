@@ -24,10 +24,7 @@ export function AppColumn({ children }: { children: ReactNode }) {
   useEffect(() => recordVisit(pathname), [pathname]);
 
   return (
-    <div
-      key={pathname}
-      className="mx-auto min-h-dvh w-full max-w-app animate-fade bg-jumpa-white"
-    >
+    <div className="mx-auto min-h-dvh w-full max-w-app bg-jumpa-white">
       {children}
     </div>
   );

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { CardSettings } from "@/components/cards/card-settings";
 import { ConfirmSheet } from "@/components/cards/confirm-sheet";
 import { UsageLimit } from "@/components/cards/usage-limit";
-import { BottomNav } from "@/components/home/bottom-nav";
 import { CoinFrontIcon } from "@/components/ui/icons/coin-front";
 import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
 import { ScreenHeader } from "@/components/ui/screen-header";
@@ -42,8 +41,6 @@ export function CardLimitsView({
 
         <CardSettings onDelete={() => setDeleting(true)} />
       </div>
-
-      <BottomNav />
 
       {deleting ? (
         <ConfirmSheet

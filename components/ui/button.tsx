@@ -47,9 +47,10 @@ type BaseProps = {
   children: ReactNode;
 };
 
-type ButtonAsLink = BaseProps & { href: string };
+type ButtonAsLink = BaseProps &
+  Omit<ComponentPropsWithoutRef<typeof Link>, keyof BaseProps> & { href: string };
 type ButtonAsButton = BaseProps &
-  ComponentPropsWithoutRef<"button"> & { href?: undefined };
+  Omit<ComponentPropsWithoutRef<"button">, keyof BaseProps> & { href?: undefined };
 
 export function Button(props: ButtonAsLink): ReactNode;
 export function Button(props: ButtonAsButton): ReactNode;

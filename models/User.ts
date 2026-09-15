@@ -21,6 +21,8 @@ export interface IUser {
     lock?: boolean;
     circle?: boolean;
   };
+  preferenceId?: string | null;
+  deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -47,6 +49,8 @@ const UserSchema = new Schema<IUser>(
       lock: { type: Boolean, default: false },
       circle: { type: Boolean, default: false },
     },
+    preferenceId: { type: String, default: null },
+    deletedAt: { type: Date, default: null },
   },
   {
     timestamps: true,

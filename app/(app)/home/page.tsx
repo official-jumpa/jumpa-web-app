@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { AdBanner } from "@/components/home/ad-banner";
 import { AssetList } from "@/components/home/asset-list";
 import { BalancePanel } from "@/components/home/balance-panel";
-import { BottomNav } from "@/components/home/bottom-nav";
 import { FiatAccounts } from "@/components/home/fiat-accounts";
 import { HeroBackdrop } from "@/components/home/hero-backdrop";
 import { KycCard } from "@/components/home/kyc-card";
@@ -16,40 +15,65 @@ import { RiseIn } from "@/components/ui/rise-in";
 import { unifyTokens } from "@/lib/assets";
 import { ACCOUNT, ASSETS, type Asset, type Transaction } from "@/lib/wallet";
 
+// In-memory cache for instant zero-flicker tab returns
+let homeMemoryCache: {
+  balance?: string;
+  assets?: Asset[];
+  transactions?: Transaction[];
+  kycComplete?: boolean;
+} = {};
+
 export default function HomePage() {
   const router = useRouter();
-  const [totalBalance, setTotalBalance] = useState<string>(ACCOUNT.balance);
-  const [assets, setAssets] = useState<Asset[]>(ASSETS);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loadingTransactions, setLoadingTransactions] = useState(true);
-  const [kycComplete, setKycComplete] = useState<boolean>(false);
+  const [totalBalance, setTotalBalance] = useState<string>(
+    () => homeMemoryCache.balance ?? ACCOUNT.balance,
+  );
+  const [assets, setAssets] = useState<Asset[]>(
+    () => homeMemoryCache.assets ?? ASSETS,
+  );
+  const [transactions, setTransactions] = useState<Transaction[]>(
+    () => homeMemoryCache.transactions ?? [],
+  );
+  const [loadingTransactions, setLoadingTransactions] = useState<boolean>(
+    () => !homeMemoryCache.transactions,
+  );
+  const [kycComplete, setKycComplete] = useState<boolean>(
+    () => homeMemoryCache.kycComplete ?? false,
+  );
 
-  // Restore cached balance, assets, & transactions from localStorage immediately on mount
+  // Restore cached balance, assets, & transactions from localStorage immediately on mount if not in memory
   useEffect(() => {
     try {
       const savedBal = localStorage.getItem("jumpa_last_balance");
-      if (savedBal) setTotalBalance(savedBal);
+      if (savedBal && !homeMemoryCache.balance) {
+        setTotalBalance(savedBal);
+        homeMemoryCache.balance = savedBal;
+      }
 
       const savedAssets = localStorage.getItem("jumpa_last_assets");
-      if (savedAssets) {
+      if (savedAssets && !homeMemoryCache.assets) {
         const parsed = JSON.parse(savedAssets);
         if (Array.isArray(parsed) && parsed.length > 0) {
           setAssets(parsed);
+          homeMemoryCache.assets = parsed;
         }
       }
 
       const savedTx = localStorage.getItem("jumpa_last_transactions");
-      if (savedTx) {
+      if (savedTx && !homeMemoryCache.transactions) {
         const parsed = JSON.parse(savedTx);
         if (Array.isArray(parsed) && parsed.length > 0) {
           setTransactions(parsed);
           setLoadingTransactions(false);
+          homeMemoryCache.transactions = parsed;
         }
       }
 
       const savedKyc = localStorage.getItem("jumpa_kyc_completed");
-      if (savedKyc !== null) {
-        setKycComplete(savedKyc === "true");
+      if (savedKyc !== null && homeMemoryCache.kycComplete === undefined) {
+        const isDone = savedKyc === "true";
+        setKycComplete(isDone);
+        homeMemoryCache.kycComplete = isDone;
       }
     } catch { }
   }, []);
@@ -66,6 +90,7 @@ export default function HomePage() {
           if (Array.isArray(data.transactions)) {
             const list = data.transactions.slice(0, 5);
             setTransactions(list);
+            homeMemoryCache.transactions = list;
             try {
               localStorage.setItem("jumpa_last_transactions", JSON.stringify(list));
             } catch { }
@@ -95,6 +120,7 @@ export default function HomePage() {
           const balanceData = await res.json();
           if (balanceData.totalUsd) {
             setTotalBalance(balanceData.totalUsd);
+            homeMemoryCache.balance = balanceData.totalUsd;
             try {
               localStorage.setItem("jumpa_last_balance", balanceData.totalUsd);
             } catch { }
@@ -106,6 +132,7 @@ export default function HomePage() {
           ) {
             const unified = unifyTokens(balanceData.tokens);
             setAssets(unified);
+            homeMemoryCache.assets = unified;
             try {
               localStorage.setItem("jumpa_last_assets", JSON.stringify(unified));
             } catch { }
@@ -128,6 +155,7 @@ export default function HomePage() {
             data?.stage === "completed",
           );
           setKycComplete(isDone);
+          homeMemoryCache.kycComplete = isDone;
           try {
             localStorage.setItem("jumpa_kyc_completed", String(isDone));
           } catch { }
@@ -179,8 +207,6 @@ export default function HomePage() {
           />
         </RiseIn>
       </div>
-
-      <BottomNav />
     </>
   );
 }

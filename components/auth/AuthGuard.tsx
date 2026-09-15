@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 
@@ -70,6 +70,7 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
 
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(true);
+  const hasVerifiedOnce = useRef(false);
 
   // 1. Handle unauthenticated users
   useEffect(() => {
@@ -79,13 +80,16 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
   }, [isPending, isAuthenticated, router]);
 
   const checkStatus = useCallback(async () => {
-    setCheckingStatus(true);
+    if (!hasVerifiedOnce.current) {
+      setCheckingStatus(true);
+    }
     try {
       const res = await fetch("/api/auth/wallet-setup");
       if (!res.ok) throw new Error("Failed to load status");
       const data: OnboardingStatus = await res.json();
 
       setStatus(data);
+      hasVerifiedOnce.current = true;
       setCheckingStatus(false);
 
       // If user is on an onboarding step they have ALREADY completed, forward them to the next required step
@@ -134,6 +138,7 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
       }
     } catch (err) {
       console.error("[AuthGuard] Status check error:", err);
+      hasVerifiedOnce.current = true;
       setCheckingStatus(false);
     }
   }, [pathname, router]);
@@ -141,9 +146,18 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
   // 2. Check onboarding status for authenticated users
   useEffect(() => {
     if (!isPending && isAuthenticated && user?.id) {
+      // If user has already completed onboarding, don't re-check on sibling tab switches
+      if (
+        status?.isComplete &&
+        !pathname?.startsWith("/sign-up") &&
+        !pathname?.startsWith("/onboarding") &&
+        !pathname?.startsWith("/migrate-pin")
+      ) {
+        return;
+      }
       checkStatus();
     }
-  }, [isPending, isAuthenticated, user?.id, checkStatus]);
+  }, [isPending, isAuthenticated, user?.id, checkStatus, status?.isComplete, pathname]);
 
   // While checking session or onboarding status, show clean loading shell
   if (isPending || (isAuthenticated && checkingStatus)) {
@@ -157,14 +171,18 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
 
   //later the UI will be improved
   const userStatus = user?.status || status?.userStatus || "active";
-  if (userStatus === "banned" || userStatus === "suspended") {
+  if (userStatus === "banned" || userStatus === "suspended" || userStatus === "deleted") {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center p-6 text-center">
         <div className="max-w-sm space-y-3 rounded-2xl border border-red-200 bg-red-50/50 p-6">
-          <h2 className="text-lg font-bold text-red-700">Account Suspended</h2>
+          <h2 className="text-lg font-bold text-red-700">
+            {userStatus === "deleted" ? "Account Deleted" : "Account Suspended"}
+          </h2>
           <p className="text-sm text-neutral-600">
             {userStatus === "banned"
               ? "Your account has been permanently restricted from accessing Jumpa."
+              : userStatus === "deleted"
+              ? "This account has been scheduled for deletion. If you believe this is a mistake, please contact support."
               : "Your account is temporarily suspended. Please contact support for assistance."}
           </p>
         </div>

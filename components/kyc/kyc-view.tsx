@@ -22,27 +22,55 @@ const DEFAULT_TEST_IDS: Record<string, string> = {
  * Preserves the 4-stage UI flow while executing authenticated server calls
  * backed by KYCSchema.
  */
-export function KycView() {
+export interface InitialKycData {
+  isCompleted?: boolean;
+  verificationId?: string | null;
+  docMediaId?: string | null;
+  selfieMediaId?: string | null;
+  idNumber?: string | null;
+  stepsCompleted?: { document?: boolean; selfie?: boolean; verification?: boolean };
+}
+
+export function KycView({
+  initialKycData,
+}: {
+  initialKycData?: InitialKycData | null;
+}) {
   const [stage, setStage] = useState<Stage>("intro");
-  const [done, setDone] = useState<KycTask[]>([]);
+  const initialTasks: KycTask[] = [];
+  if (initialKycData?.docMediaId || initialKycData?.stepsCompleted?.document) {
+    initialTasks.push("document");
+  }
+  if (initialKycData?.selfieMediaId || initialKycData?.stepsCompleted?.selfie) {
+    initialTasks.push("selfie");
+  }
+  const [done, setDone] = useState<KycTask[]>(initialTasks);
   const [document, setDocument] = useState<KycDocument>(KYC_DOCUMENTS[0]);
   const [pickingDocument, setPickingDocument] = useState(false);
-  const [verified, setVerified] = useState(false);
+  const [verified, setVerified] = useState(Boolean(initialKycData?.isCompleted));
 
   // Captured data for KYC API
-  const [docIdNumber, setDocIdNumber] = useState<string>(DEFAULT_TEST_IDS.nin);
-  const [docMediaId, setDocMediaId] = useState<string | null>(null);
-  const [selfieMediaId, setSelfieMediaId] = useState<string | null>(null);
+  const [docIdNumber, setDocIdNumber] = useState<string>(
+    initialKycData?.idNumber || DEFAULT_TEST_IDS.nin,
+  );
+  const [docMediaId, setDocMediaId] = useState<string | null>(
+    initialKycData?.docMediaId ?? null,
+  );
+  const [selfieMediaId, setSelfieMediaId] = useState<string | null>(
+    initialKycData?.selfieMediaId ?? null,
+  );
 
   // API Submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [lastVerificationId, setLastVerificationId] = useState<string | null>(
-    null,
+    initialKycData?.verificationId ?? null,
   );
 
-  // Sync existing user KYC status on initial mount
+  // Sync existing user KYC status on initial mount if not provided by server
   useEffect(() => {
+    if (initialKycData !== undefined) return;
+
     let isMounted = true;
     async function loadUserKycStatus() {
       try {

@@ -5,7 +5,7 @@ import {
   getRawSavingsPlanById,
 } from "@/lib/functions/savingsFunctions";
 import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
-import { setUserCreatedSavings } from "@/lib/functions/userFunctions";
+import { setUserCreatedSavings, markSavingsIntroSeen } from "@/lib/functions/userFunctions";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { decryptMnemonic } from "@/lib/crypto";
 import {
@@ -244,6 +244,11 @@ export async function createSavingsPlanExecution(
   setUserCreatedSavings(userId).catch((err) =>
     console.warn("[SavingsCreate] Failed to update hasCreatedSavings:", err),
   );
+  if (kind) {
+    markSavingsIntroSeen(userId, kind).catch((err) =>
+      console.warn("[SavingsCreate]:", err),
+    );
+  }
 
   const explorerUrl = txHash ? getExplorerTxUrl("stellar", txHash, true) : undefined;
 

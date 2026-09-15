@@ -31,6 +31,7 @@
   --color-jumpa-alt-300: #e5ff50;
   --color-jumpa-alt-400: #d5ff19; /* active pagination pill, highlights */
   --color-jumpa-alt-500: #b6e600;
+  --color-jumpa-alt-700: #6a8b00; /* landing page footer link hover */
   --color-jumpa-alt-800: #546d07;
   --color-jumpa-alt-900: #475c0b;
   --color-jumpa-alt-950: #243400;
@@ -100,6 +101,13 @@
   --color-jumpa-anchor-900: #0c0d14; /* panel, header and footer bars */
   --color-jumpa-anchor-800: #12131a; /* raised row, input */
 
+  /* Landing page — read off the marketing frames, not Figma variables. */
+  --color-jumpa-primary-25: #faf5ff; /* feature panels */
+  --color-jumpa-alt-450: #ccf226; /* "Individual Savings" row on the Save card */
+  --color-jumpa-neutral-150: #ebebeb; /* outline badge border */
+  --color-jumpa-grey-200: #d9dfe8; /* email field border */
+  --color-jumpa-grey-450: #838b9e; /* email field placeholder in the footer */
+
   --color-jumpa-danger: #ff0004; /* self-custody warnings */
   --color-jumpa-danger-50: #fff0f0; /* error notice inside a card */
   --color-jumpa-danger-400: #ff383c; /* amount above the spendable balance */
@@ -119,6 +127,15 @@
      get. Everything that pins to the column edge reads `max-w-app` from here —
      never write the literal, or the pieces drift apart. */
   --container-app: 450px;
+
+  /* Letter-spacing. The landing frames track every size at -1% of the size;
+     the footer's small print is tighter and the Receive card's "+$274" is a
+     display setting of its own. */
+  --tracking-jumpa: -0.01em;
+  --tracking-jumpa-snug: -0.03em;
+  /* The footer tracks a flat -0.42px, so its 24px type lands between the two. */
+  --tracking-jumpa-wide: -0.0175em;
+  --tracking-jumpa-display: -0.17em;
 
   /* Radius */
   --radius-pill: 100px; /* buttons, chat bubbles, pagination, inputs */
@@ -320,6 +337,134 @@
     var(--color-jumpa-primary-400) 3.145%,
     var(--color-jumpa-primary-600) 45.779%
   );
+
+  /* Landing page. */
+  /* Gradient headings, waveform bars, the Why Jumpa section and the footer. */
+  --gradient-jumpa-landing: linear-gradient(
+    180deg,
+    var(--color-jumpa-primary-600) 0%,
+    var(--color-jumpa-primary-400) 100%
+  );
+  /* Feature cards: Send and Buy/Sell/Swap are lime, Receive and Save purple. */
+  --gradient-jumpa-card-lime: linear-gradient(
+    133.26deg,
+    var(--color-jumpa-alt-300) 17.5%,
+    var(--color-jumpa-alt-500) 112.66%
+  );
+  --gradient-jumpa-card-purple: linear-gradient(
+    134.77deg,
+    var(--color-jumpa-primary-400) 0%,
+    var(--color-jumpa-primary-600) 112.65%
+  );
+  /* Frosted chat panel over the hero photo. */
+  --gradient-jumpa-glass: linear-gradient(
+    180deg,
+    rgb(102 102 102 / 0.06) 0%,
+    rgb(0 0 0 / 0.5) 100%
+  );
+  /* Darkens the lower half of the beta photo behind the form on phones. */
+  --gradient-jumpa-photo-shade: linear-gradient(
+    180deg,
+    rgb(102 102 102 / 0) 18.339%,
+    rgb(0 0 0 / 0.2) 75.029%
+  );
+}
+
+/*
+ * Landing page — design-frame scaling.
+ *
+ * The marketing page reproduces the Figma frames (393 on phones, 1440 on
+ * desktop) at any width by scaling one unit rather than reflowing. `frame-N`
+ * makes an element a size container and sets `--spacing` on its children to
+ * 1/N of its width, so every spacing utility (`w-100`, `p-30`, `gap-8`, `top-40`)
+ * and the `*-u-*` helpers below read as design px of that frame; `frame-N/M`
+ * caps the unit so the composition never renders wider than M px. Frames nest:
+ * a card can be `frame-507` inside the page's `frame-1440`, and its children
+ * then use the card's own numbers.
+ *
+ * Two rules keep it honest: a frame element carries no border or padding
+ * (100cqw is the content box), and nothing inside a frame sets
+ * `container-type` for any other reason — `cqw` resolves against the nearest
+ * container of the element using it.
+ */
+@utility frame-* {
+  container-type: inline-size;
+  & > * {
+    --spacing: calc(100cqw / --value(number));
+  }
+  & > * {
+    --spacing: calc(min(100cqw, --modifier(number) * 1px) / --value(number));
+  }
+}
+
+/* Type, radius, stroke and blur in frame units. `text-u-24/32` is 24 over 32. */
+@utility text-u-* {
+  font-size: calc(--value(number) * var(--spacing));
+  line-height: calc(--modifier(number) * var(--spacing));
+}
+@utility rounded-u-* {
+  border-radius: calc(--value(number) * var(--spacing));
+}
+@utility border-u-* {
+  border-width: calc(--value(number) * var(--spacing));
+}
+@utility backdrop-blur-u-* {
+  backdrop-filter: blur(calc(--value(number) * var(--spacing)));
+}
+
+/* Shadows in frame units. The glossy orbs all cast `0 N 2N`; the panels cast
+   `0 N N`. The modifier is the alpha in percent: `shadow-u-73.25/30`. */
+@utility shadow-u-* {
+  box-shadow: 0 calc(--value(number) * var(--spacing))
+    calc(--value(number) * 2 * var(--spacing))
+    rgb(0 0 0 / calc(--modifier(number) * 1%));
+}
+@utility shadow-ue-* {
+  box-shadow: 0 calc(--value(number) * var(--spacing))
+    calc(--value(number) * var(--spacing))
+    rgb(0 0 0 / calc(--modifier(number) * 1%));
+}
+/* The white inner glow on every purple pill button. */
+@utility inset-shadow-u-* {
+  box-shadow: inset 0 0 calc(--value(number) * var(--spacing))
+    var(--color-jumpa-white);
+}
+/* The purple "Join Private Beta" pill. Every size in the design keeps the same
+   proportions (padding = font size, line 1.125, glow 0.5125), so one font-size
+   class sizes the whole pill: `pill-u-16` is the nav's, `pill-u-23.5` the
+   feature panel's. */
+@utility pill-u-* {
+  font-size: calc(--value(number) * var(--spacing));
+  line-height: 1.125em;
+  padding: 1em;
+  box-shadow: inset 0 0 0.5125em var(--color-jumpa-white);
+}
+/* One-off shadows the design draws once each. */
+@utility shadow-landing-form {
+  box-shadow: 0 calc(20 * var(--spacing)) calc(100 * var(--spacing))
+    rgb(0 0 0 / 0.1);
+}
+@utility shadow-landing-mock {
+  box-shadow: 0 calc(40 * var(--spacing)) calc(50 * var(--spacing))
+    rgb(0 0 0 / 0.25);
+}
+@utility shadow-landing-disc {
+  box-shadow: 0 0 calc(37.5 * var(--spacing)) rgb(0 0 0 / 0.5);
+}
+@utility inset-shadow-landing-row {
+  box-shadow: inset 0 0 calc(14.75 * var(--spacing))
+    calc(12.25 * var(--spacing)) rgb(255 255 255 / 0.25);
+}
+/* Dashed dividers, drawn in `currentColor`: the value is the dash length, and
+   the gap matches it. `dashed-rule-8` is the Why Jumpa panel's, `-2.25` the
+   review sheet's. */
+@utility dashed-rule-* {
+  background-image: repeating-linear-gradient(
+    to right,
+    currentColor 0 calc(--value(number) * var(--spacing)),
+    transparent calc(--value(number) * var(--spacing))
+      calc(--value(number) * 2 * var(--spacing))
+  );
 }
 
 @layer base {
@@ -339,6 +484,10 @@
   }
 
   /* The app is a full-bleed mobile surface; page-level scroll is opt-in. */
+  html {
+    scroll-behavior: smooth;
+  }
+
   html,
   body {
     overscroll-behavior-y: none;

@@ -1,96 +1,35 @@
-"use client";
-
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-
-import { authClient } from "@/lib/auth-client";
-
-/** How long the brand mark holds, measured from when the mark is actually on screen. */
-const SPLASH_DURATION_MS = 3000;
+import { AuthRedirect } from "@/components/landing/auth-redirect";
+import { BetaCtaSection } from "@/components/landing/beta-cta-section";
+import { FaqSection } from "@/components/landing/faq-section";
+import { FeaturesSection } from "@/components/landing/features-section";
+import { HeroSection } from "@/components/landing/hero-section";
+import { HowItWorksSection } from "@/components/landing/how-it-works-section";
+import { LandingFooter } from "@/components/landing/landing-footer";
+import { LandingNav } from "@/components/landing/landing-nav";
+import { SecuritySection } from "@/components/landing/security-section";
+import { WhyJumpaSection } from "@/components/landing/why-jumpa-section";
 
 /**
- * Splash screen, and the only place that decides where a visitor starts.
+ * Public marketing home. A signed-in visitor is redirected on by `AuthRedirect`.
  *
- * The proxy used to route `/` itself, which meant this never rendered. It now
- * lets `/` through, so the same three outcomes are resolved here instead.
+ * The page reproduces the two design frames by scaling one unit rather than
+ * reflowing: every section below measures in design px of the 393 phone frame,
+ * and in px of the 1440 desktop frame from `lg:` up. See the `frame-*` note in
+ * `app/globals.css` — the root carries no padding or border, by that rule.
  */
-export default function SplashPage() {
-  const router = useRouter();
-  const [shown, setShown] = useState(false);
-  const [next, setNext] = useState<string | null>(null);
-
-  // Runs alongside the hold, so resolving the session costs no extra time.
-  useEffect(() => {
-    let active = true;
-
-    async function checkSession() {
-      try {
-        const { data: session } = await authClient.getSession();
-        if (!active) return;
-        if (!session?.user) {
-          setNext("/onboarding");
-          return;
-        }
-
-        const res = await fetch("/api/auth/wallet-setup");
-        if (!active) return;
-        if (!res.ok) {
-          setNext("/home");
-          return;
-        }
-        const status = await res.json();
-        if (status.nextRoute) {
-          setNext(status.nextRoute);
-        } else if (!status.hasPassword) {
-          setNext("/sign-up/password");
-        } else if (!status.hasTag) {
-          setNext("/sign-up/tag");
-        } else if (!status.hasPin) {
-          setNext("/sign-up/pin");
-        } else if (status.needsPinMigration) {
-          setNext("/migrate-pin");
-        } else {
-          setNext("/home");
-        }
-      } catch {
-        if (active) setNext("/onboarding");
-      }
-    }
-
-    checkSession();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (next) router.prefetch(next);
-  }, [next, router]);
-
-  // Counting from paint, not from mount: on a fast connection the old timer
-  // could elapse while the logo was still decoding, so the splash never showed.
-  useEffect(() => {
-    if (!shown || !next) return;
-    const timer = setTimeout(() => router.replace(next), SPLASH_DURATION_MS);
-    return () => clearTimeout(timer);
-  }, [shown, next, router]);
-
+export default function LandingPage() {
   return (
-    <main className="mx-auto flex h-dvh max-w-app items-center justify-center bg-jumpa-primary-600">
-      <div className="relative aspect-square w-full max-w-[393px]">
-        <Image
-          src="/logo/white-logo-text.png"
-          alt="Jumpa"
-          fill
-          priority
-          onLoad={() => setShown(true)}
-          onError={() => setShown(true)}
-          className="object-contain"
-          sizes="393px"
-        />
-      </div>
+    <main className="frame-393/550 lg:frame-1440/1440 isolate overflow-x-clip bg-jumpa-white">
+      <AuthRedirect />
+      <LandingNav />
+      <HeroSection />
+      <HowItWorksSection />
+      <FeaturesSection />
+      <WhyJumpaSection />
+      <SecuritySection />
+      <FaqSection />
+      <BetaCtaSection />
+      <LandingFooter />
     </main>
   );
 }

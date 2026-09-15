@@ -19,6 +19,7 @@ import {
 import {
   getOrCreateAssociatedTokenAccount,
   createTransferInstruction,
+  TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import {
   createWalletClient,
@@ -224,7 +225,9 @@ export async function sendSolana(params: {
   const fromAddress = keypair.publicKey.toBase58();
   const destPubkey = new PublicKey(destination);
   const connection = new Connection(
-    environment.SOL_MAINNET || "https://api.mainnet-beta.solana.com",
+    environment.ALCHEMY_MAINNET_RPC ||
+      environment.SOL_MAINNET ||
+      "https://api.mainnet-beta.solana.com",
     "confirmed",
   );
 
@@ -256,12 +259,25 @@ export async function sendSolana(params: {
       keypair.publicKey,
     );
 
-    const toAta = await getOrCreateAssociatedTokenAccount(
-      connection,
-      keypair,
-      mintPubkey,
-      destPubkey,
-    );
+    // Check if destPubkey is already a Token Account owned by TOKEN_PROGRAM_ID
+    let finalDestAddress = destPubkey;
+    const accountInfo = await connection.getAccountInfo(destPubkey);
+
+    if (
+      accountInfo &&
+      accountInfo.owner.toBase58() === TOKEN_PROGRAM_ID.toBase58()
+    ) {
+      finalDestAddress = destPubkey;
+    } else {
+      const toAta = await getOrCreateAssociatedTokenAccount(
+        connection,
+        keypair,
+        mintPubkey,
+        destPubkey,
+        true, // allowOwnerOffCurve: supports PDAs & contract deposit vaults
+      );
+      finalDestAddress = toAta.address;
+    }
 
     const rawAmount = BigInt(
       Math.round(numAmount * Math.pow(10, tokenInfo.decimals)),
@@ -270,7 +286,7 @@ export async function sendSolana(params: {
     tx.add(
       createTransferInstruction(
         fromAta.address,
-        toAta.address,
+        finalDestAddress,
         keypair.publicKey,
         rawAmount,
       ),

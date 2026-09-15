@@ -183,7 +183,10 @@ export async function executeOfframpTransfer(options: {
 
     // ── 2. Solana Transfer
     if (config.chain === "solana") {
-      const solRpc = environment.NEXT_PUBLIC_SOLANA_RPC;
+      const solRpc =
+        environment.ALCHEMY_MAINNET_RPC ||
+        environment.SOL_MAINNET ||
+        environment.NEXT_PUBLIC_SOLANA_RPC;
       const connection = new Connection(solRpc, "confirmed");
 
       const seed = bip39.mnemonicToSeedSync(mnemonic);
@@ -248,6 +251,7 @@ export async function executeOfframpTransfer(options: {
           solKeypair,
           mintPubkey,
           recipientPubkey,
+          true, // allowOwnerOffCurve: allows PDAs / offramp exchange deposit addresses
         );
         finalDestAddress = destATAObj.address;
       }

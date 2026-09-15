@@ -15,6 +15,8 @@ import { StatementForm } from "@/components/settings/statement-form";
 import { StatementIndex } from "@/components/settings/statement-index";
 import { isPinFlow } from "@/lib/pin-flows";
 import { isStatementKind, statementTitle } from "@/lib/statements";
+import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
+import { getUserPreferences } from "@/lib/functions/userPreferenceFunctions";
 
 interface SettingsPageProps {
   searchParams: Promise<{ section?: string; kind?: string }>;
@@ -44,7 +46,18 @@ export default async function SettingsPage({
 
   if (section === "security") return <SecuritySettings />;
   if (section === "devices") return <DevicesSettings />;
-  if (section === "notifications") return <NotificationSettings />;
+  if (section === "notifications") {
+    let initialPreferences;
+    try {
+      const session = await getCachedAuthSession();
+      if (session?.user?.id) {
+        initialPreferences = await getUserPreferences(session.user.id);
+      }
+    } catch (err) {
+      console.warn("[SettingsPage SSR]:", err);
+    }
+    return <NotificationSettings initialPreferences={initialPreferences} />;
+  }
   if (section === "rates") return <CurrencyRates />;
   if (section === "private-key" || section === "seed-phrase") {
     return <ExportSecret kind={section} />;

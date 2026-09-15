@@ -14,7 +14,9 @@ import { Wallet } from "@/models/Wallet";
 import { detectUserCountry } from "./location";
 import { recordUserActivity } from "./functions/userFunctions";
 import { createNotification } from "./functions/notificationFunctions";
-import { formatSignInDescription } from "./user-agent";
+import { shouldSendNotification } from "./functions/userPreferenceFunctions";
+import { formatSignInDescription, parseUserAgent } from "./user-agent";
+import { sendLoginAlertEmail } from "./email-notifications";
 
 await connectDB();
 
@@ -92,6 +94,31 @@ export const auth = betterAuth({
               },
               link: "/profile/settings?section=devices",
             });
+
+            // 3. Dispatch security email alert if allowed by user preference
+            const allowEmail = await shouldSendNotification(userId, "LOGIN");
+            if (allowEmail) {
+              const userRecord = await User.findById(userId).lean();
+              if (userRecord?.email) {
+                const { deviceLabel, browser, os } = parseUserAgent(
+                  session.userAgent || undefined,
+                );
+                const appUrl =
+                  process.env.NEXT_PUBLIC_APP_URL || "https://usejumpa.com";
+                sendLoginAlertEmail(userRecord.email, {
+                  customerName: userRecord.name || "Jumpa User",
+                  email: userRecord.email,
+                  device: deviceLabel,
+                  browser,
+                  os,
+                  ipAddress: session.ipAddress || undefined,
+                  manageDevicesUrl: `${appUrl}/profile/settings?section=devices`,
+                  time: new Date(),
+                }).catch((err) =>
+                  console.warn(`[Auth Hook] Failed to send login alert email to ${userRecord?.email || "unknown"}:`, err),
+                );
+              }
+            }
           } catch (e) {
             console.error("[Auth Hook] Failed in session.create.after:", e);
           }

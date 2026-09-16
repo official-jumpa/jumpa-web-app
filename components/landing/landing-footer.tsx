@@ -81,17 +81,6 @@ export function LandingFooter() {
                 </li>
               ))}
             </Column>
-
-            {/* The design repeats an identical "Company" column; kept verbatim. */}
-            <Column title={FOOTER.columns[1].heading}>
-              {FOOTER.columns[1].links.map((link) => (
-                <li key={link.label}>
-                  <Link href={link.href} className={COLUMN_LINK}>
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </Column>
           </div>
 
           <span aria-hidden="true" className="h-1.25 w-full bg-jumpa-white" />

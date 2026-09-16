@@ -257,8 +257,6 @@ export const FOOTER = {
   copyright: { year: `© ${new Date().getFullYear()} `, owner: "Jumpa app" },
   columns: [
     { heading: "Company", links: NAV_LINKS.slice(1) },
-    // The design repeats an identical second "Company" column; kept verbatim.
-    { heading: "Company", links: NAV_LINKS.slice(1) },
   ],
   // TODO(content): point these at the real profiles.
   socials: [

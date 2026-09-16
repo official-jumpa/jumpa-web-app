@@ -45,8 +45,6 @@ export async function POST(req: NextRequest) {
         message: result.isNew
           ? "Successfully joined the waitlist"
           : "You are already on the waitlist",
-        waitlist: result.waitlist,
-        position: result.position,
       },
       { status: result.isNew ? 201 : 200 },
     );

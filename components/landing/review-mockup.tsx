@@ -70,7 +70,7 @@ export function ReviewMockup({ className }: { className: string }) {
 
           <div className="flex w-full flex-col gap-13.5 rounded-u-25 bg-jumpa-primary-50 px-11.25 pt-18.25 pb-11.25">
             {REVIEW_MOCK.rows.map((row, index) => (
-              <Fragment key={`${row.label}${row.value}`}>
+              <Fragment key={`${row.label}-${index}`}>
                 {index > 0 ? (
                   <span aria-hidden="true" className={RULE} />
                 ) : null}

@@ -234,7 +234,11 @@ export const BETA_CTA = {
   badge: "BETA",
   formTitle: "Join the Private Beta",
   emailLabel: "Enter your Email",
-  note: "No spam. We'll only email you about Jumpa access and important updates concerning Jumpa.",
+  note: "We'll only email you about Jumpa access and important updates concerning Jumpa",
+  buttonSubmitting: "Joining...",
+  buttonSuccess: "You're on the list",
+  successNotice: "You're on the list! We'll email you as soon as early access opens",
+  alreadyJoinedNotice: "You're already on the waitlist! We'll be in touch soon",
   desktop: {
     heading: "Help shape how money moves.",
     blurb:

@@ -4,25 +4,122 @@ import { type FormEvent, useState } from "react";
 import { CtaPill } from "@/components/landing/cta-pill";
 import { ArrowRightIcon } from "@/components/ui/icons/arrow-right";
 import { AtSignIcon } from "@/components/ui/icons/at-sign";
+import { CheckIcon } from "@/components/ui/icons/check";
 import { MailBoldIcon } from "@/components/ui/icons/mail-bold";
+import { triggerHaptic } from "@/lib/haptics";
 import { BETA_CTA, CTA_LABEL, EMAIL_PLACEHOLDER } from "@/lib/landing";
 
-type Status = "idle" | "pending" | "done";
+type Status = "idle" | "pending" | "success" | "error";
 
-// TODO(backend): there is no waitlist service yet. Wire `submit` to the real
-// endpoint once one exists — right now it only simulates a submission.
-function useWaitlist() {
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<Status>("idle");
+interface UseWaitlistReturn {
+  email: string;
+  setEmail: (email: string) => void;
+  status: Status;
+  message: string | null;
+  isNew: boolean | null;
+  submit: (event: FormEvent) => Promise<void>;
+  reset: () => void;
+}
 
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!email || status !== "idle") return;
-    setStatus("pending");
-    window.setTimeout(() => setStatus("done"), 600);
+function extractAttribution() {
+  if (typeof window === "undefined") return {};
+  const params = new URLSearchParams(window.location.search);
+  const utmSource = params.get("utm_source") || undefined;
+  const utmMedium = params.get("utm_medium") || undefined;
+  const utmCampaign = params.get("utm_campaign") || undefined;
+  const refParam = params.get("ref") || params.get("referrer") || undefined;
+  let referrer: string | undefined = refParam;
+
+  if (!referrer && document.referrer) {
+    try {
+      referrer = new URL(document.referrer).hostname;
+    } catch {
+      referrer = document.referrer.slice(0, 100);
+    }
   }
 
-  return { email, setEmail, status, submit };
+  return { utmSource, utmMedium, utmCampaign, referrer };
+}
+
+function useWaitlist(source: string): UseWaitlistReturn {
+  const [email, setEmailState] = useState("");
+  const [status, setStatus] = useState<Status>("idle");
+  const [message, setMessage] = useState<string | null>(null);
+  const [position, setPosition] = useState<number | null>(null);
+  const [isNew, setIsNew] = useState<boolean | null>(null);
+
+  function setEmail(value: string) {
+    setEmailState(value);
+    if (status === "error") {
+      setStatus("idle");
+      setMessage(null);
+    }
+  }
+
+  function reset() {
+    setEmailState("");
+    setStatus("idle");
+    setMessage(null);
+    setPosition(null);
+    setIsNew(null);
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const trimmed = email.trim().toLowerCase();
+
+    if (!trimmed || status === "pending" || status === "success") return;
+
+    // Client-side quick validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setStatus("error");
+      setMessage("Please enter a valid email");
+      triggerHaptic("medium");
+      return;
+    }
+
+    setStatus("pending");
+    setMessage(null);
+
+    try {
+      const attribution = extractAttribution();
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: trimmed,
+          source,
+          ...attribution,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setStatus("error");
+        setMessage(data.error || "Unable to join the waitlist. Please try again");
+        triggerHaptic("medium");
+        return;
+      }
+
+      setStatus("success");
+      setIsNew(Boolean(data.isNew));
+      setPosition(data.position ?? null);
+      setMessage(
+        data.isNew === false
+          ? BETA_CTA.alreadyJoinedNotice
+          : BETA_CTA.successNotice
+      );
+      triggerHaptic("light");
+    } catch (err) {
+      console.error("Waitlist submit error:", err);
+      setStatus("error");
+      setMessage("Network error. Please check your connection and try again");
+      triggerHaptic("medium");
+    }
+  }
+
+  return { email, setEmail, status, message, isNew, submit, reset };
 }
 
 const INPUT =
@@ -61,7 +158,9 @@ function EmailInput({
 
 /** Hero: the white pill with the purple button inside. Sized in its own 432-unit frame. */
 export function HeroEmailForm() {
-  const { email, setEmail, status, submit } = useWaitlist();
+  const { email, setEmail, status, message, submit } =
+    useWaitlist("landing-hero");
+
   return (
     <div className="frame-432 w-250 lg:w-432">
       <form
@@ -72,24 +171,47 @@ export function HeroEmailForm() {
         <EmailInput
           value={email}
           onChange={setEmail}
-          disabled={status !== "idle"}
+          disabled={status === "pending" || status === "success"}
           className="py-20 text-u-14/17 placeholder:text-jumpa-black"
         />
         <CtaPill
           type="submit"
-          disabled={status !== "idle"}
+          disabled={status === "pending" || status === "success"}
           className="pill-u-16 w-181"
         >
-          {status === "done" ? "You're on the list" : CTA_LABEL}
+          {status === "pending" ? (
+            BETA_CTA.buttonSubmitting
+          ) : status === "success" ? (
+            <span className="inline-flex items-center gap-6">
+              <CheckIcon className="size-16 shrink-0" />
+              {BETA_CTA.buttonSuccess}
+            </span>
+          ) : (
+            CTA_LABEL
+          )}
         </CtaPill>
       </form>
+
+      {status === "success" && (
+        <p className="mt-8 pl-24 text-u-12/16 font-medium text-jumpa-primary-600">
+          {message}
+        </p>
+      )}
+
+      {status === "error" && message && (
+        <p className="mt-8 pl-24 text-u-12/16 font-medium text-red-500">
+          {message}
+        </p>
+      )}
     </div>
   );
 }
 
 /** Beta CTA: the frosted card with a label, a tinted field and a full-width pill. */
 export function BetaEmailCard() {
-  const { email, setEmail, status, submit } = useWaitlist();
+  const { email, setEmail, status, message, isNew, submit } =
+    useWaitlist("landing-beta");
+
   return (
     <form
       onSubmit={submit}
@@ -105,45 +227,100 @@ export function BetaEmailCard() {
             id="beta-email"
             value={email}
             onChange={setEmail}
-            disabled={status !== "idle"}
+            disabled={status === "pending" || status === "success"}
             className="text-u-10/16 font-medium text-jumpa-primary-950 placeholder:text-jumpa-primary-950 lg:text-u-14/16"
           />
         </span>
       </label>
-      <CtaPill
-        type="submit"
-        disabled={status !== "idle"}
-        className="pill-u-8.5 h-36 w-full lg:pill-u-23.5 lg:h-auto"
-      >
-        {status === "done" ? "You're on the list" : BETA_CTA.formTitle}
-      </CtaPill>
+
+      {status === "error" && message && (
+        <p className="px-10 text-u-12/16 font-medium text-red-600 lg:px-4">
+          {message}
+        </p>
+      )}
+
+      {status === "success" ? (
+        <div className="flex flex-col gap-6 rounded-u-16 bg-jumpa-primary-50 p-14 text-jumpa-primary-950">
+          <div className="flex items-center gap-8 font-semibold text-u-14/18 text-jumpa-primary-600">
+            <span className="flex size-20 items-center justify-center rounded-full bg-jumpa-primary-600 text-jumpa-white">
+              <CheckIcon className="size-14" />
+            </span>
+            <span>
+              {isNew === false
+                ? BETA_CTA.alreadyJoinedNotice
+                : BETA_CTA.buttonSuccess}
+            </span>
+          </div>
+          <p className="text-u-12/16 text-jumpa-primary-950/80">
+            {BETA_CTA.note}
+          </p>
+        </div>
+      ) : (
+        <CtaPill
+          type="submit"
+          disabled={status === "pending"}
+          className="pill-u-8.5 h-36 w-full lg:pill-u-23.5 lg:h-auto"
+        >
+          {status === "pending"
+            ? BETA_CTA.buttonSubmitting
+            : BETA_CTA.formTitle}
+        </CtaPill>
+      )}
     </form>
   );
 }
 
 /** Footer: the compact white pill with a lime arrow button. */
 export function FooterEmailForm() {
-  const { email, setEmail, status, submit } = useWaitlist();
+  const { email, setEmail, status, message, submit } =
+    useWaitlist("landing-footer");
+
   return (
-    <form
-      onSubmit={submit}
-      className="flex h-60 w-full shrink-0 items-center gap-2 rounded-full border-u-1 border-jumpa-grey-200 bg-jumpa-white pr-7.75 pl-26 lg:w-325"
-    >
-      <AtSignIcon className="size-16 shrink-0 text-jumpa-grey-450 opacity-70" />
-      <EmailInput
-        value={email}
-        onChange={setEmail}
-        disabled={status !== "idle"}
-        className="text-u-14/17 placeholder:text-jumpa-grey-450"
-      />
-      <button
-        type="submit"
-        disabled={status !== "idle"}
-        aria-label={status === "done" ? "You're on the list" : CTA_LABEL}
-        className="tap flex h-44 w-64 shrink-0 items-center justify-center rounded-full bg-jumpa-alt-400 text-jumpa-white active:scale-95 disabled:opacity-60"
+    <div className="flex flex-col gap-6">
+      <form
+        onSubmit={submit}
+        className="flex h-60 w-full shrink-0 items-center gap-2 rounded-full border-u-1 border-jumpa-grey-200 bg-jumpa-white pr-7.75 pl-26 lg:w-325"
       >
-        <ArrowRightIcon className="size-20" />
-      </button>
-    </form>
+        <AtSignIcon className="size-16 shrink-0 text-jumpa-grey-450 opacity-70" />
+        <EmailInput
+          value={email}
+          onChange={setEmail}
+          disabled={status === "pending" || status === "success"}
+          className="text-u-14/17 placeholder:text-jumpa-grey-450"
+        />
+        <button
+          type="submit"
+          disabled={status === "pending" || status === "success"}
+          aria-label={
+            status === "success"
+              ? BETA_CTA.buttonSuccess
+              : status === "pending"
+                ? BETA_CTA.buttonSubmitting
+                : CTA_LABEL
+          }
+          className="tap flex h-44 w-64 shrink-0 items-center justify-center rounded-full bg-jumpa-alt-400 text-jumpa-white transition-all active:scale-95 disabled:opacity-80"
+        >
+          {status === "success" ? (
+            <CheckIcon className="size-20 text-jumpa-white" />
+          ) : status === "pending" ? (
+            <span className="size-16 animate-spin rounded-full border-2 border-jumpa-white border-t-transparent" />
+          ) : (
+            <ArrowRightIcon className="size-20" />
+          )}
+        </button>
+      </form>
+
+      {status === "success" && (
+        <p className="pl-26 text-u-12/16 font-medium text-jumpa-alt-300">
+          ✓ {BETA_CTA.buttonSuccess}
+        </p>
+      )}
+
+      {status === "error" && message && (
+        <p className="pl-26 text-u-12/16 font-medium text-red-300">
+          {message}
+        </p>
+      )}
+    </div>
   );
 }

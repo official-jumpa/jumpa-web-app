@@ -14,12 +14,17 @@ import { WhyJumpaSection } from "@/components/landing/why-jumpa-section";
  *
  * The page reproduces the two design frames by scaling one unit rather than
  * reflowing: every section below measures in design px of the 393 phone frame,
- * and in px of the 1440 desktop frame from `lg:` up. See the `frame-*` note in
+ * and in px of the 1440 desktop frame from `md:` up. See the `frame-*` note in
  * `app/globals.css` — the root carries no padding or border, by that rule.
+ *
+ * There is no tablet frame in Figma, so 768–1023 is the desktop frame scaled
+ * down rather than a third composition: `md:frame-1440/1440` makes the unit
+ * track the viewport, so the page shrinks continuously from 1440 to 768 and
+ * only swaps to the phone frame below it.
  */
 export default function LandingPage() {
   return (
-    <main className="frame-393/550 lg:frame-1440/1440 isolate overflow-x-clip bg-jumpa-white">
+    <main className="frame-393/550 md:frame-1440/1440 isolate overflow-x-clip bg-jumpa-white">
       <AuthRedirect />
       <LandingNav />
       <HeroSection />

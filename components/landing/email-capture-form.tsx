@@ -162,7 +162,7 @@ export function HeroEmailForm() {
     useWaitlist("landing-hero");
 
   return (
-    <div className="frame-432 w-250 lg:w-432">
+    <div className="frame-432 w-250 md:w-432">
       <form
         onSubmit={submit}
         className="flex items-center gap-10 rounded-full border-u-1 border-jumpa-grey-200 bg-jumpa-white pr-4 pl-24 shadow-landing-form"
@@ -215,10 +215,10 @@ export function BetaEmailCard() {
   return (
     <form
       onSubmit={submit}
-      className="flex w-full flex-col gap-10 overflow-clip rounded-u-22 border-u-2 border-jumpa-primary-50/50 bg-jumpa-white p-8 backdrop-blur-u-40 lg:rounded-u-32 lg:p-18"
+      className="flex w-full flex-col gap-10 overflow-clip rounded-u-22 border-u-2 border-jumpa-primary-50/50 bg-jumpa-white p-8 backdrop-blur-u-40 md:rounded-u-32 md:p-18"
     >
-      <label htmlFor="beta-email" className="flex flex-col gap-8 px-10 lg:px-0">
-        <span className="pl-8 text-u-12/16 tracking-jumpa text-jumpa-secondary-950 lg:pl-0 lg:text-u-14/16 lg:font-medium">
+      <label htmlFor="beta-email" className="flex flex-col gap-8 px-10 md:px-0">
+        <span className="pl-8 text-u-12/16 tracking-jumpa text-jumpa-secondary-950 md:pl-0 md:text-u-14/16 md:font-medium">
           {BETA_CTA.emailLabel}
         </span>
         <span className="flex items-center gap-8 rounded-full border-u-1 border-jumpa-primary-100 bg-jumpa-primary-50 py-16 pr-21 pl-24">
@@ -228,13 +228,13 @@ export function BetaEmailCard() {
             value={email}
             onChange={setEmail}
             disabled={status === "pending" || status === "success"}
-            className="text-u-10/16 font-medium text-jumpa-primary-950 placeholder:text-jumpa-primary-950 lg:text-u-14/16"
+            className="text-u-10/16 font-medium text-jumpa-primary-950 placeholder:text-jumpa-primary-950 md:text-u-14/16"
           />
         </span>
       </label>
 
       {status === "error" && message && (
-        <p className="px-10 text-u-12/16 font-medium text-red-600 lg:px-4">
+        <p className="px-10 text-u-12/16 font-medium text-red-600 md:px-4">
           {message}
         </p>
       )}
@@ -259,7 +259,7 @@ export function BetaEmailCard() {
         <CtaPill
           type="submit"
           disabled={status === "pending"}
-          className="pill-u-8.5 h-36 w-full lg:pill-u-23.5 lg:h-auto"
+          className="pill-u-8.5 h-36 w-full md:pill-u-23.5 md:h-auto"
         >
           {status === "pending"
             ? BETA_CTA.buttonSubmitting
@@ -279,7 +279,7 @@ export function FooterEmailForm() {
     <div className="flex flex-col gap-6">
       <form
         onSubmit={submit}
-        className="flex h-60 w-full shrink-0 items-center gap-2 rounded-full border-u-1 border-jumpa-grey-200 bg-jumpa-white pr-7.75 pl-26 lg:w-325"
+        className="flex h-60 w-full shrink-0 items-center gap-2 rounded-full border-u-1 border-jumpa-grey-200 bg-jumpa-white pr-7.75 pl-26 md:w-325"
       >
         <AtSignIcon className="size-16 shrink-0 text-jumpa-grey-450 opacity-70" />
         <EmailInput

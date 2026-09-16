@@ -35,14 +35,14 @@ const VARIANTS = {
     ],
   },
   why: {
-    chip: "h-29.5 gap-5.75 text-u-7.25 lg:h-auto lg:gap-8 lg:py-8 lg:text-u-10",
-    icon: "size-17.75 lg:size-24",
+    chip: "h-29.5 gap-5.75 text-u-7.25 md:h-auto md:gap-8 md:py-8 md:text-u-10",
+    icon: "size-17.75 md:size-24",
     widths: [
-      "w-83.5 justify-center lg:w-auto lg:flex-1",
-      "w-83.5 justify-center lg:w-auto lg:flex-1",
-      "w-90 justify-center lg:w-122",
-      "px-8.75 lg:px-12",
-      "px-8.75 lg:px-12",
+      "w-83.5 justify-center md:w-auto md:flex-1",
+      "w-83.5 justify-center md:w-auto md:flex-1",
+      "w-90 justify-center md:w-122",
+      "px-8.75 md:px-12",
+      "px-8.75 md:px-12",
     ],
   },
 } as const;

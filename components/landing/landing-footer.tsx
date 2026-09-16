@@ -4,11 +4,11 @@ import { FooterEmailForm } from "@/components/landing/email-capture-form";
 import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
 import { FOOTER } from "@/lib/landing";
 
-const COLUMN = "flex flex-col gap-40 lg:w-160";
+const COLUMN = "flex flex-col gap-40 md:w-160";
 const COLUMN_TITLE =
-  "text-u-16/18 font-medium tracking-jumpa-wide text-jumpa-white lg:text-u-24/20";
+  "text-u-16/18 font-medium tracking-jumpa-wide text-jumpa-white md:text-u-24/20";
 const COLUMN_LINK =
-  "tap text-u-14/16 font-medium tracking-jumpa-wide text-jumpa-white/50 hover:text-jumpa-alt-400 lg:text-u-24/20";
+  "tap text-u-14/16 font-medium tracking-jumpa-wide text-jumpa-white/50 hover:text-jumpa-alt-400 md:text-u-24/20";
 
 function Column({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -27,9 +27,9 @@ function Column({ title, children }: { title: string; children: ReactNode }) {
  */
 export function LandingFooter() {
   return (
-    <footer className="border-u-2 border-jumpa-primary-50/50 bg-[image:var(--gradient-jumpa-landing)] pt-50 pb-100 lg:-mt-92 lg:pt-221 lg:pb-79">
-      <div className="mx-auto flex w-320 flex-col gap-50 lg:w-1300 lg:flex-row lg:justify-between lg:gap-0">
-        <div className="flex flex-col gap-50 lg:w-320 lg:gap-141">
+    <footer className="border-u-2 border-jumpa-primary-50/50 bg-[image:var(--gradient-jumpa-landing)] pt-50 pb-100 md:-mt-92 md:pt-221 md:pb-79">
+      <div className="mx-auto flex w-320 flex-col gap-50 md:w-1300 md:flex-row md:justify-between md:gap-0">
+        <div className="flex flex-col gap-50 md:w-320 md:gap-141">
           <div className="flex flex-col gap-15">
             <span className="flex items-center gap-9.25">
               <img
@@ -48,14 +48,14 @@ export function LandingFooter() {
               {FOOTER.tagline}
             </p>
           </div>
-          <p className="flex gap-20 text-u-16/18 font-medium tracking-jumpa-wide text-jumpa-white lg:text-u-24/20">
+          <p className="flex gap-20 text-u-16/18 font-medium tracking-jumpa-wide text-jumpa-white md:text-u-24/20">
             <span>{FOOTER.copyright.year}</span>
             <span>{FOOTER.copyright.owner}</span>
           </p>
         </div>
 
-        <div className="flex flex-col gap-50 lg:w-731.25 lg:gap-52">
-          <div className="flex flex-col gap-75 lg:flex-row lg:gap-100">
+        <div className="flex flex-col gap-50 md:w-731.25 md:gap-52">
+          <div className="flex flex-col gap-75 md:flex-row md:gap-100">
             <Column title={FOOTER.columns[0].heading}>
               {FOOTER.columns[0].links.map((link) => (
                 <li key={link.label}>
@@ -86,8 +86,8 @@ export function LandingFooter() {
           <span aria-hidden="true" className="h-1.25 w-full bg-jumpa-white" />
 
           <div className="flex flex-col gap-52">
-            <div className="flex flex-col gap-20 lg:flex-row lg:items-center lg:justify-between lg:gap-0">
-              <div className="flex flex-col gap-8 text-u-14/20 font-medium tracking-jumpa-snug lg:w-293">
+            <div className="flex flex-col gap-20 md:flex-row md:items-center md:justify-between md:gap-0">
+              <div className="flex flex-col gap-8 text-u-14/20 font-medium tracking-jumpa-snug md:w-293">
                 <p className="text-jumpa-white">{FOOTER.betaTitle}</p>
                 <p className="text-jumpa-white/50">{FOOTER.betaBlurb}</p>
               </div>

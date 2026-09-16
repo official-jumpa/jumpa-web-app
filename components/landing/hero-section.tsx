@@ -29,14 +29,14 @@ const BUBBLE =
 //           alt=""
 //           fill
 //           sizes="102px"
-//           className="-z-10 object-cover lg:hidden"
+//           className="-z-10 object-cover md:hidden"
 //         />
 //         <Image
 //           src="/images/landing/hero-glass-backdrop.webp"
 //           alt=""
 //           fill
 //           sizes="(min-width: 1024px) 393px, 1px"
-//           className="-z-10 hidden object-cover lg:block"
+//           className="-z-10 hidden object-cover md:block"
 //         />
 //         <span
 //           aria-hidden="true"
@@ -119,31 +119,31 @@ function ChatPanelImage() {
 export function HeroSection() {
   return (
     <section className="relative">
-      <div className="relative mx-auto w-393 pt-56.75 lg:w-1440 lg:pt-121">
+      <div className="relative mx-auto w-393 pt-56.75 md:w-1440 md:pt-121">
         <DotGlow
           tone="grey"
-          className="hidden lg:top-298 lg:left-0 lg:block lg:w-1440"
+          className="hidden md:top-298 md:left-0 md:block md:w-1440"
         />
 
-        <div className="mx-auto flex w-320 flex-col items-center gap-15 text-center lg:w-794 lg:gap-30">
+        <div className="mx-auto flex w-320 flex-col items-center gap-15 text-center md:w-794 md:gap-30">
           <SectionBadge
             variant="outline"
             icon={<GlobeBoldIcon />}
-            className="text-u-5.5 lg:text-u-14"
+            className="text-u-5.5 md:text-u-14"
           >
             {HERO.badge.lead}
             <strong className="font-medium">{HERO.badge.strong}</strong>
             {HERO.badge.tail}
           </SectionBadge>
 
-          <div className="flex w-full flex-col gap-15 lg:gap-30">
-            <h1 className="text-u-40/40 font-medium tracking-jumpa lg:text-u-100/80">
+          <div className="flex w-full flex-col gap-15 md:gap-30">
+            <h1 className="text-u-40/40 font-medium tracking-jumpa md:text-u-100/80">
               {HERO.heading.lead}
               <span className="bg-[image:var(--gradient-jumpa-landing)] bg-clip-text text-transparent">
                 {HERO.heading.accent}
               </span>
             </h1>
-            <p className="text-u-12/18 tracking-jumpa lg:text-u-22/32">
+            <p className="text-u-12/18 tracking-jumpa md:text-u-22/32">
               {HERO.subhead}
             </p>
           </div>
@@ -151,8 +151,8 @@ export function HeroSection() {
           <HeroEmailForm />
         </div>
 
-        <div className="frame-1300 relative mx-auto mt-30.25 w-336.75 lg:mt-114 lg:w-1300">
-          <div className="relative h-780 w-1300 overflow-hidden rounded-u-24 lg:h-699">
+        <div className="frame-1300 relative mx-auto mt-30.25 w-336.75 md:mt-114 md:w-1300">
+          <div className="relative h-780 w-1300 overflow-hidden rounded-u-24 md:h-699">
             <Image
               src="/images/landing/hero-photo-mobile.webp"
               alt=""
@@ -160,7 +160,7 @@ export function HeroSection() {
               height={780}
               priority
               sizes="100vw"
-              className="h-full w-full object-cover lg:hidden"
+              className="h-full w-full object-cover md:hidden"
             />
             <Image
               src="/images/landing/hero-photo.webp"
@@ -169,7 +169,7 @@ export function HeroSection() {
               height={1032}
               priority
               sizes="100vw"
-              className="hidden h-full w-full object-cover lg:block"
+              className="hidden h-full w-full object-cover md:block"
             />
 
             <ChatPanelImage />

@@ -13,7 +13,7 @@ import { RECEIVE_CARD, SAVE_CARD, SEND_CARD, SWAP_CARD } from "@/lib/landing";
  * frame, so every number below is a design px of the card and the whole
  * composition scales with the card's width.
  */
-const FRAME = "frame-507 aspect-square w-221.5 shrink-0 lg:w-507";
+const FRAME = "frame-507 aspect-square w-221.5 shrink-0 md:w-507";
 const SURFACE = "relative isolate size-full overflow-clip rounded-u-32.5";
 
 const LIME = "bg-[image:var(--gradient-jumpa-card-lime)]";

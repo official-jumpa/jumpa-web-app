@@ -1,5 +1,6 @@
 import { DotGlow } from "@/components/landing/dot-glow";
 import { GlowOrb } from "@/components/landing/glow-orb";
+import { revealStep } from "@/components/landing/reveal";
 import { ReviewMockup } from "@/components/landing/review-mockup";
 import { SectionBadge } from "@/components/landing/section-badge";
 import { FlashIcon } from "@/components/ui/icons/flash";
@@ -26,28 +27,43 @@ export function SecuritySection() {
       <div className="relative mx-auto w-393 md:w-1440">
         <DotGlow
           tone="purple"
-          className="-left-190 top-531 w-714.5 md:top-759 md:-left-49 md:w-1537.75"
+          className="drift -left-190 top-531 w-714.5 md:top-759 md:-left-49 md:w-1537.75 [--drift:50]"
         />
 
         <div className="mx-auto flex w-320 flex-col items-center gap-15 text-center md:w-713 md:gap-24">
           <SectionBadge
             variant="discWhite"
             icon={<FlashIcon />}
-            className="text-u-12.25 md:text-u-16"
+            className="reveal text-u-12.25 md:text-u-16"
           >
             {SECURITY.badge}
           </SectionBadge>
-          <h2 className="bg-[image:var(--gradient-jumpa-landing)] bg-clip-text text-u-40/40 font-medium tracking-jumpa text-transparent md:text-u-72/70">
+          {/* The gradient heading reveals as one element, never per word — see
+              `RevealWords`: `background-clip: text` will not paint through a
+              child that carries its own opacity. */}
+          <h2
+            style={revealStep(1)}
+            className="reveal bg-[image:var(--gradient-jumpa-landing)] bg-clip-text text-u-40/40 font-medium tracking-jumpa text-transparent md:text-u-72/70"
+          >
             {SECURITY.heading}
           </h2>
-          <p className="text-u-12/18 tracking-jumpa md:w-607 md:text-u-20/28">
+          <p
+            style={revealStep(2)}
+            className="reveal text-u-12/18 tracking-jumpa md:w-607 md:text-u-20/28"
+          >
             {SECURITY.subhead}
           </p>
         </div>
 
         <div className="mx-auto mt-48 flex w-324 flex-col gap-15 md:mt-96 md:w-1240 md:flex-row md:gap-20">
           <div className="flex flex-col gap-15 md:w-610 md:gap-20">
-            <div className={cn(CARD, "h-231.25 md:h-441")}>
+            {/* The panels rise rather than slide: this section has no clipping
+                parent, so a horizontal travel would widen the page while it
+                plays. */}
+            <div
+              style={revealStep(0)}
+              className={cn(CARD, "reveal h-231.25 md:h-441")}
+            >
               <div className={cn(COPY, "flex-1")}>
                 <h3 className={cn(TITLE, "text-u-12/11.5 md:text-u-24/22")}>
                   <span className="md:hidden">{access.mobileTitle}</span>
@@ -66,7 +82,10 @@ export function SecuritySection() {
               </GlowOrb>
             </div>
 
-            <div className={cn(CARD, "h-231.25 md:h-441")}>
+            <div
+              style={revealStep(1)}
+              className={cn(CARD, "reveal h-231.25 md:h-441")}
+            >
               <div className={cn(COPY, "flex-1")}>
                 <h3 className={cn(TITLE, "text-u-12/11.5 md:text-u-24/22")}>
                   {pin.title}
@@ -87,7 +106,10 @@ export function SecuritySection() {
             </div>
           </div>
 
-          <div className={cn(CARD, "h-385 md:h-902 md:w-610")}>
+          <div
+            style={revealStep(2)}
+            className={cn(CARD, "reveal h-385 md:h-902 md:w-610")}
+          >
             {/* The copy is taller than its own box, so `justify-end` pushes it
                 up past the top padding — which is what the design draws. */}
             <div className={cn(COPY, "h-62 shrink-0 justify-end md:h-118")}>

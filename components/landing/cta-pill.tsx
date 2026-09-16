@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import type { ComponentPropsWithoutRef, CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -7,7 +7,12 @@ import { cn } from "@/lib/cn";
  * class (see `globals.css`), so the same component draws the 16px nav pill and
  * the 23.5px feature-panel one. Renders a link when `href` is given.
  */
-type BaseProps = { className: string; children: ReactNode };
+type BaseProps = {
+  className: string;
+  children: ReactNode;
+  /** Only for the reveal's `--i`; the pill takes no inline geometry. */
+  style?: CSSProperties;
+};
 type AsLink = BaseProps & { href: string };
 type AsButton = BaseProps &
   ComponentPropsWithoutRef<"button"> & { href?: undefined };
@@ -17,12 +22,17 @@ const PILL =
 
 export function CtaPill(props: AsLink): ReactNode;
 export function CtaPill(props: AsButton): ReactNode;
-export function CtaPill({ className, children, ...rest }: AsLink | AsButton) {
+export function CtaPill({
+  className,
+  children,
+  style,
+  ...rest
+}: AsLink | AsButton) {
   const classes = cn(PILL, className);
 
   if (rest.href !== undefined) {
     return (
-      <Link href={rest.href} className={classes}>
+      <Link href={rest.href} className={classes} style={style}>
         {children}
       </Link>
     );
@@ -30,7 +40,7 @@ export function CtaPill({ className, children, ...rest }: AsLink | AsButton) {
 
   const { href: _href, ...buttonRest } = rest;
   return (
-    <button type="button" className={classes} {...buttonRest}>
+    <button type="button" className={classes} style={style} {...buttonRest}>
       {children}
     </button>
   );

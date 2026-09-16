@@ -1,4 +1,5 @@
 import Image from "next/image";
+import type { CSSProperties } from "react";
 import { ArrowDownArrowUpIcon } from "@/components/ui/icons/arrow-down-arrow-up";
 import { CircleUserIcon } from "@/components/ui/icons/circle-user";
 import { LockIcon } from "@/components/ui/icons/lock";
@@ -15,6 +16,12 @@ import { RECEIVE_CARD, SAVE_CARD, SEND_CARD, SWAP_CARD } from "@/lib/landing";
  */
 const FRAME = "frame-507 aspect-square w-221.5 shrink-0 md:w-507";
 const SURFACE = "relative isolate size-full overflow-clip rounded-u-32.5";
+
+/**
+ * The section owns how a card arrives, so the reveal marker and its `--i` come
+ * in from there — the card only has to let them reach its frame.
+ */
+type CardProps = { className?: string; style?: CSSProperties };
 
 const LIME = "bg-[image:var(--gradient-jumpa-card-lime)]";
 const PURPLE = "bg-[image:var(--gradient-jumpa-card-purple)]";
@@ -121,9 +128,9 @@ function AssetChip({
   );
 }
 
-export function SendCard() {
+export function SendCard({ className, style }: CardProps) {
   return (
-    <div className={FRAME}>
+    <div className={cn(FRAME, className)} style={style}>
       <div className={cn(SURFACE, LIME)}>
         <CardLines />
         <CardGlow className="-z-10 -left-276.75 top-155.5 mix-blend-soft-light" />
@@ -150,9 +157,9 @@ export function SendCard() {
   );
 }
 
-export function ReceiveCard() {
+export function ReceiveCard({ className, style }: CardProps) {
   return (
-    <div className={FRAME}>
+    <div className={cn(FRAME, className)} style={style}>
       <div className={cn(SURFACE, PURPLE)}>
         <CardDots className="-left-149.25 -top-108.25" />
         <CardDots className="-left-150.25 top-279.75" />
@@ -213,9 +220,9 @@ function SwapLeg({ label, amount, symbol, glow }: SwapLegProps) {
   );
 }
 
-export function SwapCard() {
+export function SwapCard({ className, style }: CardProps) {
   return (
-    <div className={FRAME}>
+    <div className={cn(FRAME, className)} style={style}>
       <div className={cn(SURFACE, LIME)}>
         <CardLines />
         <CardCopy
@@ -281,9 +288,9 @@ const PLAN_ROWS = [
   },
 ] as const;
 
-export function SaveCard() {
+export function SaveCard({ className, style }: CardProps) {
   return (
-    <div className={FRAME}>
+    <div className={cn(FRAME, className)} style={style}>
       <div className={cn(SURFACE, PURPLE)}>
         <CardDots className="-left-149.25 -top-108.25" />
         <CardDots className="-left-150.25 top-279.75" />

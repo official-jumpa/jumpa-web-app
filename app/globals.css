@@ -187,6 +187,20 @@
   /* Indeterminate progress, for work whose length we cannot know. */
   --animate-progress: progress 1250ms var(--ease-jumpa) infinite;
 
+  /* Landing reveals. Longer travel and a longer settle than `rise` — these land
+     a full-bleed marketing section, not a list row. Driven either by a plain
+     `animate-*` utility (the hero, which plays at first paint) or by a
+     `.reveal*` marker and the observer below. Travel is in design units, so it
+     scales with the frame instead of overshooting on a phone. */
+  --animate-reveal: reveal 780ms var(--ease-jumpa) both;
+  --animate-reveal-left: reveal-left 780ms var(--ease-jumpa) both;
+  --animate-reveal-right: reveal-right 780ms var(--ease-jumpa) both;
+  --animate-reveal-zoom: reveal-zoom 900ms var(--ease-jumpa) both;
+  /* One waveform bar, grown from its own centre out. */
+  --animate-reveal-bar: reveal-bar 700ms var(--ease-jumpa) both;
+  /* Decorative artwork, tied to the scroll position rather than a clock. */
+  --animate-drift: drift linear both;
+
   @keyframes rise {
     from {
       opacity: 0;
@@ -258,6 +272,52 @@
     30% {
       opacity: 1;
       transform: translateY(-3px);
+    }
+  }
+
+  /* The reveals move `transform`, never `translate`/`scale`/`rotate`: Tailwind
+     v4 writes those three as individual properties, and the browser applies
+     them before `transform`, so a keyframe here composes with a utility like
+     `-translate-x-1/2` instead of clobbering it. */
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      transform: translateY(calc(32 * var(--spacing)));
+    }
+  }
+  @keyframes reveal-left {
+    from {
+      opacity: 0;
+      transform: translateX(calc(-36 * var(--spacing)));
+    }
+  }
+  @keyframes reveal-right {
+    from {
+      opacity: 0;
+      transform: translateX(calc(36 * var(--spacing)));
+    }
+  }
+  @keyframes reveal-zoom {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+  }
+  /* Scales about its own centre, so a bar grows out of the baseline both ways. */
+  @keyframes reveal-bar {
+    from {
+      opacity: 0;
+      transform: scaleY(0.06);
+    }
+  }
+  /* Runs on a view timeline, so `from` is the moment the layer enters the
+     viewport and `to` the moment it leaves — it never moves on a still page. */
+  @keyframes drift {
+    from {
+      transform: translateY(calc(var(--drift, 40) * var(--spacing)));
+    }
+    to {
+      transform: translateY(calc(var(--drift, 40) * var(--spacing) * -1));
     }
   }
 }
@@ -527,6 +587,26 @@
     .spinner-arc {
       stroke-dasharray: none;
     }
+
+    /* A reveal that cannot play must not leave its section blank, so nothing
+       waits its turn — the page reads as it does at rest, all the way down. */
+    [data-reveal-wait] {
+      opacity: 1 !important;
+    }
+
+    /* A scroll-linked drift has no duration to shorten; end it outright, or the
+       artwork settles one travel away from the composition the design draws. */
+    .drift {
+      animation: none !important;
+    }
+  }
+
+  /* Same reasoning for print: a page printed mid-scroll must not come out with
+     everything below the fold missing. */
+  @media print {
+    [data-reveal-wait] {
+      opacity: 1 !important;
+    }
   }
 }
 
@@ -552,6 +632,59 @@
      frame — the row reads as a travelling wave rather than starting flat. */
   .stagger-bar {
     animation-delay: calc(var(--i, 0) * -80ms);
+  }
+
+  /*
+   * Landing scroll reveals. `RevealObserver` collects every `.reveal*` element,
+   * hides the ones still below the fold before paint, and reveals each on the
+   * way in. Nothing is hidden here by default, so with JS off — and for a
+   * crawler — the page renders exactly as it does at rest.
+   *
+   * Markers are classes, not data attributes, so they travel through the
+   * `className` prop the landing components already take. The stagger is built
+   * in rather than borrowed from `.stagger`, which is one class and would lose
+   * to these two-part selectors: set `--i` per sibling, `--step` to retime a run.
+   */
+  [data-reveal-wait] {
+    opacity: 0;
+  }
+  .reveal[data-reveal-in] {
+    animation: var(--animate-reveal);
+  }
+  .reveal-left[data-reveal-in] {
+    animation: var(--animate-reveal-left);
+  }
+  .reveal-right[data-reveal-in] {
+    animation: var(--animate-reveal-right);
+  }
+  .reveal-zoom[data-reveal-in] {
+    animation: var(--animate-reveal-zoom);
+  }
+  .reveal-bar[data-reveal-in] {
+    animation: var(--animate-reveal-bar);
+  }
+  /* Last, because each shorthand above resets the delay to zero. */
+  .reveal[data-reveal-in],
+  .reveal-left[data-reveal-in],
+  .reveal-right[data-reveal-in],
+  .reveal-zoom[data-reveal-in],
+  .reveal-bar[data-reveal-in] {
+    animation-delay: calc(var(--i, 0) * var(--step, 80ms));
+  }
+
+  /*
+   * Decorative artwork, drifting against the scroll. The timeline is the
+   * element's own pass through the viewport, so nothing loops and nothing moves
+   * while the page is still. Firefox has no `view()` yet and keeps the design's
+   * static composition, which is what shipped before this.
+   */
+  @supports (animation-timeline: view()) {
+    .drift {
+      animation: var(--animate-drift);
+      animation-duration: auto;
+      animation-timeline: view();
+      animation-range: cover;
+    }
   }
 
   /* Press feedback. Use instead of `transition-colors` on anything that also

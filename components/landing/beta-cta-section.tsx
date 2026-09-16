@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { BetaEmailCard } from "@/components/landing/email-capture-form";
+import { revealStep } from "@/components/landing/reveal";
 import { SectionBadge } from "@/components/landing/section-badge";
 import { GlobeBoldIcon } from "@/components/ui/icons/globe-bold";
 import { BETA_CTA } from "@/lib/landing";
@@ -45,23 +46,35 @@ export function BetaCtaSection() {
             <SectionBadge
               variant="outline"
               icon={<GlobeBoldIcon />}
-              className="self-start text-u-15.5 md:text-u-14"
+              className="reveal self-start text-u-15.5 md:text-u-14"
             >
               {BETA_CTA.badge}
             </SectionBadge>
-            <h2 className="text-u-40/40 font-medium tracking-jumpa text-jumpa-white md:text-u-86/65">
+            <h2
+              style={revealStep(1)}
+              className="reveal text-u-40/40 font-medium tracking-jumpa text-jumpa-white md:text-u-86/65"
+            >
               <span className="md:hidden">{BETA_CTA.mobile.heading}</span>
               <span className="hidden md:inline">
                 {BETA_CTA.desktop.heading}
               </span>
             </h2>
-            <p className="text-u-12/18 tracking-jumpa text-jumpa-white md:text-u-20/24 md:font-medium">
+            <p
+              style={revealStep(2)}
+              className="reveal text-u-12/18 tracking-jumpa text-jumpa-white md:text-u-20/24 md:font-medium"
+            >
               <span className="md:hidden">{BETA_CTA.mobile.blurb}</span>
               <span className="hidden md:inline">{BETA_CTA.desktop.blurb}</span>
             </p>
           </div>
 
-          <div className="flex flex-col gap-25 md:w-541">
+          {/* The form arrives from the right, meeting the copy. Safe here where
+              it is not in the other sections: this card is `overflow-clip`, so
+              the travel is cut off rather than widening the page. */}
+          <div
+            style={revealStep(1)}
+            className="reveal-right flex flex-col gap-25 md:w-541"
+          >
             <h3 className="text-u-16/20 font-semibold tracking-jumpa text-jumpa-white md:text-u-40/22">
               {BETA_CTA.formTitle}
             </h3>

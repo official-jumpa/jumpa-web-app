@@ -2,6 +2,8 @@ import Image from "next/image";
 import { DotGlow } from "@/components/landing/dot-glow";
 import { HeroEmailForm } from "@/components/landing/email-capture-form";
 import { QuickActionChips } from "@/components/landing/quick-action-chips";
+import { revealStep } from "@/components/landing/reveal";
+import { RevealWords } from "@/components/landing/reveal-words";
 import { SectionBadge } from "@/components/landing/section-badge";
 import { CirclePlusIcon } from "@/components/ui/icons/circle-plus";
 import { GlobeBoldIcon } from "@/components/ui/icons/globe-bold";
@@ -10,6 +12,9 @@ import { CHAT_PREVIEW, HERO } from "@/lib/landing";
 
 const BUBBLE =
   "rounded-full bg-jumpa-neutral-95 px-26 py-11.5 text-u-13/16 tracking-jumpa text-jumpa-black";
+
+/** Where the heading's own words stop, so the rest of the column carries on from there. */
+const LEAD_WORDS = HERO.heading.lead.trim().split(/\s+/).length;
 
 /**
  * The frosted chat mock that floats over the hero photo. Sized in its own 393
@@ -103,7 +108,10 @@ const BUBBLE =
 
 function ChatPanelImage() {
   return (
-    <div className="frame-393 absolute top-1/2 left-200 w-393 -translate-y-1/2">
+    <div
+      style={revealStep(8)}
+      className="frame-393 stagger absolute top-1/2 left-200 w-393 -translate-y-1/2 animate-reveal-zoom"
+    >
       <Image
         src="/images/landing/chatPanelHero.png"
         alt="chatPanelHero"
@@ -120,16 +128,23 @@ export function HeroSection() {
   return (
     <section className="relative">
       <div className="relative mx-auto w-393 pt-56.75 md:w-1440 md:pt-121">
+        {/* Each glow carries its own `--drift` so the page's decorative layers
+            never move in lockstep. The hero's is the gentlest — it is the first
+            thing on screen and sits closest to its design position. */}
         <DotGlow
           tone="grey"
-          className="hidden md:top-298 md:left-0 md:block md:w-1440"
+          className="drift hidden md:top-298 md:left-0 md:block md:w-1440 [--drift:24]"
         />
 
+        {/* The hero's entrance runs from plain `animate-*` utilities, not from
+            `data-reveal`: it is always above the fold, so it has to play at the
+            first paint rather than wait for hydration. `--i` sequences the whole
+            column on the 70ms `.stagger` step. */}
         <div className="mx-auto flex w-320 flex-col items-center gap-15 text-center md:w-794 md:gap-30">
           <SectionBadge
             variant="outline"
             icon={<GlobeBoldIcon />}
-            className="text-u-5.5 md:text-u-14"
+            className="animate-drop-in text-u-5.5 md:text-u-14"
           >
             {HERO.badge.lead}
             <strong className="font-medium">{HERO.badge.strong}</strong>
@@ -138,17 +153,30 @@ export function HeroSection() {
 
           <div className="flex w-full flex-col gap-15 md:gap-30">
             <h1 className="text-u-40/40 font-medium tracking-jumpa md:text-u-100/80">
-              {HERO.heading.lead}
-              <span className="bg-[image:var(--gradient-jumpa-landing)] bg-clip-text text-transparent">
+              <RevealWords text={HERO.heading.lead} />
+              {/* One unit, never split: a per-word opacity stops the gradient
+                  painting through `bg-clip-text` — it renders blank. */}
+              <span
+                style={revealStep(LEAD_WORDS)}
+                className="stagger inline-block animate-word bg-[image:var(--gradient-jumpa-landing)] bg-clip-text text-transparent"
+              >
                 {HERO.heading.accent}
               </span>
             </h1>
-            <p className="text-u-12/18 tracking-jumpa md:text-u-22/32">
+            <p
+              style={revealStep(LEAD_WORDS + 1)}
+              className="stagger animate-reveal text-u-12/18 tracking-jumpa md:text-u-22/32"
+            >
               {HERO.subhead}
             </p>
           </div>
 
-          <HeroEmailForm />
+          <div
+            style={revealStep(LEAD_WORDS + 2)}
+            className="stagger animate-reveal"
+          >
+            <HeroEmailForm />
+          </div>
         </div>
 
         <div className="frame-1300 relative mx-auto mt-30.25 w-336.75 md:mt-114 md:w-1300">

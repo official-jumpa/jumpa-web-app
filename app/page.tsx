@@ -6,6 +6,7 @@ import { HeroSection } from "@/components/landing/hero-section";
 import { HowItWorksSection } from "@/components/landing/how-it-works-section";
 import { LandingFooter } from "@/components/landing/landing-footer";
 import { LandingNav } from "@/components/landing/landing-nav";
+import { RevealObserver } from "@/components/landing/reveal-observer";
 import { SecuritySection } from "@/components/landing/security-section";
 import { WhyJumpaSection } from "@/components/landing/why-jumpa-section";
 
@@ -21,11 +22,18 @@ import { WhyJumpaSection } from "@/components/landing/why-jumpa-section";
  * down rather than a third composition: `md:frame-1440/1440` makes the unit
  * track the viewport, so the page shrinks continuously from 1440 to 768 and
  * only swaps to the phone frame below it.
+ *
+ * Motion: the nav and hero play their entrance from plain `animate-*` utilities
+ * at the first paint, and everything below it carries a `.reveal*` marker that
+ * `RevealObserver` plays as it scrolls in. Decorative layers carry `.drift`,
+ * which is scroll-linked rather than looping. Nothing in either path moves a
+ * property that reflows, so the geometry at rest is the geometry in the design.
  */
 export default function LandingPage() {
   return (
     <main className="frame-393/550 md:frame-1440/1440 isolate overflow-x-clip bg-jumpa-white">
       <AuthRedirect />
+      <RevealObserver />
       <LandingNav />
       <HeroSection />
       <HowItWorksSection />

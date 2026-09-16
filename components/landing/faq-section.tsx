@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { DotGlow } from "@/components/landing/dot-glow";
+import { revealStep } from "@/components/landing/reveal";
 import { SectionBadge } from "@/components/landing/section-badge";
 import { FlashIcon } from "@/components/ui/icons/flash";
 import { cn } from "@/lib/cn";
@@ -24,7 +25,7 @@ export function FaqSection() {
       <div className="relative mx-auto w-393 md:w-1440">
         <DotGlow
           tone="purple"
-          className="-left-191 top-330 w-714.5 md:top-754 md:-left-49 md:w-1537.75"
+          className="drift -left-191 top-330 w-714.5 md:top-754 md:-left-49 md:w-1537.75 [--drift:-45]"
         />
 
         <div className="mx-auto flex w-320 flex-col items-center gap-40 md:w-1169 md:gap-100">
@@ -32,11 +33,14 @@ export function FaqSection() {
             <SectionBadge
               variant="disc"
               icon={<FlashIcon />}
-              className="text-u-14 md:text-u-16"
+              className="reveal text-u-14 md:text-u-16"
             >
               {FAQ.badge}
             </SectionBadge>
-            <h2 className="w-302 text-center text-u-40/40 font-medium tracking-jumpa md:w-638 md:text-u-72/74">
+            <h2
+              style={revealStep(1)}
+              className="reveal w-302 text-center text-u-40/40 font-medium tracking-jumpa md:w-638 md:text-u-72/74"
+            >
               {FAQ.heading}
             </h2>
           </div>
@@ -48,8 +52,12 @@ export function FaqSection() {
               return (
                 <li
                   key={item.question}
+                  // The last two rows are `md:hidden`. `RevealObserver` skips
+                  // anything with no client rects, so they are never marked and
+                  // cannot be left invisible if a resize brings them back.
+                  style={revealStep(index)}
                   className={cn(
-                    "rounded-u-30 bg-jumpa-white transition-shadow duration-300",
+                    "reveal rounded-u-30 bg-jumpa-white transition-shadow duration-300",
                     isOpen && "shadow-[0_4px_24px_rgba(0,0,0,0.06)]",
                     index >= 5 && "md:hidden",
                   )}

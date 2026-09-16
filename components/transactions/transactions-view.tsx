@@ -1,6 +1,8 @@
 "use client";
 
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { StatementForm } from "@/components/settings/statement-form";
 import { FilterSheet } from "@/components/transactions/filter-sheet";
 import { HistoryMenuSheet } from "@/components/transactions/history-menu-sheet";
 import { TransactionList } from "@/components/transactions/transaction-list";
@@ -57,13 +59,22 @@ export function TransactionsView({
   transactions: initialTransactions,
   filters,
   initialChain,
+  accountEmail,
 }: {
   transactions?: Transaction[];
   filters: TransactionFilter[];
   initialChain?: string;
+  /** Seeds the statement screen's email field. */
+  accountEmail?: string;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [sheet, setSheet] = useState<Sheet>(null);
   const [query, setQuery] = useState("");
+
+  // The statement screen is `?statement=1` rather than local state, so the tab
+  // bar hides itself on it the same way it does on `?id=`.
+  const onStatement = searchParams.get("statement") !== null;
 
   const defaultChainOption = initialChain
     ? initialChain.charAt(0).toUpperCase() + initialChain.slice(1).toLowerCase()
@@ -128,6 +139,18 @@ export function TransactionsView({
     );
   });
 
+  // The chip row on that screen picks the kind, so it opens on the whole history.
+  if (onStatement) {
+    return (
+      <StatementForm
+        kind="general"
+        back="/transactions"
+        onBack={() => router.back()}
+        accountEmail={accountEmail}
+      />
+    );
+  }
+
   return (
     <>
       <div className="flex flex-col gap-4 px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-30">
@@ -172,6 +195,12 @@ export function TransactionsView({
       {sheet === "menu" ? (
         <HistoryMenuSheet
           onFilters={() => setSheet("filters")}
+          onStatement={() => {
+            setSheet(null);
+            const next = new URLSearchParams(searchParams);
+            next.set("statement", "1");
+            router.push(`/transactions?${next}`);
+          }}
           onClose={() => setSheet(null)}
         />
       ) : null}

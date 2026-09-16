@@ -78,25 +78,30 @@ export function TransferSuccess({
 
   const slot = showDetails && details ? details : null;
 
-  const actions = actionsOverride ?? (
-    <div className="flex h-17.5 items-center gap-2 rounded-card border border-jumpa-neutral-100 p-2.25">
-      {showDetails ? null : (
-        <button
-          type="button"
-          onClick={() => setShowDetails(true)}
-          disabled={!details}
-          className={`${ACTION} disabled:opacity-50`}
-        >
-          <ShieldCheckIcon className="size-6 text-jumpa-primary-600" />
-          More details
+  // `undefined` takes the default pair; `null` is a deliberate "no actions",
+  // which the statement receipt uses — there is nothing to open or share.
+  const actions =
+    actionsOverride !== undefined ? (
+      actionsOverride
+    ) : (
+      <div className="flex h-17.5 items-center gap-2 rounded-card border border-jumpa-neutral-100 p-2.25">
+        {showDetails ? null : (
+          <button
+            type="button"
+            onClick={() => setShowDetails(true)}
+            disabled={!details}
+            className={`${ACTION} disabled:opacity-50`}
+          >
+            <ShieldCheckIcon className="size-6 text-jumpa-primary-600" />
+            More details
+          </button>
+        )}
+        <button type="button" onClick={onShare} className={ACTION}>
+          <ShareArrowIcon className="size-6 text-jumpa-primary-600" />
+          Share
         </button>
-      )}
-      <button type="button" onClick={onShare} className={ACTION}>
-        <ShareArrowIcon className="size-6 text-jumpa-primary-600" />
-        Share
-      </button>
-    </div>
-  );
+      </div>
+    );
 
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">

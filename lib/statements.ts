@@ -3,15 +3,24 @@
  * with no `kind` the same list renders as its own screen.
  */
 export const STATEMENT_KINDS = {
-  cards: { label: "Cards" },
-  usd: { label: "USD" },
-  ngn: { label: "NGN" },
-  general: { label: "General" },
+  cards: { label: "Cards", chip: "Cards" },
+  usd: { label: "USD", chip: "USD" },
+  ngn: { label: "NGN", chip: "NGN" },
+  // The whole history, so the chip reads "All" where the title reads "General".
+  general: { label: "General", chip: "All" },
 } as const;
 
 export type StatementKind = keyof typeof STATEMENT_KINDS;
 
 export const STATEMENT_ORDER = Object.keys(STATEMENT_KINDS) as StatementKind[];
+
+/** Chip order on the statement screen, which leads with the whole history. */
+export const STATEMENT_CHIPS: StatementKind[] = [
+  "general",
+  "usd",
+  "ngn",
+  "cards",
+];
 
 export function isStatementKind(value: string): value is StatementKind {
   return value in STATEMENT_KINDS;

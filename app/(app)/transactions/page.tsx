@@ -28,9 +28,11 @@ export default async function TransactionsPage({
   if (id) return <TransactionDetail id={id} />;
 
   let initialTransactions: Transaction[] = [];
+  let accountEmail: string | undefined;
 
   try {
     const session = await getCachedAuthSession();
+    accountEmail = session?.user?.email ?? undefined;
     if (session?.user?.id) {
       const { transactions: rawTx } = await queryUserTransactions({
         userId: session.user.id,
@@ -51,6 +53,7 @@ export default async function TransactionsPage({
       transactions={initialTransactions}
       filters={TRANSACTION_FILTERS}
       initialChain={chain}
+      accountEmail={accountEmail}
     />
   );
 }

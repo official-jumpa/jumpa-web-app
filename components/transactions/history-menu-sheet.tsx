@@ -25,12 +25,14 @@ function Item({
   );
 }
 
-/** Menu behind the header's funnel button: filtering and exports. */
+/** Menu behind the header's funnel button: filtering and the statement request. */
 export function HistoryMenuSheet({
   onFilters,
+  onStatement,
   onClose,
 }: {
   onFilters: () => void;
+  onStatement: () => void;
   onClose: () => void;
 }) {
   return (
@@ -41,15 +43,11 @@ export function HistoryMenuSheet({
           onClick={onFilters}
           icon={<FilterLinesIcon className="size-6 text-jumpa-primary-600" />}
         />
-        {/* No export service yet, so both downloads just dismiss. */}
+        {/* The format, the range and the address are all picked on the
+            statement screen now, so this is one row rather than four. */}
         <Item
-          label="Download History (PDF)"
-          onClick={onClose}
-          icon={<FileDownloadIcon className="size-6 text-jumpa-primary-600" />}
-        />
-        <Item
-          label="Download History (CSV)"
-          onClick={onClose}
+          label="Download Statement"
+          onClick={onStatement}
           icon={<FileDownloadIcon className="size-6 text-jumpa-primary-600" />}
         />
       </div>

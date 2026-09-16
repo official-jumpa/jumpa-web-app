@@ -27,7 +27,9 @@ export function BottomNav() {
   const isTabRoute =
     pathname === "/home" ||
     pathname.startsWith("/cards") ||
-    (pathname === "/transactions" && !searchParams?.get("id")) ||
+    (pathname === "/transactions" &&
+      !searchParams?.get("id") &&
+      !searchParams?.get("statement")) ||
     pathname === "/profile";
 
   if (!isTabRoute) {

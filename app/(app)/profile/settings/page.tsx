@@ -66,7 +66,14 @@ export default async function SettingsPage({
   if (section === "statements") {
     if (!kind) return <StatementIndex />;
     if (!isStatementKind(kind)) notFound();
-    return <StatementForm kind={kind} />;
+    let accountEmail: string | undefined;
+    try {
+      const session = await getCachedAuthSession();
+      accountEmail = session?.user?.email ?? undefined;
+    } catch (err) {
+      console.warn("[SettingsPage SSR]:", err);
+    }
+    return <StatementForm kind={kind} accountEmail={accountEmail} />;
   }
 
   if (isPinFlow(section)) return <PinFlow name={section} />;

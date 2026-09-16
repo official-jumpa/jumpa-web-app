@@ -1,9 +1,9 @@
 import Image from "next/image";
 import { DotGlow } from "@/components/landing/dot-glow";
 import { HeroEmailForm } from "@/components/landing/email-capture-form";
+import { countChars, HeadlineChars } from "@/components/landing/headline-chars";
 import { QuickActionChips } from "@/components/landing/quick-action-chips";
 import { revealStep } from "@/components/landing/reveal";
-import { RevealWords } from "@/components/landing/reveal-words";
 import { SectionBadge } from "@/components/landing/section-badge";
 import { CirclePlusIcon } from "@/components/ui/icons/circle-plus";
 import { GlobeBoldIcon } from "@/components/ui/icons/globe-bold";
@@ -13,8 +13,14 @@ import { CHAT_PREVIEW, HERO } from "@/lib/landing";
 const BUBBLE =
   "rounded-full bg-jumpa-neutral-95 px-26 py-11.5 text-u-13/16 tracking-jumpa text-jumpa-black";
 
-/** Where the heading's own words stop, so the rest of the column carries on from there. */
-const LEAD_WORDS = HERO.heading.lead.trim().split(/\s+/).length;
+/** Where the heading's own characters stop, so the gradient word follows in step. */
+const LEAD_CHARS = countChars(HERO.heading.lead);
+
+/* The column runs on the 70ms `.stagger` step while the heading types itself on
+   a 34ms one, so the two are sequenced by hand: the subhead arrives as the last
+   character lands, and the form a beat behind it. */
+const SUBHEAD_STEP = 15;
+const FORM_STEP = 17;
 
 /**
  * The frosted chat mock that floats over the hero photo. Sized in its own 393
@@ -153,28 +159,40 @@ export function HeroSection() {
 
           <div className="flex w-full flex-col gap-15 md:gap-30">
             <h1 className="text-u-40/40 font-medium tracking-jumpa md:text-u-100/80">
-              <RevealWords text={HERO.heading.lead} />
-              {/* One unit, never split: a per-word opacity stops the gradient
-                  painting through `bg-clip-text` — it renders blank. */}
-              <span
-                style={revealStep(LEAD_WORDS)}
-                className="stagger inline-block animate-word bg-[image:var(--gradient-jumpa-landing)] bg-clip-text text-transparent"
-              >
+              {/* The split is decorative; this is the sentence a screen reader
+                  gets, so the heading is not read out letter by letter. */}
+              <span className="sr-only">
+                {HERO.heading.lead}
                 {HERO.heading.accent}
+              </span>
+              <span aria-hidden="true">
+                <HeadlineChars text={HERO.heading.lead} />
+                {/* A zero-width slot, so the caret costs the line no layout and
+                    the heading wraps exactly where it did. */}
+                <span className="relative inline-block w-0">
+                  {/* Nudged back into the word space, so the bar sits in the
+                      gap rather than against the next glyph's stem. */}
+                  <span className="type-caret absolute bottom-[0.06em] left-[-0.16em] h-[0.76em] w-[0.055em] rounded-full bg-jumpa-primary-600" />
+                </span>
+                {/* One unit, never split: a per-character opacity stops the
+                    gradient painting through `bg-clip-text` — it renders blank. */}
+                <span
+                  style={revealStep(LEAD_CHARS)}
+                  className="headline-accent inline-block"
+                >
+                  {HERO.heading.accent}
+                </span>
               </span>
             </h1>
             <p
-              style={revealStep(LEAD_WORDS + 1)}
+              style={revealStep(SUBHEAD_STEP)}
               className="stagger animate-reveal text-u-12/18 tracking-jumpa md:text-u-22/32"
             >
               {HERO.subhead}
             </p>
           </div>
 
-          <div
-            style={revealStep(LEAD_WORDS + 2)}
-            className="stagger animate-reveal"
-          >
+          <div style={revealStep(FORM_STEP)} className="stagger animate-reveal">
             <HeroEmailForm />
           </div>
         </div>

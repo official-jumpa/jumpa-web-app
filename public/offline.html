@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Offline — Jumpa</title>
+    <!--
+      The only page the app can show with no connection, so it is one file with
+      no stylesheet, no font and no script to fetch. Colours are the brand
+      tokens' own values; there is no way to read `globals.css` from here.
+    -->
+    <style>
+      :root {
+        color-scheme: light;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        padding: 24px;
+        text-align: center;
+        background: #ffffff;
+        color: #161616;
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+        letter-spacing: -0.01em;
+      }
+      .mark {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        background: linear-gradient(180deg, #8f12ff 0%, #ac72ff 100%);
+      }
+      .mark img {
+        width: 30px;
+      }
+      h1 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 600;
+      }
+      p {
+        margin: 0;
+        max-width: 24rem;
+        font-size: 14px;
+        line-height: 20px;
+        color: #646464;
+      }
+      button {
+        margin-top: 10px;
+        height: 44px;
+        padding: 0 24px;
+        border: 0;
+        border-radius: 100px;
+        background: #8f12ff;
+        color: #ffffff;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <span class="mark"><img src="/logo/mark/white.png" alt="Jumpa" /></span>
+    <h1>You're offline</h1>
+    <p>
+      Jumpa needs a connection to reach your wallet. Your money and your
+      recovery phrase are untouched — reconnect and carry on.
+    </p>
+    <button type="button" onclick="location.reload()">Try again</button>
+  </body>
+</html>

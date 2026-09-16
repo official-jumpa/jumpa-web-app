@@ -4,6 +4,7 @@ import { FaqSection } from "@/components/landing/faq-section";
 import { FeaturesSection } from "@/components/landing/features-section";
 import { HeroSection } from "@/components/landing/hero-section";
 import { HowItWorksSection } from "@/components/landing/how-it-works-section";
+import { InstallPrompt } from "@/components/landing/install-prompt";
 import { LandingFooter } from "@/components/landing/landing-footer";
 import { LandingNav } from "@/components/landing/landing-nav";
 import { RevealObserver } from "@/components/landing/reveal-observer";
@@ -31,18 +32,23 @@ import { WhyJumpaSection } from "@/components/landing/why-jumpa-section";
  */
 export default function LandingPage() {
   return (
-    <main className="frame-393/550 md:frame-1440/1440 isolate overflow-x-clip bg-jumpa-white">
-      <AuthRedirect />
-      <RevealObserver />
-      <LandingNav />
-      <HeroSection />
-      <HowItWorksSection />
-      <FeaturesSection />
-      <WhyJumpaSection />
-      <SecuritySection />
-      <FaqSection />
-      <BetaCtaSection />
-      <LandingFooter />
-    </main>
+    <>
+      {/* Outside the frame: the card is app chrome, so it measures in the app's
+          own spacing rather than the landing frame's scaled unit. */}
+      <InstallPrompt />
+      <main className="frame-393/550 md:frame-1440/1440 isolate overflow-x-clip bg-jumpa-white">
+        <AuthRedirect />
+        <RevealObserver />
+        <LandingNav />
+        <HeroSection />
+        <HowItWorksSection />
+        <FeaturesSection />
+        <WhyJumpaSection />
+        <SecuritySection />
+        <FaqSection />
+        <BetaCtaSection />
+        <LandingFooter />
+      </main>
+    </>
   );
 }

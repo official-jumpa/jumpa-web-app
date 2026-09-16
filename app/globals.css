@@ -201,6 +201,17 @@
   /* Decorative artwork, tied to the scroll position rather than a clock. */
   --animate-drift: drift linear both;
 
+  /* The hero headline, played once at the first paint. The lead's characters
+     flip up off the baseline like a split-flap board while a caret blinks at
+     the tail; the gradient word then lands on a curve of its own and a single
+     sheen crosses it. Overshoots and settles — the one place on the page that
+     does, because it is the one thing everybody looks at. */
+  --ease-jumpa-pop: cubic-bezier(0.22, 1.36, 0.36, 1);
+  --animate-flip: flip 720ms var(--ease-jumpa) both;
+  --animate-land: land 760ms var(--ease-jumpa-pop) both;
+  --animate-sheen: sheen 900ms ease-out both;
+  --animate-type-caret: type-caret 1300ms steps(1, end) both;
+
   @keyframes rise {
     from {
       opacity: 0;
@@ -308,6 +319,62 @@
     from {
       opacity: 0;
       transform: scaleY(0.06);
+    }
+  }
+  /* One character of the headline, hinged on its own baseline. `perspective()`
+     is part of the transform rather than a property on the parent, so a
+     character needs nothing around it to stand up. */
+  @keyframes flip {
+    from {
+      opacity: 0;
+      transform: perspective(600px) rotateX(-88deg) translateY(0.24em);
+      filter: blur(5px);
+    }
+    55% {
+      opacity: 1;
+      filter: blur(0);
+    }
+  }
+  /* The gradient word arriving. On the pop curve it passes its resting size and
+     settles back, which is what makes it read as landing rather than fading. */
+  @keyframes land {
+    from {
+      opacity: 0;
+      transform: translateY(0.3em) scale(0.86);
+    }
+  }
+  /* A single light streak crossing the gradient word, clipped to its glyphs.
+     Only the streak's own layer moves; the brand gradient under it holds still.
+     `background-position` is the one property in this file's motion that is not
+     opacity/transform/filter — it cannot reflow, which is what that rule is
+     for, and there is no way to sweep a layer of a clipped background stack
+     with a transform. */
+  @keyframes sheen {
+    from {
+      background-position:
+        240% 0,
+        0 0;
+    }
+    to {
+      background-position:
+        -140% 0,
+        0 0;
+    }
+  }
+  /* Blinks while the line types itself, then goes out and stays out. */
+  @keyframes type-caret {
+    0%,
+    26%,
+    52%,
+    78% {
+      opacity: 1;
+    }
+    13%,
+    39%,
+    65%,
+    91%,
+    100% {
+      opacity: 0;
     }
   }
   /* Runs on a view timeline, so `from` is the moment the layer enters the
@@ -599,6 +666,11 @@
     .drift {
       animation: none !important;
     }
+
+    /* A caret that cannot blink is just a bar through the headline. */
+    .type-caret {
+      opacity: 0 !important;
+    }
   }
 
   /* Same reasoning for print: a page printed mid-scroll must not come out with
@@ -606,6 +678,9 @@
   @media print {
     [data-reveal-wait] {
       opacity: 1 !important;
+    }
+    .type-caret {
+      opacity: 0 !important;
     }
   }
 }
@@ -670,6 +745,52 @@
   .reveal-zoom[data-reveal-in],
   .reveal-bar[data-reveal-in] {
     animation-delay: calc(var(--i, 0) * var(--step, 80ms));
+  }
+
+  /*
+   * The hero headline's entrance. `--i` is a character's place in the line and
+   * the delay follows from it, the same idiom as `.stagger` but at a typing
+   * cadence: fast enough that the line reads as one sweep, slow enough to watch
+   * each character land. Retime a run with `--type-step`.
+   */
+  .flip-char {
+    animation: var(--animate-flip);
+    animation-delay: calc(var(--i, 0) * var(--type-step, 34ms));
+    transform-origin: 50% 85%;
+  }
+  .type-caret {
+    animation: var(--animate-type-caret);
+  }
+  /*
+   * The gradient word, which has to animate as ONE unit: `background-clip: text`
+   * does not paint through a child carrying its own opacity, so a split
+   * gradient phrase renders blank. The sheen is a second layer on the same
+   * background stack, clipped to the glyphs exactly as the brand gradient is,
+   * and starts a beat after the word lands.
+   */
+  .headline-accent {
+    background-image:
+      linear-gradient(
+        100deg,
+        transparent 40%,
+        color-mix(in srgb, var(--color-jumpa-white) 80%, transparent) 50%,
+        transparent 60%
+      ),
+      var(--gradient-jumpa-landing);
+    background-size:
+      220% 100%,
+      100% 100%;
+    /* The streak is wider than the box, so a positive percentage parks it off
+       the left and a negative one off the right — it crosses left to right. */
+    background-position:
+      240% 0,
+      0 0;
+    background-clip: text;
+    color: transparent;
+    animation: var(--animate-land), var(--animate-sheen);
+    animation-delay:
+      calc(var(--i, 0) * var(--type-step, 34ms)),
+      calc(var(--i, 0) * var(--type-step, 34ms) + 320ms);
   }
 
   /*

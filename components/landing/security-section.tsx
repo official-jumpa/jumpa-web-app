@@ -38,9 +38,9 @@ export function SecuritySection() {
           >
             {SECURITY.badge}
           </SectionBadge>
-          {/* The gradient heading reveals as one element, never per word — see
-              `RevealWords`: `background-clip: text` will not paint through a
-              child that carries its own opacity. */}
+          {/* The gradient heading reveals as one element, never per word:
+              `background-clip: text` will not paint through a child that
+              carries its own opacity. */}
           <h2
             style={revealStep(1)}
             className="reveal bg-[image:var(--gradient-jumpa-landing)] bg-clip-text text-u-40/40 font-medium tracking-jumpa text-transparent md:text-u-72/70"

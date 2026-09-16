@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import { ServiceWorker } from "@/components/service-worker";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -27,7 +28,9 @@ export const metadata: Metadata = {
   description: 'Send, swap, save, and spend across currencies and chains all in one conversation.',
   icons: {
     // icon: '/logo.png', // its affecting the main favicon
-    apple: '/logo.png',
+    // The home-screen icon has to be square — /logo.png is the 803x381 mark and
+    // iOS letterboxes it. Generated with the PWA icons; see app/manifest.ts.
+    apple: '/icons/apple-icon-180.png',
   },
   openGraph: {
     title: {
@@ -54,6 +57,12 @@ export const metadata: Metadata = {
     },
     description: 'Send, swap, save, and spend across currencies and chains all in one conversation.',
     images: ['/logo.png'],
+  },
+  // Safari PWA: opens as standalone app with no browser chrome.
+  other: {
+    'apple-mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-status-bar-style': 'black-translucent',
+    'apple-mobile-web-app-title': 'Jumpa',
   },
 };
 export const viewport: Viewport = {
@@ -90,6 +99,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </Script>
           </>
         )}
+        <ServiceWorker />
         {children}
       </body>
     </html>

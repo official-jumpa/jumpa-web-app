@@ -674,3 +674,251 @@ export async function findRecentUserTransactions(
   }).lean();
 }
 
+export interface ResolveTransactionsResult {
+  totalChecked: number;
+  confirmed: number;
+  failed: number;
+  stillPending: number;
+  details: Array<{
+    id: string;
+    reference: string;
+    type: string;
+    amount: string;
+    token: string;
+    previousStatus: string;
+    newStatus: string;
+    providerStatus: string;
+    reason?: string;
+  }>;
+}
+
+/**
+ * Iterates through all PENDING transactions that have a ramp reference (e.g. Switch onramp/offramp),
+ * queries the Switch provider status API, and updates their status in the database.
+ *
+ * - COMPLETED / SUCCESSFUL / SETTLED -> CONFIRMED (txHash, explorerUrl set, cache invalidated, notifications created)
+ * - FAILED / CANCELLED / REJECTED -> FAILED
+ * - AWAITING_DEPOSIT / PENDING / PROCESSING:
+ *     - If < staleHours old (default 24h): remains PENDING (active deposit window)
+ *     - If >= staleHours old: marked FAILED ("Deposit window expired")
+ */
+export async function resolveAllPendingTransactions(options?: {
+  staleHours?: number;
+}): Promise<ResolveTransactionsResult> {
+  await connectDB();
+  const staleHours = options?.staleHours ?? 24;
+  const cutoffTime = new Date(Date.now() - staleHours * 60 * 60 * 1000);
+
+  const pendingTxs = await Transaction.find({
+    status: "PENDING",
+    "rampDetails.reference": { $exists: true, $ne: null },
+  }).lean();
+
+  console.log(
+    `[ResolveTx] Starting resolution run... Found ${pendingTxs.length} pending transaction(s) with Switch references (stale threshold: ${staleHours}h)`,
+  );
+
+  const result: ResolveTransactionsResult = {
+    totalChecked: pendingTxs.length,
+    confirmed: 0,
+    failed: 0,
+    stillPending: 0,
+    details: [],
+  };
+
+  for (const tx of pendingTxs) {
+    const reference = tx.rampDetails?.reference;
+    if (!reference) continue;
+
+    try {
+      const statusRes = await SwitchService.getTransactionStatus(reference);
+      const rawStatus = (statusRes?.data?.status || "").toUpperCase();
+
+      const isCompleted = [
+        "COMPLETED",
+        "SUCCESS",
+        "SUCCESSFUL",
+        "DELIVERED",
+        "SETTLED",
+      ].includes(rawStatus);
+
+      const isExplicitFailed = [
+        "FAILED",
+        "CANCELLED",
+        "REJECTED",
+      ].includes(rawStatus);
+
+      const isStale = tx.createdAt && new Date(tx.createdAt) < cutoffTime;
+
+      if (isCompleted) {
+        const txHash = statusRes.data?.meta?.hash || reference;
+        const explorerUrl = statusRes.data?.meta?.explorer_url || null;
+
+        await Transaction.updateOne(
+          { _id: tx._id },
+          {
+            $set: {
+              status: "CONFIRMED",
+              txHash,
+              ...(explorerUrl ? { explorerUrl } : {}),
+              updatedAt: new Date(),
+            },
+          },
+        );
+
+        console.log(
+          `[ResolveTx] ✅ Confirmed tx ${tx._id} (${tx.amount} ${tx.token}, ref: ${reference}) -> CONFIRMED (hash: ${txHash})`,
+        );
+
+        if (tx.userId) invalidateBalanceCache(tx.userId);
+        if (tx.toAddress) invalidateBalanceCache(tx.toAddress);
+        if (tx.fromAddress) invalidateBalanceCache(tx.fromAddress);
+
+        if (tx.userId) {
+          if (tx.type === "ONRAMP") {
+            logUserActivity({
+              userId: tx.userId,
+              action: "ONRAMP_COMPLETED",
+              details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
+            }).catch(() => {});
+
+            createNotification({
+              userId: tx.userId,
+              tab: "transactions",
+              type: "ONRAMP_COMPLETED",
+              title: "Deposit Successful",
+              body: `${tx.amount} ${tx.token} successfully deposited to your wallet`,
+              metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
+              link: "/transactions",
+            }).catch(() => {});
+          } else if (tx.type === "OFFRAMP") {
+            logUserActivity({
+              userId: tx.userId,
+              action: "OFFRAMP_COMPLETED",
+              details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
+            }).catch(() => {});
+
+            createNotification({
+              userId: tx.userId,
+              tab: "transactions",
+              type: "OFFRAMP_COMPLETED",
+              title: "Withdrawal Successful",
+              body: `${tx.amount} ${tx.token} sent to your bank account`,
+              metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
+              link: "/transactions",
+            }).catch(() => {});
+          }
+        }
+
+        result.confirmed++;
+        result.details.push({
+          id: tx._id,
+          reference,
+          type: tx.type,
+          amount: tx.amount,
+          token: tx.token,
+          previousStatus: "PENDING",
+          newStatus: "CONFIRMED",
+          providerStatus: rawStatus || "COMPLETED",
+        });
+      } else if (isExplicitFailed) {
+        await Transaction.updateOne(
+          { _id: tx._id },
+          {
+            $set: {
+              status: "FAILED",
+              errorMessage: statusRes?.message || "Transaction failed at provider",
+              updatedAt: new Date(),
+            },
+          },
+        );
+
+        console.log(
+          `[ResolveTx] ❌ Failed tx ${tx._id} (${tx.amount} ${tx.token}, ref: ${reference}) -> FAILED (${statusRes?.message || "Failed at provider"})`,
+        );
+
+        result.failed++;
+        result.details.push({
+          id: tx._id,
+          reference,
+          type: tx.type,
+          amount: tx.amount,
+          token: tx.token,
+          previousStatus: "PENDING",
+          newStatus: "FAILED",
+          providerStatus: rawStatus || "FAILED",
+          reason: statusRes?.message || "Failed at provider",
+        });
+      } else if (isStale) {
+        // Older than staleHours (24h) and not completed -> deposit window expired
+        await Transaction.updateOne(
+          { _id: tx._id },
+          {
+            $set: {
+              status: "FAILED",
+              errorMessage: "Deposit window expired",
+              updatedAt: new Date(),
+            },
+          },
+        );
+
+        console.log(
+          `[ResolveTx] ⌛ Expired tx ${tx._id} (${tx.amount} ${tx.token}, ref: ${reference}) -> FAILED (Deposit window expired > ${staleHours}h)`,
+        );
+
+        result.failed++;
+        result.details.push({
+          id: tx._id,
+          reference,
+          type: tx.type,
+          amount: tx.amount,
+          token: tx.token,
+          previousStatus: "PENDING",
+          newStatus: "FAILED",
+          providerStatus: rawStatus || "EXPIRED",
+          reason: `Deposit window expired (> ${staleHours}h)`,
+        });
+      } else {
+        // Recent transaction within active window (< 24h)
+        console.log(
+          `[ResolveTx] ⏳ Tx ${tx._id} (${tx.amount} ${tx.token}, ref: ${reference}) still PENDING (Switch: ${rawStatus || "AWAITING_DEPOSIT"})`,
+        );
+
+        result.stillPending++;
+        result.details.push({
+          id: tx._id,
+          reference,
+          type: tx.type,
+          amount: tx.amount,
+          token: tx.token,
+          previousStatus: "PENDING",
+          newStatus: "PENDING",
+          providerStatus: rawStatus || "AWAITING_DEPOSIT",
+          reason: "Within active deposit window (< 24h)",
+        });
+      }
+    } catch (err: any) {
+      console.error(`[ResolveTx] ⚠️ Error resolving reference ${reference}:`, err?.message || err);
+      result.stillPending++;
+      result.details.push({
+        id: tx._id,
+        reference,
+        type: tx.type,
+        amount: tx.amount,
+        token: tx.token,
+        previousStatus: "PENDING",
+        newStatus: "PENDING",
+        providerStatus: "ERROR",
+        reason: err?.message || "Error contacting Switch provider",
+      });
+    }
+  }
+
+  console.log(
+    `[ResolveTx] Run complete. Checked: ${result.totalChecked} | Confirmed: ${result.confirmed} | Failed: ${result.failed} | Still Pending: ${result.stillPending}`,
+  );
+
+  return result;
+}
+
+

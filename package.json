@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "biome check",
-    "format": "biome format --write"
+    "format": "biome format --write",
+    "resolve-pending-txs": "node --env-file=.env --import tsx scripts/resolve-transactions.ts"
   },
   "dependencies": {
     "@noble/hashes": "^2.3.0",
@@ -42,6 +43,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
+    "tsx": "^4.23.13",
     "typescript": "^5"
   }
 }

@@ -36,9 +36,23 @@ const UserSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true, lowercase: true },
     emailVerified: { type: Boolean, required: true, default: false },
     image: { type: String, default: null },
-    jumpaTag: { type: String, unique: true, sparse: true, lowercase: true },
+    jumpaTag: {
+      type: String,
+      lowercase: true,
+      index: {
+        unique: true,
+        partialFilterExpression: { jumpaTag: { $type: "string" } },
+      },
+    },
     loginPasswordHash: { type: String, default: null },
-    referralCode: { type: String, unique: true, sparse: true, lowercase: true },
+    referralCode: {
+      type: String,
+      lowercase: true,
+      index: {
+        unique: true,
+        partialFilterExpression: { referralCode: { $type: "string" } },
+      },
+    },
     referredBy: { type: String, default: null },
     lastLoginAt: { type: Date, default: null },
     loginMethod: { type: String, enum: ["google", "email", "anonymous"], default: "email" },

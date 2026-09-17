@@ -138,6 +138,7 @@ function CustomField({
       }}
       className={cn(BOX, SELECTED)}
     >
+      {/* maintain minimum of 16px font on input fields to prevent iphones from zooming in the page */}
       <input
         ref={field}
         value={value}
@@ -148,7 +149,7 @@ function CustomField({
         inputMode={numeric ? "decimal" : "text"}
         placeholder={option.placeholder ?? option.label}
         aria-label={option.label}
-        className="min-w-0 flex-1 bg-transparent text-sm leading-4 font-medium text-jumpa-black outline-none placeholder:text-jumpa-primary-950"
+        className="min-w-0 flex-1 bg-transparent text-[16px] leading-4 font-medium text-jumpa-black outline-none placeholder:text-jumpa-primary-950 md:text-sm"
       />
       {/* Send, not a chevron: iOS number pads have no return key to submit with. */}
       <button

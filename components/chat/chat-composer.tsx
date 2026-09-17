@@ -273,7 +273,7 @@ export function ChatComposer({
           >
             <CirclePlusIcon className="size-6" />
           </button>
-
+          {/* maintain minimum of 16px font on input fields to prevent iphones from zooming in the page */}
           <textarea
             ref={fieldRef}
             rows={1}
@@ -283,7 +283,7 @@ export function ChatComposer({
             disabled={disabled}
             aria-label="Message Jumpa"
             placeholder={placeholder}
-            className="my-3 min-w-0 flex-1 resize-none overflow-y-auto pr-2.5 text-[13px] leading-5 font-medium text-jumpa-black outline-none [scrollbar-width:none] placeholder:text-jumpa-black/30 disabled:opacity-50"
+            className="my-3 min-w-0 flex-1 resize-none overflow-y-auto pr-2.5 text-[16px] leading-5 font-medium text-jumpa-black outline-none [scrollbar-width:none] placeholder:text-jumpa-black/30 disabled:opacity-50 md:text-[13px]"
             autoFocus={autoFocus}
           />
         </div>

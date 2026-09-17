@@ -168,11 +168,12 @@ export function HeroEmailForm() {
         className="flex items-center gap-10 rounded-full border-u-1 border-jumpa-grey-200 bg-jumpa-white pr-4 pl-24 shadow-landing-form"
       >
         <AtSignIcon className="size-16 shrink-0 text-jumpa-grey-450" />
+        {/* maintain minimum of 16px font on input fields to prevent iphones from zooming in the page */}
         <EmailInput
           value={email}
           onChange={setEmail}
           disabled={status === "pending" || status === "success"}
-          className="py-20 text-u-14/17 placeholder:text-jumpa-black"
+          className="py-20 text-[16px] placeholder:text-jumpa-black md:text-u-14/17"
         />
         <CtaPill
           type="submit"
@@ -223,12 +224,13 @@ export function BetaEmailCard() {
         </span>
         <span className="flex items-center gap-8 rounded-full border-u-1 border-jumpa-primary-100 bg-jumpa-primary-50 py-16 pr-21 pl-24">
           <MailBoldIcon className="size-24 shrink-0 text-jumpa-primary-950" />
+          {/* maintain minimum of 16px font on input fields to prevent iphones from zooming in the page */}
           <EmailInput
             id="beta-email"
             value={email}
             onChange={setEmail}
             disabled={status === "pending" || status === "success"}
-            className="text-u-10/16 font-medium text-jumpa-primary-950 placeholder:text-jumpa-primary-950 md:text-u-14/16"
+            className="text-[16px] font-medium text-jumpa-primary-950 placeholder:text-jumpa-primary-950 md:text-u-14/16"
           />
         </span>
       </label>
@@ -282,11 +284,12 @@ export function FooterEmailForm() {
         className="flex h-60 w-full shrink-0 items-center gap-2 rounded-full border-u-1 border-jumpa-grey-200 bg-jumpa-white pr-7.75 pl-26 md:w-325"
       >
         <AtSignIcon className="size-16 shrink-0 text-jumpa-grey-450 opacity-70" />
+        {/* maintain minimum of 16px font on input fields to prevent iphones from zooming in the page */}
         <EmailInput
           value={email}
           onChange={setEmail}
           disabled={status === "pending" || status === "success"}
-          className="text-u-14/17 placeholder:text-jumpa-grey-450"
+          className="text-[16px] placeholder:text-jumpa-grey-450 md:text-u-14/17"
         />
         <button
           type="submit"

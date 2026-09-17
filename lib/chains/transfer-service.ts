@@ -225,8 +225,8 @@ export async function sendSolana(params: {
   const fromAddress = keypair.publicKey.toBase58();
   const destPubkey = new PublicKey(destination);
   const connection = new Connection(
-    environment.ALCHEMY_MAINNET_RPC ||
-      environment.SOL_MAINNET ||
+    environment.SOL_MAINNET ||
+      environment.NEXT_PUBLIC_SOLANA_RPC ||
       "https://api.mainnet-beta.solana.com",
     "confirmed",
   );

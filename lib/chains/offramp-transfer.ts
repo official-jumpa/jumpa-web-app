@@ -185,9 +185,9 @@ export async function executeOfframpTransfer(options: {
     // ── 2. Solana Transfer
     if (config.chain === "solana") {
       const solRpc =
-        environment.ALCHEMY_MAINNET_RPC ||
         environment.SOL_MAINNET ||
-        environment.NEXT_PUBLIC_SOLANA_RPC;
+        environment.NEXT_PUBLIC_SOLANA_RPC ||
+        "https://api.mainnet-beta.solana.com";
       const connection = new Connection(solRpc, "confirmed");
 
       const seed = bip39.mnemonicToSeedSync(mnemonic);

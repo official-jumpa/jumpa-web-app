@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "biome check",
     "format": "biome format --write",
-    "resolve-pending-txs": "node --import tsx scripts/resolve-transactions.ts"
+    "resolve-pending-txs": "node --import tsx script/resolve-transactions.ts"
   },
   "dependencies": {
     "@noble/hashes": "^2.3.0",

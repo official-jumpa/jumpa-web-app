@@ -20,9 +20,14 @@ import { WhyJumpaSection } from "@/components/landing/why-jumpa-section";
  * `app/globals.css` — the root carries no padding or border, by that rule.
  *
  * There is no tablet frame in Figma, so 768–1023 is the desktop frame scaled
- * down rather than a third composition: `md:frame-1440/1440` makes the unit
+ * down rather than a third composition: `md:frame-1440/2560` makes the unit
  * track the viewport, so the page shrinks continuously from 1440 to 768 and
  * only swaps to the phone frame below it.
+ *
+ * It grows the same way up to 2560 and freezes there. Scaling is uniform, so
+ * the composition never departs from the 1440 frame — only its size changes.
+ * The ceiling exists because the decorative washes and the feature row's clip
+ * are sized in frame units: past it they stop short of the viewport edge.
  *
  * Motion: the nav and hero play their entrance from plain `animate-*` utilities
  * at the first paint, and everything below it carries a `.reveal*` marker that
@@ -36,7 +41,7 @@ export default function LandingPage() {
       {/* Outside the frame: the card is app chrome, so it measures in the app's
           own spacing rather than the landing frame's scaled unit. */}
       <InstallPrompt />
-      <main className="frame-393/550 md:frame-1440/1440 isolate overflow-x-clip bg-jumpa-white">
+      <main className="frame-393/550 md:frame-1440/2560 isolate overflow-x-clip bg-jumpa-white">
         <AuthRedirect />
         <RevealObserver />
         <LandingNav />

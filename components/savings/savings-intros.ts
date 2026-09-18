@@ -4,6 +4,7 @@ import {
   INDIVIDUAL_SAVINGS_TERMS,
   LOCK_SAVINGS_TERMS,
   type SavingsKind,
+  savingsHref,
 } from "@/lib/savings";
 
 /** Copy is the design's own, including the CTA wording. */
@@ -16,7 +17,7 @@ export const SAVINGS_INTROS: Record<SavingsKind, SavingsIntro> = {
     body: "Save at your own pace. Set a personal target and work towards it consistently.",
     terms: INDIVIDUAL_SAVINGS_TERMS,
     cta: "Create a new target",
-    href: "/savings/individual",
+    href: savingsHref("individual"),
   },
   lock: {
     art: "/images/savings/lock-intro.svg",
@@ -26,7 +27,7 @@ export const SAVINGS_INTROS: Record<SavingsKind, SavingsIntro> = {
     body: "Build towards your future. Keep your money secured until you reach your goal.",
     terms: LOCK_SAVINGS_TERMS,
     cta: "Proceed to lock",
-    href: "/savings/lock",
+    href: savingsHref("lock"),
   },
   circle: {
     art: "/images/savings/circle-intro.svg",
@@ -36,6 +37,10 @@ export const SAVINGS_INTROS: Record<SavingsKind, SavingsIntro> = {
     body: "Save together. Stay accountable. Build towards a shared goal with your squad.",
     terms: CIRCLE_TERMS,
     cta: "Create a new circle",
-    href: "/savings/circles",
+    href: savingsHref("circle"),
+    secondary: {
+      label: "Join a circle",
+      href: savingsHref("circle", { join: true }),
+    },
   },
 };

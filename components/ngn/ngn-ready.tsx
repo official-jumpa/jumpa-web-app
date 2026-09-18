@@ -14,10 +14,10 @@ export function NgnReady({ detailsHref }: { detailsHref: string }) {
 
       <div className="flex min-h-0 flex-1 items-center justify-center py-8">
         <Image
-          src="/images/usd/coin-ready.webp"
+          src="/images/usd/ngncoin.svg"
           alt=""
-          width={440}
-          height={472}
+          width={604}
+          height={648}
           priority
           className="max-h-full w-55 max-w-full object-contain"
         />

@@ -17,10 +17,10 @@ export function NgnIntro({ onStart }: { onStart: () => void }) {
   return (
     <>
       <Image
-        src="/images/usd/coin-intro.webp"
+        src="/images/usd/ngncoin.svg"
         alt=""
-        width={280}
-        height={300}
+        width={604}
+        height={648}
         priority
         className="mt-3.25 h-37.5 w-35 self-center object-contain"
       />

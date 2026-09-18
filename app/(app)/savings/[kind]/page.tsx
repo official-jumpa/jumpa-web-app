@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { CreateCircleView } from "@/components/savings/create-circle-view";
 import { CreateTargetView } from "@/components/savings/create-target-view";
+import { JoinCircleView } from "@/components/savings/join-circle-view";
 import { LockSavingsView } from "@/components/savings/lock-savings-view";
 import { PlanDetail } from "@/components/savings/plan-detail";
 import { ProductScreen } from "@/components/savings/product-screen";
@@ -23,7 +24,12 @@ import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 
 interface SavingsProductPageProps {
   params: Promise<{ kind: string }>;
-  searchParams: Promise<{ id?: string; new?: string; topup?: string }>;
+  searchParams: Promise<{
+    id?: string;
+    new?: string;
+    join?: string;
+    topup?: string;
+  }>;
 }
 
 const on = (flag?: string) => flag === "1" || flag === "true";
@@ -35,8 +41,9 @@ export async function generateMetadata({
   const kind = kindFromSlug((await params).kind);
   if (!kind) return {};
 
-  const { topup } = await searchParams;
+  const { topup, join } = await searchParams;
   const { title } = SAVINGS_PRODUCTS[kind];
+  if (on(join)) return { title: "Join circle" };
   return { title: on(topup) ? "Top up" : title };
 }
 
@@ -52,7 +59,13 @@ export default async function SavingsProductPage({
   const kind = kindFromSlug((await params).kind);
   if (!kind) notFound();
 
-  const { id, new: create, topup } = await searchParams;
+  const { id, new: create, join, topup } = await searchParams;
+
+  // Only circles are shared, so only circles can be joined.
+  if (on(join)) {
+    if (kind !== "circle") notFound();
+    return <JoinCircleView />;
+  }
 
   if (on(create)) {
     if (kind === "lock") return <LockSavingsView />;

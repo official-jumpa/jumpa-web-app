@@ -52,10 +52,11 @@ export function kindFromSlug(slug: string): SavingsKind | null {
  */
 export function savingsHref(
   kind: SavingsKind,
-  stage?: { id?: string; create?: boolean; topUp?: boolean },
+  stage?: { id?: string; create?: boolean; join?: boolean; topUp?: boolean },
 ): string {
   const base = `/savings/${SLUG[kind]}`;
   if (stage?.create) return `${base}?new=1`;
+  if (stage?.join) return `${base}?join=1`;
   if (!stage?.id) return base;
 
   const query = new URLSearchParams({ id: stage.id });
@@ -256,6 +257,41 @@ export const CIRCLE_INVITE = "jumpa.app/circle/abc123";
 
 /** A date the placeholder screens quote as the maturity date. */
 export const DEFAULT_MATURITY = "2026/09/27";
+
+/** A circle an invite resolves to, as the join screen prints it. */
+export type JoinableCircle = {
+  name: string;
+  target: string;
+  members: number;
+  /** Already in the design's `2026/09/27` form. */
+  targetDate: string;
+};
+
+/**
+ * PLACEHOLDER — no service resolves an invite yet, so one circle answers to
+ * its own name, its link and the code at the end of it. Replace the whole map
+ * with the invite lookup when the API lands.
+ */
+const JOINABLE: Record<string, JoinableCircle> = {
+  "december trip": {
+    name: "December Trip",
+    target: "₦500,000",
+    members: 5,
+    targetDate: DEFAULT_MATURITY,
+  },
+};
+
+/** The link's last segment, so `jumpa.app/circle/abc123` and `abc123` agree. */
+const INVITE_CODE = CIRCLE_INVITE.split("/").pop() ?? "";
+
+/** TODO(backend): resolve a name or invite link through the circles API. */
+export function findCircle(ref: string): JoinableCircle | null {
+  const key = ref.trim().toLowerCase();
+  if (!key) return null;
+  if (key === CIRCLE_INVITE || key === INVITE_CODE)
+    return JOINABLE["december trip"];
+  return JOINABLE[key] ?? null;
+}
 
 const pad = (value: number) => String(value).padStart(2, "0");
 

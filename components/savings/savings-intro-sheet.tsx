@@ -14,6 +14,8 @@ export type SavingsIntro = {
   terms: string[];
   cta: string;
   href: string;
+  /** Quieter second action under the CTA. Only circles draw one. */
+  secondary?: { label: string; href: string };
 };
 
 export function SavingsIntroSheet({
@@ -51,17 +53,31 @@ export function SavingsIntroSheet({
           ))}
         </ul>
 
-        <Button
-          href={intro.href}
-          variant="gradientSheet"
-          size="lg"
-          onClick={() => {
-            onContinue?.();
-            onClose();
-          }}
-        >
-          {intro.cta}
-        </Button>
+        {/* The design stacks the two actions 8px apart. */}
+        <div className="flex w-full flex-col gap-2">
+          <Button
+            href={intro.href}
+            variant="gradientSheet"
+            size="lg"
+            onClick={() => {
+              onContinue?.();
+              onClose();
+            }}
+          >
+            {intro.cta}
+          </Button>
+
+          {intro.secondary ? (
+            <Button
+              href={intro.secondary.href}
+              variant="plain"
+              size="lg"
+              onClick={onClose}
+            >
+              {intro.secondary.label}
+            </Button>
+          ) : null}
+        </div>
       </div>
     </BottomSheet>
   );

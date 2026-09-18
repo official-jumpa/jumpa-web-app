@@ -283,18 +283,22 @@ export function FooterEmailForm() {
     useWaitlist("landing-footer");
 
   return (
+    // Floored in real px from `md:` up, like the nav's logo and the footer's
+    // type: the 1440 frame renders at ~53% around 768, which drew this pill
+    // smaller on a tablet than on a phone. Full width until `xl:`, where the
+    // beta row goes horizontal.
     <div className="flex flex-col gap-6">
       <form
         onSubmit={submit}
-        className="flex h-60 w-full shrink-0 items-center gap-2 rounded-full border-u-1 border-jumpa-grey-200 bg-jumpa-white pr-7.75 pl-26 md:w-325"
+        className="flex h-60 w-full shrink-0 items-center gap-2 rounded-full border-u-1 border-jumpa-grey-200 bg-jumpa-white pr-7.75 pl-26 md:h-[clamp(60px,4.1667vw,106.67px)] md:pr-[clamp(7.75px,0.5382vw,13.78px)] md:pl-[clamp(26px,1.8056vw,46.22px)] xl:w-[clamp(325px,22.5694vw,577.78px)]"
       >
-        <AtSignIcon className="size-16 shrink-0 text-jumpa-grey-450 opacity-70" />
+        <AtSignIcon className="size-16 shrink-0 text-jumpa-grey-450 opacity-70 md:size-[clamp(16px,1.1111vw,28.44px)]" />
         {/* maintain minimum of 16px font on input fields to prevent iphones from zooming in the page */}
         <EmailInput
           value={email}
           onChange={setEmail}
           disabled={status === "pending" || status === "success"}
-          className="text-[16px] placeholder:text-jumpa-grey-450 md:text-u-14/17"
+          className="text-[16px] placeholder:text-jumpa-grey-450 md:text-[clamp(16px,0.9722vw,24.89px)] md:leading-[1.2143em]"
         />
         <button
           type="submit"
@@ -306,26 +310,26 @@ export function FooterEmailForm() {
                 ? BETA_CTA.buttonSubmitting
                 : CTA_LABEL
           }
-          className="tap flex h-44 w-64 shrink-0 items-center justify-center rounded-full bg-jumpa-alt-400 text-jumpa-white transition-all active:scale-95 disabled:opacity-80"
+          className="tap flex h-44 w-64 shrink-0 items-center justify-center rounded-full bg-jumpa-alt-400 text-jumpa-white transition-all active:scale-95 disabled:opacity-80 md:h-[clamp(44px,3.0556vw,78.22px)] md:w-[clamp(64px,4.4444vw,113.78px)]"
         >
           {status === "success" ? (
-            <CheckIcon className="size-20 text-jumpa-white" />
+            <CheckIcon className="size-20 text-jumpa-white md:size-[clamp(20px,1.3889vw,35.56px)]" />
           ) : status === "pending" ? (
-            <span className="size-16 animate-spin rounded-full border-2 border-jumpa-white border-t-transparent" />
+            <span className="size-16 animate-spin rounded-full border-2 border-jumpa-white border-t-transparent md:size-[clamp(16px,1.1111vw,28.44px)]" />
           ) : (
-            <ArrowRightIcon className="size-20" />
+            <ArrowRightIcon className="size-20 md:size-[clamp(20px,1.3889vw,35.56px)]" />
           )}
         </button>
       </form>
 
       {status === "success" && (
-        <p className="pl-26 text-u-12/16 font-medium text-jumpa-alt-300">
+        <p className="pl-26 text-u-12/16 font-medium text-jumpa-alt-300 md:text-[clamp(12px,0.8333vw,21.33px)] md:leading-[1.3333em]">
           ✓ {BETA_CTA.buttonSuccess}
         </p>
       )}
 
       {status === "error" && message && (
-        <p className="pl-26 text-u-12/16 font-medium text-red-300">
+        <p className="pl-26 text-u-12/16 font-medium text-red-300 md:text-[clamp(12px,0.8333vw,21.33px)] md:leading-[1.3333em]">
           {message}
         </p>
       )}

@@ -258,11 +258,14 @@ export const FOOTER = {
   columns: [
     { heading: "Company", links: NAV_LINKS.slice(1) },
   ],
-  // TODO(content): point these at the real profiles.
+  // Canonical profile URLs — the share/QR tokens the links were sent with expire.
   socials: [
-    { label: "Facebook", href: "https://facebook.com" },
-    { label: "Instagram", href: "https://instagram.com" },
-    { label: "Linked in", href: "https://linkedin.com" },
+    { label: "TikTok", href: "https://www.tiktok.com/@usejumpa" },
+    { label: "X", href: "https://x.com/jumpahq" },
+    { label: "Instagram", href: "https://www.instagram.com/usejumpa" },
+    // TODO(content): placeholder — this is LinkedIn's homepage, not Jumpa's page.
+    // Replace with the real profile URL.
+    { label: "LinkedIn", href: "https://linkedin.com" },
   ],
   betaTitle: "Private Beta",
   betaBlurb:

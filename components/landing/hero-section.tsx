@@ -133,8 +133,9 @@ const FORM_STEP = 17;
 
 export function HeroSection() {
   return (
-    <section className="relative">
-      <div className="relative mx-auto w-393 pt-56.75 md:w-1440 md:pt-121">
+    // Centred in the screen the nav leaves it, while the artwork below is off.
+    <section className="relative flex flex-1 items-center">
+      <div className="relative mx-auto w-393 py-56.75 md:w-1440 md:py-121">
         {/* Each glow carries its own `--drift` so the page's decorative layers
             never move in lockstep. The hero's is the gentlest — it is the first
             thing on screen and sits closest to its design position. */}
@@ -151,7 +152,9 @@ export function HeroSection() {
           <SectionBadge
             variant="outline"
             icon={<GlobeBoldIcon />}
-            className="animate-drop-in text-u-5.5 md:text-u-14"
+            // 5.5 design px is unreadable on a phone; 10 matches the lift the
+            // rest of the app already uses. Floored at 14px from `md:` up.
+            className="animate-drop-in text-u-10 md:text-[clamp(14px,0.972vw,24.89px)]"
           >
             {HERO.badge.lead}
             <strong className="font-medium">{HERO.badge.strong}</strong>
@@ -193,7 +196,12 @@ export function HeroSection() {
             </p>
           </div>
 
-          <div style={revealStep(FORM_STEP)} className="stagger animate-reveal">
+          {/* The nav pill's `#join` target while the beta section is off. */}
+          <div
+            id="join"
+            style={revealStep(FORM_STEP)}
+            className="stagger animate-reveal"
+          >
             <HeroEmailForm />
           </div>
         </div>

@@ -562,7 +562,9 @@
    class sizes the whole pill: `pill-u-16` is the nav's, `pill-u-23.5` the
    feature panel's. */
 @utility pill-u-* {
-  font-size: calc(--value(number) * var(--spacing));
+  /* `--pill-fs` overrides the frame value where a pill has to hold a real px
+     size — the nav's, which the 1440 frame renders at 8.5px around 768. */
+  font-size: var(--pill-fs, calc(--value(number) * var(--spacing)));
   line-height: 1.125em;
   padding: 1em;
   box-shadow: inset 0 0 0.5125em var(--color-jumpa-white);

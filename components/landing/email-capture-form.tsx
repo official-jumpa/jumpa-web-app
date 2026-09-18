@@ -162,7 +162,12 @@ export function HeroEmailForm() {
     useWaitlist("landing-hero");
 
   return (
-    <div className="frame-432 w-250 md:w-432">
+    // Full column below `md:`: the input is a fixed 16px (iOS zoom), which the
+    // design's 250 cannot hold, so the placeholder clipped. Above it the width
+    // is floored at 420px — the hero column at 768 — so the field and its CTA
+    // don't render smaller on a tablet than on a phone; 30vw is the design's
+    // 432/1440 and 768px its size at the 2560 ceiling.
+    <div className="frame-432 w-320 md:w-[clamp(420px,30vw,768px)]">
       <form
         onSubmit={submit}
         className="flex items-center gap-10 rounded-full border-u-1 border-jumpa-grey-200 bg-jumpa-white pr-4 pl-24 shadow-landing-form"
@@ -178,7 +183,7 @@ export function HeroEmailForm() {
         <CtaPill
           type="submit"
           disabled={status === "pending" || status === "success"}
-          className="pill-u-16 w-181"
+          className="pill-u-16 md:w-181"
         >
           {status === "pending" ? (
             BETA_CTA.buttonSubmitting

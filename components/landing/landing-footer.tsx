@@ -40,7 +40,8 @@ function Column({
  */
 export function LandingFooter() {
   return (
-    <footer className="border-u-2 border-jumpa-primary-50/50 bg-[image:var(--gradient-jumpa-landing)] pt-50 pb-100 md:-mt-92 md:pt-221 md:pb-79">
+    // Beta card off, so no `md:-mt-92`; 129 is the purple it left visible (221-92).
+    <footer className="border-u-2 border-jumpa-primary-50/50 bg-[image:var(--gradient-jumpa-landing)] pt-50 pb-60 md:pt-129 md:pb-79">
       <div className="mx-auto flex w-320 flex-col gap-50 md:w-1300 md:flex-row md:justify-between md:gap-0">
         {/* The footer deals itself out in four: the brand block, the two link
             columns, then the beta form and the legal line. */}
@@ -74,7 +75,8 @@ export function LandingFooter() {
 
         <div className="flex flex-col gap-50 md:w-731.25 md:gap-52">
           <div className="flex flex-col gap-75 md:flex-row md:gap-100">
-            <Column
+            {/* Same dead section anchors as the top bar — off with them. */}
+            {/* <Column
               title={FOOTER.columns[0].heading}
               className="reveal"
               style={revealStep(1)}
@@ -86,9 +88,9 @@ export function LandingFooter() {
                   </Link>
                 </li>
               ))}
-            </Column>
+            </Column> */}
 
-            <Column title="Socials" className="reveal" style={revealStep(2)}>
+            <Column title="Socials" className="reveal" style={revealStep(1)}>
               {FOOTER.socials.map((social) => (
                 <li key={social.label}>
                   <a

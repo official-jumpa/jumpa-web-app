@@ -5,7 +5,7 @@ import { AuthRedirect } from "@/components/landing/auth-redirect";
 import { HeroSection } from "@/components/landing/hero-section";
 // import { HowItWorksSection } from "@/components/landing/how-it-works-section";
 import { InstallPrompt } from "@/components/landing/install-prompt";
-// import { LandingFooter } from "@/components/landing/landing-footer";
+import { LandingFooter } from "@/components/landing/landing-footer";
 import { LandingNav } from "@/components/landing/landing-nav";
 import { RevealObserver } from "@/components/landing/reveal-observer";
 // import { SecuritySection } from "@/components/landing/security-section";
@@ -42,18 +42,21 @@ export default function LandingPage() {
           own spacing rather than the landing frame's scaled unit. */}
       <InstallPrompt />
       {/* Clipped so the hero's glow can't grow the page. `clip` keeps drift working. */}
-      <main className="frame-393/550 md:frame-1440/2560 isolate min-h-dvh overflow-clip bg-jumpa-white">
+      <main className="frame-393/550 md:frame-1440/2560 isolate overflow-clip bg-jumpa-white">
         <AuthRedirect />
         <RevealObserver />
-        <LandingNav />
-        <HeroSection />
+        {/* Nav + hero fill the first screen; the footer starts below the fold. */}
+        <div className="flex min-h-dvh flex-col">
+          <LandingNav />
+          <HeroSection />
+        </div>
         {/* <HowItWorksSection /> */}
         {/* <FeaturesSection />
         <WhyJumpaSection />
         <SecuritySection />
         <FaqSection />
-        <BetaCtaSection />
-        <LandingFooter /> */}
+        <BetaCtaSection /> */}
+        <LandingFooter />
       </main>
     </>
   );

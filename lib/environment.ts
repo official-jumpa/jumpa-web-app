@@ -44,6 +44,7 @@ export const environment = {
   STELLAR_MAINNET: process.env.STELLAR_MAINNET || "https://horizon.stellar.org",
   STELLAR_TESTNET:
     process.env.STELLAR_TESTNET || "https://horizon-testnet.stellar.org",
+  SPONSORED_FEE_STELLAR_KEY: process.env.SPONSORED_FEE_STELLAR_KEY || "",
 
   // Switch
   SWITCH_LIVE_KEY: process.env.SWITCH_LIVE_KEY || "",

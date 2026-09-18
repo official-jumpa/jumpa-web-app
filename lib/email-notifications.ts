@@ -571,3 +571,308 @@ export async function sendLoginAlertEmail(
   }
 }
 
+export interface WaitlistEmailData {
+  email: string;
+  customerName?: string;
+  subject?: string;
+  whatsappUrl?: string;
+}
+
+export const WAITLIST_DEFAULT_WHATSAPP_URL =
+  "https://chat.whatsapp.com/KExp42DN6gr9yPkSUpIa6L?mode=gi_t";
+
+export const WAITLIST_DEFAULT_SUBJECT = "You’re part of Jumpa’s next chapter";
+export const WAITLIST_DEFAULT_PREVIEW_TEXT =
+  "Come meet the team and tell us what you really think.";
+
+/**
+ * Generates the responsive HTML email markup for the waitlist private beta invitation.
+ */
+export function generateWaitlistEmailHtml(data: WaitlistEmailData): string {
+  const {
+    customerName,
+    whatsappUrl = WAITLIST_DEFAULT_WHATSAPP_URL,
+  } = data;
+
+  const previewText = WAITLIST_DEFAULT_PREVIEW_TEXT;
+  const greeting = customerName ? `Hi ${customerName},` : "Hi,";
+  const currentYear = new Date().getFullYear();
+
+  return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>You’re part of Jumpa’s next chapter</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: #0A0A0C;
+      color: #EDEDEF;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrapper {
+      width: 100%;
+      background-color: #0A0A0C;
+      padding: 40px 20px;
+      box-sizing: border-box;
+    }
+    .container {
+      max-width: 520px;
+      margin: 0 auto;
+      background-color: #121214;
+      border: 1px solid #1A1A1E;
+      border-radius: 18px;
+      padding: 36px 30px;
+      box-sizing: border-box;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 26px;
+    }
+    .logo {
+      font-size: 26px;
+      font-weight: 800;
+      color: #6A59CE;
+      text-decoration: none;
+      letter-spacing: -0.5px;
+    }
+    .banner-box {
+      background: linear-gradient(135deg, rgba(106, 89, 206, 0.16) 0%, rgba(26, 26, 30, 0.6) 100%);
+      border: 1px solid rgba(106, 89, 206, 0.35);
+      border-radius: 14px;
+      padding: 16px 20px;
+      margin-bottom: 26px;
+      text-align: center;
+    }
+    .banner-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      color: #A89BFF;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+    .banner-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #FFFFFF;
+      margin: 0;
+      line-height: 1.35;
+      letter-spacing: -0.2px;
+    }
+    .salutation {
+      font-size: 16px;
+      font-weight: 600;
+      color: #FFFFFF !important;
+      margin: 0 0 18px 0;
+    }
+    p {
+      font-size: 15px;
+      color: #CBCBCF;
+      line-height: 1.6;
+      margin: 0 0 18px 0;
+    }
+    .highlight-quote {
+      color: #EDEDEF;
+      font-style: italic;
+    }
+    .btn-container {
+      text-align: center;
+      margin: 28px 0 20px 0;
+    }
+    .btn {
+      display: inline-block;
+      background-color: #6A59CE;
+      color: #FFFFFF !important;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      padding: 14px 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(106, 89, 206, 0.35);
+    }
+    .direct-link-box {
+      background-color: #0E0E11;
+      border: 1px dashed #282830;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin: 18px 0 24px 0;
+      word-break: break-all;
+      text-align: center;
+    }
+    .direct-link-label {
+      font-size: 11px;
+      color: #70707A;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .direct-link-url {
+      color: #8F81FF;
+      font-size: 13px;
+      text-decoration: underline;
+      font-weight: 500;
+    }
+    .signoff {
+      margin-top: 26px;
+      padding-top: 20px;
+      border-top: 1px solid #1A1A1E;
+    }
+    .signoff-note {
+      font-size: 15px;
+      color: #EDEDEF;
+      margin: 0 0 4px 0;
+    }
+    .signoff-sender {
+      font-size: 15px;
+      color: #99999F;
+      margin: 0;
+    }
+    .footer {
+      text-align: center;
+      border-top: 1px solid #1A1A1E;
+      padding-top: 22px;
+      margin-top: 28px;
+    }
+    .footer-text {
+      font-size: 12px;
+      color: #52525A;
+      margin: 0;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <!-- Hidden Preheader / Preview Text -->
+  <div style="display:none;font-size:1px;color:#0A0A0C;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;mso-hide:all;">
+    ${previewText}
+    &#847;&zwnj;&nbsp;&#8199;&shy;&#847;&zwnj;&nbsp;&#8199;&shy;&#847;&zwnj;&nbsp;&#8199;&shy;&#847;&zwnj;&nbsp;&#8199;&shy;&#847;&zwnj;&nbsp;&#8199;&shy;
+  </div>
+
+  <div class="wrapper">
+    <div class="container">
+      <div class="header">
+        <a href="https://usejumpa.com" class="logo">Jumpa</a>
+      </div>
+
+      <div class="banner-box">
+        <h1 class="banner-title">You’re part of Jumpa’s next chapter.</h1>
+      </div>
+
+      <p class="salutation">${greeting}</p>
+
+      <p>I’m Kamso from Jumpa, and I’m glad you’ve joined our private beta.</p>
+
+      <p>We’re building Jumpa so you can move money the way you chat. Now we need to find out how that feels in your hands, not just ours.</p>
+
+      <p>As you try it, you might find something you love or catch yourself thinking, <span class="highlight-quote">“Surely, this could work better.”</span> Please tell us either way. You won’t hurt our feelings. We’d rather hear about the confusing bit than keep building around it.</p>
+
+      <p>That’s what our beta group is for. Come meet the team, get testing instructions and tell us what you think we should improve.</p>
+
+      <div class="btn-container">
+        <a href="${whatsappUrl}" target="_blank" class="btn">Join WhatsApp Beta Group &rarr;</a>
+      </div>
+
+      <div class="direct-link-box">
+        <span class="direct-link-label">Direct WhatsApp Invite Link</span>
+        <a href="${whatsappUrl}" target="_blank" class="direct-link-url">${whatsappUrl}</a>
+      </div>
+
+      <div class="signoff">
+        <p class="signoff-note">See you there,</p>
+        <p class="signoff-sender"> The <strong style="color: #FFFFFF;">Jumpa</strong> team</p>
+      </div>
+
+      <div class="footer">
+        <p class="footer-text">You received this email because you registered for the Jumpa private beta waitlist.</p>
+        <p class="footer-text" style="margin-top: 6px;">&copy; ${currentYear} Jumpa &bull; <a href="https://usejumpa.com" style="color: #6A59CE; text-decoration: none;">usejumpa.com</a></p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
+/**
+ * Sends the waitlist private beta welcome email via Resend.
+ */
+export async function sendWaitlistWelcomeEmail(
+  toEmail: string,
+  data?: Partial<WaitlistEmailData>,
+): Promise<{ success: boolean; id?: string; error?: string }> {
+  const key = environment.RESEND_API_KEY.trim();
+  const configuredFrom = environment.RESEND_FROM_EMAIL.trim();
+  const fallbackFrom = "Jumpa <onboarding@resend.dev>";
+  const from = configuredFrom || fallbackFrom;
+
+  if (!key) {
+    console.warn("[email-notifications] RESEND_API_KEY missing — skipping waitlist welcome email");
+    return { success: false, error: "RESEND_API_KEY is not configured" };
+  }
+
+  const subject = data?.subject || WAITLIST_DEFAULT_SUBJECT;
+  const htmlContent = generateWaitlistEmailHtml({
+    email: toEmail,
+    customerName: data?.customerName,
+    whatsappUrl: data?.whatsappUrl,
+  });
+
+  const sendRequest = async (senderEmail: string) => {
+    return fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: senderEmail,
+        to: [toEmail],
+        subject,
+        html: htmlContent,
+      }),
+    });
+  };
+
+  try {
+    let res = await sendRequest(from);
+
+    // If primary sender failed due to domain authorization on Resend, retry with onboarding@resend.dev
+    if (!res.ok && configuredFrom && configuredFrom !== fallbackFrom) {
+      const errText = await res.text();
+      console.warn(
+        `[email-notifications] Primary sender ${from} failed (${res.status}: ${errText}). Retrying with ${fallbackFrom}...`,
+      );
+      res = await sendRequest(fallbackFrom);
+    }
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(
+        `[email-notifications] Resend API failed for waitlist email: ${res.status} ${text}`,
+      );
+      return { success: false, error: `Resend error: ${res.status} ${text}` };
+    }
+
+    const json = (await res.json().catch(() => ({}))) as { id?: string };
+    console.log(
+      `[email-notifications] Waitlist welcome email sent to ${toEmail} (ID: ${json.id || "ok"})`,
+    );
+    return { success: true, id: json.id };
+  } catch (err: any) {
+    console.error(
+      "[email-notifications] Error dispatching waitlist welcome email via Resend:",
+      err,
+    );
+    return { success: false, error: err.message || "Failed to dispatch email" };
+  }
+}
+
+

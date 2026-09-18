@@ -11,6 +11,7 @@ import {
 } from "@/lib/validations/waitlist.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
+import { sendWaitlistWelcomeEmail } from "@/lib/email-notifications";
 
 /**
  * Adds an email to the waitlist with optional attribution and metadata.
@@ -37,6 +38,16 @@ export async function POST(req: NextRequest) {
       userAgent,
       headerReferer,
     });
+
+    if (result.isNew) {
+      // Dispatch waitlist welcome email asynchronously
+      sendWaitlistWelcomeEmail(validation.data.email, {
+        email: validation.data.email,
+        customerName: validation.data.name,
+      }).catch((err) => {
+        console.error("[waitlist] Welcome email dispatch error:", err);
+      });
+    }
 
     return NextResponse.json(
       {

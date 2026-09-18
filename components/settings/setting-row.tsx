@@ -89,11 +89,14 @@ export function SettingLink({
 export function SettingAction({
   icon,
   label,
+  value,
   onClick,
   danger,
 }: {
   icon: SettingIconType;
   label: string;
+  /** Turns it into the two-line variant, as on `SettingLink`. */
+  value?: string;
   onClick: () => void;
   danger?: boolean;
 }) {
@@ -103,7 +106,7 @@ export function SettingAction({
       onClick={onClick}
       className="flex items-center justify-between gap-3 tap active:scale-[0.99]"
     >
-      <Body icon={icon} label={label} danger={danger} />
+      <Body icon={icon} label={label} value={value} danger={danger} />
       <ChevronRightIcon
         className={`size-5 shrink-0 ${danger ? "text-jumpa-danger" : "text-jumpa-black"}`}
       />

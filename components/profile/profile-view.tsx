@@ -4,7 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/auth/copy-button";
-import { SettingLink, SettingRow } from "@/components/settings/setting-row";
+import { EditNicknameSheet } from "@/components/profile/edit-nickname-sheet";
+import {
+  SettingAction,
+  SettingLink,
+  SettingRow,
+} from "@/components/settings/setting-row";
 import {
   SettingCard,
   SettingRule,
@@ -57,6 +62,9 @@ export function ProfileView({
     [key: string]: string | undefined;
   } | null>(initialWalletAddresses);
   const [showOtherChains, setShowOtherChains] = useState(false);
+  // null until the sheet writes one, so the account's own name still wins.
+  const [nickname, setNickname] = useState<string | null>(null);
+  const [editingNickname, setEditingNickname] = useState(false);
   const [kycVerified, setKycVerified] = useState<boolean>(initialKycVerified);
 
   // Fallback client fetch only if server hydration was missing
@@ -117,7 +125,8 @@ export function ProfileView({
   const user = (auth?.user as any) || initialUser;
 
   // Fallbacks while loading or if data is empty
-  const displayName = user?.name || user?.jumpaTag || ACCOUNT.firstName;
+  const displayName =
+    nickname ?? user?.name ?? user?.jumpaTag ?? ACCOUNT.firstName;
   const displayEmail = user?.email || "";
   const jumpaTag = user?.jumpaTag || "user@jumpa";
   const referralCode = user?.referralCode || "JUMPA";
@@ -213,6 +222,14 @@ export function ProfileView({
               label="Jumpa Tag"
               value={jumpaTag}
               action={<CopyButton value={jumpaTag} />}
+            />
+            <SettingRule />
+
+            <SettingAction
+              icon={TagsIcon}
+              label="Nickname"
+              value={displayName}
+              onClick={() => setEditingNickname(true)}
             />
             <SettingRule />
 
@@ -321,6 +338,16 @@ export function ProfileView({
           </SettingCard>
         </SettingSection>
       </div>
+
+      {editingNickname ? (
+        <EditNicknameSheet
+          value={displayName}
+          // TODO(backend): persist through the user update route; nothing
+          // stores a nickname today, so this only holds for the session.
+          onSave={setNickname}
+          onClose={() => setEditingNickname(false)}
+        />
+      ) : null}
     </div>
   );
 }

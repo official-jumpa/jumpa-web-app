@@ -133,7 +133,7 @@ export function SupportChat() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+21px)] pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+    <div className="flex min-h-dvh flex-col px-4.5 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
       <SupportHeader>
         <span className="flex items-center gap-2">
           <AgentAvatar />
@@ -143,7 +143,7 @@ export function SupportChat() {
         </span>
       </SupportHeader>
 
-      <div className="mt-8 flex flex-1 flex-col gap-5">
+      <div className="mt-6 flex flex-1 flex-col gap-5">
         {messages.map((message) => (
           <div
             key={message.id}

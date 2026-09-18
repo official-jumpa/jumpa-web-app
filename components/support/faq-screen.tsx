@@ -5,7 +5,7 @@ import { SupportHeader } from "@/components/support/support-header";
 /** `/support?view=faqs`. */
 export function FaqScreen() {
   return (
-    <div className="px-4.5 pt-[calc(env(safe-area-inset-top)+21px)] pb-12">
+    <div className="px-4.5 pb-12">
       <SupportHeader
         action={
           <Image
@@ -22,7 +22,7 @@ export function FaqScreen() {
         </h1>
       </SupportHeader>
 
-      <div className="mt-6">
+      <div className="mt-4">
         <FaqList />
       </div>
     </div>

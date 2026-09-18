@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import { useAuthContext } from "@/components/auth/AuthGuard";
 import { SettingRow } from "@/components/settings/setting-row";
@@ -7,12 +9,15 @@ import {
 } from "@/components/settings/setting-section";
 import { Button } from "@/components/ui/button";
 import { CheckIcon } from "@/components/ui/icons/check";
-import { CircleUserIcon } from "@/components/ui/icons/circle-user";
+import { GlobeIcon } from "@/components/ui/icons/globe";
 import { IdCardIcon } from "@/components/ui/icons/id-card";
-import { MobileAltIcon } from "@/components/ui/icons/mobile-alt";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
-import { NGN_PHONE } from "@/lib/ngn-account";
-import { ACCOUNT } from "@/lib/wallet";
+import { FieldError } from "@/components/ui/field-error";
+import {
+  createNgnAccountSchema,
+  type CreateNgnAccountInput,
+} from "@/lib/validations/fossapay.validation";
+import { mapCountryCodeToName } from "@/lib/ngn-account";
 
 function VerifiedBadge() {
   return (
@@ -22,16 +27,51 @@ function VerifiedBadge() {
   );
 }
 
-/** What we hold on the user, before the NGN account is opened. */
-export function NgnConfirm({ onContinue }: { onContinue: () => void }) {
+// Compute maximum date of birth for 16 years old
+function getMaxDob(): string {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() - 16);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+interface NgnConfirmProps {
+  onContinue: (formData: CreateNgnAccountInput) => void;
+  isLoading?: boolean;
+  serverError?: string | null;
+}
+
+/** Form for confirming and collecting details required by FossaPay for NGN virtual bank accounts */
+export function NgnConfirm({
+  onContinue,
+  isLoading = false,
+  serverError = null,
+}: NgnConfirmProps) {
   const auth = useAuthContext();
   const user = auth?.user;
 
+  // Split user name into firstName / lastName defaults
+  const rawName = (user?.name || "").trim();
+  const parts = rawName ? rawName.split(/\s+/) : [];
+  const defaultFirst = parts[0] || "";
+  const defaultLast = parts.length > 1 ? parts.slice(1).join(" ") : "";
+
+  const [firstName, setFirstName] = useState(defaultFirst);
+  const [middleName, setMiddleName] = useState("");
+  const [lastName, setLastName] = useState(defaultLast);
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("+234");
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+
   const [verified, setVerified] = useState<boolean>(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const countryName = mapCountryCodeToName(user?.country || "NG");
+  const maxDob = getMaxDob();
 
   useEffect(() => {
     let isMounted = true;
-
     try {
       const savedKyc = localStorage.getItem("jumpa_kyc_completed");
       if (savedKyc !== null) {
@@ -47,7 +87,7 @@ export function NgnConfirm({ onContinue }: { onContinue: () => void }) {
           const isDone = Boolean(
             data?.isCompleted ||
               data?.status === "approved" ||
-              data?.stage === "completed",
+              data?.stage === "completed"
           );
           setVerified(isDone);
           try {
@@ -60,44 +100,226 @@ export function NgnConfirm({ onContinue }: { onContinue: () => void }) {
     }
 
     checkKyc();
-
     return () => {
       isMounted = false;
     };
   }, []);
 
-  const name = user?.name || user?.jumpaTag || ACCOUNT.firstName;
-  const email = user?.email || "Not added yet";
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setFieldErrors({});
+
+    const rawData = {
+      firstName: firstName.trim(),
+      middleName: middleName.trim() || undefined,
+      lastName: lastName.trim(),
+      dateOfBirth: dateOfBirth.trim(),
+      mobileNumber: mobileNumber.trim(),
+      address: address.trim(),
+      city: city.trim(),
+    };
+
+    const validation = createNgnAccountSchema.safeParse(rawData);
+
+    if (!validation.success) {
+      const errors: Record<string, string> = {};
+      for (const issue of validation.error.issues) {
+        const key = issue.path[0] as string;
+        if (key && !errors[key]) {
+          errors[key] = issue.message;
+        }
+      }
+      setFieldErrors(errors);
+      return;
+    }
+
+    onContinue(validation.data);
+  };
 
   return (
-    <>
-      <h1 className="mt-7.25 text-[28px] leading-7.5 font-semibold text-jumpa-black">
-        Confirm your details
-      </h1>
-      <p className="mt-2 text-sm leading-4 text-jumpa-black">
-        A quick verification helps us keep your account secure and meet
-        regulatory requirements.
-      </p>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <div>
+        <h1 className="mt-7.25 text-[28px] leading-7.5 font-semibold text-jumpa-black">
+          Confirm your details
+        </h1>
+        <p className="mt-2 text-sm leading-4 text-jumpa-black">
+          Please verify your identity details. These are required by our banking
+          partner to issue your dedicated Nigerian account.
+        </p>
+      </div>
 
-      <SettingCard className="mt-8">
-        <SettingRow icon={CircleUserIcon} label={name} />
-        <SettingRule />
-        <SettingRow icon={ShieldCheckIcon} label={email} />
-        <SettingRule />
-        <SettingRow icon={MobileAltIcon} label={NGN_PHONE} />
-        <SettingRule />
-        <SettingRow
-          icon={IdCardIcon}
-          label="KYC Verification"
-          action={verified ? <VerifiedBadge /> : null}
-        />
-      </SettingCard>
+      {serverError ? (
+        <div className="rounded-2xl border border-jumpa-danger/20 bg-jumpa-danger/10 p-4 text-xs font-medium text-jumpa-danger">
+          {serverError}
+        </div>
+      ) : null}
 
-      <div className="mt-auto pt-10">
-        <Button variant="gradient" size="lg" onClick={onContinue}>
-          Continue
+      {/* Auto-filled Profile Details */}
+      <div>
+        <span className="text-xs font-semibold tracking-wide text-jumpa-primary-950/60 uppercase">
+          Verified Profile Info
+        </span>
+        <SettingCard className="mt-2">
+          <SettingRow
+            icon={ShieldCheckIcon}
+            label="Email"
+            value={user?.email || "Account email"}
+          />
+          <SettingRule />
+          <SettingRow
+            icon={GlobeIcon}
+            label="Country"
+            value={countryName}
+          />
+          <SettingRule />
+          <SettingRow
+            icon={IdCardIcon}
+            label="KYC verified"
+            action={verified ? <VerifiedBadge /> : null}
+          />
+        </SettingCard>
+      </div>
+
+      {/* Required Banking Partner Details */}
+      <div className="flex flex-col gap-4">
+        <span className="text-xs font-semibold tracking-wide text-jumpa-primary-950/60 uppercase">
+          Account Information
+        </span>
+
+        {/* First & Middle Names */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-jumpa-primary-950">
+              First Name <span className="text-jumpa-danger">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              placeholder="e.g. John"
+              className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
+            />
+            <FieldError>{fieldErrors.firstName}</FieldError>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-jumpa-primary-950">
+              Middle Name <span className="text-jumpa-neutral-400">(Optional)</span>
+            </label>
+            <input
+              type="text"
+              value={middleName}
+              onChange={(e) => setMiddleName(e.target.value)}
+              placeholder="e.g. Michael"
+              className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
+            />
+            <FieldError>{fieldErrors.middleName}</FieldError>
+          </div>
+        </div>
+
+        {/* Last Name */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-jumpa-primary-950">
+            Last Name <span className="text-jumpa-danger">*</span>
+          </label>
+          <input
+            type="text"
+            required
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            placeholder="e.g. Doe"
+            className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
+          />
+          <FieldError>{fieldErrors.lastName}</FieldError>
+        </div>
+
+        {/* Date of Birth */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-jumpa-primary-950">
+              Date of Birth <span className="text-jumpa-danger">*</span>
+            </label>
+            <span className="text-[11px] text-jumpa-neutral-500">
+              Must be at least 16 years old
+            </span>
+          </div>
+          <input
+            type="date"
+            required
+            max={maxDob}
+            value={dateOfBirth}
+            onChange={(e) => setDateOfBirth(e.target.value)}
+            className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
+          />
+          <FieldError>{fieldErrors.dateOfBirth}</FieldError>
+        </div>
+
+        {/* Phone Number */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-jumpa-primary-950">
+              Phone Number <span className="text-jumpa-danger">*</span>
+            </label>
+            <span className="text-[11px] text-jumpa-neutral-500">
+              Include country code (+234...)
+            </span>
+          </div>
+          <input
+            type="tel"
+            required
+            value={mobileNumber}
+            onChange={(e) => setMobileNumber(e.target.value)}
+            placeholder="+2348012345678"
+            className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
+          />
+          <FieldError>{fieldErrors.mobileNumber}</FieldError>
+        </div>
+
+        {/* Residential Address */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-jumpa-primary-950">
+            Residential Address <span className="text-jumpa-danger">*</span>
+          </label>
+          <input
+            type="text"
+            required
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="e.g. 14 Adeola Odeku Street, Victoria Island"
+            className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
+          />
+          <FieldError>{fieldErrors.address}</FieldError>
+        </div>
+
+        {/* City */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-jumpa-primary-950">
+            City <span className="text-jumpa-danger">*</span>
+          </label>
+          <input
+            type="text"
+            required
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            placeholder="e.g. Lagos"
+            className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
+          />
+          <FieldError>{fieldErrors.city}</FieldError>
+        </div>
+      </div>
+
+      <div className="pt-4 pb-2">
+        <Button
+          variant="gradient"
+          size="lg"
+          type="submit"
+          disabled={isLoading}
+          className="w-full"
+        >
+          {isLoading ? "Creating Account..." : "Confirm & Create Account"}
         </Button>
       </div>
-    </>
+    </form>
   );
 }

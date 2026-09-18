@@ -37,6 +37,7 @@ export const SCHEMA_IDS = {
   supt: { prefix: "supt", length: 16, description: "Support chat session logs" },
   wait: { prefix: "wait", length: 16, description: "Waitlist entries" },
   att: { prefix: "att", length: 16, description: "Chat attachments and media" },
+  ngn: { prefix: "ngn", length: 16, description: "NGN fiat accounts" },
 
   // ── Utility Entities
   cardref: { prefix: "cardref", length: 12, description: "Card references" },

@@ -25,7 +25,7 @@ export const NGN_BENEFITS: NgnBenefit[] = [
   },
 ];
 
-/** How long the opening modal holds. */
+/** How long the opening modal holds when animating transitions. */
 export const NGN_OPENING_MS = 2400;
 
 /** A line of the issued account, with the value the user can copy. */
@@ -34,15 +34,22 @@ export type NgnAccountField = {
   value: string;
 };
 
-/**
- * Placeholder account details — visibly not a real account.
- * The rail that issues NGN accounts replaces these per user.
- */
-export const NGN_ACCOUNT_FIELDS: NgnAccountField[] = [
-  { label: "Bank Name", value: "Jumpa / Test Bank" },
-  { label: "Account Number", value: "1234 5678 90" },
-  { label: "Account Name", value: "Jumpa / Test Account" },
-];
+export const COUNTRY_ISO_TO_NAME: Record<string, string> = {
+  NG: "Nigeria",
+  GH: "Ghana",
+  KE: "Kenya",
+  ZA: "South Africa",
+  RW: "Rwanda",
+  UG: "Uganda",
+  TZ: "Tanzania",
+  US: "United States",
+  GB: "United Kingdom",
+  CA: "Canada",
+};
 
-/** Placeholder until a profile carries a number the user has verified. */
-export const NGN_PHONE = "+234 906 179 3498";
+export function mapCountryCodeToName(codeOrName: string): string {
+  if (!codeOrName) return "Nigeria";
+  const upper = codeOrName.trim().toUpperCase();
+  return COUNTRY_ISO_TO_NAME[upper] || codeOrName.trim();
+}
+

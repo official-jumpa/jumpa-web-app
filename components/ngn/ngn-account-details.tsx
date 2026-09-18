@@ -74,7 +74,7 @@ export function NgnAccountDetails() {
 
   if (loading) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      <div className="flex min-h-dvh flex-col items-center justify-center px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         <JumpaLoader />
         <p className="mt-3 text-xs font-medium text-jumpa-neutral-500">
           Loading your NGN account details...
@@ -85,7 +85,7 @@ export function NgnAccountDetails() {
 
   if (!account || error) {
     return (
-      <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         <ScreenHeader back="/home" title="NGN Account" round />
         <div className="my-auto flex flex-col items-center text-center">
           <div className="flex size-14 items-center justify-center rounded-full bg-jumpa-primary-50 text-jumpa-primary-600">
@@ -123,7 +123,7 @@ export function NgnAccountDetails() {
     : null;
 
   return (
-    <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+    <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
       <ScreenHeader back="/home" title="NGN Account" round />
 
       {formattedBalance !== null ? (

@@ -195,7 +195,7 @@ export function KycView({
   const title = stage === "document" ? "Scan ID" : "KYC Verification";
 
   return (
-    <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] bg-jumpa-white text-jumpa-black max-w-app mx-auto w-full">
+    <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)] bg-jumpa-white text-jumpa-black max-w-app mx-auto w-full">
       {/* Screen Header */}
       <ScreenHeader
         back="/home"

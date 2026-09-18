@@ -21,7 +21,7 @@ export function PlanDetail({
   const withdrawHref = `/savings/withdraw?id=${plan.id}&name=${encodeURIComponent(plan.name)}&saved=${encodeURIComponent(plan.saved)}&kind=${plan.kind}&daysLeft=${plan.daysLeft}`;
 
   return (
-    <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+    <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
       <TransferHeader back={back} title={plan.name} />
 
       <div className="mt-6 flex flex-col gap-6">

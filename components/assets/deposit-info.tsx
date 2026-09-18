@@ -48,7 +48,7 @@ export function DepositInfo({
 
 
   return (
-    <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+    <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
       <ScreenHeader
         back={`/assets?token=${symbol.toLowerCase()}&network=${chain.id}`}
         title={symbol}

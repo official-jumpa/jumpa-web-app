@@ -127,7 +127,6 @@ export function TopUpView({ plan, back }: { plan: SavingsPlan; back: string }) {
         balance={walletBalance}
         chips={TOP_UP_AMOUNTS}
         chipUnit="USDC"
-        ctaLabel="Proceed"
         onAmountChange={setAmount}
         onReview={() => setSheet("review")}
       />

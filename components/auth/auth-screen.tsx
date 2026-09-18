@@ -19,7 +19,7 @@ export function AuthScreen({
   return (
     <div
       className={cn(
-        "flex min-h-dvh flex-col px-4.5 pt-6",
+        "flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)]",
         "pb-[calc(var(--auth-pb,32px)+env(safe-area-inset-bottom))]",
         className,
       )}

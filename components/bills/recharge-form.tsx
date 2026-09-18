@@ -60,7 +60,7 @@ export function RechargeForm({
 
   return (
     <div className="flex min-h-dvh flex-col pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-      <div className="px-4.5 pt-6 pb-4">
+      <div className="px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-4">
         <ScreenHeader back="/home" title={title} round />
       </div>
 

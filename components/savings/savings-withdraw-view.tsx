@@ -208,7 +208,7 @@ export function SavingsWithdrawView() {
   if (!planId && !selectedPlan) {
     if (hasFetched && plans.length === 0) {
       return (
-        <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+        <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
           <TransferHeader back="/savings" title="Withdraw savings" />
           <div className="mt-8">
             <EmptyPlans
@@ -221,7 +221,7 @@ export function SavingsWithdrawView() {
     }
 
     return (
-      <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         <TransferHeader back="/savings" title="Select plan to withdraw" />
         <section className="mt-4 flex flex-col gap-3">
           <h2 className="text-xs font-medium text-jumpa-black">
@@ -244,7 +244,7 @@ export function SavingsWithdrawView() {
   // Instant render: the amount screen is up immediately with zero spinner.
   return (
     <>
-      <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+      <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         <TransferHeader
           back={backUrl}
           // Picked in the selector? Go back to it. The plan detail page it

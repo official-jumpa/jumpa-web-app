@@ -33,7 +33,7 @@ export function AmountStep({
   inputPrefix,
   rate,
   caption,
-  ctaLabel = "Review",
+  ctaLabel = "Proceed",
   currencyMode,
   currencyOptions,
   onCurrencyModeChange,
@@ -60,7 +60,7 @@ export function AmountStep({
   /** Conversion line opposite the balance, where the flow shows one. */
   rate?: string;
   caption?: ReactNode;
-  /** The savings top-up reads "Proceed" where the send flows read "Review". */
+  /** Every flow reads "Proceed"; only the receipts override it. */
   ctaLabel?: string;
   /** Currency mode selector state */
   currencyMode?: "crypto" | "fiat";

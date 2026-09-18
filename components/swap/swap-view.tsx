@@ -187,7 +187,7 @@ export function SwapView({
   }
 
   return (
-    <div className="flex min-h-dvh flex-col px-4 pt-3.25 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+    <div className="flex min-h-dvh flex-col px-4 pt-[calc(env(safe-area-inset-top)+13px)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
       {/* ── Header ── */}
       {stage === "review" ? (
         // Review is a stage at the same URL, so plain history would leave the

@@ -237,7 +237,7 @@ export const BETA_CTA = {
   note: "We'll only email you about Jumpa access and important updates concerning Jumpa",
   buttonSubmitting: "Joining...",
   buttonSuccess: "You're on the list",
-  successNotice: "You're on the list! We'll email you as soon as early access opens",
+  successNotice: "You're on the list. Check your email to continue",
   alreadyJoinedNotice: "You're already on the waitlist! We'll be in touch soon",
   desktop: {
     heading: "Help shape how money moves.",

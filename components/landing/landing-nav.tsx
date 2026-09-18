@@ -29,7 +29,8 @@ export function LandingNav() {
         </Link>
         {/* Links stay `lg:` while the rest of the bar is `md:` — they are 16
             design px, which the tablet frame renders at 8.5. */}
-        <nav aria-label="Sections" className="hidden lg:block">
+        {/* hide the navlinks for now */}
+        {/* <nav aria-label="Sections" className="hidden lg:block">
           <ul className="flex items-center gap-24 text-u-16/34 tracking-jumpa">
             {NAV_LINKS.map((link, index) => (
               <li
@@ -51,7 +52,7 @@ export function LandingNav() {
               </li>
             ))}
           </ul>
-        </nav>
+        </nav> */}
         {/* The design gives the pill no destination; it scrolls to the beta form. */}
         <CtaPill
           href="#join"

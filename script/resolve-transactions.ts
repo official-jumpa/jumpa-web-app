@@ -3,52 +3,33 @@ import mongoose from "mongoose";
 import { resolveAllPendingTransactions } from "@/lib/functions/transactionFunctions";
 
 async function main() {
-  console.log("════════════════════════════════════════════════════════════");
-  console.log("  🔄 Resolving Pending Transactions...");
-  console.log("════════════════════════════════════════════════════════════\n");
-
   const args = process.argv.slice(2);
-  let staleHours = 24;
+  let staleHours = 1;
   const staleIndex = args.indexOf("--stale-hours");
   if (staleIndex !== -1 && args[staleIndex + 1]) {
-    staleHours = Number(args[staleIndex + 1]) || 24;
+    staleHours = Number(args[staleIndex + 1]) || 1;
   }
 
-  console.log(`Checking transactions with stale threshold: ${staleHours} hours\n`);
+  console.log(`Checking tx with stale threshold: ${staleHours} hours\n`);
 
   try {
     const result = await resolveAllPendingTransactions({ staleHours });
 
-    console.log("------------------------------------------------------------");
-    console.log(`Checked:       ${result.totalChecked} pending transaction(s)`);
-    console.log(`Confirmed:     ${result.confirmed}`);
-    console.log(`Failed/Expired:${result.failed}`);
-    console.log(`Still Pending: ${result.stillPending}`);
-    console.log("------------------------------------------------------------\n");
+    console.log(`Checked: ${result.totalChecked} pending tx(s), confirmed: ${result.confirmed}, failed/expired: ${result.failed}, still pending: ${result.stillPending}`);
 
     if (result.details.length > 0) {
-      console.log("Transaction Details:");
-      console.table(
-        result.details.map((d) => ({
-          ID: d.id,
-          Type: d.type,
-          Amount: `${d.amount} ${d.token}`,
-          "Prev Status": d.previousStatus,
-          "New Status": d.newStatus,
-          "Switch Status": d.providerStatus,
-          Reason: d.reason || "Settled",
-        })),
-      );
+      console.log("Transaction Details:", JSON.stringify(result.details, null, 2));
     } else {
-      console.log("No pending transactions found with Switch references.");
+      console.log("No pending txs found");
     }
 
-    console.log("\n✅ Done!");
+    console.log("\n✅ Job Done");
+    process.exit(0); //terminate the session
   } catch (err: any) {
     console.error("\n❌ Error resolving transactions:", err?.message || err);
     process.exitCode = 1;
   } finally {
-    await mongoose.disconnect().catch(() => {});
+    await mongoose.disconnect().catch(() => { });
   }
 }
 

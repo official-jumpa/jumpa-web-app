@@ -33,7 +33,7 @@ export interface IChatMessage {
     isScheduled?: boolean;
   };
   imageUrls?: string[];
-  /** Files the user sent with the message, stored in GridFS. */
+  /** Files the user sent with the message, stored in Vercy Storage. */
   attachments?: ChatAttachment[];
   isVoice?: boolean;
 }
@@ -100,7 +100,7 @@ const ChatLogSchema = new Schema<IChatLog>(
         attachments: [
           {
             _id: false,
-            id: { type: String, required: true },
+            id: { type: String, default: () => generateId("att"), required: true },
             url: { type: String, required: true },
             name: { type: String, default: "attachment" },
             mime: { type: String, default: "application/octet-stream" },

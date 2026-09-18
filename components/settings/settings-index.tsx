@@ -30,6 +30,12 @@ export function SettingsIndex() {
         <div className="mt-4.25 flex flex-col gap-8.5">
           <SettingSection label="Profile Information">
             <SettingCard>
+              <SettingLink
+                href={settingsHref("rates")}
+                icon={BadgeDollarIcon}
+                label="Currency Rates"
+              />
+              <SettingRule />
               <SettingAction
                 icon={ClipboardTextIcon}
                 label="Request Account Statements"
@@ -37,15 +43,9 @@ export function SettingsIndex() {
               />
               <SettingRule />
               <SettingLink
-                href={settingsHref("security")}
-                icon={ShieldCheckIcon}
-                label="Security"
-              />
-              <SettingRule />
-              <SettingLink
-                href="/support"
-                icon={HeartAltIcon}
-                label="Help & Support"
+                href="/referrals"
+                icon={UsersIcon}
+                label="Your Referrals"
               />
             </SettingCard>
           </SettingSection>
@@ -59,15 +59,15 @@ export function SettingsIndex() {
               />
               <SettingRule />
               <SettingLink
-                href={settingsHref("rates")}
-                icon={BadgeDollarIcon}
-                label="Currency Rates"
+                href={settingsHref("security")}
+                icon={ShieldCheckIcon}
+                label="Security"
               />
               <SettingRule />
               <SettingLink
-                href="/referrals"
-                icon={UsersIcon}
-                label="Your Referrals"
+                href="/support"
+                icon={HeartAltIcon}
+                label="Help & Support"
               />
             </SettingCard>
           </SettingSection>

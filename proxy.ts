@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. Bypasses standard Next.js assets, internal bundles, and API routes
+  // 1. Bypass standard Next.js assets, internal bundles, and API routes
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
@@ -15,7 +15,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Fetch session and wallet tokens from Cookies (handling HTTPS __Secure- prefixes case-insensitively)
+  // 2. Fetch session token from Cookies (handling HTTPS __Secure- prefixes case-insensitively)
   const allCookies = request.cookies.getAll();
   const sessionToken = allCookies.find((c) => {
     const name = c.name.toLowerCase();
@@ -26,73 +26,38 @@ export async function proxy(request: NextRequest) {
     );
   })?.value;
 
-  const hasWallet = allCookies.find((c) =>
-    c.name.toLowerCase().includes("selected_wallet_address"),
-  )?.value;
-
   const isAuthenticated = !!sessionToken;
-  const hasSelectedWallet = !!hasWallet;
 
-  // 3. Define route classifications
-  const isAuthRoute =
-    pathname === "/onboarding" ||
-    pathname.startsWith("/sign-in") ||
-    pathname.startsWith("/sign-up") ||
-    pathname.startsWith("/import-wallet") ||
-    pathname.startsWith("/migrate-pin");
-
-  // Keep wallet setup and import routes open
-  const isWalletSetupRoute =
-    pathname.startsWith("/sign-up/pin") ||
-    pathname.startsWith("/import-wallet") ||
-    pathname.startsWith("/migrate-pin");
-
-  // "/" is deliberately absent: it is the splash, which resolves its own
-  // destination. Redirecting it here meant the splash never rendered.
+  // 3. Define protected dashboard & authenticated routes
   const isProtectedRoute =
     pathname.startsWith("/home") ||
     pathname.startsWith("/cards") ||
-    pathname.startsWith("/transactions");
+    pathname.startsWith("/transactions") ||
+    pathname.startsWith("/send") ||
+    pathname.startsWith("/receive") ||
+    pathname.startsWith("/swap") ||
+    pathname.startsWith("/savings") ||
+    pathname.startsWith("/profile") ||
+    pathname.startsWith("/invest") ||
+    pathname.startsWith("/assets") ||
+    pathname.startsWith("/more") ||
+    pathname.startsWith("/airtime") ||
+    pathname.startsWith("/data") ||
+    pathname.startsWith("/kyc") ||
+    pathname.startsWith("/ngn-account") ||
+    pathname.startsWith("/usd-account") ||
+    pathname.startsWith("/referrals") ||
+    pathname.startsWith("/support");
 
-  // Case 1: Unauthenticated Users (only protect dashboard/home routes)
-  if (!isAuthenticated) {
-    if (isProtectedRoute) {
-      console.log(`[Proxy] Redirecting unauthenticated user from ${pathname} to /onboarding`,
-      );
-      return NextResponse.redirect(new URL("/onboarding", request.url));
-    }
-    return NextResponse.next();
+  // Only guard against completely unauthenticated users
+  if (!isAuthenticated && isProtectedRoute) {
+    console.log(
+      `[Proxy] Redirecting unauthenticated user from ${pathname} to /onboarding`,
+    );
+    return NextResponse.redirect(new URL("/onboarding", request.url));
   }
 
-  // Case 2: Authenticated Users WITHOUT a wallet
-  if (isAuthenticated && !hasSelectedWallet) {
-    // Exclude /sign-up/done success screen to allow it to render right after confirmation
-    if (pathname === "/sign-up/done") {
-      return NextResponse.next();
-    }
-
-    // Redirect away from home/dashboard pages back to setup
-    if (isProtectedRoute) {
-      console.log(`[Proxy] Authenticated user without wallet. Redirecting from ${pathname} to home page`,
-      );
-      return NextResponse.redirect(new URL("/", request.url));
-    }
-    return NextResponse.next();
-  }
-
-  // Case 3: Authenticated Users WITH a wallet
-  if (isAuthenticated && hasSelectedWallet) {
-    if (
-      pathname === "/onboarding" ||
-      pathname === "/sign-in" ||
-      pathname === "/sign-up"
-    ) {
-      console.log(`[Proxy] Authenticated user with wallet. Redirecting from ${pathname} to /home`,
-      );
-      return NextResponse.redirect(new URL("/home", request.url));
-    }
-  }
-
+  // All other onboarding, wallet setup, and setup flow routing is handled by AuthGuard
   return NextResponse.next();
 }
 
@@ -103,6 +68,21 @@ export const config = {
     "/home(.*)",
     "/cards(.*)",
     "/transactions(.*)",
+    "/send(.*)",
+    "/receive(.*)",
+    "/swap(.*)",
+    "/savings(.*)",
+    "/profile(.*)",
+    "/invest(.*)",
+    "/assets(.*)",
+    "/more(.*)",
+    "/airtime(.*)",
+    "/data(.*)",
+    "/kyc(.*)",
+    "/ngn-account(.*)",
+    "/usd-account(.*)",
+    "/referrals(.*)",
+    "/support(.*)",
     "/onboarding(.*)",
     "/sign-in(.*)",
     "/sign-up(.*)",

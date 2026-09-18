@@ -44,6 +44,7 @@ export const environment = {
   STELLAR_MAINNET: process.env.STELLAR_MAINNET || "https://horizon.stellar.org",
   STELLAR_TESTNET:
     process.env.STELLAR_TESTNET || "https://horizon-testnet.stellar.org",
+  SPONSORED_FEE_STELLAR_KEY: process.env.SPONSORED_FEE_STELLAR_KEY || "",
 
   // Switch
   SWITCH_LIVE_KEY: process.env.SWITCH_LIVE_KEY || "",
@@ -71,6 +72,11 @@ export const environment = {
 
   // FEES
   SWITCH_JUMPA_FEE: process.env.SWITCH_JUMPA_FEE ? Number(process.env.SWITCH_JUMPA_FEE) : 0,
+
+  // OpenRouter (Vision & LLM)
+  OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
+  OPENROUTER_VISION_MODEL:
+    process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.5-flash",
 };
 
 export default environment;

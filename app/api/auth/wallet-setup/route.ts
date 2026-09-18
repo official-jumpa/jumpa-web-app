@@ -12,6 +12,11 @@ import {
 } from "@/lib/derive-addresses";
 import { environment } from "@/lib/environment";
 import {
+  deriveStellarKeypairFromMnemonic,
+  deriveStellarKeypairFromPrivateKey,
+  activateAndTrustlineWallet,
+} from "@/lib/chains/stellar";
+import {
   listWalletsByUserId,
   getNextWalletName,
   findWalletByAddress,
@@ -584,6 +589,34 @@ export async function POST(req: NextRequest) {
 
     // Link active wallet to user
     await setUserActiveWallet(session.user.id, wallet._id);
+
+    // Auto-activate Stellar account & USDC trustline if sponsor key is configured
+    if (environment.SPONSORED_FEE_STELLAR_KEY && derived.addresses.xlm) {
+      try {
+        const stellarKeypair =
+          setupMethod === "IMPORTED_PRIVATE_KEY"
+            ? deriveStellarKeypairFromPrivateKey(secretToEncrypt)
+            : deriveStellarKeypairFromMnemonic(secretToEncrypt);
+
+        activateAndTrustlineWallet(stellarKeypair)
+          .then((res) => {
+            console.log(
+              `[WalletSetup] Stellar activation for ${wallet._id} (${derived.addresses.xlm}): activated=${res.activated}, trustlined=${res.trustlined}`,
+            );
+          })
+          .catch((err) => {
+            console.error(
+              `[WalletSetup] Stellar activation failed for ${wallet._id}:`,
+              err,
+            );
+          });
+      } catch (stellarErr) {
+        console.warn(
+          "[WalletSetup] Could not derive Stellar keypair for auto-activation:",
+          stellarErr,
+        );
+      }
+    }
 
     // Log user activity
     logUserActivity({

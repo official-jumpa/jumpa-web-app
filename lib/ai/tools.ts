@@ -619,6 +619,31 @@ const swapTokens: DeepSeekTool = {
   },
 };
 
+const analyzeImage: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "analyze_image",
+    description:
+      "Inspect, OCR, and extract details from an attached image, bank transfer receipt, payment proof, or crypto transaction screenshot using Gemini 2.5 Flash visual intelligence.",
+    parameters: {
+      type: "object",
+      properties: {
+        imageUrl: {
+          type: "string",
+          description:
+            "The HTTPS URL of the image to analyze (e.g. from the user's attachment).",
+        },
+        question: {
+          type: "string",
+          description:
+            "Optional specific question or detail to extract from the image (e.g. 'What is the account number?' or 'Verify payment amount').",
+        },
+      },
+      required: ["imageUrl"],
+    },
+  },
+};
+
 export const JUMPA_TOOLS: DeepSeekTool[] = [
   swapTokens,
   stellarTestnetSwapQuote,
@@ -637,6 +662,7 @@ export const JUMPA_TOOLS: DeepSeekTool[] = [
   depositSavings,
   withdrawSavings,
   bridgeTokens,
+  analyzeImage,
 ];
 
 export type JumpaToolName =
@@ -656,7 +682,8 @@ export type JumpaToolName =
   | "list_savings"
   | "deposit_savings"
   | "withdraw_savings"
-  | "bridge_tokens";
+  | "bridge_tokens"
+  | "analyze_image";
 
 /** Infer network from tool name — single source of truth */
 export function getNetworkFromToolName(

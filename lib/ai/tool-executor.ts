@@ -30,6 +30,7 @@ import { Wallet } from "@/models/Wallet";
 import { listSavingsPlansByUserId } from "@/lib/functions/savingsFunctions";
 import { toChatPlan } from "./savings-plan-card";
 import { getNetworkFromToolName, type JumpaToolName } from "./tools";
+import { analyzeImageWithGemini } from "./vision";
 
 export type CardHint =
   | { type: "quote"; data: QuoteCardData }
@@ -347,6 +348,30 @@ export async function executeTool(
   const userId = userCtx.userId || "UNKNOWN";
 
   switch (name) {
+    case "analyze_image": {
+      const { imageUrl, question } = toolArgs as {
+        imageUrl: string;
+        question?: string;
+      };
+
+      if (!imageUrl) {
+        return {
+          toolName: name,
+          summaryForAI: "No image URL provided to analyze.",
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      const result = await analyzeImageWithGemini(imageUrl, question);
+      return {
+        toolName: name,
+        summaryForAI: result.analysis,
+        cardHint: { type: "none" },
+        requiresConfirmation: false,
+      };
+    }
+
     // ── Stellar Testnet Swap Quote
     case "bridge_tokens": {
       const { fromToken, toToken, amount, fromChain, toChain } = toolArgs as {

@@ -348,6 +348,7 @@ export function ChatView() {
           body: JSON.stringify({
             sessionId: activeSessionId || undefined,
             message: textToSend,
+            attachments: attachments || undefined,
             attachmentIds: attachments?.map((file) => file.id),
           }),
         });

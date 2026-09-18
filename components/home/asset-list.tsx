@@ -4,8 +4,16 @@ import { getAssetLogo } from "@/lib/assets";
 import type { Asset } from "@/lib/wallet";
 import { HomeSection } from "./home-section";
 
+/** Stands in for the digits while the balance is hidden. */
+const MASK = "*".repeat(6);
+
+interface AssetListProps {
+  assets: Asset[];
+  visible?: boolean;
+}
+
 /** Horizontally scrolling row of balances, one card per wallet. */
-export function AssetList({ assets }: { assets: Asset[] }) {
+export function AssetList({ assets, visible = false }: AssetListProps) {
   return (
     <HomeSection
       title="Your Wallets"
@@ -47,10 +55,10 @@ export function AssetList({ assets }: { assets: Asset[] }) {
 
               <span className="flex flex-col gap-0.5 font-medium">
                 <span className="text-base leading-5 text-jumpa-black">
-                  {asset.balance}
+                  {visible ? asset.balance : MASK}
                 </span>
                 <span className="text-[10px] leading-3 text-jumpa-success">
-                  {asset.change}
+                  {visible ? asset.change : "***"}
                 </span>
               </span>
             </Link>

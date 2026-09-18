@@ -40,10 +40,26 @@ export default function HomePage() {
   const [kycComplete, setKycComplete] = useState<boolean>(
     () => homeMemoryCache.kycComplete ?? false,
   );
+  const [balanceVisible, setBalanceVisible] = useState<boolean>(false);
+
+  const toggleBalanceVisible = () => {
+    setBalanceVisible((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("jumpa_balance_visible", String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // Restore cached balance, assets, & transactions from localStorage immediately on mount if not in memory
   useEffect(() => {
     try {
+      const savedVisible = localStorage.getItem("jumpa_balance_visible");
+      if (savedVisible !== null) {
+        setBalanceVisible(savedVisible === "true");
+      }
+
       const savedBal = localStorage.getItem("jumpa_last_balance");
       if (savedBal && !homeMemoryCache.balance) {
         setTotalBalance(savedBal);
@@ -179,13 +195,17 @@ export default function HomePage() {
       <div className="relative isolate flex flex-col gap-6 border-b border-jumpa-primary-950 bg-[image:var(--gradient-jumpa-hero)] px-4.5 pt-[calc(env(safe-area-inset-top)+1rem)] pb-6">
         <HeroBackdrop />
         <WalletHeader />
-        <BalancePanel balance={totalBalance} />
+        <BalancePanel
+          balance={totalBalance}
+          visible={balanceVisible}
+          onToggleVisible={toggleBalanceVisible}
+        />
       </div>
 
       {/* Sections land one after another, top to bottom. */}
       <div className="flex flex-col gap-4 px-4.5 pt-4 pb-27">
         <RiseIn index={0}>
-          <AssetList assets={assets} />
+          <AssetList assets={assets} visible={balanceVisible} />
         </RiseIn>
         <RiseIn index={1}>
           {kycComplete ? (

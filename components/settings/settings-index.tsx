@@ -30,18 +30,18 @@ export function SettingsIndex() {
         <SettingsHeader back="/profile" title="Settings" />
 
         <div className="mt-4.25 flex flex-col gap-8.5">
-          <SettingSection label="Preferences">
+          <SettingSection label="Profile Information">
             <SettingCard>
-              <SettingLink
-                href={settingsHref("notifications")}
-                icon={BellAltIcon}
-                label="Notifications"
-              />
-              <SettingRule />
               <SettingLink
                 href={settingsHref("rates")}
                 icon={BadgeDollarIcon}
                 label="Currency Rates"
+              />
+              <SettingRule />
+              <SettingAction
+                icon={ClipboardTextIcon}
+                label="Request Account Statements"
+                onClick={() => setStatementsOpen(true)}
               />
               <SettingRule />
               <SettingLink
@@ -51,13 +51,13 @@ export function SettingsIndex() {
               />
             </SettingCard>
           </SettingSection>
+          <SettingSection label="Preferences">
 
-          <SettingSection label="Profile Information">
             <SettingCard>
-              <SettingAction
-                icon={ClipboardTextIcon}
-                label="Request Account Statements"
-                onClick={() => setStatementsOpen(true)}
+              <SettingLink
+                href={settingsHref("notifications")}
+                icon={BellAltIcon}
+                label="Notifications"
               />
               <SettingRule />
               <SettingLink

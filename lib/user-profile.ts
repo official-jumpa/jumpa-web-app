@@ -6,7 +6,7 @@ import { User, type IUser } from "@/models/User";
 /**
  * Sanitizes name/email to create a base handle for the @jumpa tag.
  * E.g., "Barry Allen" -> "barry"
- *       "ademola.brainpoint@gmail.com" -> "ademola"
+ *       "jumpa.user@gmail.com" -> "jumpa"
  */
 export function sanitizeHandle(
   name?: string | null,

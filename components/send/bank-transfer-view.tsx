@@ -26,7 +26,7 @@ type Sheet = "review" | "pin" | null;
 /** Standard crypto amount chips (e.g. 25, 50, 100 USDC) */
 const CRYPTO_CHIPS = [25, 50, 100] as const;
 /** Standard fiat amount chips in Naira (e.g. 10k, 25k, 50k, 100k NGN) */
-const FIAT_CHIPS = [10000, 25000, 50000, 100000] as const;
+const FIAT_CHIPS = [1000, 5000, 10000] as const;
 
 export function BankTransferView({
   defaultCountry = "Nigeria",

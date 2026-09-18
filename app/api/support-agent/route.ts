@@ -10,6 +10,7 @@ import {
   type SupportChatMessage,
 } from "@/lib/ai/support-agent";
 import { describeAttachments } from "@/lib/chat-attachments";
+import { analyzeImageWithGemini } from "@/lib/ai/vision";
 import { generateId } from "@/lib/schema-ids";
 import type { ISupportChatMessage } from "@/models/SupportChatLog";
 import { formatZodError } from "@/lib/validations/validation-helper";
@@ -80,8 +81,35 @@ export async function POST(req: NextRequest) {
         content: m.content,
       }));
 
-    // Append current user message content (including any attachment descriptions)
-    const attachmentNote = describeAttachments(attachments as any);
+    // Pre-analyze images
+    let visionAnalysis = "";
+    const imageAttachments = (attachments || []).filter(
+      (att: any) => att.mime?.startsWith("image/") && att.url?.startsWith("http"),
+    );
+
+    if (imageAttachments.length > 0) {
+      console.log(
+        `[Support Agent] Analyzing ${imageAttachments.length} image attachment(s)...`,
+      );
+      try {
+        const analysisResults = await Promise.all(
+          imageAttachments.map((img: any) =>
+            analyzeImageWithGemini(img.url, message),
+          ),
+        );
+        visionAnalysis = analysisResults
+          .map(
+            (res, idx) =>
+              `Image [${imageAttachments[idx].name}]:\n${res.analysis}`,
+          )
+          .join("\n\n");
+      } catch (visErr) {
+        console.error("[Support Agent] Vision analysis failed:", visErr);
+      }
+    }
+
+    // Append current user message content (including any attachment descriptions and visual intelligence)
+    const attachmentNote = describeAttachments(attachments as any, visionAnalysis);
     const userTurnText = [message, attachmentNote].filter(Boolean).join("\n\n");
 
     historyForAi.push({

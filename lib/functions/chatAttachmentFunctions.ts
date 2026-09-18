@@ -1,38 +1,13 @@
-import { GridFSBucket, type GridFSFile, ObjectId } from "mongodb";
+import { put, createFolder } from "@vercy/storage";
 import type { ChatAttachment } from "@/lib/chat-attachments";
 import { MAX_ATTACHMENT_BYTES } from "@/lib/chat-attachments";
-import { connectDB, getDb } from "@/lib/db";
+import { connectDB } from "@/lib/db";
+import { ChatLog } from "@/models/ChatLog";
+import { generateId } from "@/lib/schema-ids";
 
 /**
- * Chat attachments live in GridFS on the app's own database — there is no blob
- * store, and a file this size does not belong inline in a chat document.
+ * Stores one upload to Vercy Storage and returns attachment details.
  */
-const BUCKET = "chatAttachments";
-
-type AttachmentMetadata = { userId: string; mime: string };
-
-async function bucket() {
-  await connectDB();
-  return new GridFSBucket(getDb(), { bucketName: BUCKET });
-}
-
-/** GridFS ids are ObjectIds; anything else is a caller's typo, not a lookup. */
-function toObjectId(id: string) {
-  return ObjectId.isValid(id) ? new ObjectId(id) : null;
-}
-
-function toAttachment(file: GridFSFile): ChatAttachment {
-  const id = file._id.toHexString();
-  return {
-    id,
-    url: `/api/chat/attachments/${id}`,
-    name: file.filename,
-    mime: file.metadata?.mime || "application/octet-stream",
-    size: file.length,
-  };
-}
-
-/** Stores one upload against its owner and hands back the row a message keeps. */
 export async function saveChatAttachment(
   userId: string,
   file: File,
@@ -41,75 +16,97 @@ export async function saveChatAttachment(
     throw new Error("Attachment is too large");
   }
 
-  const files = await bucket();
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const metadata: AttachmentMetadata = {
-    userId,
-    mime: file.type || "application/octet-stream",
-  };
+  // 1. Ensure folder exists in Vercy Storage
+  try {
+    await createFolder("chat");
+  } catch {
+    // folder may already exist
+  }
 
-  const upload = files.openUploadStream(file.name || "attachment", {
-    metadata,
+  // 2. Upload file buffer to Vercy Storage
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const uploaded = await put(file.name || "attachment.png", buffer, {
+    folder: "chat",
+    contentType: file.type || "application/octet-stream",
   });
-  await new Promise<void>((resolve, reject) => {
-    upload.on("error", reject);
-    upload.on("finish", () => resolve());
-    upload.end(buffer);
-  });
+
+  const attachmentId = generateId("att");
+  const mime = file.type || "application/octet-stream";
 
   return {
-    id: upload.id.toHexString(),
-    url: `/api/chat/attachments/${upload.id.toHexString()}`,
+    id: attachmentId,
+    url: uploaded.url,
     name: file.name || "attachment",
-    mime: metadata.mime,
+    mime,
     size: buffer.length,
   };
 }
 
 /**
- * Resolves ids the client sent back into stored rows, scoped to their owner —
- * so a message can only ever carry a file this user actually uploaded, and its
- * name, type and size come from us rather than from the request body.
+ * Resolves attachment IDs scoped to their owner by looking inside the user's message logs.
  */
 export async function getChatAttachments(
   userId: string,
   ids: string[],
 ): Promise<ChatAttachment[]> {
-  const objectIds = ids.map(toObjectId).filter((id) => id !== null);
-  if (!objectIds.length) return [];
+  if (!ids.length) return [];
 
-  const files = await bucket();
-  const found = await files
-    .find({ _id: { $in: objectIds }, "metadata.userId": userId })
-    .toArray();
+  await connectDB();
+  const idSet = new Set(ids);
+  const found: ChatAttachment[] = [];
 
-  // Keep the order the user picked them in, which find() does not promise.
-  const byId = new Map(found.map((file) => [file._id.toHexString(), file]));
-  return ids.flatMap((id) => {
-    const file = byId.get(id);
-    return file ? [toAttachment(file)] : [];
-  });
-}
+  // Find chat logs for this user that contain these attachment IDs
+  const logs = await ChatLog.find({
+    userId,
+    "messages.attachments.id": { $in: ids },
+  }).lean();
 
-/** The bytes behind one attachment, or null when it is not this user's. */
-export async function readChatAttachment(userId: string, id: string) {
-  const objectId = toObjectId(id);
-  if (!objectId) return null;
-
-  const files = await bucket();
-  const file = await files
-    .find({ _id: objectId, "metadata.userId": userId })
-    .next();
-  if (!file) return null;
-
-  const chunks: Buffer[] = [];
-  for await (const chunk of files.openDownloadStream(objectId)) {
-    chunks.push(chunk as Buffer);
+  for (const log of logs) {
+    for (const msg of log.messages || []) {
+      for (const att of msg.attachments || []) {
+        if (idSet.has(att.id)) {
+          found.push(att);
+          idSet.delete(att.id);
+        }
+      }
+    }
   }
 
+  return found;
+}
+
+/**
+ * The bytes behind one attachment, fetched via Vercy CDN if resolved for this user.
+ */
+export async function readChatAttachment(userId: string, id: string) {
+  await connectDB();
+
+  const log = await ChatLog.findOne({
+    userId,
+    "messages.attachments.id": id,
+  }).lean();
+
+  if (!log) return null;
+
+  let matchedAtt: ChatAttachment | null = null;
+  for (const msg of log.messages || []) {
+    const att = (msg.attachments || []).find((a: any) => a.id === id);
+    if (att) {
+      matchedAtt = att;
+      break;
+    }
+  }
+
+  if (!matchedAtt?.url) return null;
+
+  const res = await fetch(matchedAtt.url);
+  if (!res.ok) return null;
+  const arrayBuffer = await res.arrayBuffer();
+
   return {
-    buffer: Buffer.concat(chunks),
-    name: file.filename,
-    mime: file.metadata?.mime || "application/octet-stream",
+    buffer: Buffer.from(arrayBuffer),
+    name: matchedAtt.name,
+    mime: matchedAtt.mime,
   };
 }
+

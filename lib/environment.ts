@@ -72,6 +72,11 @@ export const environment = {
 
   // FEES
   SWITCH_JUMPA_FEE: process.env.SWITCH_JUMPA_FEE ? Number(process.env.SWITCH_JUMPA_FEE) : 0,
+
+  // OpenRouter (Vision & LLM)
+  OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
+  OPENROUTER_VISION_MODEL:
+    process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.5-flash",
 };
 
 export default environment;

@@ -8,6 +8,7 @@ import { executeTool } from "@/lib/ai/tool-executor";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { detectTargetChains } from "@/lib/blockchain";
 import { describeAttachments } from "@/lib/chat-attachments";
+import { analyzeImageWithGemini } from "@/lib/ai/vision";
 import { getChatAttachments } from "@/lib/functions/chatAttachmentFunctions";
 import { generateId } from "@/lib/schema-ids";
 import {
@@ -36,15 +37,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(formatZodError(validation.error), { status: 400 });
     }
 
-    const { sessionId, message, attachmentIds } = validation.data;
+    const { sessionId, message, attachmentIds, attachments: rawAttachments } = validation.data;
     const userId = auth.userId;
 
-    // Resolved from storage, so a message can only carry this user's own files.
-    const attachments = attachmentIds?.length
-      ? await getChatAttachments(userId, attachmentIds)
-      : [];
-    // The model reads text only; this is how it learns a file came with the turn.
-    const attachmentNote = describeAttachments(attachments);
+    // Use direct attachments when provided; otherwise resolve by attachmentIds
+    const attachments = rawAttachments?.length
+      ? rawAttachments
+      : attachmentIds?.length
+        ? await getChatAttachments(userId, attachmentIds)
+        : [];
+
+    // Pre-analyze images
+    let visionAnalysis = "";
+    const imageAttachments = attachments.filter(
+      (att) => att.mime?.startsWith("image/") && att.url?.startsWith("http"),
+    );
+
+    if (imageAttachments.length > 0) {
+      console.log(
+        `[Chat Send] Analyzing ${imageAttachments.length} image attachment(s)...`,
+      );
+      try {
+        const analysisResults = await Promise.all(
+          imageAttachments.map((img) =>
+            analyzeImageWithGemini(img.url, message),
+          ),
+        );
+        visionAnalysis = analysisResults
+          .map(
+            (res, idx) =>
+              `Image [${imageAttachments[idx].name}]:\n${res.analysis}`,
+          )
+          .join("\n\n");
+      } catch (visErr) {
+        console.error("[Chat Send] Vision analysis failed:", visErr);
+      }
+    }
+
+    // The model receives rich visual analysis directly in its context
+    const attachmentNote = describeAttachments(attachments, visionAnalysis);
 
     // Fetch wallet via walletFunctions
     const wallet = await findWalletForUser(userId);

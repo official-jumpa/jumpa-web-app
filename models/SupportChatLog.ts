@@ -39,7 +39,7 @@ const SupportChatLogSchema = new Schema<ISupportChatLog>(
         attachments: [
           {
             _id: false,
-            id: { type: String, required: true },
+            id: { type: String, default: () => generateId("att"), required: true },
             url: { type: String, required: true },
             name: { type: String, default: "attachment" },
             mime: { type: String, default: "application/octet-stream" },

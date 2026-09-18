@@ -36,6 +36,7 @@ export const SCHEMA_IDS = {
   pref: { prefix: "pref", length: 16, description: "User preferences" },
   supt: { prefix: "supt", length: 16, description: "Support chat session logs" },
   wait: { prefix: "wait", length: 16, description: "Waitlist entries" },
+  att: { prefix: "att", length: 16, description: "Chat attachments and media" },
 
   // ── Utility Entities
   cardref: { prefix: "cardref", length: 12, description: "Card references" },

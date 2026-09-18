@@ -60,12 +60,18 @@ async function walletAssets(userId?: string): Promise<Asset[]> {
 
   // unifyTokens sums a symbol across chains, which is what one row stands for.
   const held = new Map(
-    unifyTokens(balances.tokens).map((asset) => [asset.symbol, asset.balance]),
+    unifyTokens(balances.tokens).map((unified) => [unified.symbol.toUpperCase(), unified]),
   );
 
   return SUPPORTED_ASSETS.map((asset) => {
-    const balance = held.get(asset.symbol);
-    return balance ? { ...asset, balance } : asset;
+    const unified = held.get(asset.symbol.toUpperCase());
+    return unified
+      ? {
+          ...asset,
+          balance: unified.balance,
+          change: unified.change,
+        }
+      : asset;
   });
 }
 
@@ -138,18 +144,39 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
 
     transactions = (txResult.transactions || []).map(formatDbTransaction);
 
-    if (balancesResult?.tokens) {
-      // Look for the token on the specific active chain
-      const tokenMatch = balancesResult.tokens.find(
-        (t) =>
-          t.symbol.toUpperCase() === asset.symbol.toUpperCase() &&
-          (t.network?.toLowerCase() === chain.id.toLowerCase() ||
-            t.network?.toLowerCase() === chain.name.toLowerCase()),
-      );
+    if (balancesResult?.tokens && balancesResult.tokens.length > 0) {
+      const symbolUpper = asset.symbol.toUpperCase();
+      const chainIdLower = chain.id.toLowerCase();
+      const chainNameLower = chain.name.toLowerCase();
+
+      // Look for the token on the specific active chain (e.g. "Stellar Mainnet" matches "stellar")
+      const matchingTokens = balancesResult.tokens.filter((t) => {
+        if (t.symbol.toUpperCase() !== symbolUpper) return false;
+        const net = (t.network || "").toLowerCase();
+        return (
+          net === chainIdLower ||
+          net === chainNameLower ||
+          net.includes(chainIdLower) ||
+          net.includes(chainNameLower) ||
+          (chainIdLower === "stellar" && (net.includes("stellar") || net.includes("xlm"))) ||
+          (chainIdLower === "solana" && (net.includes("solana") || net.includes("sol"))) ||
+          (chainIdLower === "ethereum" && (net.includes("ethereum") || net.includes("eth") || net.includes("sepolia"))) ||
+          (chainIdLower === "base" && net.includes("base"))
+        );
+      });
+
+      // Prioritize: 1) mainnet with balance > 0, 2) any token with balance > 0 (e.g. testnet), 3) first match
+      const tokenMatch =
+        matchingTokens.find((t) => !t.isTestnet && (parseFloat(t.balance) || 0) > 0) ||
+        matchingTokens.find((t) => (parseFloat(t.balance) || 0) > 0) ||
+        matchingTokens.find((t) => !t.isTestnet) ||
+        matchingTokens[0] ||
+        balancesResult.tokens.find((t) => t.symbol.toUpperCase() === symbolUpper);
 
       if (tokenMatch) {
         const balNum = parseFloat(tokenMatch.balance || "0");
         const formattedBal = balNum.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
           maximumFractionDigits: 4,
         });
         displayAsset.balance = `${formattedBal} ${asset.symbol}`;

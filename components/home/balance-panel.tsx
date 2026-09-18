@@ -13,23 +13,44 @@ import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
 import { BalanceSheet } from "./balance-sheet";
 
 /** Stands in for the digits while the balance is hidden. */
-const MASK = "*".repeat(9);
+const MASK = "*".repeat(6);
 
 const TRANSFER =
   "flex items-center gap-1.5 rounded-pill bg-jumpa-primary-500 py-1.5 pr-4 pl-1.5 text-base " +
   "font-medium text-jumpa-white shadow-[inset_0_0_8px_0_var(--color-jumpa-primary-400)]";
+
+interface BalancePanelProps {
+  balance: string;
+  visible?: boolean;
+  onToggleVisible?: () => void;
+}
 
 /**
  * Total balance and the transfer shortcuts. The eye masks the amount, the pill
  * opens the breakdown, and Send and Receive each raise their chooser rather
  * than navigating.
  */
-export function BalancePanel({ balance }: { balance: string }) {
-  const [visible, setVisible] = useState(false);
+export function BalancePanel({
+  balance,
+  visible: controlledVisible,
+  onToggleVisible,
+}: BalancePanelProps) {
+  const [internalVisible, setInternalVisible] = useState(false);
+  const isControlled = controlledVisible !== undefined;
+  const visible = isControlled ? controlledVisible : internalVisible;
+
   const [sheet, setSheet] = useState<"details" | "send" | "receive" | null>(
     null,
   );
   const ToggleIcon = visible ? EyeOffIcon : EyeIcon;
+
+  const handleToggle = () => {
+    if (onToggleVisible) {
+      onToggleVisible();
+    } else {
+      setInternalVisible((on) => !on);
+    }
+  };
 
   return (
     <section className="flex flex-col items-center gap-6">
@@ -48,14 +69,16 @@ export function BalancePanel({ balance }: { balance: string }) {
         <p className="flex items-center gap-2 text-jumpa-primary-50">
           {/* The 32px digits set the design's 34px line; the strut and "$" must not extend it. */}
           <span className="text-center leading-0 font-semibold">
-            <span className="text-xl leading-none">$</span>
+            {visible && (
+              <span className="text-xl leading-none">$</span>
+            )}
             <span className="text-[32px] leading-8.5">
               {visible ? balance : MASK}
             </span>
           </span>
           <button
             type="button"
-            onClick={() => setVisible((on) => !on)}
+            onClick={handleToggle}
             aria-label={visible ? "Hide balance" : "Show balance"}
           >
             <ToggleIcon className="size-6" />

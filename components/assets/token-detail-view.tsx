@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NetworkSheet } from "@/components/assets/network-sheet";
 import { TransactionEmpty } from "@/components/transactions/transaction-empty";
 import {
@@ -29,7 +29,6 @@ const ACTION = "tap flex w-14 flex-col items-center gap-2 active:scale-95";
 const PILL =
   "flex h-8 items-center gap-1 rounded-pill bg-jumpa-neutral-50 px-3 text-xs leading-4 font-medium text-jumpa-primary-950";
 
-/** One wallet: its balance, what you can do with it, and its history. */
 export function TokenDetailView({
   asset,
   chains,
@@ -45,6 +44,99 @@ export function TokenDetailView({
   const router = useRouter();
   const [visible, setVisible] = useState(true);
   const [asking, setAsking] = useState<"wallet" | "deposit">();
+  const [liveBalance, setLiveBalance] = useState<string>(() => asset.balance);
+
+  useEffect(() => {
+    setLiveBalance(asset.balance);
+  }, [asset.balance]);
+
+  // Sync balance from localStorage or live /api/wallet/balance on client mount
+  useEffect(() => {
+    let isMounted = true;
+
+    try {
+      const savedVisible = localStorage.getItem("jumpa_balance_visible");
+      if (savedVisible !== null) {
+        setVisible(savedVisible === "true");
+      }
+
+      const cachedAssetsStr = localStorage.getItem("jumpa_last_assets");
+      if (cachedAssetsStr) {
+        const cachedAssets = JSON.parse(cachedAssetsStr);
+        if (Array.isArray(cachedAssets)) {
+          const matchedAsset = cachedAssets.find(
+            (a: any) => a.symbol?.toUpperCase() === asset.symbol.toUpperCase(),
+          );
+          if (
+            matchedAsset?.change &&
+            (!liveBalance || liveBalance.startsWith("0.00") || liveBalance === "0.00")
+          ) {
+            setLiveBalance(matchedAsset.change);
+          }
+        }
+      }
+    } catch {}
+
+    async function fetchLiveBalance() {
+      try {
+        const res = await fetch("/api/wallet/balance");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!isMounted || !Array.isArray(data.tokens)) return;
+
+        const symbolUpper = asset.symbol.toUpperCase();
+        const chainIdLower = (chain?.id || "").toLowerCase();
+        const chainNameLower = (chain?.name || "").toLowerCase();
+
+        const matching = data.tokens.filter((t: any) => {
+          if (t.symbol?.toUpperCase() !== symbolUpper) return false;
+          const net = (t.network || "").toLowerCase();
+          if (!chainIdLower) return true;
+          return (
+            net === chainIdLower ||
+            net === chainNameLower ||
+            net.includes(chainIdLower) ||
+            net.includes(chainNameLower) ||
+            (chainIdLower === "stellar" &&
+              (net.includes("stellar") || net.includes("xlm"))) ||
+            (chainIdLower === "solana" &&
+              (net.includes("solana") || net.includes("sol"))) ||
+            (chainIdLower === "ethereum" &&
+              (net.includes("ethereum") ||
+                net.includes("eth") ||
+                net.includes("sepolia"))) ||
+            (chainIdLower === "base" && net.includes("base"))
+          );
+        });
+
+        const chosen =
+          matching.find(
+            (t: any) => !t.isTestnet && (parseFloat(t.balance) || 0) > 0,
+          ) ||
+          matching.find((t: any) => (parseFloat(t.balance) || 0) > 0) ||
+          matching.find((t: any) => !t.isTestnet) ||
+          matching[0] ||
+          data.tokens.find((t: any) => t.symbol?.toUpperCase() === symbolUpper);
+
+        if (chosen) {
+          const balNum = parseFloat(chosen.balance || "0");
+          const formatted = balNum.toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 4,
+          });
+          setLiveBalance(`${formatted} ${asset.symbol}`);
+        }
+      } catch (err) {
+        console.warn("[TokenDetailView] Failed to fetch live balance:", err);
+      }
+    }
+
+    fetchLiveBalance();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [asset.symbol, chain?.id, chain?.name]);
 
   const ToggleIcon = visible ? EyeOffIcon : EyeIcon;
   const switchable = chains.length > 1;
@@ -113,10 +205,18 @@ export function TokenDetailView({
         </span>
 
         <p className="flex items-center gap-2 text-2xl leading-7 font-semibold text-jumpa-white">
-          {visible ? asset.balance : MASK}
+          {visible ? liveBalance : MASK}
           <button
             type="button"
-            onClick={() => setVisible((on) => !on)}
+            onClick={() => {
+              setVisible((on) => {
+                const next = !on;
+                try {
+                  localStorage.setItem("jumpa_balance_visible", String(next));
+                } catch {}
+                return next;
+              });
+            }}
             aria-label={visible ? "Hide balance" : "Show balance"}
           >
             <ToggleIcon className="size-6" />

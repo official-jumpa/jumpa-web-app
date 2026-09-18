@@ -127,7 +127,6 @@ export function CreateCircleView() {
           <SavingsLabel>Target date</SavingsLabel>
           <DateField
             label="Target date"
-            icon="globe"
             value={date}
             min={addDays(0)}
             invalid={Boolean(errors.date)}

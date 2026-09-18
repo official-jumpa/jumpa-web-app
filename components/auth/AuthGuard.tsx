@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { JumpaLoaderScreen } from "@/components/ui/jumpa-loader";
 import { useSession } from "@/lib/auth-client";
 
 export interface AuthUser {
@@ -162,11 +163,7 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
   // While checking session or onboarding status, show clean loading shell
   if (isPending || (isAuthenticated && checkingStatus)) {
     if (fallback) return <>{fallback}</>;
-    return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-3">
-        <div className="size-8 animate-spin rounded-full border-2 border-jumpa-primary-600 border-t-transparent" />
-      </div>
-    );
+    return <JumpaLoaderScreen label="Loading your wallet" />;
   }
 
   //later the UI will be improved

@@ -328,7 +328,6 @@ export function SavingsWithdrawView() {
           headlineLabel={
             penaltyFee > 0 ? "ESTIMATED NET PAYOUT" : "YOU ARE WITHDRAWING"
           }
-          confirmLabel="Confirm withdrawal"
           onConfirm={() => setSheet("pin")}
           onClose={() => setSheet(null)}
         >

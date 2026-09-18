@@ -13,10 +13,8 @@ import { SettingsHeader } from "@/components/settings/settings-header";
 import { StatementRequestSheet } from "@/components/settings/statement-request";
 import { BadgeDollarIcon } from "@/components/ui/icons/badge-dollar";
 import { BellAltIcon } from "@/components/ui/icons/bell-alt";
-import { CircleUserIcon } from "@/components/ui/icons/circle-user";
 import { ClipboardTextIcon } from "@/components/ui/icons/clipboard-text";
 import { HeartAltIcon } from "@/components/ui/icons/heart-alt";
-import { IdCardIcon } from "@/components/ui/icons/id-card";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
 import { UsersIcon } from "@/components/ui/icons/users";
 
@@ -30,28 +28,6 @@ export function SettingsIndex() {
         <SettingsHeader back="/profile" title="Settings" />
 
         <div className="mt-4.25 flex flex-col gap-8.5">
-          <SettingSection label="Preferences">
-            <SettingCard>
-              <SettingLink
-                href={settingsHref("notifications")}
-                icon={BellAltIcon}
-                label="Notifications"
-              />
-              <SettingRule />
-              <SettingLink
-                href={settingsHref("rates")}
-                icon={BadgeDollarIcon}
-                label="Currency Rates"
-              />
-              <SettingRule />
-              <SettingLink
-                href="/referrals"
-                icon={UsersIcon}
-                label="Your Referrals"
-              />
-            </SettingCard>
-          </SettingSection>
-
           <SettingSection label="Profile Information">
             <SettingCard>
               <SettingAction
@@ -70,6 +46,28 @@ export function SettingsIndex() {
                 href="/support"
                 icon={HeartAltIcon}
                 label="Help & Support"
+              />
+            </SettingCard>
+          </SettingSection>
+
+          <SettingSection label="Preferences">
+            <SettingCard>
+              <SettingLink
+                href={settingsHref("notifications")}
+                icon={BellAltIcon}
+                label="Notifications"
+              />
+              <SettingRule />
+              <SettingLink
+                href={settingsHref("rates")}
+                icon={BadgeDollarIcon}
+                label="Currency Rates"
+              />
+              <SettingRule />
+              <SettingLink
+                href="/referrals"
+                icon={UsersIcon}
+                label="Your Referrals"
               />
             </SettingCard>
           </SettingSection>

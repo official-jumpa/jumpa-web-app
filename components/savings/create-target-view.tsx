@@ -312,7 +312,6 @@ export function CreateTargetView() {
                 <SavingsLabel>Start date</SavingsLabel>
                 <DateField
                   label="Start date"
-                  icon="globe"
                   value={start}
                   min={addDays(0)}
                   invalid={Boolean(errors.dates)}
@@ -324,7 +323,6 @@ export function CreateTargetView() {
                 <SavingsLabel>End date (Optional)</SavingsLabel>
                 <DateField
                   label="End date"
-                  icon="globe"
                   value={end}
                   min={start || addDays(0)}
                   invalid={Boolean(errors.dates)}
@@ -495,7 +493,6 @@ export function CreateTargetView() {
           summary={<RecipientTag primary={goal} secondary={schedule} />}
           headline={total}
           headlineLabel="YOUR TARGET"
-          confirmLabel="Create target"
           onConfirm={() => setSheet("pin")}
           onClose={() => setSheet(null)}
         >

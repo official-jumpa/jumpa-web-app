@@ -79,7 +79,6 @@ export function AirtimeView() {
               />
             }
             headline={total}
-            confirmLabel="Confirm payment"
             onConfirm={() => setSheet("pin")}
             onClose={() => setSheet(null)}
           >

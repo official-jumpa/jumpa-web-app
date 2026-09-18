@@ -4,9 +4,9 @@ import Image from "next/image";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import {
-  AttachmentSheet,
+  AttachmentMenu,
   type AttachmentSource,
-} from "@/components/chat/attachment-sheet";
+} from "@/components/chat/attachment-menu";
 import {
   AttachmentStrip,
   type PendingAttachment,
@@ -64,7 +64,7 @@ export function ChatComposer({
   const previewsRef = useRef<string[]>([]);
 
   const [unsupported, setUnsupported] = useState(false);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [pending, setPending] = useState<PendingAttachment[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -181,10 +181,10 @@ export function ChatComposer({
     });
   };
 
-  // The sheet closes and the input opens in the same gesture, so the picker is
+  // The menu closes and the input opens in the same gesture, so the picker is
   // still allowed to open on iOS.
   const openPicker = (source: AttachmentSource) => {
-    setSheetOpen(false);
+    setMenuOpen(false);
     const field =
       source === "image" ? imageRef : source === "file" ? fileRef : cameraRef;
     field.current?.click();
@@ -261,14 +261,23 @@ export function ChatComposer({
     <>
       <AttachmentStrip items={pending} onRemove={removeAttachment} />
 
-      <div className="flex items-end gap-2.5">
+      <div className="relative flex items-end gap-2.5">
+        {/* Anchors the attachment menu to the + rather than to the viewport. */}
+        {menuOpen ? (
+          <AttachmentMenu
+            onPick={openPicker}
+            onClose={() => setMenuOpen(false)}
+          />
+        ) : null}
+
         <div
           className={`flex min-h-13 flex-1 items-end gap-2.5 rounded-surface p-1 ${TONES[tone]}`}
         >
           <button
             type="button"
-            onClick={() => setSheetOpen(true)}
+            onClick={() => setMenuOpen((open) => !open)}
             aria-label="Add an attachment"
+            aria-expanded={menuOpen}
             className="flex h-11 w-11.5 shrink-0 items-center justify-center rounded-pill bg-jumpa-neutral-250 text-jumpa-grey-600 tap hover:bg-jumpa-neutral-300 active:scale-95 cursor-pointer"
           >
             <CirclePlusIcon className="size-6" />
@@ -352,13 +361,6 @@ export function ChatComposer({
           e.target.value = "";
         }}
       />
-
-      {sheetOpen ? (
-        <AttachmentSheet
-          onPick={openPicker}
-          onClose={() => setSheetOpen(false)}
-        />
-      ) : null}
 
       {notice ? (
         <ResultSheet

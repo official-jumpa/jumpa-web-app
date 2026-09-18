@@ -1,24 +1,23 @@
 import Image from "next/image";
-import { cn } from "@/lib/cn";
 import type { Notification } from "@/lib/notifications";
 
 // inset-ring, not border: a CSS border sits outside the box and would add 2px
 // to the design's 130px card, compounding down the feed.
 const CARD =
-  "flex w-full flex-col gap-2 rounded-surface bg-jumpa-neutral-50 px-6 py-5 text-left inset-ring-1 inset-ring-jumpa-neutral-60";
+  "tap flex w-full flex-col gap-2 rounded-surface bg-jumpa-neutral-50 px-6 py-5 text-left inset-ring-1 inset-ring-jumpa-neutral-60 active:scale-[0.99]";
 
-/** One feed entry. Unread carries the dot and reads itself when tapped. */
+/** One feed entry. The whole card opens the notification; unread carries the dot. */
 export function NotificationCard({
   item,
   read,
-  onRead,
+  onOpen,
 }: {
   item: Notification;
   read: boolean;
-  onRead: () => void;
+  onOpen: () => void;
 }) {
-  const body = (
-    <>
+  return (
+    <button type="button" onClick={onOpen} className={CARD}>
       <div className="flex items-center gap-2">
         <span className="relative flex size-6 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-jumpa-primary-600 to-jumpa-primary-400">
           <Image
@@ -50,19 +49,6 @@ export function NotificationCard({
           {read ? "Read" : "Unread"}
         </span>
       </div>
-    </>
-  );
-
-  // A read card has nothing left to do, so it is not a control.
-  if (read) return <article className={CARD}>{body}</article>;
-
-  return (
-    <button
-      type="button"
-      onClick={onRead}
-      className={cn(CARD, "tap active:scale-[0.99]")}
-    >
-      {body}
     </button>
   );
 }

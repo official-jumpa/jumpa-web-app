@@ -328,7 +328,6 @@ export function LockSavingsView() {
         <ReviewSheet
           headline={`${formatAmount(amount)} USDC`}
           headlineLabel="AMOUNT"
-          confirmLabel="Confirm payment"
           onConfirm={() => setSheet("pin")}
           onClose={() => setSheet(null)}
         >

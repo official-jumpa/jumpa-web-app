@@ -4,14 +4,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { SupportSheet } from "@/components/support/support-sheet";
 import { BellIcon } from "@/components/ui/icons/bell";
-import { MessageCircleQuestionIcon } from "@/components/ui/icons/message-circle-question";
 import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
 import { useEffect, useState } from "react";
 import { useAuthContext } from "@/components/auth/AuthGuard";
 import { ACCOUNT } from "@/lib/wallet";
 
+// No colour here: a second `text-*` from a consumer would not reliably win,
+// since the joins in this file are plain concatenation.
 const CONTROL =
-  "relative flex size-10 items-center justify-center rounded-full bg-jumpa-white/43 text-jumpa-primary-50";
+  "relative flex size-10 items-center justify-center rounded-full bg-jumpa-white/43";
 
 export function WalletHeader() {
   const auth = useAuthContext();
@@ -78,14 +79,25 @@ export function WalletHeader() {
           aria-label="Help and support"
           className={`${CONTROL} tap active:scale-95`}
         >
-          <MessageCircleQuestionIcon className="size-6" />
+          {/* HELP tucks into the top-right corner, so the headset is nudged
+              down and left to leave it room inside the 40px disc. */}
+          <Image
+            src="/images/home/supporticon.png"
+            alt=""
+            width={50}
+            height={50}
+            className="mt-[3px] mr-0.5 size-5.5"
+          />
+          <span className="absolute -top-px -right-0.5 rounded-pill bg-jumpa-danger-100 px-[3px] text-[6px] leading-[10px] font-bold tracking-wide text-jumpa-danger">
+            HELP
+          </span>
         </button>
 
         <Link
           href="/notifications"
           prefetch={true}
           aria-label="Notifications"
-          className={CONTROL}
+          className={`${CONTROL} text-jumpa-primary-50`}
         >
           <BellIcon className="size-6" />
           {hasUnread ? (

@@ -106,7 +106,6 @@ export function MobileDataView() {
               />
             }
             headline={`${plan.price} (${plan.size}-${getPeriodLabel(plan.period)})`}
-            confirmLabel="Confirm payment"
             onConfirm={() => setSheet("pin")}
             onClose={() => setSheet(null)}
           >

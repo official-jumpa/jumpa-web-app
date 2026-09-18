@@ -3,15 +3,31 @@ import { RingedButton } from "@/components/ui/ringed-button";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { CARD_PERKS } from "@/lib/cards";
 
-/** First step of the create flow, and the whole screen until a card exists. */
-export function CardIntro({ back }: { back: string }) {
+/**
+ * First step of the create flow, and the whole screen until a card exists.
+ * `withNav` is the empty `/cards` tab, where BottomNav is fixed over the CTA;
+ * as a flow step nothing is, and the artwork gets that space back.
+ */
+export function CardIntro({
+  back,
+  withNav = false,
+}: {
+  back: string;
+  withNav?: boolean;
+}) {
   return (
-    <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+2rem)]">
+    <div
+      className={`flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] ${
+        withNav
+          ? "pb-[calc(env(safe-area-inset-bottom)+7.5rem)]"
+          : "pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
+      }`}
+    >
       <ScreenHeader back={back} title="Your Virtual Cards" round />
 
       {/* Full-bleed at every size: the artwork keeps the column's width and gives
           up height instead, so the copy below it always has room. */}
-      <div className="relative -mx-4.5 mt-2 mb-5 min-h-32 flex-1 overflow-hidden">
+      <div className="relative -mx-4.5 mt-2 mb-11 min-h-32 flex-1 overflow-hidden">
         <Image
           src="/images/cards/cards-hero.webp"
           alt=""
@@ -26,13 +42,15 @@ export function CardIntro({ back }: { back: string }) {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-linear-to-t from-jumpa-white to-transparent" />
       </div>
 
-      <div className="flex flex-col items-center gap-5">
+      {/* The frame's own rhythm: 44 under the artwork, 24 to the perks, 40 to
+          the CTA (the ul tops the column gap up for that last one). */}
+      <div className="flex flex-col items-center gap-6">
         <h2 className="text-center text-[32px] leading-8.5 font-semibold text-jumpa-black">
           Your money, behind a digital card
         </h2>
 
         {/* The odd last perk centres itself across both columns. */}
-        <ul className="mx-auto grid w-70 grid-cols-2 gap-x-4 gap-y-2 text-xs leading-5 text-jumpa-black">
+        <ul className="mx-auto mb-4 grid w-70 grid-cols-2 gap-x-4 gap-y-2 text-xs leading-5 text-jumpa-black">
           {CARD_PERKS.map((perk, index) => (
             <li
               key={perk}

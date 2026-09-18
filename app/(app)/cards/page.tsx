@@ -49,6 +49,7 @@ export default async function CardsPage({ searchParams }: CardsPageProps) {
   }
   if (view === "new") return <CardIntro back="/cards" />;
 
-  if (CARDS.length === 0) return <CardIntro back="/home" />;
+  // The bare route is the tab, so BottomNav is over this one.
+  if (CARDS.length === 0) return <CardIntro back="/home" withNav />;
   return <CardsView cards={CARDS} promotions={PROMOTIONS} />;
 }

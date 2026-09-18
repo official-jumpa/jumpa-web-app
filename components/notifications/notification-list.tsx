@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { NotificationCard } from "@/components/notifications/notification-card";
+import { NotificationDetail } from "@/components/notifications/notification-detail";
 import { NotificationsEmpty } from "@/components/notifications/notifications-empty";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { cn } from "@/lib/cn";
@@ -23,6 +24,7 @@ export function NotificationList({
 }) {
   const hasServerData = initialItems !== undefined;
   const [tab, setTab] = useState<NotificationTab>("transactions");
+  const [openId, setOpenId] = useState<string | null>(null);
   const [items, setItems] = useState<Notification[]>(initialItems ?? []);
   const [loading, setLoading] = useState(!hasServerData);
   const [tabCounts, setTabCounts] = useState<{ transactions: number; activities: number }>(
@@ -73,6 +75,13 @@ export function NotificationList({
     }
   };
 
+  // Opening is what reads a notification, so the dot is already gone by the
+  // time the sheet is dismissed.
+  const open = (item: Notification) => {
+    setOpenId(item.id);
+    if (!item.read) markRead(item.id);
+  };
+
   const markAllRead = async () => {
     // Optimistic local update
     setItems((prev) => prev.map((item) => ({ ...item, read: true })));
@@ -87,6 +96,7 @@ export function NotificationList({
   };
 
   const shown = items.filter((item) => item.tab === tab);
+  const opened = items.find((item) => item.id === openId);
 
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
@@ -144,7 +154,7 @@ export function NotificationList({
               <NotificationCard
                 item={item}
                 read={item.read}
-                onRead={() => markRead(item.id)}
+                onOpen={() => open(item)}
               />
             </li>
           ))}
@@ -152,6 +162,10 @@ export function NotificationList({
       ) : (
         <NotificationsEmpty />
       )}
+
+      {opened ? (
+        <NotificationDetail item={opened} onClose={() => setOpenId(null)} />
+      ) : null}
     </div>
   );
 }

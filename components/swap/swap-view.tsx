@@ -349,7 +349,6 @@ export function SwapView({
           }
           headlineLabel="YOU RECEIVE"
           headline={`${received} ${toToken}`}
-          confirmLabel="Confirm swap"
           onConfirm={() => setPinOpen(true)}
           onClose={() => setStage("quote")}
         >

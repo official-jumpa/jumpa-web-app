@@ -364,7 +364,6 @@ export function BankTransferView({
                 ? `₦${targetFiatAmount.toLocaleString()} (${numCryptoAmount} ${selectedAsset})`
                 : `${numCryptoAmount} ${selectedAsset}`
             }
-            confirmLabel="Confirm payment"
             onConfirm={() => setSheet("pin")}
             onClose={() => setSheet(null)}
           >

@@ -15,7 +15,7 @@ export function ReviewSheet({
   summary,
   headline,
   headlineLabel = "RECIPIENT GETS",
-  confirmLabel,
+  confirmLabel = "Proceed",
   onConfirm,
   onClose,
   children,
@@ -24,7 +24,8 @@ export function ReviewSheet({
   summary?: ReactNode;
   headline: string;
   headlineLabel?: string;
-  confirmLabel: string;
+  /** Every flow confirms with the same word; override only for a real reason. */
+  confirmLabel?: string;
   onConfirm: () => void;
   onClose: () => void;
   children: ReactNode;

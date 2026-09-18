@@ -110,6 +110,7 @@
 
   --color-jumpa-danger: #ff0004; /* self-custody warnings */
   --color-jumpa-danger-50: #fff0f0; /* error notice inside a card */
+  --color-jumpa-danger-100: #ffd7d8; /* HELP badge on the home support control */
   --color-jumpa-danger-400: #ff383c; /* amount above the spendable balance */
   --color-jumpa-warning: #e69200; /* PIN-vs-password note on the import screens */
   --color-jumpa-success: #11a929; /* positive 24h change on an asset card */

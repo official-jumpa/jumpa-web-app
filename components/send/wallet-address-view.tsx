@@ -232,7 +232,6 @@ export function WalletAddressView() {
               </div>
             }
             headline={`${amount} ${form.asset}`}
-            confirmLabel="Confirm payment"
             onConfirm={() => setSheet("pin")}
             onClose={() => setSheet(null)}
           >

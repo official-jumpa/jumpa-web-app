@@ -139,7 +139,6 @@ export function TopUpView({ plan, back }: { plan: SavingsPlan; back: string }) {
           }
           headline={total}
           headlineLabel="YOU ARE ADDING"
-          confirmLabel="Confirm top up"
           onConfirm={() => setSheet("pin")}
           onClose={() => setSheet(null)}
         >

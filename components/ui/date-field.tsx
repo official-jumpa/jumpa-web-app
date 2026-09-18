@@ -4,7 +4,6 @@ import { useState } from "react";
 import { DayPicker, type Matcher } from "react-day-picker";
 import { CalendarIcon } from "@/components/ui/icons/calendar";
 import { CaretDownIcon } from "@/components/ui/icons/caret-down";
-import { GlobeIcon } from "@/components/ui/icons/globe";
 import { SheetPortal } from "@/components/ui/sheet-portal";
 import { cn } from "@/lib/cn";
 
@@ -75,7 +74,6 @@ export function DateField({
   invalid,
   placeholder = "Select a date",
   variant = "field",
-  icon = "calendar",
   min,
   max,
   className,
@@ -86,8 +84,6 @@ export function DateField({
   invalid?: boolean;
   placeholder?: string;
   variant?: keyof typeof TRIGGERS;
-  /** The circle form draws a globe where every other field draws a calendar. */
-  icon?: "calendar" | "globe";
   className?: string;
   /** `YYYY-MM-DD` bounds. Days outside them are shown but not selectable. */
   min?: string;
@@ -138,8 +134,6 @@ export function DateField({
 
         {statement ? (
           <CaretDownIcon className="size-6 shrink-0 text-jumpa-black" />
-        ) : icon === "globe" ? (
-          <GlobeIcon className="size-6 shrink-0 text-jumpa-primary-950" />
         ) : (
           <CalendarIcon className="size-4.5 shrink-0 text-jumpa-primary-600" />
         )}

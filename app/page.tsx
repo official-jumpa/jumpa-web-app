@@ -1,15 +1,15 @@
 import { AuthRedirect } from "@/components/landing/auth-redirect";
-import { BetaCtaSection } from "@/components/landing/beta-cta-section";
-import { FaqSection } from "@/components/landing/faq-section";
-import { FeaturesSection } from "@/components/landing/features-section";
+// import { BetaCtaSection } from "@/components/landing/beta-cta-section";
+// import { FaqSection } from "@/components/landing/faq-section";
+// import { FeaturesSection } from "@/components/landing/features-section";
 import { HeroSection } from "@/components/landing/hero-section";
-import { HowItWorksSection } from "@/components/landing/how-it-works-section";
+// import { HowItWorksSection } from "@/components/landing/how-it-works-section";
 import { InstallPrompt } from "@/components/landing/install-prompt";
-import { LandingFooter } from "@/components/landing/landing-footer";
+// import { LandingFooter } from "@/components/landing/landing-footer";
 import { LandingNav } from "@/components/landing/landing-nav";
 import { RevealObserver } from "@/components/landing/reveal-observer";
-import { SecuritySection } from "@/components/landing/security-section";
-import { WhyJumpaSection } from "@/components/landing/why-jumpa-section";
+// import { SecuritySection } from "@/components/landing/security-section";
+// import { WhyJumpaSection } from "@/components/landing/why-jumpa-section";
 
 /**
  * Public marketing home. A signed-in visitor is redirected on by `AuthRedirect`.
@@ -41,18 +41,19 @@ export default function LandingPage() {
       {/* Outside the frame: the card is app chrome, so it measures in the app's
           own spacing rather than the landing frame's scaled unit. */}
       <InstallPrompt />
-      <main className="frame-393/550 md:frame-1440/2560 isolate overflow-x-clip bg-jumpa-white">
+      {/* Clipped so the hero's glow can't grow the page. `clip` keeps drift working. */}
+      <main className="frame-393/550 md:frame-1440/2560 isolate min-h-dvh overflow-clip bg-jumpa-white">
         <AuthRedirect />
         <RevealObserver />
         <LandingNav />
         <HeroSection />
-        <HowItWorksSection />
-        <FeaturesSection />
+        {/* <HowItWorksSection /> */}
+        {/* <FeaturesSection />
         <WhyJumpaSection />
         <SecuritySection />
         <FaqSection />
         <BetaCtaSection />
-        <LandingFooter />
+        <LandingFooter /> */}
       </main>
     </>
   );

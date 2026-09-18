@@ -1,6 +1,6 @@
 /** Copy and structured content for the public landing page (`app/page.tsx`). */
 
-export const CTA_LABEL = "Join Private Beta";
+export const CTA_LABEL = "Join Beta";
 export const EMAIL_PLACEHOLDER = "Enter your email...";
 
 export const NAV_LINKS = [

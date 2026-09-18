@@ -1,4 +1,4 @@
-import Image from "next/image";
+// import Image from "next/image";
 import { DotGlow } from "@/components/landing/dot-glow";
 import { HeroEmailForm } from "@/components/landing/email-capture-form";
 import { countChars, HeadlineChars } from "@/components/landing/headline-chars";
@@ -112,23 +112,24 @@ const FORM_STEP = 17;
 //   );
 // }
 
-function ChatPanelImage() {
-  return (
-    <div
-      style={revealStep(8)}
-      className="frame-393 stagger absolute top-1/2 left-200 w-393 -translate-y-1/2 animate-reveal-zoom"
-    >
-      <Image
-        src="/images/landing/chatPanelHero.png"
-        alt="chatPanelHero"
-        width={400}
-        height={621}
-        priority
-        className="h-full w-full"
-      />
-    </div>
-  );
-}
+// Off with the hero artwork below; restore both together.
+// function ChatPanelImage() {
+//   return (
+//     <div
+//       style={revealStep(8)}
+//       className="frame-393 stagger absolute top-1/2 left-200 w-393 -translate-y-1/2 animate-reveal-zoom"
+//     >
+//       <Image
+//         src="/images/landing/chatPanelHero.png"
+//         alt="chatPanelHero"
+//         width={400}
+//         height={621}
+//         priority
+//         className="h-full w-full"
+//       />
+//     </div>
+//   );
+// }
 
 export function HeroSection() {
   return (
@@ -197,7 +198,8 @@ export function HeroSection() {
           </div>
         </div>
 
-        <div className="frame-1300 relative mx-auto mt-30.25 w-336.75 md:mt-114 md:w-1300">
+        {/* Hero artwork — off at the client's ask; the hero is copy only. */}
+        {/* <div className="frame-1300 relative mx-auto mt-30.25 w-336.75 md:mt-114 md:w-1300">
           <div className="relative h-780 w-1300 overflow-hidden rounded-u-24 md:h-699">
             <Image
               src="/images/landing/hero-photo-mobile.webp"
@@ -219,9 +221,9 @@ export function HeroSection() {
             />
 
             <ChatPanelImage />
-            {/* <ChatPanel /> */}
+            <ChatPanel />
           </div>
-        </div>
+        </div> */}
       </div>
     </section>
   );

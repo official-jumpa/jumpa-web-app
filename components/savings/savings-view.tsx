@@ -10,11 +10,7 @@ import { TransferHeader } from "@/components/transfer/transfer-header";
 import { PlusIcon } from "@/components/ui/icons/plus";
 import { type SavingsKind, savingsHref } from "@/lib/savings";
 
-/**
- * Savings landing: the masthead, then the three products. Every tap raises the
- * product's intro sheet — it is the only place the terms are shown, so it must
- * not be suppressed after a first visit.
- */
+/** Savings landing. Every tap raises the intro sheet — never suppress it. */
 export function SavingsView() {
   const [intro, setIntro] = useState<SavingsKind>();
 

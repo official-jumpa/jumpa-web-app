@@ -12,6 +12,7 @@ import {
 import { OptionRow } from "@/components/transfer/option-row";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field-error";
+import { CircleInformationIcon } from "@/components/ui/icons/circle-information";
 import { GlobeIcon } from "@/components/ui/icons/globe";
 import { SearchAltIcon } from "@/components/ui/icons/search-alt";
 import { getAssetLogo } from "@/lib/assets";
@@ -20,6 +21,7 @@ import {
   NETWORK_CONFIGS,
   RECENT_WALLETS,
   shortenAddress,
+  SUPPORTED_SEND_CHAINS,
   type WalletContact,
 } from "@/lib/transfer";
 import { revealFirstError } from "@/lib/validation";
@@ -193,11 +195,11 @@ export function WalletAddressForm({
           ) : null}
         </>
       ) : (
-        RECENT_WALLETS.length > 0 && (
-          <section className="flex flex-col gap-3">
-            <h2 className="text-xs leading-5 font-medium text-jumpa-black">
-              Recent accounts
-            </h2>
+        <section className="flex flex-col gap-3">
+          <h2 className="text-xs leading-5 font-medium text-jumpa-black">
+            Recent accounts
+          </h2>
+          {RECENT_WALLETS.length > 0 ? (
             <ul className="flex flex-col gap-4 rounded-surface bg-jumpa-primary-50 px-4 py-4">
               {RECENT_WALLETS.map((contact) => (
                 <li key={contact.id}>
@@ -214,8 +216,24 @@ export function WalletAddressForm({
                 </li>
               ))}
             </ul>
-          </section>
-        )
+          ) : (
+            // Same card as the list, so the slot doesn't change shape when a
+            // first transaction fills it.
+            <div className="flex flex-col items-center gap-3 rounded-surface bg-jumpa-primary-50 px-4 py-10">
+              <span className="flex size-16 items-center justify-center rounded-full bg-jumpa-primary-950 text-jumpa-white">
+                <CircleInformationIcon className="size-7" />
+              </span>
+              <span className="flex flex-col items-center gap-1 text-center">
+                <span className="text-base leading-5 font-bold text-jumpa-black">
+                  No recent accounts
+                </span>
+                <span className="text-sm leading-4 font-medium text-jumpa-neutral-300">
+                  {SUPPORTED_SEND_CHAINS}
+                </span>
+              </span>
+            </div>
+          )}
+        </section>
       )}
 
       <Button variant="gradient" size="lg" className="mt-auto" onClick={submit}>

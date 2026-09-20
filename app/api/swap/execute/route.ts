@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     const {
       pin,
       rawQuote,
-      network = "testnet",
+      network = "mainnet",
       fromToken,
       toToken,
       fromAmount,

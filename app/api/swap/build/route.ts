@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(formatZodError(validation.error), { status: 400 });
     }
 
-    const { quote, fromAddress, toAddress, network = "testnet" } =
+    const { quote, fromAddress, toAddress, network = "mainnet" } =
       validation.data;
 
     const result = await buildSwapTransaction({

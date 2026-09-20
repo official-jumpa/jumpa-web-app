@@ -25,8 +25,8 @@ function getBaseUrl(): string {
 function getApiKey(): string {
   const key = environment.FOSSAPAY_API_KEY || process.env.FOSSAPAY_API_KEY;
   if (!key) {
-    console.error("[FossaPay] Missing API_KEY");
-    throw new Error("Server configuration error: API_KEY is missing");
+    console.error("Missing API_KEY");
+    throw new Error("API_KEY is missing");
   }
   return key;
 }

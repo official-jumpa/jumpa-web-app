@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       amount,
       tradeType = "EXACT_IN",
       slippageTolerance = 0.5,
-      network = "testnet",
+      network = "mainnet",
     } = validation.data;
 
     const quote = await getSwapQuote({

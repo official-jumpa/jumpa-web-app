@@ -7,9 +7,9 @@ import { fetchStellarBalances } from "@/lib/chains/stellar";
 export const metadata: Metadata = { title: "Swap" };
 
 export default async function SwapPage() {
-  // Pre-fetch Stellar testnet balances server-side so the initial render
+  // Pre-fetch Stellar mainnet balances server-side so the initial render
   // shows real numbers without a client-side waterfall fetch.
-  let stellarTestnetBalances = { xlm: "0.00", usdc: "0.00" };
+  let stellarBalances = { xlm: "0.00", usdc: "0.00" };
 
   try {
     const session = await getCachedAuthSession();
@@ -19,9 +19,9 @@ export default async function SwapPage() {
 
       if (xlmAddress) {
         const result = await fetchStellarBalances(xlmAddress);
-        stellarTestnetBalances = {
-          xlm: result.testnet.native,
-          usdc: result.testnet.usdc,
+        stellarBalances = {
+          xlm: result.mainnet.native,
+          usdc: result.mainnet.usdc,
         };
       }
     }
@@ -29,5 +29,5 @@ export default async function SwapPage() {
     console.warn("[SwapPage SSR]", err);
   }
 
-  return <SwapView stellarTestnetBalances={stellarTestnetBalances} />;
+  return <SwapView stellarBalances={stellarBalances} />;
 }

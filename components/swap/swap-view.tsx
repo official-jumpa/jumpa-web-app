@@ -18,17 +18,14 @@ import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field-error";
 import { ArrowDownArrowUpIcon } from "@/components/ui/icons/arrow-down-arrow-up";
-import { PlusIcon } from "@/components/ui/icons/plus";
+import { GearIcon } from "@/components/ui/icons/gear";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { useSwapQuote } from "@/hooks/use-swap-quote";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import { SWAP_QUOTE } from "@/lib/transfer";
 
-/** Assets available on each chain/network. Extend when new chains are integrated. */
-const CHAIN_ASSETS = {
-  "stellar:testnet": ["XLM", "USDC"] as const,
-  "stellar:mainnet": ["XLM", "USDC"] as const,
-} as const;
+/** Assets available for swap. Extend when new chains are integrated. */
+const SWAP_ASSETS = ["XLM", "USDC"] as const;
 
 type Stage = "quote" | "review" | "done";
 
@@ -39,26 +36,24 @@ interface TxResult {
   receivedToken: string;
 }
 
-export interface StellarTestnetBalances {
+export interface StellarBalances {
   xlm: string;
   usdc: string;
 }
 
 export function SwapView({
-  stellarTestnetBalances,
+  stellarBalances,
 }: {
-  stellarTestnetBalances: StellarTestnetBalances;
+  stellarBalances: StellarBalances;
 }) {
   // ── Settings ──
-  const [network, setNetwork] = useState<"testnet" | "mainnet">("testnet");
   const [slippage, setSlippage] = useState(0.5);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // ── Swap pair ──
-  const assets = CHAIN_ASSETS[`stellar:${network}`];
-  const tokenOptions = assetOptions(assets);
-  const [fromToken, setFromToken] = useState<string>(assets[0]);
-  const [toToken, setToToken] = useState<string>(assets[1]);
+  const tokenOptions = assetOptions(SWAP_ASSETS);
+  const [fromToken, setFromToken] = useState<string>(SWAP_ASSETS[0]);
+  const [toToken, setToToken] = useState<string>(SWAP_ASSETS[1]);
   const [amount, setAmount] = useState("");
 
   // ── Flow ──
@@ -79,7 +74,6 @@ export function SwapView({
     fromToken,
     toToken,
     amount,
-    network,
     slippage,
   });
 
@@ -91,8 +85,8 @@ export function SwapView({
   // ── Balance lookup ──
   function balanceFor(token: string): string {
     const t = token.toUpperCase();
-    if (t === "XLM") return formatBalance(stellarTestnetBalances.xlm);
-    if (t === "USDC") return formatBalance(stellarTestnetBalances.usdc);
+    if (t === "XLM") return formatBalance(stellarBalances.xlm);
+    if (t === "USDC") return formatBalance(stellarBalances.usdc);
     return "0";
   }
 
@@ -126,7 +120,7 @@ export function SwapView({
         body: JSON.stringify({
           pin,
           rawQuote: quote,
-          network,
+          network: "mainnet",
           fromToken,
           toToken,
           fromAmount: amount,
@@ -209,20 +203,15 @@ export function SwapView({
             onClick={() => setSettingsOpen(true)}
             className="tap flex size-9.5 items-center justify-center rounded-full border border-jumpa-primary-600 bg-jumpa-secondary-150 text-jumpa-primary-600 active:scale-90"
           >
-            <PlusIcon className="size-5.25" />
+            <GearIcon className="size-5.25" />
           </button>
         </header>
       )}
 
-      {/* ── Settings sheet (network + slippage) ── */}
+      {/* ── Settings sheet (slippage) ── */}
       {settingsOpen && (
         <SwapSettingsSheet
-          network={network}
           slippage={slippage}
-          onNetworkChange={(n) => {
-            setNetwork(n);
-            setAmount("");
-          }}
           onSlippageChange={setSlippage}
           onClose={() => setSettingsOpen(false)}
         />
@@ -357,7 +346,7 @@ export function SwapView({
             <DetailRow label="Slippage" value={quoteSlippage} />
             <DetailRow
               label="Network"
-              value={`Stellar ${network}`}
+              value="Stellar Mainnet"
               rule={false}
             />
           </DetailList>

@@ -2,7 +2,7 @@
  * hooks/use-swap-quote.ts
  *
  * Debounced hook that fetches a live DEX quote from POST /api/swap/quote.
- * Re-fetches automatically whenever fromToken, toToken, amount, network,
+ * Re-fetches automatically whenever fromToken, toToken, amount,
  * or slippage changes (400 ms debounce). In-flight requests are aborted on
  * rapid changes to avoid stale results.
  */
@@ -16,7 +16,6 @@ interface UseSwapQuoteParams {
   fromToken: string;
   toToken: string;
   amount: string;
-  network: "testnet" | "mainnet";
   slippage: number;
 }
 
@@ -34,7 +33,7 @@ export function useSwapQuote(params: UseSwapQuoteParams): UseSwapQuoteResult {
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { fromToken, toToken, amount, network, slippage } = params;
+  const { fromToken, toToken, amount, slippage } = params;
 
   useEffect(() => {
     // Clear any running debounce and in-flight request
@@ -66,7 +65,7 @@ export function useSwapQuote(params: UseSwapQuoteParams): UseSwapQuoteResult {
             assetOut: toToken,
             amount,
             slippageTolerance: slippage,
-            network,
+            network: "mainnet",
           }),
           signal: controller.signal,
         });
@@ -94,7 +93,7 @@ export function useSwapQuote(params: UseSwapQuoteParams): UseSwapQuoteResult {
       if (timerRef.current) clearTimeout(timerRef.current);
       abortRef.current?.abort();
     };
-  }, [fromToken, toToken, amount, network, slippage]);
+  }, [fromToken, toToken, amount, slippage]);
 
   return { quote, loading, error };
 }

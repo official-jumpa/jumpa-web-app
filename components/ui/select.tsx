@@ -14,6 +14,8 @@ export type SelectOption = {
   caption?: string;
   /** Token or chain logo; pass a real asset path, never a stand-in. */
   icon?: string;
+  /** Listed but not pickable — a rail that is not live yet. */
+  disabled?: boolean;
 };
 
 /** The design draws two triggers: a full-width field and a compact asset pill. */
@@ -100,7 +102,8 @@ export function Select({
               <Primitive.Item
                 key={option.value}
                 value={option.value}
-                className="flex cursor-pointer items-center gap-2.5 rounded-tile px-3 py-2.5 text-sm leading-4.5 font-medium text-jumpa-black outline-none select-none data-[highlighted]:bg-jumpa-primary-50 data-[state=checked]:bg-jumpa-primary-50"
+                disabled={option.disabled}
+                className="flex cursor-pointer items-center gap-2.5 rounded-tile px-3 py-2.5 text-sm leading-4.5 font-medium text-jumpa-black outline-none select-none data-[disabled]:cursor-not-allowed data-[disabled]:opacity-40 data-[highlighted]:bg-jumpa-primary-50 data-[state=checked]:bg-jumpa-primary-50"
               >
                 {option.icon ? (
                   <Image

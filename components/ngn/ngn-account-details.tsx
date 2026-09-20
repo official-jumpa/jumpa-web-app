@@ -254,7 +254,8 @@ export function NgnAccountDetails() {
           transactions.map((transaction, index) => (
             <Fragment key={transaction.id || (transaction as any)._id || index}>
               {index > 0 ? <TransactionRule /> : null}
-              <TransactionRow transaction={transaction} />
+              {/* No chain mark here — this account only ever holds naira. */}
+              <TransactionRow transaction={transaction} badge={false} />
             </Fragment>
           ))
         )}

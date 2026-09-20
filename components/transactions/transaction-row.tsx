@@ -38,7 +38,14 @@ export function TransactionRule() {
 }
 
 /** One history entry: kind tile, what and when, amount and status. */
-export function TransactionRow({ transaction }: { transaction: Transaction }) {
+export function TransactionRow({
+  transaction,
+  badge = true,
+}: {
+  transaction: Transaction;
+  /** The chain mark on the tile. Off on a fiat-only screen, where no token is involved. */
+  badge?: boolean;
+}) {
   const { id, kind, chain, title, detail, amount, status } = transaction;
   const { Icon, spin } = GLYPH[kind] ?? GLYPH.send;
 
@@ -49,7 +56,7 @@ export function TransactionRow({ transaction }: { transaction: Transaction }) {
           <Icon
             className={cn("size-6 text-jumpa-primary-600", spin)}
           />
-          {chain ? (
+          {badge && chain ? (
             <Image
               src={getAssetLogo(chain)}
               alt=""

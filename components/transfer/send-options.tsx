@@ -2,7 +2,6 @@ import type { ComponentType, SVGProps } from "react";
 import { OptionRow } from "@/components/transfer/option-row";
 import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
 import { CircleInformationIcon } from "@/components/ui/icons/circle-information";
-import { ScanIcon } from "@/components/ui/icons/scan";
 import { UsersIcon } from "@/components/ui/icons/users";
 
 type SendOption = {
@@ -13,7 +12,10 @@ type SendOption = {
   href: string;
 };
 
-/** The four ways out of the wallet. Order and copy come from the design. */
+/**
+ * The ways out of the wallet. The design's own QR row is gone at the client's
+ * ask — scanning is the address field's own action on `/send/wallet` now.
+ */
 export const SEND_OPTIONS: SendOption[] = [
   {
     id: "address",
@@ -21,13 +23,6 @@ export const SEND_OPTIONS: SendOption[] = [
     title: "Paste address",
     caption: "Stellar, Solana, Base",
     href: "/send/wallet",
-  },
-  {
-    id: "qr",
-    Icon: ScanIcon,
-    title: "QR Code",
-    caption: "Scan wallet address",
-    href: "/send/scan",
   },
   {
     id: "bank",

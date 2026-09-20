@@ -42,6 +42,9 @@ export function CopyButton({
   };
 
   const Icon = copied ? CheckIcon : CopyIcon;
+  // `name` wins even beside a visible label, so two "Copy" chips on one screen
+  // still announce distinctly.
+  const accessibleName = name ?? (label ? undefined : copied ? "Copied" : "Copy");
   const bare = variant === "text";
   const chip = variant === "chip";
   const chipTone = copied
@@ -52,7 +55,7 @@ export function CopyButton({
     <button
       type="button"
       onClick={copy}
-      aria-label={label ? undefined : copied ? "Copied" : (name ?? "Copy")}
+      aria-label={accessibleName}
       className={cn(
         "flex items-center justify-center gap-2 transition-colors",
         chip && `h-4.5 shrink-0 rounded-xl px-2.5 ${chipTone}`,

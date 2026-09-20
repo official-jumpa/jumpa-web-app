@@ -1,5 +1,7 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { FieldError } from "@/components/ui/field-error";
+import { ScanIcon } from "@/components/ui/icons/scan";
 import type { SelectOption } from "@/components/ui/select";
 import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/cn";
@@ -68,6 +70,22 @@ export function PasteAction({ onPaste }: { onPaste: (text: string) => void }) {
     >
       Paste
     </button>
+  );
+}
+
+/**
+ * Sits beside `PasteAction` and hands the field over to the camera. The send
+ * chooser no longer carries a QR row; this is the only way into `/send/scan`.
+ */
+export function ScanAction({ href = "/send/scan" }: { href?: string }) {
+  return (
+    <Link
+      href={href}
+      aria-label="Scan a QR code"
+      className="tap flex size-9 shrink-0 items-center justify-center rounded-full bg-jumpa-primary-50 text-jumpa-primary-600 active:scale-95"
+    >
+      <ScanIcon aria-hidden="true" className="size-5" />
+    </Link>
   );
 }
 

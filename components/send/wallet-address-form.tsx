@@ -7,6 +7,7 @@ import {
   FieldLabel,
   fieldShell,
   PasteAction,
+  ScanAction,
   SelectField,
 } from "@/components/transfer/field";
 import { OptionRow } from "@/components/transfer/option-row";
@@ -158,9 +159,12 @@ export function WalletAddressForm({
             className={FIELD_INPUT}
           />
           {filled ? null : (
-            <PasteAction
-              onPaste={(text) => set({ address: text.trim(), pasted: true })}
-            />
+            <>
+              <ScanAction />
+              <PasteAction
+                onPaste={(text) => set({ address: text.trim(), pasted: true })}
+              />
+            </>
           )}
         </span>
         <FieldError>{error}</FieldError>

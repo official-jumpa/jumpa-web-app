@@ -1,16 +1,18 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { ScreenHeader } from "@/components/ui/screen-header";
-import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/auth/copy-button";
-import { FieldError } from "@/components/ui/field-error";
-import { JumpaLoader } from "@/components/ui/jumpa-loader";
-import { TransferSuccess } from "@/components/transfer/transfer-success";
+import { InfoNote } from "@/components/auth/info-note";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
-import { NairaSignIcon } from "@/components/ui/icons/naira-sign";
+import { TransferSuccess } from "@/components/transfer/transfer-success";
+import { Button } from "@/components/ui/button";
+import { FieldError } from "@/components/ui/field-error";
 import { BankIcon } from "@/components/ui/icons/bank";
+import { NairaSignIcon } from "@/components/ui/icons/naira-sign";
+import { JumpaLoader } from "@/components/ui/jumpa-loader";
+import { ScreenHeader } from "@/components/ui/screen-header";
+import { cn } from "@/lib/cn";
 
 interface DepositSession {
   sessionId: string;
@@ -29,11 +31,83 @@ const PRESETS = [1000, 5000, 10000, 20000];
 const MIN_DEPOSIT = 200;
 const MAX_DEPOSIT = 1000000;
 
+/** How long a fresh account lives — the ring reads its progress off this. */
+const DEPOSIT_WINDOW_SECS = 1800;
+/** Under this the countdown turns red. */
+const URGENT_SECS = 300;
+
+const RING_RADIUS = 15;
+const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
+
+const HERO =
+  "relative isolate flex flex-col gap-3 overflow-hidden rounded-key bg-[image:var(--gradient-jumpa-hero)] px-5 py-4.5";
+const HERO_LABEL =
+  "flex items-center gap-1.5 self-start rounded-pill bg-jumpa-white px-2.5 py-1.5 text-[10px] leading-3 font-bold tracking-jumpa-wide text-jumpa-primary-950 uppercase";
+const AMOUNT_TEXT = "text-3xl leading-8 font-semibold text-jumpa-white";
+const CARD =
+  "flex flex-col gap-3 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-4 py-4";
+
 function formatSeconds(secs: number): string {
   if (secs <= 0) return "00:00";
   const m = Math.floor(secs / 60);
   const s = secs % 60;
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function formatNaira(value: number): string {
+  return `₦${value.toLocaleString()}`;
+}
+
+/** The brand grid that sits behind every gradient card in the app. */
+function HeroGrid() {
+  return (
+    <Image
+      src="/images/home/hero-grid.svg"
+      alt=""
+      aria-hidden="true"
+      width={287}
+      height={264}
+      className="pointer-events-none absolute -top-10 left-1/2 -z-10 max-w-none -translate-x-1/2 opacity-70"
+    />
+  );
+}
+
+/** Time left on the account, as a ring that drains rather than a bare clock. */
+function Countdown({ secs }: { secs: number }) {
+  const progress = Math.max(0, Math.min(1, secs / DEPOSIT_WINDOW_SECS));
+  const urgent = secs <= URGENT_SECS;
+
+  return (
+    <span
+      className={cn(
+        "shrink-0",
+        urgent ? "text-jumpa-danger" : "text-jumpa-primary-600",
+      )}
+    >
+      <svg viewBox="0 0 36 36" aria-hidden="true" className="size-9 -rotate-90">
+        <circle
+          cx="18"
+          cy="18"
+          r={RING_RADIUS}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          className="opacity-20"
+        />
+        <circle
+          cx="18"
+          cy="18"
+          r={RING_RADIUS}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeDasharray={RING_LENGTH}
+          strokeDashoffset={RING_LENGTH * (1 - progress)}
+        />
+      </svg>
+    </span>
+  );
 }
 
 export function FiatDepositView() {
@@ -118,7 +192,7 @@ export function FiatDepositView() {
             setStage("success");
           }
         }
-      } catch (err) {
+      } catch {
         // Silent polling background error
       }
     }, 6000);
@@ -132,18 +206,18 @@ export function FiatDepositView() {
     setError(null);
 
     const cleanAmount = Number(amount.replace(/[^0-9.]/g, ""));
-    if (isNaN(cleanAmount) || cleanAmount <= 0) {
+    if (Number.isNaN(cleanAmount) || cleanAmount <= 0) {
       setError("Please enter a valid amount");
       return;
     }
 
     if (cleanAmount < MIN_DEPOSIT) {
-      setError(`Minimum deposit amount is ₦${MIN_DEPOSIT.toLocaleString()}`);
+      setError(`Minimum deposit amount is ${formatNaira(MIN_DEPOSIT)}`);
       return;
     }
 
     if (cleanAmount > MAX_DEPOSIT) {
-      setError(`Maximum single deposit is ₦${MAX_DEPOSIT.toLocaleString()}`);
+      setError(`Maximum single deposit is ${formatNaira(MAX_DEPOSIT)}`);
       return;
     }
 
@@ -159,7 +233,9 @@ export function FiatDepositView() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Failed to create deposit session. Please try again.");
+        setError(
+          data.error || "Failed to create deposit session. Please try again.",
+        );
         setSubmitting(false);
         return;
       }
@@ -168,11 +244,14 @@ export function FiatDepositView() {
         setSession(data.session);
         const expTime = new Date(data.session.expiresAt).getTime();
         const secsLeft = Math.max(0, Math.floor((expTime - Date.now()) / 1000));
-        setRemainingSecs(secsLeft > 0 ? secsLeft : 1800);
+        setRemainingSecs(secsLeft > 0 ? secsLeft : DEPOSIT_WINDOW_SECS);
         setStage("transfer");
       }
     } catch (err: any) {
-      setError(err.message || "A network error occurred. Please check your connection.");
+      setError(
+        err.message ||
+          "A network error occurred. Please check your connection.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -197,11 +276,14 @@ export function FiatDepositView() {
         setStage("success");
       } else {
         setVerifyMessage(
-          data.message || "Payment not yet detected by bank. Please ensure transfer is complete."
+          data.message ||
+            "Payment not yet detected by bank. Please ensure transfer is complete.",
         );
       }
-    } catch (err: any) {
-      setVerifyMessage("Could not verify status. We will keep checking automatically.");
+    } catch {
+      setVerifyMessage(
+        "Could not verify status. We will keep checking automatically.",
+      );
     } finally {
       setVerifying(false);
     }
@@ -228,8 +310,8 @@ export function FiatDepositView() {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         <JumpaLoader />
-        <p className="mt-3 text-xs font-medium text-jumpa-neutral-500">
-          Loading deposit session...
+        <p className="mt-3 text-xs leading-4 font-medium text-jumpa-neutral-400">
+          Loading deposit session…
         </p>
       </div>
     );
@@ -243,7 +325,7 @@ export function FiatDepositView() {
       <TransferSuccess
         back="/ngn-account?view=details"
         title="Deposit Successful"
-        amount={`+₦${session.amount.toLocaleString()}`}
+        amount={`+${formatNaira(session.amount)}`}
         titleFirst
         ctaLabel="View Balance"
         ctaHref="/ngn-account?view=details"
@@ -251,7 +333,7 @@ export function FiatDepositView() {
           <DetailList tone="secondary">
             <DetailRow
               label="Amount Credited"
-              value={`₦${session.amount.toLocaleString()} NGN`}
+              value={`${formatNaira(session.amount)} NGN`}
             />
             <DetailRow label="Bank" value={session.bankName} />
             <DetailRow label="Account Number" value={session.accountNumber} />
@@ -280,26 +362,25 @@ export function FiatDepositView() {
       <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         <ScreenHeader back="/receive" title="Deposit Naira" round />
         <div className="my-auto flex flex-col items-center text-center">
-          <div className="flex size-14 items-center justify-center rounded-full bg-jumpa-danger/10 text-jumpa-danger">
+          <span className="flex size-16 items-center justify-center rounded-full bg-jumpa-danger-100 text-jumpa-danger">
             <BankIcon className="size-7" />
-          </div>
-          <h2 className="mt-4 text-xl font-semibold text-jumpa-black">
-            Session Expired
+          </span>
+          <h2 className="mt-4 text-base leading-5 font-bold text-jumpa-black">
+            Session expired
           </h2>
-          <p className="mt-2 max-w-xs text-sm text-jumpa-neutral-500">
-            This deposit session has timed out. Any transfers must be made to a fresh dynamic account.
+          <p className="mt-2 max-w-xs text-sm leading-4.5 font-medium text-jumpa-neutral-300">
+            That account has timed out. Start again and we'll issue you a fresh
+            one.
           </p>
-          <div className="mt-6 w-full max-w-xs">
-            <Button
-              variant="gradient"
-              size="lg"
-              onClick={handleCancelSession}
-              disabled={submitting}
-              className="w-full"
-            >
-              Start New Deposit
-            </Button>
-          </div>
+          <Button
+            variant="gradient"
+            size="lg"
+            onClick={handleCancelSession}
+            disabled={submitting}
+            className="mt-6 w-full max-w-xs"
+          >
+            Start new deposit
+          </Button>
         </div>
       </div>
     );
@@ -309,6 +390,8 @@ export function FiatDepositView() {
   // Stage: Transfer / Bank Details
   // ----------------------------------------------------
   if (stage === "transfer" && session) {
+    const urgent = remainingSecs <= URGENT_SECS;
+
     return (
       <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         <ScreenHeader
@@ -318,107 +401,99 @@ export function FiatDepositView() {
           round
         />
 
-        <div className="mt-4 flex flex-col gap-6">
-          {/* Header instructions */}
-          <div>
-            <p className="mt-1.5 text-xs leading-4.5 text-jumpa-neutral-500">
-              Transfer the exact amount to this temporary bank account. Your Naira balance will be updated automatically.
-            </p>
+        <div className="mt-4 flex flex-1 flex-col gap-4">
+          <div className="flex items-center gap-3 rounded-surface bg-jumpa-primary-50 px-4 py-3">
+            <Countdown secs={remainingSecs} />
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span
+                className={cn(
+                  "text-sm leading-4 font-semibold",
+                  urgent ? "text-jumpa-danger" : "text-jumpa-black",
+                )}
+              >
+                Transfer within {formatSeconds(remainingSecs)}
+              </span>
+              <span className="text-[10px] leading-3 font-medium text-jumpa-neutral-400">
+                This account closes when the timer runs out.
+              </span>
+            </span>
           </div>
 
-          {/* DVA Bank Details Card */}
-          <div className="flex flex-col gap-4.5 rounded-3xl border border-jumpa-neutral-100 bg-jumpa-neutral-50 p-5 shadow-sm">
-            {/* Amount & Timer */}
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold tracking-wide text-jumpa-neutral-500 uppercase">
-                Exact Amount
-              </span>
-              <span className="flex items-center gap-1 rounded-pill bg-jumpa-primary-100 px-2.5 py-1 text-xs font-bold text-jumpa-primary-900">
-                <span>⏱</span>
-                <span>{formatSeconds(remainingSecs)}</span>
-              </span>
-            </div>
+          <section className={HERO}>
+            <HeroGrid />
 
-            <div className="flex items-center justify-between">
-              <span className="text-2xl font-bold tracking-tight text-jumpa-black">
-                ₦{session.amount.toLocaleString()}
+            <span className={HERO_LABEL}>
+              <span className="flex size-4 items-center justify-center rounded-full bg-jumpa-primary-950 text-jumpa-white">
+                <NairaSignIcon className="size-2.5" />
               </span>
+              Send exactly
+            </span>
+
+            <span className="flex items-center justify-between gap-3">
+              <span className={AMOUNT_TEXT}>{formatNaira(session.amount)}</span>
+              {/* The pill, not the chip: the chip's purple is invisible here. */}
               <CopyButton
                 value={String(session.amount)}
                 name="Copy deposit amount"
-                variant="pill"
+                label="Copy"
               />
-            </div>
+            </span>
 
-            <div className="h-px bg-jumpa-neutral-200" />
+            <span className="text-[10px] leading-3 font-medium text-jumpa-white/70">
+              A different amount will not be matched to this account.
+            </span>
+          </section>
 
-            {/* Bank details rows */}
-            <div className="flex flex-col gap-3.5 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-jumpa-neutral-500">Bank Name</span>
-                <span className="font-semibold text-jumpa-black">
-                  {session.bankName}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-jumpa-neutral-500">Account Number</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-base font-bold text-jumpa-primary-950 tracking-wider">
-                    {session.accountNumber}
-                  </span>
+          <DetailList>
+            <DetailRow label="Bank name" value={session.bankName} />
+            <DetailRow
+              label="Account number"
+              value={
+                <span className="flex items-center gap-2">
+                  {session.accountNumber}
                   <CopyButton
                     value={session.accountNumber}
                     name="Copy account number"
-                    variant="pill"
+                    variant="chip"
+                    label="Copy"
                   />
-                </div>
-              </div>
-
-              <div className="flex items-start justify-between gap-4">
-                <span className="shrink-0 text-xs text-jumpa-neutral-500">Account Name</span>
-                <span className="text-right font-semibold text-jumpa-black break-words">
-                  {session.accountName}
                 </span>
-              </div>
-            </div>
-          </div>
+              }
+            />
+            <DetailRow
+              label="Account name"
+              value={session.accountName}
+              truncate={false}
+              rule={false}
+            />
+          </DetailList>
 
-          {/* Verification feedback message if manual check was clicked */}
           {verifyMessage ? (
-            <div className="rounded-2xl border border-jumpa-primary-100 bg-jumpa-primary-50 p-3.5 text-xs text-jumpa-primary-950">
-              {verifyMessage}
-            </div>
-          ) : null}
+            <InfoNote tone="brand">{verifyMessage}</InfoNote>
+          ) : (
+            <InfoNote tone="warning">
+              Your naira balance updates automatically once the bank confirms
+              the transfer.
+            </InfoNote>
+          )}
 
-          {/* Transfer Notice */}
-          <div className="rounded-2xl border border-jumpa-neutral-200/70 bg-jumpa-neutral-50/50 p-4 text-xs text-jumpa-neutral-600 leading-relaxed">
-            <p className="font-semibold text-jumpa-black mb-1">Important Notice</p>
-            <p>
-              This dynamic account expires in {formatSeconds(remainingSecs)}. Please ensure you transfer the exact amount of{" "}
-              <b className="text-jumpa-black">₦{session.amount.toLocaleString()}</b>.
-            </p>
-          </div>
-
-          {/* Action Buttons */}
           <div className="mt-auto flex flex-col gap-3 pt-4">
             <Button
               variant="gradient"
               size="lg"
               onClick={handleManualVerify}
               disabled={verifying}
-              className="w-full"
             >
-              {verifying ? "Checking Status..." : "I Have Made the Transfer"}
+              {verifying ? "Checking status…" : "I have made the transfer"}
             </Button>
 
             <button
               type="button"
               onClick={handleCancelSession}
               disabled={submitting}
-              className="tap py-2 text-center text-xs font-semibold text-jumpa-neutral-500 hover:text-jumpa-black active:scale-95"
+              className="tap py-2 text-center text-xs leading-4 font-semibold text-jumpa-neutral-400 active:scale-95"
             >
-              Change Amount / Cancel
+              Change amount
             </button>
           </div>
         </div>
@@ -433,29 +508,27 @@ export function FiatDepositView() {
     <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
       <ScreenHeader back="/receive" title="Deposit Naira" round />
 
-      <form onSubmit={handleInitiateDeposit} className="mt-4 flex flex-1 flex-col gap-6">
-        <div>
-          <p className="mt-2 text-xs leading-4.5 text-jumpa-neutral-500">
-            Enter the amount you want to deposit into your Naira account.
-          </p>
-        </div>
+      <form
+        onSubmit={handleInitiateDeposit}
+        className="mt-4 flex flex-1 flex-col gap-5"
+      >
+        <p className="text-xs leading-4.5 font-medium text-jumpa-neutral-400">
+          Tell us how much you're sending and we'll issue a one-time account to
+          transfer it to.
+        </p>
 
-        {error ? (
-          <div className="rounded-2xl border border-jumpa-danger/20 bg-jumpa-danger/10 p-4 text-xs font-medium text-jumpa-danger">
-            {error}
-          </div>
-        ) : null}
+        <label className={HERO}>
+          <HeroGrid />
 
-        {/* Amount Input Box */}
-        <div className="flex flex-col gap-2 rounded-3xl border border-jumpa-neutral-100 bg-jumpa-neutral-50 p-5">
-          <span className="text-xs font-semibold uppercase text-jumpa-neutral-500">
-            Amount (NGN)
+          <span className={HERO_LABEL}>
+            <span className="flex size-4 items-center justify-center rounded-full bg-jumpa-primary-950 text-jumpa-white">
+              <NairaSignIcon className="size-2.5" />
+            </span>
+            Amount to deposit
           </span>
 
-          <div className="flex items-center gap-2">
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-jumpa-primary-100 text-jumpa-primary-800 font-bold">
-              ₦
-            </span>
+          <span className="flex items-baseline gap-1">
+            <span className={AMOUNT_TEXT}>₦</span>
             <input
               type="text"
               inputMode="decimal"
@@ -466,62 +539,73 @@ export function FiatDepositView() {
                 setAmount(raw ? Number(raw).toLocaleString() : "");
               }}
               placeholder="0"
-              className="w-full bg-transparent text-3xl font-bold tracking-tight text-jumpa-black outline-none placeholder:text-jumpa-neutral-300"
+              aria-invalid={Boolean(error)}
+              className={cn(
+                AMOUNT_TEXT,
+                "min-w-0 flex-1 bg-transparent caret-jumpa-alt-400 outline-none placeholder:text-jumpa-white/40",
+              )}
               autoFocus
             />
-          </div>
-
-          <span className="text-[11px] text-jumpa-neutral-400">
-            Min ₦{MIN_DEPOSIT.toLocaleString()} • Max ₦{MAX_DEPOSIT.toLocaleString()}
           </span>
-        </div>
 
-        {/* Quick Amount Preset Chips */}
-        <div>
-          <span className="text-xs font-semibold uppercase text-jumpa-neutral-500">
-            Quick Options
+          <span className="text-[10px] leading-3 font-medium text-jumpa-white/70">
+            Min {formatNaira(MIN_DEPOSIT)} · Max {formatNaira(MAX_DEPOSIT)}
           </span>
-          <div className="mt-2.5 flex flex-wrap gap-2">
-            {PRESETS.map((preset) => (
+        </label>
+
+        <FieldError>{error ?? undefined}</FieldError>
+
+        <div className="flex flex-wrap gap-2">
+          {PRESETS.map((preset) => {
+            const picked = amount === preset.toLocaleString();
+            return (
               <button
                 key={preset}
                 type="button"
+                aria-pressed={picked}
                 onClick={() => {
                   setError(null);
                   setAmount(preset.toLocaleString());
                 }}
-                className="tap rounded-pill border border-jumpa-neutral-200 bg-jumpa-white px-3.5 py-1.5 text-xs font-medium text-jumpa-black transition hover:border-jumpa-primary-500 hover:bg-jumpa-primary-50 active:scale-95"
+                className={cn(
+                  "tap h-9 rounded-pill px-4 text-xs leading-4 font-medium active:scale-95",
+                  picked
+                    ? "bg-jumpa-primary-600 text-jumpa-white"
+                    : "bg-jumpa-primary-50 text-jumpa-primary-950",
+                )}
               >
-                ₦{preset.toLocaleString()}
+                {formatNaira(preset)}
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
 
-        {/* Transparent details summary */}
-        <div className="rounded-2xl border border-jumpa-primary-100 bg-jumpa-primary-50/50 p-4 text-xs text-jumpa-primary-950">
-          <div className="flex items-center justify-between">
-            <span>Deposit Fee</span>
-            <span className="font-semibold text-jumpa-primary-700">Free (₦0.00)</span>
-          </div>
-          <div className="mt-2 flex items-center justify-between">
-            <span>Funding Method</span>
-            <span className="font-semibold">Nigerian Bank Transfer</span>
-          </div>
+        <div className={CARD}>
+          <p className="flex items-center justify-between gap-3 text-xs leading-4 font-medium text-jumpa-black">
+            <span className="text-jumpa-neutral-400">Deposit fee</span>
+            <span className="text-jumpa-success">Free</span>
+          </p>
+          <span className="-mb-px block h-px w-full bg-jumpa-neutral-95" />
+          <p className="flex items-center justify-between gap-3 text-xs leading-4 font-medium text-jumpa-black">
+            <span className="text-jumpa-neutral-400">Funding method</span>
+            <span>Nigerian bank transfer</span>
+          </p>
+          <span className="-mb-px block h-px w-full bg-jumpa-neutral-95" />
+          <p className="flex items-center justify-between gap-3 text-xs leading-4 font-medium text-jumpa-black">
+            <span className="text-jumpa-neutral-400">Arrives in</span>
+            <span>Seconds</span>
+          </p>
         </div>
 
-        {/* Submit CTA */}
-        <div className="mt-auto pt-4 pb-2">
-          <Button
-            variant="gradient"
-            size="lg"
-            type="submit"
-            disabled={submitting || !amount}
-            className="w-full"
-          >
-            {submitting ? "Generating Details..." : "Continue to Transfer"}
-          </Button>
-        </div>
+        <Button
+          variant="gradient"
+          size="lg"
+          type="submit"
+          disabled={submitting || !amount}
+          className="mt-auto"
+        >
+          {submitting ? "Generating details…" : "Continue to transfer"}
+        </Button>
       </form>
     </div>
   );

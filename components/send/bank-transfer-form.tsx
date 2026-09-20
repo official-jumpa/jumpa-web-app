@@ -100,15 +100,24 @@ export const EMPTY_BANK_FORM: BankForm = {
   phone: "",
 };
 
+// Mobile money is off at the client's ask — drop `disabled` to bring it back.
 const DESTINATIONS = [
   { value: "bank" as const, label: "To bank" },
-  { value: "momo" as const, label: "Mobile money" },
+  { value: "momo" as const, label: "Mobile money", disabled: true },
 ];
 
-const COUNTRY_OPTIONS = COUNTRIES.map((entry) => ({
-  value: entry.label,
-  label: `${entry.label} - ${entry.currency}`,
-}));
+/** Only Nigeria is live at the client's ask; the rest are listed but inert. */
+const LIVE_COUNTRY = "NG";
+
+const COUNTRY_OPTIONS = COUNTRIES.map((entry) => {
+  const live = entry.code === LIVE_COUNTRY;
+  return {
+    value: entry.label,
+    label: `${entry.label} - ${entry.currency}`,
+    caption: live ? undefined : "Coming soon",
+    disabled: !live,
+  };
+});
 
 const NETWORK_OPTIONS = MOBILE_NETWORKS.map((network) => ({
   value: `Momo - ${network.label}`,
@@ -465,7 +474,8 @@ export function BankTransferForm({
                 />
               </Field>
 
-              {/* this field is never used. Consider removing it  */}
+              {/* Narration is never read by the rails — hidden at the client's
+                  ask. `form.note` still exists, so this is one block to restore.
               <Field label="Narration/Remark (Optional)">
                 <input
                   value={form.note}
@@ -474,6 +484,7 @@ export function BankTransferForm({
                   className={FIELD_INPUT}
                 />
               </Field>
+              */}
 
               <p className="flex items-center gap-2 rounded-surface bg-jumpa-primary-50 px-3 py-3.5">
                 <ShieldCheckIcon

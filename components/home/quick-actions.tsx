@@ -14,8 +14,12 @@ const ACTIONS = [
 ];
 
 const TILE = "flex w-11 flex-col items-center gap-1.5";
-const DISC = "flex size-11 items-center justify-center rounded-full";
-const LABEL = "w-12.25 text-center text-[10px] leading-2.5 font-medium";
+const DISC =
+  "flex size-11 items-center justify-center rounded-full bg-jumpa-primary-600 text-jumpa-alt-400";
+const LABEL =
+  "w-12.25 text-center text-[10px] leading-2.5 font-medium text-jumpa-primary-950";
+/** Muted, not recoloured — the tile keeps its own purple so it still reads as Invest. */
+const SOON = "opacity-50 blur-[0.4px]";
 
 /** Shortcut tiles to the savings, invest and bill-payment areas. */
 export function QuickActions() {
@@ -27,18 +31,12 @@ export function QuickActions() {
             <li key={label} className="relative">
               <span
                 aria-disabled="true"
-                className={`${TILE} cursor-not-allowed select-none`}
+                className={`${TILE} ${SOON} cursor-not-allowed select-none`}
               >
-                <span
-                  className={`${DISC} bg-jumpa-neutral-250 text-jumpa-white blur-[0.7px]`}
-                >
+                <span className={DISC}>
                   <Icon className="size-6" />
                 </span>
-                <span
-                  className={`${LABEL} text-jumpa-neutral-350 blur-[0.4px]`}
-                >
-                  {label}
-                </span>
+                <span className={LABEL}>{label}</span>
                 <span className="sr-only">Coming soon</span>
               </span>
 
@@ -54,14 +52,10 @@ export function QuickActions() {
           ) : (
             <li key={label}>
               <Link href={href} className={`tap ${TILE} active:scale-95`}>
-                <span
-                  className={`${DISC} bg-jumpa-primary-600 text-jumpa-alt-400`}
-                >
+                <span className={DISC}>
                   <Icon className="size-6" />
                 </span>
-                <span className={`${LABEL} text-jumpa-primary-950`}>
-                  {label}
-                </span>
+                <span className={LABEL}>{label}</span>
               </Link>
             </li>
           ),

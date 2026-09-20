@@ -142,7 +142,8 @@ export function ProfileView({
   };
 
   return (
-    <div className="flex flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+21px)] pb-12">
+    // No nav clearance here — `BottomNav` renders its own spacer.
+    <div className="flex flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+21px)] pb-6">
       <SettingsHeader
         back="/home"
         title="Your Profile"

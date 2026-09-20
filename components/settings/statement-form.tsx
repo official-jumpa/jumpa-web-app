@@ -122,7 +122,8 @@ function ReviewRow({ label, value }: { label: string; value: string }) {
  */
 export function StatementForm({
   kind: initialKind,
-  back = settingsHref("statements"),
+  // Straight back to Settings: the kind chips below are the chooser now.
+  back = settingsHref(),
   onBack,
   accountEmail = "",
 }: {

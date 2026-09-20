@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { CurrencyRates } from "@/components/settings/currency-rates";
 import { NotificationSettings } from "@/components/settings/notification-settings";
 import { PinFlow } from "@/components/settings/pin-flow/pin-flow";
@@ -12,9 +12,12 @@ import { DevicesSettings } from "@/components/settings/devices-settings";
 import { ExportSecret } from "@/components/settings/export-secret";
 import { SettingsIndex } from "@/components/settings/settings-index";
 import { StatementForm } from "@/components/settings/statement-form";
-import { StatementIndex } from "@/components/settings/statement-index";
 import { isPinFlow } from "@/lib/pin-flows";
-import { isStatementKind, statementTitle } from "@/lib/statements";
+import {
+  isStatementKind,
+  statementHref,
+  statementTitle,
+} from "@/lib/statements";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import { getUserPreferences } from "@/lib/functions/userPreferenceFunctions";
 
@@ -64,7 +67,9 @@ export default async function SettingsPage({
   }
 
   if (section === "statements") {
-    if (!kind) return <StatementIndex />;
+    // The kind chooser screen is gone at the client's ask; the form's own chips
+    // do that job, so a bare `?section=statements` opens it on the full history.
+    if (!kind) redirect(statementHref("general"));
     if (!isStatementKind(kind)) notFound();
     let accountEmail: string | undefined;
     try {

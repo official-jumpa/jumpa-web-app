@@ -203,7 +203,8 @@ export default function HomePage() {
       </div>
 
       {/* Sections land one after another, top to bottom. */}
-      <div className="flex flex-col gap-4 px-4.5 pt-4 pb-27">
+      {/* No nav clearance here — `BottomNav` renders its own spacer. */}
+      <div className="flex flex-col gap-4 px-4.5 pt-4 pb-6">
         <RiseIn index={0}>
           <AssetList assets={assets} visible={balanceVisible} />
         </RiseIn>

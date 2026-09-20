@@ -67,10 +67,13 @@ export function CopyableAddress({ value }: { value: string }) {
           : "bg-jumpa-primary-50 text-jumpa-primary-950"
       }`}
     >
-      <span className="min-w-0 flex-1 font-mono text-[11px] leading-4 font-medium break-all [overflow-wrap:anywhere]">
+      {/* No size or face of its own — it inherits the bubble's, so an address
+          reads as the bold run it was before the chip existed. */}
+      <span className="min-w-0 flex-1 font-bold break-all wrap-anywhere">
         {value}
       </span>
-      <Icon aria-hidden="true" className="size-3.5 shrink-0 translate-y-px" />
+      {/* Centred on the first line: (22px leading - 16px icon) / 2. */}
+      <Icon aria-hidden="true" className="size-4 shrink-0 translate-y-0.75" />
       <span aria-live="polite" className="sr-only">
         {copied ? "Copied to clipboard" : ""}
       </span>

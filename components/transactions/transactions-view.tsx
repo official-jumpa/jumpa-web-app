@@ -153,7 +153,8 @@ export function TransactionsView({
 
   return (
     <>
-      <div className="flex flex-col gap-4 px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-30">
+      {/* No nav clearance here — `BottomNav` renders its own spacer. */}
+      <div className="flex flex-col gap-4 px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-6">
         <ScreenHeader
           back="/home"
           title="Transaction History"

@@ -18,6 +18,13 @@ const TABS = [
   { label: "Me", href: "/profile", Icon: CircleUserIcon },
 ];
 
+/**
+ * What the floating bar occupies: 20px off the bottom + its own 74px + the safe
+ * inset, plus 20px so the last row clears it rather than sitting against it.
+ * Rendered in flow beside the bar, so no screen has to know this number.
+ */
+const CLEARANCE = "h-[calc(env(safe-area-inset-bottom)+114px)]";
+
 /** Floating tab bar. The chat action sits at the centre, between tabs 2 and 3. */
 export function BottomNav() {
   const pathname = usePathname();
@@ -40,43 +47,47 @@ export function BottomNav() {
   const middle = TABS.length / 2;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-5 z-10 mx-auto max-w-app px-4.5 pb-safe">
-      <nav className="pointer-events-auto mx-auto flex items-center justify-center h-18.5 gap-1 rounded-pill border border-jumpa-neutral-90 bg-jumpa-white px-2.5">
-        {TABS.map(({ label, href, Icon }, index) => (
-          <Fragment key={label}>
-            {index === middle ? (
-              <Link
-                href="/home/chat"
-                prefetch={true}
-                aria-label="Chat"
-                onClick={() => triggerHaptic("light")}
-                className="flex items-center justify-center rounded-pill bg-[image:var(--gradient-jumpa-nav-chat)] p-2.5 text-jumpa-alt-400 active:scale-90 transition-transform duration-75"
-              >
-                <MessageCircleDotsIcon className="size-6" />
-              </Link>
-            ) : null}
+    <>
+      <div aria-hidden="true" className={CLEARANCE} />
 
-            <Link
-              href={href}
-              prefetch={true}
-              onClick={() => triggerHaptic("light")}
-              aria-current={pathname === href ? "page" : undefined}
-              className={cn(
-                "flex flex-1 flex-col items-center gap-0.5 rounded-pill px-2 py-1.5 active:scale-90 transition-transform duration-75",
-                pathname === href
-                  ? "text-jumpa-primary-950"
-                  : "text-jumpa-grey-500",
-              )}
-            >
-              <Icon className="size-6" />
-              <span className="text-[8px] leading-3 font-medium whitespace-nowrap">
-                {label}
-              </span>
-            </Link>
-          </Fragment>
-        ))}
-      </nav>
-    </div>
+      <div className="pointer-events-none fixed inset-x-0 bottom-5 z-10 mx-auto max-w-app px-4.5 pb-safe">
+        <nav className="pointer-events-auto mx-auto flex items-center justify-center h-18.5 gap-1 rounded-pill border border-jumpa-neutral-90 bg-jumpa-white px-2.5">
+          {TABS.map(({ label, href, Icon }, index) => (
+            <Fragment key={label}>
+              {index === middle ? (
+                <Link
+                  href="/home/chat"
+                  prefetch={true}
+                  aria-label="Chat"
+                  onClick={() => triggerHaptic("light")}
+                  className="flex items-center justify-center rounded-pill bg-[image:var(--gradient-jumpa-nav-chat)] p-2.5 text-jumpa-alt-400 active:scale-90 transition-transform duration-75"
+                >
+                  <MessageCircleDotsIcon className="size-6" />
+                </Link>
+              ) : null}
+
+              <Link
+                href={href}
+                prefetch={true}
+                onClick={() => triggerHaptic("light")}
+                aria-current={pathname === href ? "page" : undefined}
+                className={cn(
+                  "flex flex-1 flex-col items-center gap-0.5 rounded-pill px-2 py-1.5 active:scale-90 transition-transform duration-75",
+                  pathname === href
+                    ? "text-jumpa-primary-950"
+                    : "text-jumpa-grey-500",
+                )}
+              >
+                <Icon className="size-6" />
+                <span className="text-[8px] leading-3 font-medium whitespace-nowrap">
+                  {label}
+                </span>
+              </Link>
+            </Fragment>
+          ))}
+        </nav>
+      </div>
+    </>
   );
 }
 

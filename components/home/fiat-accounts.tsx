@@ -199,7 +199,8 @@ function AccountCard({ account }: { account: FiatAccount }) {
 
       {soon ? (
         <span className="flex h-8.25 cursor-not-allowed items-center justify-center rounded-pill bg-jumpa-white text-[10px] font-medium text-jumpa-neutral-300 select-none">
-          <span className="blur-[0.7px]">Coming soon</span>
+          {/* Just enough to read as inert; 0.7 made the copy hard to read. */}
+          <span className="blur-[0.4px]">Coming soon</span>
         </span>
       ) : (
         <Link

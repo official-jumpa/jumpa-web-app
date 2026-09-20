@@ -3455,6 +3455,11 @@ const SWITCH_BANK_ALIASES: Record<string, string> = {
   "carbon": "090365",
   "rubies": "090175",
   "rubies mfb": "090175",
+  "aella": "090614", // AELLA MFB
+  "aella bank": "090614",
+  "aella mfb": "090614",
+  "aella microfinance bank": "090614",
+  "aella microfinance": "090614",
 };
 
 /**
@@ -3489,12 +3494,13 @@ export function resolveBankCode(
   // 3. Normalized alphanumeric search
   const cleanNeedle = raw.replace(/[^a-z0-9]/g, "");
 
-  // Priority check on primary keyword tokens (e.g. "opay", "palmpay", "kuda", "moniepoint", "zenith", "access", "gtbank")
+  // Priority check on primary keyword tokens (e.g. "opay", "palmpay", "kuda", "moniepoint", "zenith", "access", "gtbank", "aella")
   const primaryKeywords = [
     "opay",
     "palmpay",
     "kuda",
     "moniepoint",
+    "aella",
     "zenith",
     "gtbank",
     "access",
@@ -3527,12 +3533,60 @@ export function resolveBankCode(
   // 4. Whole-word / clean match with SwitchBanks
   const matched = SwitchBanks.find((b) => {
     const cleanBank = b.name.toLowerCase().replace(/[^a-z0-9]/g, "");
-    return cleanBank === cleanNeedle || cleanBank.includes(cleanNeedle);
+    return (
+      cleanBank === cleanNeedle ||
+      cleanBank.includes(cleanNeedle) ||
+      cleanNeedle.includes(cleanBank)
+    );
   });
 
   if (matched) {
     console.log(`[SwitchBanks] Normalized match → "${matched.name}" (${matched.code})`);
     return { code: matched.code, name: matched.name };
+  }
+
+  // 5. MFB normalization match ("microfinance bank" <-> "mfb")
+  const normalizeMfb = (str: string) =>
+    str
+      .toLowerCase()
+      .replace(/\bmicro\s*finance\s*bank\b/g, "mfb")
+      .replace(/\bmicro\s*finance\b/g, "mfb")
+      .replace(/[^a-z0-9]/g, "");
+
+  const needleMfb = normalizeMfb(raw);
+  if (needleMfb.length >= 3) {
+    const mfbMatched = SwitchBanks.find((b) => {
+      const bankMfb = normalizeMfb(b.name);
+      return (
+        bankMfb === needleMfb ||
+        bankMfb.includes(needleMfb) ||
+        needleMfb.includes(bankMfb)
+      );
+    });
+    if (mfbMatched) {
+      console.log(`[SwitchBanks] MFB normalized match → "${mfbMatched.name}" (${mfbMatched.code})`);
+      return { code: mfbMatched.code, name: mfbMatched.name };
+    }
+  }
+
+  // 6. Core brand name match (strips "microfinance", "mfb", "bank", "plc", "limited", "ltd")
+  const stripBankNoise = (str: string) =>
+    str
+      .toLowerCase()
+      .replace(/\b(microfinance|micro\s*finance|bank|mfb|plc|limited|ltd)\b/g, "")
+      .replace(/[^a-z0-9]/g, "")
+      .trim();
+
+  const coreNeedle = stripBankNoise(raw);
+  if (coreNeedle.length >= 3) {
+    const coreMatched = SwitchBanks.find((b) => {
+      const coreBank = stripBankNoise(b.name);
+      return coreBank === coreNeedle;
+    });
+    if (coreMatched) {
+      console.log(`[SwitchBanks] Core stripped match → "${coreMatched.name}" (${coreMatched.code})`);
+      return { code: coreMatched.code, name: coreMatched.name };
+    }
   }
 
   console.warn(`[SwitchBanks] No match found for: "${bankNameInput}"`);

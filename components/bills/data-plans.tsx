@@ -165,11 +165,10 @@ export function DataPlans({
               type="button"
               aria-pressed={entry.value === period}
               onClick={() => setPeriod(entry.value)}
-              className={`${PERIOD} ${
-                entry.value === period
+              className={`${PERIOD} ${entry.value === period
                   ? "bg-jumpa-white text-jumpa-primary-600"
                   : "bg-jumpa-white/20 text-jumpa-white"
-              }`}
+                }`}
             >
               {entry.label}
             </button>
@@ -205,8 +204,7 @@ export function DataPlans({
             </span>
           </div>
         ) : (
-
-          <ul className="mt-4.5 min-h-0 flex-1 overflow-y-auto rounded-surface bg-jumpa-white px-4 py-1 [scrollbar-width:none]">
+          <ul className="mt-4.5 max-h-[380px] overflow-y-auto rounded-surface bg-jumpa-white px-4 py-1 overscroll-contain">
             {plans.map((plan, position) => (
               <li key={plan.id}>
                 <button
@@ -216,9 +214,8 @@ export function DataPlans({
                     setError(undefined);
                     onSelect(plan);
                   }}
-                  className={`tap flex w-full items-center gap-3 rounded-xl px-2 py-3.5 text-left ${
-                    plan.id === selected?.id ? "bg-jumpa-primary-50" : ""
-                  }`}
+                  className={`tap flex w-full items-center gap-3 rounded-xl px-2 py-3.5 text-left ${plan.id === selected?.id ? "bg-jumpa-primary-50" : ""
+                    }`}
                 >
                   <span
                     style={{ backgroundColor: network.tint }}
@@ -242,11 +239,12 @@ export function DataPlans({
                       <span className="text-sm leading-4.5 font-bold text-jumpa-black">
                         {formatDataVolume(plan.size, plan.productName || plan.validity)}
                       </span>
-                      {plan.hot ? (
+                      {/* No way to correctly determine hot deals for now */}
+                      {/* {plan.hot ? (
                         <span className="rounded-pill bg-jumpa-danger px-1.5 py-0.5 text-[8px] leading-3 font-bold text-jumpa-white">
                           Hot Deals
                         </span>
-                      ) : null}
+                      ) : null} */}
                     </span>
                     <span className="truncate text-xs leading-4 text-jumpa-neutral-500">
                       {plan.validity}

@@ -90,6 +90,11 @@ export function findPaystackBank(bankName: string): { name: string; code: string
     "carbon": "Carbon",
     "paga": "Paga",
     "gomoney": "GoMoney",
+    "aella": "Aella MFB",
+    "aella bank": "Aella MFB",
+    "aella mfb": "Aella MFB",
+    "aella microfinance bank": "Aella MFB",
+    "aella microfinance": "Aella MFB",
   };
 
   const aliasMatch = aliases[searchTerm];
@@ -98,6 +103,44 @@ export function findPaystackBank(bankName: string): { name: string; code: string
       (b) => b.name.toLowerCase() === aliasMatch.toLowerCase(),
     );
     if (bank) return bank;
+  }
+
+  // Normalized MFB comparison: expands/contracts "microfinance bank" <-> "mfb"
+  const normalizeMfb = (str: string) =>
+    str
+      .toLowerCase()
+      .replace(/\bmicro\s*finance\s*bank\b/g, "mfb")
+      .replace(/\bmicro\s*finance\b/g, "mfb")
+      .replace(/[^a-z0-9]/g, "");
+
+  const normalizedSearch = normalizeMfb(searchTerm);
+  if (normalizedSearch.length >= 3) {
+    const mfbMatch = supportedBanks.find((bank) => {
+      const normalizedBank = normalizeMfb(bank.name);
+      return (
+        normalizedBank === normalizedSearch ||
+        normalizedBank.includes(normalizedSearch) ||
+        normalizedSearch.includes(normalizedBank)
+      );
+    });
+    if (mfbMatch) return mfbMatch;
+  }
+
+  // Core brand name matching (strips noise words like "bank", "mfb", "microfinance", "plc", "limited", "ltd")
+  const stripBankNoise = (str: string) =>
+    str
+      .toLowerCase()
+      .replace(/\b(microfinance|micro\s*finance|bank|mfb|plc|limited|ltd)\b/g, "")
+      .replace(/[^a-z0-9]/g, "")
+      .trim();
+
+  const coreSearch = stripBankNoise(searchTerm);
+  if (coreSearch.length >= 3) {
+    const coreMatch = supportedBanks.find((bank) => {
+      const coreBank = stripBankNoise(bank.name);
+      return coreBank === coreSearch;
+    });
+    if (coreMatch) return coreMatch;
   }
 
   // Partial match (bank name contains search term)

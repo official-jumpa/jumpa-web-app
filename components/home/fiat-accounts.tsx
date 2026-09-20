@@ -1,5 +1,8 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
 import { FIAT_ACCOUNTS, type FiatAccount } from "@/lib/wallet";
 import { FiatBalance } from "./fiat-balance";
@@ -16,11 +19,109 @@ const DETAILS: Record<FiatAccount["id"], string> = {
   usd: "/usd-account?view=details",
 };
 
+// In-memory cache for instant zero-flicker tab returns
+let ngnMemoryCache: { hasAccount?: boolean; balance?: string | null } = {};
+
 /** The NGN and USD balances, side by side under the quick actions. */
 export function FiatAccounts() {
+  const [hasNgnAccount, setHasNgnAccount] = useState<boolean>(
+    () => ngnMemoryCache.hasAccount ?? false
+  );
+  const [ngnBalance, setNgnBalance] = useState<string | null>(
+    () => ngnMemoryCache.balance ?? null
+  );
+
+  // Restore cached NGN account info from localStorage if not already in memory
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem("jumpa_ngn_account_cache");
+      if (cached && ngnMemoryCache.hasAccount === undefined) {
+        const parsed = JSON.parse(cached);
+        if (parsed && typeof parsed.hasAccount === "boolean") {
+          setHasNgnAccount(parsed.hasAccount);
+          setNgnBalance(parsed.balance ?? null);
+          ngnMemoryCache = parsed;
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Fetch live NGN account status and balance from API
+  useEffect(() => {
+    let isMounted = true;
+    async function loadNgnAccount() {
+      try {
+        const res = await fetch("/api/ngn-account", {
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          if (res.status === 404 && isMounted) {
+            setHasNgnAccount(false);
+            setNgnBalance(null);
+            ngnMemoryCache = { hasAccount: false, balance: null };
+            try {
+              localStorage.setItem(
+                "jumpa_ngn_account_cache",
+                JSON.stringify({ hasAccount: false, balance: null })
+              );
+            } catch {}
+          }
+          return;
+        }
+
+        const data = await res.json();
+        if (isMounted && data.hasAccount) {
+          const rawBal = Number(data.balance?.availableBalance ?? 0);
+          const formatted = `₦${rawBal.toLocaleString("en-NG", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`;
+          setHasNgnAccount(true);
+          setNgnBalance(formatted);
+          ngnMemoryCache = { hasAccount: true, balance: formatted };
+          try {
+            localStorage.setItem(
+              "jumpa_ngn_account_cache",
+              JSON.stringify({ hasAccount: true, balance: formatted })
+            );
+          } catch {}
+        } else if (isMounted) {
+          setHasNgnAccount(false);
+          setNgnBalance(null);
+          ngnMemoryCache = { hasAccount: false, balance: null };
+          try {
+            localStorage.setItem(
+              "jumpa_ngn_account_cache",
+              JSON.stringify({ hasAccount: false, balance: null })
+            );
+          } catch {}
+        }
+      } catch (err) {
+        console.warn("[FiatAccounts] Failed to fetch NGN account status:", err);
+      }
+    }
+
+    loadNgnAccount();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const accounts: FiatAccount[] = FIAT_ACCOUNTS.map((account) => {
+    if (account.id === "ngn") {
+      return {
+        ...account,
+        balance: hasNgnAccount ? (ngnBalance ?? "₦0.00") : null,
+      };
+    }
+    // USD remains unopened with balance: null
+    return account;
+  });
+
   return (
     <ul className="flex items-stretch gap-2">
-      {FIAT_ACCOUNTS.map((account) => (
+      {accounts.map((account) => (
         <li key={account.id} className="flex flex-1">
           <AccountCard account={account} />
         </li>
@@ -30,6 +131,40 @@ export function FiatAccounts() {
 }
 
 function AccountCard({ account }: { account: FiatAccount }) {
+  if (account.balance !== null) {
+    return (
+      <Link
+        href={DETAILS[account.id]}
+        aria-label={`Open your ${account.label}`}
+        className="relative flex flex-1 flex-col gap-4 rounded-panel bg-jumpa-neutral-50 px-4 py-2.5 transition-colors hover:bg-jumpa-neutral-100/70 active:scale-[0.99]"
+      >
+        <span className="flex items-center gap-1">
+          <Image
+            src={account.flag}
+            alt=""
+            width={64}
+            height={64}
+            className="size-4 rounded-full object-contain"
+          />
+          <span className="text-[10px] font-medium text-jumpa-black">
+            {account.label}
+          </span>
+        </span>
+
+        <span className="flex flex-col">
+          <span className="text-[8px] leading-2.5 font-medium text-jumpa-neutral-425">
+            Available
+          </span>
+          <FiatBalance amount={account.balance} label={account.label} />
+        </span>
+
+        <span className="absolute inset-y-0 right-0 flex w-9 items-center justify-end pr-2.375 text-jumpa-black">
+          <ChevronRightIcon className="size-5" />
+        </span>
+      </Link>
+    );
+  }
+
   return (
     <div className="relative flex flex-1 flex-col gap-4 rounded-panel bg-jumpa-neutral-50 px-4 py-2.5">
       <span className="flex items-center gap-1">
@@ -45,32 +180,12 @@ function AccountCard({ account }: { account: FiatAccount }) {
         </span>
       </span>
 
-      {account.balance ? (
-        <>
-          <span className="flex flex-col">
-            <span className="text-[8px] leading-2.5 font-medium text-jumpa-neutral-425">
-              Available
-            </span>
-            <FiatBalance amount={account.balance} label={account.label} />
-          </span>
-
-          {/* Full height, so the design's 20px glyph still takes a real tap. */}
-          <Link
-            href={DETAILS[account.id]}
-            aria-label={`Open your ${account.label}`}
-            className="absolute inset-y-0 right-0 flex w-9 items-center justify-end pr-2.375 text-jumpa-black"
-          >
-            <ChevronRightIcon className="size-5" />
-          </Link>
-        </>
-      ) : (
-        <Link
-          href={CREATE[account.id]}
-          className="tap flex h-8.25 items-center justify-center rounded-pill bg-jumpa-white text-[10px] font-medium text-jumpa-primary-600 active:scale-95"
-        >
-          Create Account
-        </Link>
-      )}
+      <Link
+        href={CREATE[account.id]}
+        className="tap flex h-8.25 items-center justify-center rounded-pill bg-jumpa-white text-[10px] font-medium text-jumpa-primary-600 active:scale-95"
+      >
+        Create Account
+      </Link>
     </div>
   );
 }

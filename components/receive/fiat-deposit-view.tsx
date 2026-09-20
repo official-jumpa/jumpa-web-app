@@ -321,9 +321,6 @@ export function FiatDepositView() {
         <div className="mt-4 flex flex-col gap-6">
           {/* Header instructions */}
           <div>
-            <h1 className="text-[26px] leading-8 font-semibold text-jumpa-black">
-              Transfer to Account
-            </h1>
             <p className="mt-1.5 text-xs leading-4.5 text-jumpa-neutral-500">
               Transfer the exact amount to this temporary bank account. Your Naira balance will be updated automatically.
             </p>

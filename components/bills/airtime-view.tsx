@@ -118,10 +118,10 @@ export function AirtimeView() {
     return (
       <TransferSuccess
         back="/airtime"
-        title="Successful"
+        title={`Airtime recharge of ${network?.label} to ${phone} was successful`}
         titleFirst
         actionsFirst
-        amount={total}
+        amount={`₦${total}`}
         details={details}
         ctaLabel="Back to home"
         actions={
@@ -129,7 +129,7 @@ export function AirtimeView() {
             <button
               type="button"
               onClick={() => setReceiptOpen(true)}
-              className="tap flex h-13 w-full items-center gap-3 rounded-tile bg-jumpa-neutral-50 px-4.5 text-xs leading-4 font-medium text-jumpa-black active:scale-[0.98]"
+              className="tap flex h-13 w-full items-center justify-center gap-3 rounded-tile bg-jumpa-neutral-50 px-4.5 text-xs leading-4 font-medium text-jumpa-black active:scale-[0.98]"
             >
               <FileDownloadIcon className="size-5 text-jumpa-primary-600" />
               Download Receipt
@@ -210,9 +210,9 @@ export function AirtimeView() {
             onRetry={
               failure.retry
                 ? () => {
-                    setFailure(null);
-                    setSheet("review");
-                  }
+                  setFailure(null);
+                  setSheet("review");
+                }
                 : undefined
             }
             onClose={() => setFailure(null)}

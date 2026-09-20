@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         success: true,
+        type: "DATA",
         plans: livePlans,
         detectedNetwork,
       },

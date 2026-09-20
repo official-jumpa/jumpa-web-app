@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      type: "DATA",
       message: "Data subscription successful",
       orderId: result.orderId,
       reference: result.reference,

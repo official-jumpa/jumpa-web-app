@@ -16,7 +16,9 @@ export interface ITransaction {
     | "FAUCET"
     | "SAVINGS_DEPOSIT"
     | "SAVINGS_WITHDRAW"
-    | "BRIDGE";
+    | "BRIDGE"
+    | "AIRTIME"
+    | "DATA";
   status: "PENDING" | "CONFIRMED" | "FAILED" | "CANCELLED" | "SIMULATED";
 
   chain: "stellar" | "solana" | "base" | "eth";
@@ -104,6 +106,8 @@ const TransactionSchema = new Schema<ITransaction>(
         "SAVINGS_DEPOSIT",
         "SAVINGS_WITHDRAW",
         "BRIDGE",
+        "AIRTIME",
+        "DATA",
       ],
       required: true,
     },

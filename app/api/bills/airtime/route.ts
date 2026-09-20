@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      type: "AIRTIME",
       message: "Airtime recharge successful",
       orderId: result.orderId,
       reference: result.reference,

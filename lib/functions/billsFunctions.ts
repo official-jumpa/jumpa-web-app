@@ -194,7 +194,7 @@ export async function purchaseAirtime(params: {
     // 3. Record confirmed transaction in Transaction history
     await Transaction.create({
       userId: params.userId,
-      type: "TRANSFER",
+      type: "AIRTIME",
       status: "CONFIRMED",
       chain: "base",
       network: "mainnet",
@@ -211,6 +211,7 @@ export async function purchaseAirtime(params: {
 
     return {
       success: true,
+      type: "AIRTIME",
       orderId: order._id,
       reference: refId,
       providerData: data.data,
@@ -312,7 +313,7 @@ export async function purchaseData(params: {
     // 3. Record confirmed transaction in Transaction history
     await Transaction.create({
       userId: params.userId,
-      type: "TRANSFER",
+      type: "DATA",
       status: "CONFIRMED",
       chain: "base",
       network: "mainnet",
@@ -329,6 +330,7 @@ export async function purchaseData(params: {
 
     return {
       success: true,
+      type: "DATA",
       orderId: order._id,
       reference: refId,
       providerData: data.data,

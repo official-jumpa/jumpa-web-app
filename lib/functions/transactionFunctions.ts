@@ -225,6 +225,9 @@ function formatTxDate(dateVal?: Date | string): string {
 }
 
 export function formatDbTransaction(tx: any) {
+  const typeUpper = (tx.type || "").toUpperCase();
+  const token = (tx.token || "").toUpperCase();
+
   const isIncoming =
     tx.type === "ONRAMP" ||
     tx.type === "FAUCET" ||
@@ -236,15 +239,14 @@ export function formatDbTransaction(tx: any) {
     tx.rampDetails?.provider === "mercuryo" ||
     tx.kind === "card";
 
-  const token = (tx.token || "").toUpperCase();
   const kind: TransactionKind =
     tx.type === "SWAP"
       ? "swap"
       : tx.type === "BRIDGE"
         ? "bridge"
-        : token === "AIRTIME"
+        : typeUpper === "AIRTIME" || token === "AIRTIME"
           ? "airtime"
-          : token === "DATA"
+          : typeUpper === "DATA" || token === "DATA"
             ? "data"
             : tx.type === "SAVINGS_DEPOSIT" || tx.type === "SAVINGS_WITHDRAW"
               ? "invest"
@@ -276,6 +278,10 @@ export function formatDbTransaction(tx: any) {
       title = `Deposited to Savings Goal`;
     } else if (tx.type === "BRIDGE") {
       title = `Bridged from ${tx.bridgeDetails?.fromChain} to ${tx.bridgeDetails?.toChain}`;
+    } else if (typeUpper === "AIRTIME") {
+      title = tx.memo || "Airtime Recharge";
+    } else if (typeUpper === "DATA") {
+      title = tx.memo || "Data Subscription";
     } else if (tx.type === "TRANSFER") {
       title = `${isIncoming ? "Received" : "Sent"} ${tx.token}`;
     } else {
@@ -395,6 +401,16 @@ function detailRows(tx: any, status: string): TransactionDetailRow[] {
         ["Bank", ramp.bankDetails?.bankName],
         ["Reference", ramp.reference, ramp.reference],
       );
+    } else if (
+      tx.type === "AIRTIME" ||
+      tx.type === "DATA" ||
+      tx.type === "airtime" ||
+      tx.type === "data"
+    ) {
+      rows.push(
+        ["Recipient Phone", tx.toAddress, tx.toAddress],
+        ["Description", tx.memo],
+      );
     } else {
       rows.push(
         ["To", shortenKey(tx.toAddress)],
@@ -483,8 +499,24 @@ export async function queryUserTransactions(params: {
     if (t === "UTILITY") {
       typeMatch = [
         { type: "UTILITY" },
+        { type: "AIRTIME" },
+        { type: "DATA" },
+        { type: "airtime" },
+        { type: "data" },
         { "rampDetails.provider": "bills" },
         { token: { $in: ["AIRTIME", "DATA", "ELECTRICITY"] } },
+      ];
+    } else if (t === "AIRTIME") {
+      typeMatch = [
+        { type: "AIRTIME" },
+        { type: "airtime" },
+        { token: "AIRTIME" },
+      ];
+    } else if (t === "DATA") {
+      typeMatch = [
+        { type: "DATA" },
+        { type: "data" },
+        { token: "DATA" },
       ];
     } else {
       typeMatch = [{ type: t }];
@@ -496,7 +528,7 @@ export async function queryUserTransactions(params: {
         { $or: typeMatch },
       ]);
       delete query.$or;
-    } else if (t === "UTILITY") {
+    } else if (t === "UTILITY" || t === "AIRTIME" || t === "DATA") {
       query.$or = typeMatch;
     } else {
       query.type = t;

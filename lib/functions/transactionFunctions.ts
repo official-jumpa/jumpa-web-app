@@ -87,7 +87,7 @@ export async function syncPendingSwitchTransaction(tx: any): Promise<any> {
       if (tx.fromAddress) invalidateBalanceCache(tx.fromAddress);
 
       if (tx.userId) {
-        if (tx.type === "ONRAMP") {
+        if (tx.type === "ONRAMP" || tx.type === "DEPOSIT") {
           logUserActivity({
             userId: tx.userId,
             action: "ONRAMP_COMPLETED",
@@ -103,7 +103,7 @@ export async function syncPendingSwitchTransaction(tx: any): Promise<any> {
             metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
             link: "/transactions",
           }).catch(() => {});
-        } else if (tx.type === "OFFRAMP") {
+        } else if (tx.type === "OFFRAMP" || tx.type === "WITHDRAW") {
           logUserActivity({
             userId: tx.userId,
             action: "OFFRAMP_COMPLETED",
@@ -230,6 +230,7 @@ export function formatDbTransaction(tx: any) {
 
   const isIncoming =
     tx.type === "ONRAMP" ||
+    tx.type === "DEPOSIT" ||
     tx.type === "FAUCET" ||
     (tx.type === "TRANSFER" &&
       (tx.fromAddress === "SWITCH_NGN_BANK" ||
@@ -266,9 +267,9 @@ export function formatDbTransaction(tx: any) {
         ? `${formatDecimal(tx.swapDetails.toAmount, 4)} `
         : "";
       title = `Swap to ${toAmount}${tx.swapDetails?.toToken || "Asset"}`;
-    } else if (tx.type === "ONRAMP") {
+    } else if (tx.type === "ONRAMP" || tx.type === "DEPOSIT") {
       title = `Deposit ${tx.token}`;
-    } else if (tx.type === "OFFRAMP") {
+    } else if (tx.type === "OFFRAMP" || tx.type === "WITHDRAW") {
       title = `Withdraw ${tx.token}`;
     } else if (tx.type === "FAUCET") {
       title = `Claim ${tx.token}`;
@@ -391,7 +392,15 @@ function detailRows(tx: any, status: string): TransactionDetailRow[] {
     );
   } else {
     rows.push(["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`]);
-    if (ramp) {
+    if (tx.type === "DEPOSIT" || tx.type === "WITHDRAW" || tx.bankDetails) {
+      const bank = tx.bankDetails || tx.rampDetails?.bankDetails;
+      if (bank?.bankName) rows.push(["Bank", bank.bankName]);
+      if (bank?.accountNumber) rows.push(["Account Number", bank.accountNumber, bank.accountNumber]);
+      if (bank?.accountName) rows.push(["Account Name", bank.accountName]);
+      const ref = bank?.reference || tx.txHash;
+      if (ref) rows.push(["Reference", ref, ref]);
+      if (tx.memo) rows.push(["Description", tx.memo]);
+    } else if (ramp) {
       rows.push(
         ["Provider", ramp.provider],
         [
@@ -412,19 +421,19 @@ function detailRows(tx: any, status: string): TransactionDetailRow[] {
         ["Description", tx.memo],
       );
     } else {
-      rows.push(
-        ["To", shortenKey(tx.toAddress)],
-        ["From", shortenKey(tx.fromAddress)],
-      );
+      if (tx.toAddress) rows.push(["To", shortenKey(tx.toAddress)]);
+      if (tx.fromAddress) rows.push(["From", shortenKey(tx.fromAddress)]);
     }
   }
 
-  rows.push(
-    ["Network", tx.chain ? `${tx.chain} ${tx.network || ""}`.trim() : ""],
-    ["Network fee", tx.feePaid],
-    ["TXN HASH", shortenKey(tx.txHash), tx.txHash],
-    ["Time taken", timeTaken(tx)],
-  );
+  if (tx.chain && tx.chain !== "fiat") {
+    rows.push(
+      ["Network", `${tx.chain} ${tx.network || ""}`.trim()],
+      ["Network fee", tx.feePaid],
+      ["TXN HASH", shortenKey(tx.txHash), tx.txHash],
+    );
+  }
+  rows.push(["Time taken", timeTaken(tx)]);
 
   if (status === "failed") rows.push(["Reason", tx.errorMessage]);
 
@@ -518,6 +527,10 @@ export async function queryUserTransactions(params: {
         { type: "data" },
         { token: "DATA" },
       ];
+    } else if (t === "DEPOSIT" || t === "ONRAMP") {
+      typeMatch = [{ type: "DEPOSIT" }, { type: "ONRAMP" }];
+    } else if (t === "WITHDRAW" || t === "OFFRAMP") {
+      typeMatch = [{ type: "WITHDRAW" }, { type: "OFFRAMP" }];
     } else {
       typeMatch = [{ type: t }];
     }
@@ -528,7 +541,7 @@ export async function queryUserTransactions(params: {
         { $or: typeMatch },
       ]);
       delete query.$or;
-    } else if (t === "UTILITY" || t === "AIRTIME" || t === "DATA") {
+    } else if (t === "UTILITY" || t === "AIRTIME" || t === "DATA" || t === "DEPOSIT" || t === "ONRAMP" || t === "WITHDRAW" || t === "OFFRAMP") {
       query.$or = typeMatch;
     } else {
       query.type = t;
@@ -807,7 +820,7 @@ export async function resolveAllPendingTransactions(options?: {
         if (tx.fromAddress) invalidateBalanceCache(tx.fromAddress);
 
         if (tx.userId) {
-          if (tx.type === "ONRAMP") {
+          if (tx.type === "ONRAMP" || tx.type === "DEPOSIT") {
             logUserActivity({
               userId: tx.userId,
               action: "ONRAMP_COMPLETED",
@@ -823,7 +836,7 @@ export async function resolveAllPendingTransactions(options?: {
               metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
               link: "/transactions",
             }).catch(() => {});
-          } else if (tx.type === "OFFRAMP") {
+          } else if (tx.type === "OFFRAMP" || tx.type === "WITHDRAW") {
             logUserActivity({
               userId: tx.userId,
               action: "OFFRAMP_COMPLETED",

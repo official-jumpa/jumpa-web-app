@@ -13,6 +13,8 @@ export interface ITransaction {
     | "SWAP"
     | "ONRAMP"
     | "OFFRAMP"
+    | "DEPOSIT"
+    | "WITHDRAW"
     | "FAUCET"
     | "SAVINGS_DEPOSIT"
     | "SAVINGS_WITHDRAW"
@@ -21,15 +23,24 @@ export interface ITransaction {
     | "DATA";
   status: "PENDING" | "CONFIRMED" | "FAILED" | "CANCELLED" | "SIMULATED";
 
-  chain: "stellar" | "solana" | "base" | "eth";
-  network: "mainnet" | "testnet";
+  chain?: "stellar" | "solana" | "base" | "eth" | "fiat";
+  network?: "mainnet" | "testnet";
 
-  // Transfer & Faucet Details
-  fromAddress: string;
-  toAddress: string;
+  // Transfer, Faucet & Bank Details
+  fromAddress?: string;
+  toAddress?: string;
   amount: string;
   token: string;
   memo?: string;
+
+  // Bank Details (if type === "DEPOSIT" | "WITHDRAW")
+  bankDetails?: {
+    bankName?: string;
+    accountNumber?: string;
+    accountName?: string;
+    bankCode?: string;
+    reference?: string;
+  };
 
   // Swap Details (if type === "SWAP")
   swapDetails?: {
@@ -102,6 +113,8 @@ const TransactionSchema = new Schema<ITransaction>(
         "SWAP",
         "ONRAMP",
         "OFFRAMP",
+        "DEPOSIT",
+        "WITHDRAW",
         "FAUCET",
         "SAVINGS_DEPOSIT",
         "SAVINGS_WITHDRAW",
@@ -120,20 +133,28 @@ const TransactionSchema = new Schema<ITransaction>(
 
     chain: {
       type: String,
-      enum: ["stellar", "solana", "base", "eth"],
-      default: "stellar",
+      enum: ["stellar", "solana", "base", "eth", "fiat"],
+      default: null,
     },
     network: {
       type: String,
       enum: ["mainnet", "testnet"],
-      default: "testnet",
+      default: null,
     },
 
-    fromAddress: { type: String, required: true },
-    toAddress: { type: String, required: true },
+    fromAddress: { type: String, default: null },
+    toAddress: { type: String, default: null },
     amount: { type: String, required: true },
     token: { type: String, required: true },
     memo: { type: String, default: null },
+
+    bankDetails: {
+      bankName: { type: String },
+      accountNumber: { type: String },
+      accountName: { type: String },
+      bankCode: { type: String },
+      reference: { type: String },
+    },
 
     swapDetails: {
       fromToken: { type: String },

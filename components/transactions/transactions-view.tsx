@@ -22,8 +22,8 @@ function buildFilterParams(selected: Record<string, string>): string {
   if (type && type !== "Show All") {
     if (type === "Transfer") params.set("type", "TRANSFER");
     else if (type === "Swap") params.set("type", "SWAP");
-    else if (type === "Deposit") params.set("type", "ONRAMP");
-    else if (type === "Withdraw") params.set("type", "OFFRAMP");
+    else if (type === "Deposit") params.set("type", "DEPOSIT");
+    else if (type === "Withdraw") params.set("type", "WITHDRAW");
     else if (type === "Utility") params.set("type", "UTILITY");
   }
 

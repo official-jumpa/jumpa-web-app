@@ -81,6 +81,12 @@ export const environment = {
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
   OPENROUTER_VISION_MODEL:
     process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.5-flash",
+
+  // ImportaPay NGN Provider
+  IMPORTAPAY_API_KEY: process.env.IMPORTAPAY_API_KEY || "",
+  IMPORTAPAY_BASE_URL:
+    process.env.IMPORTAPAY_BASE_URL ||
+    "https://importa-pay-payments-x72y4.ondigitalocean.app",
 };
 
 export default environment;

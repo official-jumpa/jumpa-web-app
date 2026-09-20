@@ -7,7 +7,6 @@ import { ScreenHeader } from "@/components/ui/screen-header";
 import { NgnConfirm } from "@/components/ngn/ngn-confirm";
 import { NgnIntro } from "@/components/ngn/ngn-intro";
 import { NgnReady } from "@/components/ngn/ngn-ready";
-import type { CreateNgnAccountInput } from "@/lib/validations/fossapay.validation";
 
 type Stage = "intro" | "confirm" | "ready";
 
@@ -49,21 +48,17 @@ export function NgnAccountView() {
     };
   }, [router]);
 
-  const handleCreateAccount = async (formData: CreateNgnAccountInput) => {
+  const handleCreateAccount = async () => {
     setOpening(true);
     setServerError(null);
 
-    console.log("[NgnAccountView] Submitting NGN account creation...", {
-      firstName: formData.firstName,
-      middleName: formData.middleName,
-      lastName: formData.lastName,
-    });
+    console.log("Activating NGN account...");
 
     try {
       const res = await fetch("/api/ngn-account", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({}),
       });
 
       const data = await res.json();
@@ -75,11 +70,11 @@ export function NgnAccountView() {
         return;
       }
 
-      console.log("[NgnAccountView] Account created successfully!", data);
+      console.log("Account created successfully!", data);
       setOpening(false);
       setStage("ready");
     } catch (err: any) {
-      console.error("[NgnAccountView] Network error submitting account form:", err);
+      console.error("Network error submitting account form:", err);
       setServerError(
         err.message || "A network error occurred. Please check your connection."
       );

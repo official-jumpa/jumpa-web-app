@@ -10,6 +10,10 @@ import {
   type DataPlan,
   type DataPlanPeriod,
 } from "@/lib/bills";
+import {
+  atomicDebitNgnBalance,
+  atomicCreditNgnBalance,
+} from "@/lib/functions/importapayFunctions";
 
 /**
  * Formats a phone number to standard Nigerian 11-digit format (e.g. 08031234567).
@@ -137,7 +141,14 @@ export async function purchaseAirtime(params: {
     throw new Error("API key not configured");
   }
 
-  // 1. Create pre-flight record in MongoDB in PENDING status
+  // 1. Atomically debit user's NGN balance to prevent exploits and overdrafts
+  await atomicDebitNgnBalance({
+    userId: params.userId,
+    amount: params.amount,
+    memo: `Airtime: ${normalizedPhone} (${params.network || "VTU"})`,
+  });
+
+  // 2. Create pre-flight record in MongoDB in PENDING status
   const order = await BillPayment.create({
     userId: params.userId,
     walletAddress: params.walletAddress,
@@ -222,6 +233,12 @@ export async function purchaseAirtime(params: {
       { _id: order._id },
       { status: "FAILED", errorMessage: err.message },
     );
+    // Refund debited amount atomically on provider failure
+    await atomicCreditNgnBalance({
+      userId: params.userId,
+      amount: params.amount,
+      memo: `Refund for failed airtime (${normalizedPhone})`,
+    }).catch((refundErr) => console.error("Airtime refund failed:", refundErr));
     throw err;
   }
 }
@@ -250,7 +267,14 @@ export async function purchaseData(params: {
     throw new Error("API key is not configured");
   }
 
-  // 1. Create pre-flight record in MongoDB in PENDING status
+  // 1. Atomically debit user's NGN balance to prevent exploits and overdrafts
+  await atomicDebitNgnBalance({
+    userId: params.userId,
+    amount: params.amount,
+    memo: `Data: ${params.productName} (${normalizedPhone})`,
+  });
+
+  // 2. Create pre-flight record in MongoDB in PENDING status
   const order = await BillPayment.create({
     userId: params.userId,
     walletAddress: params.walletAddress,
@@ -341,6 +365,12 @@ export async function purchaseData(params: {
       { _id: order._id },
       { status: "FAILED", errorMessage: err.message },
     );
+    // Refund debited amount atomically on provider failure
+    await atomicCreditNgnBalance({
+      userId: params.userId,
+      amount: params.amount,
+      memo: `Refund for failed data (${params.productName})`,
+    }).catch((refundErr) => console.error("Data refund failed:", refundErr));
     throw err;
   }
 }

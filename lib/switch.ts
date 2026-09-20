@@ -66,12 +66,12 @@ export interface QuoteResponse {
 }
 
 export const SUPPORTED_SWITCH_ASSETS = [
-  "base:usdc", "base:cngn", "solana:usdc", "solana:usdt", "ethereum:usdc", "ethereum:usdt",
-  "polygon:usdc", "polygon:usdt", "bsc:usdc", "bsc:usdt", "bsc:cngn", "arbitrum:usdc",
-  "arbitrum:usdt", "optimism:usdc", "optimism:usdt", "avalanche:usdc", "avalanche:usdt",
-  "gnosis:usdc", "gnosis:usdt", "tron:usdt", "assetchain:usdc", "assetchain:usdt",
-  "monad:usdc", "monad:usdt", "linea:usdc", "linea:usdt", "berachain:usdc", "berachain:usdt",
-  "sonic:usdc", "plasma:usdt"
+  "base:usdc",
+  "base:cngn",
+  "solana:usdc",
+  "solana:usdt",
+  "ethereum:usdc",
+  "ethereum:usdt",
 ];
 
 /** Human-readable labels for each supported Switch asset — use these when presenting assets to users */
@@ -82,30 +82,6 @@ export const SWITCH_ASSET_LABELS: Record<string, string> = {
   "solana:usdt": "USDT on Solana",
   "ethereum:usdc": "USDC on Ethereum",
   "ethereum:usdt": "USDT on Ethereum",
-  "polygon:usdc": "USDC on Polygon",
-  "polygon:usdt": "USDT on Polygon",
-  "bsc:usdc": "USDC on BNB Chain",
-  "bsc:usdt": "USDT on BNB Chain",
-  "bsc:cngn": "cNGN on BNB Chain",
-  "arbitrum:usdc": "USDC on Arbitrum",
-  "arbitrum:usdt": "USDT on Arbitrum",
-  "optimism:usdc": "USDC on Optimism",
-  "optimism:usdt": "USDT on Optimism",
-  "avalanche:usdc": "USDC on Avalanche",
-  "avalanche:usdt": "USDT on Avalanche",
-  "gnosis:usdc": "USDC on Gnosis",
-  "gnosis:usdt": "USDT on Gnosis",
-  "tron:usdt": "USDT on Tron",
-  "assetchain:usdc": "USDC on AssetChain",
-  "assetchain:usdt": "USDT on AssetChain",
-  "monad:usdc": "USDC on Monad",
-  "monad:usdt": "USDT on Monad",
-  "linea:usdc": "USDC on Linea",
-  "linea:usdt": "USDT on Linea",
-  "berachain:usdc": "USDC on Berachain",
-  "berachain:usdt": "USDT on Berachain",
-  "sonic:usdc": "USDC on Sonic",
-  "plasma:usdt": "USDT on Plasma",
 };
 
 function parseSwitchError(errorMsg: string): string {

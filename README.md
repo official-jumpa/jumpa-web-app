@@ -124,7 +124,7 @@ cp .env.example .env
 | `SWITCH_SANDBOX_URL` | Optional | Sandbox base URL for Switch fiat ramps | `https://switch-3.gitbook.io/api` |
 | `SWITCH_SANDBOX_KEY` | Optional | Switch sandbox authentication API key | `sandbox_key_...` |
 | `NEXT_PUBLIC_SOLANA_RPC` | Optional | Solana RPC endpoint for balance lookups | `https://api.mainnet-beta.solana.com` |
-| `EVM_RPC_URL` | Optional | EVM RPC endpoint (Sepolia / Base) | `https://sepolia.drpc.org` |
+| `EVM_RPC_URL` | Optional | EVM RPC endpoint (Ethereum / Base) | `https://eth.drpc.org` |
 
 ---
 

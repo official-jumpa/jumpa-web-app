@@ -13,7 +13,7 @@ export function cleanTokenSymbol(token: string): string {
   const t = token.toUpperCase();
   if (t.startsWith("USDC")) return "USDC";
   if (t.startsWith("USDT")) return "USDT";
-  if (t === "BASE" || t === "SEP") return "ETH";
+  if (t === "BASE") return "ETH";
   if (t.startsWith("SOL")) return "SOL";
   if (t.startsWith("XLM")) return "XLM";
   return token;
@@ -21,8 +21,6 @@ export function cleanTokenSymbol(token: string): string {
 
 export function formatChainName(chain: string): string {
   switch (chain) {
-    case "baseSepolia":
-      return "Base Sepolia";
     case "base":
       return "Base";
     case "solDevnet":
@@ -48,8 +46,7 @@ export function getExplorerUrl(tokenSymbol: string, hash: string): string {
     const isTest = sym.includes("TEST") || sym.includes("DEV");
     return getExplorerTxUrl("stellar", hash, isTest);
   } else {
-    const isSepolia = sym.includes("SEP") || sym.includes("TEST") || sym.includes("DEV");
-    return getExplorerTxUrl("base", hash, isSepolia);
+    return getExplorerTxUrl("base", hash);
   }
 }
 

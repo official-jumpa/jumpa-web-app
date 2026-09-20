@@ -214,9 +214,9 @@ const onrampNgn: DeepSeekTool = {
     description:
       "Generate bank transfer details to deposit Nigerian Naira (NGN) and receive crypto via Switch. " +
       "Supported Switch asset pairs: " +
-      "USDC: 'base:usdc', 'solana:usdc', 'avalanche:usdc', 'ethereum:usdc', 'bsc:usdc'. " +
-      "USDT: 'solana:usdt', 'tron:usdt', 'ethereum:usdt', 'bsc:usdt'. " +
-      "cNGN: 'base:cngn', 'bsc:cngn'. " +
+      "USDC: 'base:usdc', 'solana:usdc', 'ethereum:usdc'. " +
+      "USDT: 'solana:usdt', 'ethereum:usdt'. " +
+      "cNGN: 'base:cngn'. " +
       "(USDT on Base and all assets on Stellar are NOT supported for NGN onramp). " +
       "(All fiat onramps operate exclusively on MAINNET). " +
       "MANDATORY: Provide fiatAmount OR cryptoAmount, and target network/chain. If user specified cryptoAmount (e.g. 'buy 50 USDC with Naira'), the tool computes fiatAmount automatically using live rates.",
@@ -240,7 +240,7 @@ const onrampNgn: DeepSeekTool = {
         asset: {
           type: "string",
           description:
-            "Switch asset identifier (e.g. 'base:usdc', 'solana:usdt', 'tron:usdt').",
+            "Switch asset identifier (e.g. 'base:usdc', 'solana:usdt', 'ethereum:usdt').",
         },
         walletAddress: {
           type: "string",
@@ -261,9 +261,9 @@ const offrampNgn: DeepSeekTool = {
       "Initiate a withdrawal via Switch to sell crypto for Nigerian Naira (NGN) to a user's bank account. " +
       "The system automatically verifies the account number and bank with Paystack to ensure accuracy. " +
       "Supported Switch asset pairs: " +
-      "USDC: 'base:usdc', 'solana:usdc', 'avalanche:usdc', 'ethereum:usdc', 'bsc:usdc'. " +
-      "USDT: 'solana:usdt', 'tron:usdt', 'ethereum:usdt', 'bsc:usdt'. " +
-      "cNGN: 'base:cngn', 'bsc:cngn'. " +
+      "USDC: 'base:usdc', 'solana:usdc', 'ethereum:usdc'. " +
+      "USDT: 'solana:usdt', 'ethereum:usdt'. " +
+      "cNGN: 'base:cngn'. " +
       "(USDT on Base and all assets on Stellar are NOT supported for NGN offramp). " +
       "(All fiat offramps operate exclusively on MAINNET). " +
       "Call this as soon as the user says they want to cash out, with WHATEVER they have given so far — " +
@@ -332,7 +332,7 @@ const getRampRate: DeepSeekTool = {
         asset: {
           type: "string",
           description:
-            "Optional Switch asset code (e.g. 'base:usdc', 'solana:usdt', 'solana:usdc', 'bsc:usdt'). Defaults to 'base:usdc'.",
+            "Optional Switch asset code (e.g. 'base:usdc', 'solana:usdt', 'solana:usdc', 'ethereum:usdt'). Defaults to 'base:usdc'.",
         },
         token: {
           type: "string",

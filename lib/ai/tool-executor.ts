@@ -120,7 +120,6 @@ function networkToSwitchChain(network?: string): string | null {
   if (n.includes("solana")) return "solana";
   if (n.includes("tron")) return "tron";
   if (n.includes("ethereum") || (n.includes("mainnet") && !n.includes("stellar"))) return "ethereum";
-  if (n.includes("bnb") || n.includes("bsc")) return "bsc";
   if (n.includes("polygon")) return "polygon";
   if (n.includes("arbitrum")) return "arbitrum";
   if (n.includes("optimism")) return "optimism";
@@ -900,10 +899,10 @@ export async function executeTool(
       try {
         const cleanAsset = String(asset || "").toLowerCase();
         if (cleanAsset.includes("stellar")) {
-          throw new Error("NGN fiat onramp is not available on Stellar. Please select Base, Solana, Avalanche, Ethereum, or BNB Chain.");
+          throw new Error("NGN fiat onramp is not available on Stellar. Please select Base, Solana, or Ethereum.");
         }
         if (cleanAsset.includes("base") && cleanAsset.includes("usdt")) {
-          throw new Error("USDT is not supported on Base. Please choose Solana, Tron, Ethereum, or BNB Chain for USDT.");
+          throw new Error("USDT is not supported on Base. Please choose Solana or Ethereum for USDT.");
         }
 
         let amount: number;
@@ -1276,10 +1275,10 @@ export async function executeTool(
 
         const cleanTargetAsset = targetAsset.toLowerCase();
         if (cleanTargetAsset.includes("stellar")) {
-          throw new Error("NGN fiat offramp is not available on Stellar. Please select Base, Solana, Avalanche, Ethereum, or BNB Chain.");
+          throw new Error("NGN fiat offramp is not available on Stellar. Please select Base, Solana, or Ethereum.");
         }
         if (cleanTargetAsset.includes("base") && cleanTargetAsset.includes("usdt")) {
-          throw new Error("USDT is not supported on Base. Please choose Solana, Tron, Ethereum, or BNB Chain for USDT.");
+          throw new Error("USDT is not supported on Base. Please choose Solana or Ethereum for USDT.");
         }
 
         if (cleanCrypto > 0) {
@@ -1320,7 +1319,6 @@ export async function executeTool(
               if (targetChain === "solana") return net.includes("solana");
               if (targetChain === "base") return net.includes("base");
               if (targetChain === "ethereum") return net.includes("ethereum") || (net.includes("mainnet") && !net.includes("stellar") && !net.includes("solana"));
-              if (targetChain === "bsc") return net.includes("bsc") || net.includes("bnb");
               if (targetChain === "avalanche") return net.includes("avalanche");
               if (targetChain === "polygon") return net.includes("polygon");
               if (targetChain === "arbitrum") return net.includes("arbitrum");

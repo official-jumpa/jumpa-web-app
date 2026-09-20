@@ -34,7 +34,6 @@ const PRICES: Record<string, number> = {
   XLM: 0.325,
   ETH: 2450,
   SOL: 148,
-  BNB: 605,
   TRX: 0.17,
   TON: 3.1,
 };

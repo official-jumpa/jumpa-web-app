@@ -160,7 +160,7 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
           net.includes(chainNameLower) ||
           (chainIdLower === "stellar" && (net.includes("stellar") || net.includes("xlm"))) ||
           (chainIdLower === "solana" && (net.includes("solana") || net.includes("sol"))) ||
-          (chainIdLower === "ethereum" && (net.includes("ethereum") || net.includes("eth") || net.includes("sepolia"))) ||
+          (chainIdLower === "ethereum" && (net.includes("ethereum") || net.includes("eth"))) ||
           (chainIdLower === "base" && net.includes("base"))
         );
       });

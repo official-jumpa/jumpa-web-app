@@ -111,7 +111,7 @@ export function deriveFromPrivateKey(
       throw new Error("Invalid Solana private key");
     }
   } else {
-    // EVM (Base, Ethereum, BNB, etc.)
+    // EVM (Base, Ethereum, etc.)
     try {
       const hexKey = (
         trimmed.startsWith("0x") ? trimmed : `0x${trimmed}`

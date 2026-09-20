@@ -13,7 +13,6 @@ const LOGOS: Record<string, string> = {
   USDC: "/coins/usdc.webp",
   USDT: "/coins/usdt.webp",
   SOL: "/coins/sol.webp",
-  BNB: "/coins/bnb.webp",
   POL: "/coins/pol.webp",
   CELO: "/coins/celo.webp",
   ETH: "/coins/eth.webp",
@@ -35,7 +34,6 @@ const ALIASES: [string, string][] = [
   ["TETHER", "USDT"],
   ["ETHEREUM", "ETH"],
   ["POLYGON", "POL"],
-  ["BINANCE", "BNB"],
   ["SOLANA", "SOL"],
   ["TONCOIN", "TON"],
   ["TRON", "TRX"],
@@ -45,7 +43,6 @@ const ALIASES: [string, string][] = [
   ["BASE", "BASE"],
   ["CELO", "CELO"],
   ["XLM", "XLM"],
-  ["BNB", "BNB"],
   ["POL", "POL"],
   ["SOL", "SOL"],
   ["ETH", "ETH"],
@@ -98,7 +95,6 @@ export function unifyTokens(tokens: any[]): Asset[] {
     if (s.includes("SOL")) return { symbol: "SOL", name: "Solana" };
     if (s.includes("XLM") || s.includes("STELLAR"))
       return { symbol: "XLM", name: "Stellar" };
-    if (s.includes("BNB")) return { symbol: "BNB", name: "BNB" };
     if (s.includes("POL") || s.includes("MATIC"))
       return { symbol: "POL", name: "Polygon" };
     if (s.includes("CELO")) return { symbol: "CELO", name: "Celo" };

@@ -11,14 +11,12 @@
 
 import {
   mainnet,
-  sepolia,
   base,
-  bsc,
 } from "viem/chains";
 import { createPublicClient, http, getAddress } from "viem";
 import { environment } from "./environment";
 
-// ─── ALL CONTRACT & MINTS ADDRESSES ───────────────────────────────────────
+// ─── ALL CONTRACT & MINTS ADDRESSES
 
 export const CONTRACT_ADDRESSES = {
   stellar: {
@@ -81,20 +79,10 @@ export const CONTRACT_ADDRESSES = {
         decimals: 6,
       },
     },
-    sepolia: {
-      USDC: {
-        address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" as `0x${string}`,
-        decimals: 6,
-      },
-      USDT: {
-        address: "0xaA8E23Fb1079EA71e0a56F48a2AA51851D8433D0" as `0x${string}`,
-        decimals: 6,
-      },
-    },
   },
 } as const;
 
-// ─── EXPLORER URL BUILDERS ────────────────────────────────────────────────
+// EXPLORER URL BUILDERS
 
 export function getExplorerTxUrl(
   chain: string,
@@ -102,10 +90,7 @@ export function getExplorerTxUrl(
   isTestnet?: boolean,
 ): string {
   const c = chain.toLowerCase().replace(/[\s_-]/g, "");
-  const test =
-    isTestnet ??
-    (c.includes("test") ||
-      c.includes("sepolia"));
+  const test = isTestnet ?? c.includes("test");
 
   if (c.includes("stellar") || c === "xlm") {
     return `https://stellar.expert/explorer/${test ? "testnet" : "public"}/tx/${txHash}`;
@@ -114,14 +99,11 @@ export function getExplorerTxUrl(
     return `https://solscan.io/tx/${txHash}${test ? "?cluster=devnet" : ""}`;
   }
   if (c.includes("base")) {
-    return `https://${test ? "sepolia." : ""}basescan.org/tx/${txHash}`;
-  }
-  if (c.includes("bsc") || c.includes("bnb")) {
-    return `https://${test ? "testnet." : ""}bscscan.com/tx/${txHash}`;
+    return `https://basescan.org/tx/${txHash}`;
   }
 
   // Fallback to Ethereum (Etherscan)
-  return `https://${test ? "sepolia." : ""}etherscan.io/tx/${txHash}`;
+  return `https://etherscan.io/tx/${txHash}`;
 }
 
 export function getExplorerAddressUrl(
@@ -130,10 +112,7 @@ export function getExplorerAddressUrl(
   isTestnet?: boolean,
 ): string {
   const c = chain.toLowerCase().replace(/[\s_-]/g, "");
-  const test =
-    isTestnet ??
-    (c.includes("test") ||
-      c.includes("sepolia"));
+  const test = isTestnet ?? c.includes("test");
 
   if (c.includes("stellar") || c === "xlm") {
     return `https://stellar.expert/explorer/${test ? "testnet" : "public"}/account/${address}`;
@@ -142,13 +121,10 @@ export function getExplorerAddressUrl(
     return `https://solscan.io/account/${address}${test ? "?cluster=devnet" : ""}`;
   }
   if (c.includes("base")) {
-    return `https://${test ? "sepolia." : ""}basescan.org/address/${address}`;
-  }
-  if (c.includes("bsc") || c.includes("bnb")) {
-    return `https://${test ? "testnet." : ""}bscscan.com/address/${address}`;
+    return `https://basescan.org/address/${address}`;
   }
 
-  return `https://${test ? "sepolia." : ""}etherscan.io/address/${address}`;
+  return `https://etherscan.io/address/${address}`;
 }
 
 // ─── SOROSWAP COMPATIBILITY EXPORTS ───────────────────────────────────────
@@ -243,18 +219,6 @@ export const CHAINS: Record<string, ChainDef> = {
     walletKey: "base",
   },
 
-  // TODO: BNB support — when ready:
-  //   1. Add `bnb: string` to IWallet.addresses in models/Wallet.ts + WalletSchema
-  //   2. Set walletKey: "bnb" below and remove the `unavailable` flag
-  //   3. Add BNB address derivation in lib/derive-addresses.ts
-  bnb: {
-    id: "bnb",
-    name: "BNB Smart Chain",
-    caption: "BNB Smart Chain (BEP-20)",
-    address: "Unavailable",
-    unavailable: true,
-  },
-
   // TODO: Tron support — when ready:
   //   1. Add `trx: string` to IWallet.addresses in models/Wallet.ts + WalletSchema
   //   2. Set walletKey: "trx" below and remove the `unavailable` flag
@@ -283,11 +247,10 @@ export const CHAINS: Record<string, ChainDef> = {
 /** Where each asset can be received, in the order the picker offers them. */
 export const ASSET_CHAINS: Record<string, string[]> = {
   USDC: ["stellar", "solana", "base", "ethereum"],
-  USDT: ["ethereum", "solana", "bnb"],
+  USDT: ["ethereum", "solana"],
   ETH: ["ethereum", "base"],
   XLM: ["stellar"],
   SOL: ["solana"],
-  BNB: ["bnb"],
   TRX: ["tron"],
   TON: ["ton"],
 };
@@ -339,9 +302,7 @@ export function detectTargetChains(prompt: string): SupportedChain[] | undefined
   if (p.includes("base") && !p.includes("ethereum")) chains.push("base");
   else if (
     p.includes("ethereum") ||
-    p.includes("evm") ||
-    p.includes("bnb") ||
-    p.includes("bsc")
+    p.includes("evm")
   ) {
     chains.push("evm");
   }
@@ -349,13 +310,11 @@ export function detectTargetChains(prompt: string): SupportedChain[] | undefined
   return chains.length > 0 ? chains : undefined;
 }
 
-// ─── EVM CHAINS ───────────────────────────────────────────
+// ─── EVM CHAINS
 
 export type EvmChainId =
   | "ethereum"
-  | "sepolia"
-  | "base"
-  | "bsc";
+  | "base";
 
 export interface EvmChainConfig {
   id: EvmChainId;
@@ -398,28 +357,6 @@ export const EVM_CHAINS: EvmChainConfig[] = [
       },
     ],
   },
-  {
-    id: "sepolia",
-    label: "Ethereum Sepolia",
-    viemChain: sepolia,
-    nativeSymbol: "ETH",
-    nativeDecimals: 18,
-    isTestnet: true,
-    tokens: [
-      {
-        symbol: "USDC",
-        name: "USD Coin (Sepolia)",
-        address: CONTRACT_ADDRESSES.ethereum.sepolia.USDC.address,
-        decimals: CONTRACT_ADDRESSES.ethereum.sepolia.USDC.decimals,
-      },
-      {
-        symbol: "USDT",
-        name: "Tether USD (Sepolia)",
-        address: CONTRACT_ADDRESSES.ethereum.sepolia.USDT.address,
-        decimals: CONTRACT_ADDRESSES.ethereum.sepolia.USDT.decimals,
-      },
-    ],
-  },
   // --- Base ---
   {
     id: "base",
@@ -444,30 +381,6 @@ export const EVM_CHAINS: EvmChainConfig[] = [
       },
     ],
   },
-  // --- BSC ---
-  {
-    id: "bsc",
-    label: "BNB Chain",
-    viemChain: bsc,
-    rpcUrl: "https://bsc.drpc.org",
-    nativeSymbol: "BNB",
-    nativeDecimals: 18,
-    isTestnet: false,
-    tokens: [
-      {
-        symbol: "USDC",
-        name: "USD Coin",
-        address: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-        decimals: 18,
-      },
-      {
-        symbol: "USDT",
-        name: "Tether USD",
-        address: "0x55d398326f99059fF775485246999027B3197955",
-        decimals: 18,
-      },
-    ],
-  },
 ];
 
 for (const chain of EVM_CHAINS) {
@@ -484,9 +397,7 @@ for (const chain of EVM_CHAINS) {
 
 const ALCHEMY_PREFIXES: Partial<Record<EvmChainId, string>> = {
   ethereum: "eth-mainnet",
-  sepolia: "eth-sepolia",
   base: "base-mainnet",
-  bsc: "bnb-mainnet",
 };
 
 export function getRpcUrl(chain: EvmChainConfig): string {

@@ -205,7 +205,7 @@ export const FAQ = {
     {
       question: "What currencies and chains does Jumpa support?",
       answer:
-        "Jumpa supports NGN and USD fiat accounts alongside crypto on Ethereum, Base, BNB Chain, and Stellar. Swap between them instantly, right inside the app.",
+        "Jumpa supports NGN and USD fiat accounts alongside crypto on Ethereum, Base, Solana, and Stellar. Swap between them instantly, right inside the app.",
     },
     {
       question: "Are there any fees?",

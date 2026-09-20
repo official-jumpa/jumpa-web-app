@@ -61,7 +61,6 @@ const coinGeckoCache: Record<string, CoinGeckoInfo> = {
   SOL: { priceUsd: "150.00", icon: "/images/home/coin-generic.svg" },
   XLM: { priceUsd: "0.12", icon: "/images/home/coin-generic.svg" },
   ETH: { priceUsd: "3540.21", icon: "/images/home/coin-generic.svg" },
-  BNB: { priceUsd: "580.00", icon: "/images/home/coin-generic.svg" },
   USDC: { priceUsd: "1.00", icon: "/coins/usdc.webp" },
   USDT: { priceUsd: "1.00", icon: "/images/home/coin-generic.svg" },
 };
@@ -76,7 +75,7 @@ async function updateCoinGeckoData() {
   }
 
   try {
-    const ids = "ethereum,binancecoin,solana,stellar,usd-coin,tether";
+    const ids = "ethereum,solana,stellar,usd-coin,tether";
     const res = await fetch(
       `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}`,
     );
@@ -86,7 +85,6 @@ async function updateCoinGeckoData() {
     if (Array.isArray(data)) {
       const map: Record<string, string> = {
         ethereum: "ETH",
-        binancecoin: "BNB",
         solana: "SOL",
         stellar: "XLM",
         "usd-coin": "USDC",

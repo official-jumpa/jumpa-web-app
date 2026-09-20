@@ -34,7 +34,7 @@ export const environment = {
   SOL_DEVNET: process.env.SOL_DEVNET || "https://api.devnet.solana.com",
 
   // EVM & Alchemy Config
-  EVM_RPC_URL: process.env.EVM_RPC_URL || "https://sepolia.drpc.org",
+  EVM_RPC_URL: process.env.EVM_RPC_URL || "https://eth.drpc.org",
   ALCHEMY_API_KEY: process.env.ALCHEMY_API_KEY || "",
   ALCHEMY_MAINNET_RPC: process.env.ALCHEMY_MAINNET_RPC || "",
   ALCHEMY_DEVNET_RPC: process.env.ALCHEMY_DEVNET_RPC || "",

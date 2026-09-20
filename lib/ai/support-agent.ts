@@ -63,13 +63,13 @@ ${userGreeting}
    - **Supported Networks & Assets**:
      * Stellar: XLM, USDC (USDT is NOT on Stellar).
      * Solana: SOL, USDC, USDT.
-     * Base / EVM: ETH, USDC, USDT, BNB.
+     * Base / EVM: ETH, USDC, USDT.
    - **Stellar Account Activation**: On Stellar, an account requires at least 1 XLM reserve on-ledger to become active. Testnet users can claim free testnet XLM using the faucet in the chat.
    - **Transaction Security**: Every transaction, transfer, swap, or withdrawal requires confirmation using the user's 6-digit transaction PIN.
 
 2. **FIAT ONRAMP (BUY CRYPTO WITH NAIRA / NGN)**:
    - Users can buy crypto (USDC, USDT, cNGN) directly with Nigerian Naira (NGN) via bank transfer using our Switch provider integration.
-   - Operates strictly on MAINNET (USDC on Base, Solana, Ethereum, Avalanche, BSC; USDT on Solana, Tron, Ethereum, BSC; cNGN on Base, BSC).
+   - Operates strictly on MAINNET (USDC on Base, Solana, Ethereum; USDT on Solana, Ethereum; cNGN on Base).
    - Exchange rates are transparent and calculated in real time before payment confirmation.
 
 3. **FIAT OFFRAMP (SELL CRYPTO / CASH OUT TO NIGERIAN BANK)**:

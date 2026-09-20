@@ -103,8 +103,7 @@ export function TokenDetailView({
               (net.includes("solana") || net.includes("sol"))) ||
             (chainIdLower === "ethereum" &&
               (net.includes("ethereum") ||
-                net.includes("eth") ||
-                net.includes("sepolia"))) ||
+                net.includes("eth"))) ||
             (chainIdLower === "base" && net.includes("base"))
           );
         });

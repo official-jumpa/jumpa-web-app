@@ -130,12 +130,18 @@ export const auth = betterAuth({
         before: async (user) => {
           const referralCode = await generateUniqueReferralCode();
           const country = await detectUserCountry();
+          const rawTag = (user as any).jumpaTag;
+          const tag =
+            rawTag && typeof rawTag === "string" && rawTag.trim()
+              ? rawTag.toLowerCase().trim()
+              : undefined;
+
           return {
             data: {
               ...user,
               status: (user as any).status || "active",
               country: (user as any).country || country,
-              jumpaTag: (user as any).jumpaTag || null,
+              ...(tag ? { jumpaTag: tag } : {}),
               referralCode: (user as any).referralCode || referralCode,
             },
           };

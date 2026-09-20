@@ -137,6 +137,9 @@ export function FiatAccounts() {
  */
 const NOT_LIVE: FiatAccount["id"][] = ["usd"];
 
+/** Muted, not recoloured — the same treatment as the Invest quick action. */
+const SOON = "opacity-50 blur-[0.4px]";
+
 function AccountCard({ account }: { account: FiatAccount }) {
   const soon = NOT_LIVE.includes(account.id);
 
@@ -175,22 +178,16 @@ function AccountCard({ account }: { account: FiatAccount }) {
   }
 
   return (
-    <div
-      className={cn(
-        "relative flex flex-1 flex-col gap-4 rounded-panel bg-jumpa-neutral-50 px-4 py-2.5",
-        soon && "opacity-80",
-      )}
-    >
-      <span className="flex items-center gap-1">
+    <div className="relative flex flex-1 flex-col gap-4 rounded-panel bg-jumpa-neutral-50 px-4 py-2.5">
+      {/* Muted on the contents, not the card — the panel has its own fill, and
+          fading that washes it out against the white page. */}
+      <span className={cn("flex items-center gap-1", soon && SOON)}>
         <Image
           src={account.flag}
           alt=""
           width={64}
           height={64}
-          className={cn(
-            "size-4 rounded-full object-contain",
-            soon && "grayscale",
-          )}
+          className="size-4 rounded-full object-contain"
         />
         <span className="text-[10px] font-medium text-jumpa-black">
           {account.label}
@@ -198,9 +195,13 @@ function AccountCard({ account }: { account: FiatAccount }) {
       </span>
 
       {soon ? (
-        <span className="flex h-8.25 cursor-not-allowed items-center justify-center rounded-pill bg-jumpa-white text-[10px] font-medium text-jumpa-neutral-300 select-none">
-          {/* Just enough to read as inert; 0.7 made the copy hard to read. */}
-          <span className="blur-[0.4px]">Coming soon</span>
+        <span
+          className={cn(
+            "flex h-8.25 cursor-not-allowed items-center justify-center rounded-pill bg-jumpa-white text-[10px] font-medium text-jumpa-primary-600 select-none",
+            SOON,
+          )}
+        >
+          Coming soon
         </span>
       ) : (
         <Link

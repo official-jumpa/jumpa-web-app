@@ -88,7 +88,9 @@ export function Toaster() {
 
   return createPortal(
     <div className="pointer-events-none fixed inset-x-0 top-0 z-70 flex justify-center px-4.5 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
-      <div className="flex w-full max-w-app flex-col gap-2">
+      {/* Narrower than the column and content-width: a toast is a notice, not a
+          banner, so it should not read as full-bleed. */}
+      <div className="flex w-full max-w-80 flex-col items-center gap-2">
         {entries.map((entry) => (
           <ToastCard key={entry.id} entry={entry} onDismiss={dismiss} />
         ))}

@@ -4,18 +4,43 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Fragment } from "react";
 import { CircleUserIcon } from "@/components/ui/icons/circle-user";
+import { CircleUserSolidIcon } from "@/components/ui/icons/circle-user-solid";
 import { CreditCardNavIcon } from "@/components/ui/icons/credit-card-nav";
+import { CreditCardNavSolidIcon } from "@/components/ui/icons/credit-card-nav-solid";
 import { HouseLineIcon } from "@/components/ui/icons/house-line";
+import { HouseLineOutlineIcon } from "@/components/ui/icons/house-line-outline";
 import { MessageCircleDotsIcon } from "@/components/ui/icons/message-circle-dots";
 import { ReceiptAltIcon } from "@/components/ui/icons/receipt-alt";
+import { ReceiptAltSolidIcon } from "@/components/ui/icons/receipt-alt-solid";
 import { cn } from "@/lib/cn";
 import { triggerHaptic } from "@/lib/haptics";
 
+/** A tab draws its stroked glyph at rest and the filled cut on the page it is on. */
 const TABS = [
-  { label: "Home", href: "/home", Icon: HouseLineIcon },
-  { label: "Cards", href: "/cards", Icon: CreditCardNavIcon },
-  { label: "Transactions", href: "/transactions", Icon: ReceiptAltIcon },
-  { label: "Me", href: "/profile", Icon: CircleUserIcon },
+  {
+    label: "Home",
+    href: "/home",
+    Icon: HouseLineOutlineIcon,
+    ActiveIcon: HouseLineIcon,
+  },
+  {
+    label: "Cards",
+    href: "/cards",
+    Icon: CreditCardNavIcon,
+    ActiveIcon: CreditCardNavSolidIcon,
+  },
+  {
+    label: "Transactions",
+    href: "/transactions",
+    Icon: ReceiptAltIcon,
+    ActiveIcon: ReceiptAltSolidIcon,
+  },
+  {
+    label: "Me",
+    href: "/profile",
+    Icon: CircleUserIcon,
+    ActiveIcon: CircleUserSolidIcon,
+  },
 ];
 
 /**
@@ -52,39 +77,45 @@ export function BottomNav() {
 
       <div className="pointer-events-none fixed inset-x-0 bottom-5 z-10 mx-auto max-w-app px-4.5 pb-safe">
         <nav className="pointer-events-auto mx-auto flex items-center justify-center h-18.5 gap-1 rounded-pill border border-jumpa-neutral-90 bg-jumpa-white px-2.5">
-          {TABS.map(({ label, href, Icon }, index) => (
-            <Fragment key={label}>
-              {index === middle ? (
-                <Link
-                  href="/home/chat"
-                  prefetch={true}
-                  aria-label="Chat"
-                  onClick={() => triggerHaptic("light")}
-                  className="flex items-center justify-center rounded-pill bg-[image:var(--gradient-jumpa-nav-chat)] p-2.5 text-jumpa-alt-400 active:scale-90 transition-transform duration-75"
-                >
-                  <MessageCircleDotsIcon className="size-6" />
-                </Link>
-              ) : null}
+          {TABS.map(({ label, href, Icon, ActiveIcon }, index) => {
+            const active = pathname === href;
+            const Glyph = active ? ActiveIcon : Icon;
 
-              <Link
-                href={href}
-                prefetch={true}
-                onClick={() => triggerHaptic("light")}
-                aria-current={pathname === href ? "page" : undefined}
-                className={cn(
-                  "flex flex-1 flex-col items-center gap-0.5 rounded-pill px-2 py-1.5 active:scale-90 transition-transform duration-75",
-                  pathname === href
-                    ? "text-jumpa-primary-950"
-                    : "text-jumpa-grey-500",
-                )}
-              >
-                <Icon className="size-6" />
-                <span className="text-[8px] leading-3 font-medium whitespace-nowrap">
-                  {label}
-                </span>
-              </Link>
-            </Fragment>
-          ))}
+            return (
+              <Fragment key={label}>
+                {index === middle ? (
+                  <Link
+                    href="/home/chat"
+                    prefetch={true}
+                    aria-label="Chat"
+                    onClick={() => triggerHaptic("light")}
+                    className="flex items-center justify-center rounded-pill bg-[image:var(--gradient-jumpa-nav-chat)] p-2.5 text-jumpa-alt-400 active:scale-90 transition-transform duration-75"
+                  >
+                    <MessageCircleDotsIcon className="size-6" />
+                  </Link>
+                ) : null}
+
+                <Link
+                  href={href}
+                  prefetch={true}
+                  onClick={() => triggerHaptic("light")}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex flex-1 flex-col items-center gap-0.5 rounded-pill px-2 py-1.5 active:scale-90 transition-transform duration-75",
+                    active ? "text-jumpa-primary-950" : "text-jumpa-grey-500",
+                  )}
+                >
+                  {/* The glyph is brand purple where the label is the darker 950. */}
+                  <Glyph
+                    className={cn("size-6", active && "text-jumpa-primary-600")}
+                  />
+                  <span className="text-[8px] leading-3 font-medium whitespace-nowrap">
+                    {label}
+                  </span>
+                </Link>
+              </Fragment>
+            );
+          })}
         </nav>
       </div>
     </>

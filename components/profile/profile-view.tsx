@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/auth/copy-button";
 import { EditNicknameSheet } from "@/components/profile/edit-nickname-sheet";
@@ -27,11 +28,13 @@ import { UsersIcon } from "@/components/ui/icons/users";
 import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
 import { getAssetLogo } from "@/lib/assets";
 import { useAuthContext } from "@/components/auth/AuthGuard";
+import { useUserProfile } from "@/components/profile/user-profile-provider";
 import { ACCOUNT } from "@/lib/wallet";
 
 export interface ProfileViewProps {
   initialUser?: {
     name?: string | null;
+    nickname?: string | null;
     email?: string | null;
     jumpaTag?: string | null;
     referralCode?: string | null;
@@ -53,7 +56,17 @@ export function ProfileView({
   initialWalletAddresses = null,
   initialKycVerified = false,
 }: ProfileViewProps) {
+  const router = useRouter();
   const auth = useAuthContext();
+  const { profile, updateProfile } = useUserProfile();
+  const authUser = auth?.user as any;
+  const user = {
+    ...initialUser,
+    ...authUser,
+    ...profile,
+    nickname: profile?.nickname ?? authUser?.nickname ?? initialUser?.nickname ?? null,
+  };
+
   const [walletAddresses, setWalletAddresses] = useState<{
     xlm?: string;
     base?: string;
@@ -62,8 +75,6 @@ export function ProfileView({
     [key: string]: string | undefined;
   } | null>(initialWalletAddresses);
   const [showOtherChains, setShowOtherChains] = useState(false);
-  // null until the sheet writes one, so the account's own name still wins.
-  const [nickname, setNickname] = useState<string | null>(null);
   const [editingNickname, setEditingNickname] = useState(false);
   const [kycVerified, setKycVerified] = useState<boolean>(initialKycVerified);
 
@@ -122,14 +133,19 @@ export function ProfileView({
     fetchWallet();
   }, [initialWalletAddresses]);
 
-  const user = (auth?.user as any) || initialUser;
-
   // Fallbacks while loading or if data is empty
+  const currentNickname =
+    profile?.nickname ?? authUser?.nickname ?? initialUser?.nickname ?? null;
   const displayName =
-    nickname ?? user?.name ?? user?.jumpaTag ?? ACCOUNT.firstName;
-  const displayEmail = user?.email || "";
-  const jumpaTag = user?.jumpaTag || "user@jumpa";
+    currentNickname || profile?.name || user?.name || profile?.jumpaTag || user?.jumpaTag || ACCOUNT.firstName;
+  const displayEmail = profile?.email || user?.email || "";
+  const jumpaTag = profile?.jumpaTag || user?.jumpaTag || "user@jumpa";
   const referralCode = user?.referralCode || "JUMPA";
+
+  const handleSaveNickname = async (nextNickname: string) => {
+    await updateProfile({ nickname: nextNickname });
+    router.refresh();
+  };
 
   const stellarAddress = walletAddresses?.xlm || "";
   const evmAddress = walletAddresses?.base || walletAddresses?.eth || "";
@@ -229,7 +245,7 @@ export function ProfileView({
             <SettingAction
               icon={TagsIcon}
               label="Nickname"
-              value={displayName}
+              value={currentNickname || "Tap to set"}
               onClick={() => setEditingNickname(true)}
             />
             <SettingRule />
@@ -342,10 +358,8 @@ export function ProfileView({
 
       {editingNickname ? (
         <EditNicknameSheet
-          value={displayName}
-          // TODO(backend): persist through the user update route; nothing
-          // stores a nickname today, so this only holds for the session.
-          onSave={setNickname}
+          value={currentNickname || ""}
+          onSave={handleSaveNickname}
           onClose={() => setEditingNickname(false)}
         />
       ) : null}

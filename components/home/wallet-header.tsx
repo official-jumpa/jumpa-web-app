@@ -7,6 +7,7 @@ import { BellIcon } from "@/components/ui/icons/bell";
 import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
 import { useEffect, useState } from "react";
 import { useAuthContext } from "@/components/auth/AuthGuard";
+import { useUserProfile } from "@/components/profile/user-profile-provider";
 import { ACCOUNT } from "@/lib/wallet";
 
 // No colour here: a second `text-*` from a consumer would not reliably win,
@@ -16,6 +17,7 @@ const CONTROL =
 
 export function WalletHeader() {
   const auth = useAuthContext();
+  const { profile } = useUserProfile();
   const user = auth?.user;
   const [hasUnread, setHasUnread] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -36,7 +38,13 @@ export function WalletHeader() {
   }, []);
 
   let displayName = ACCOUNT.firstName;
-  if (user?.name) {
+  if (profile?.nickname) {
+    displayName = profile.nickname;
+  } else if (profile?.name) {
+    displayName = profile.name.split(" ")[0];
+  } else if (user?.nickname) {
+    displayName = user.nickname;
+  } else if (user?.name) {
     displayName = user.name.split(" ")[0];
   } else if (user?.email) {
     const rawName = user.email.split("@")[0];

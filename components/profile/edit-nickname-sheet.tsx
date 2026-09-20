@@ -18,20 +18,29 @@ export function EditNicknameSheet({
   onClose,
 }: {
   value: string;
-  onSave: (next: string) => void;
+  onSave: (next: string) => Promise<void> | void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState(value);
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const submit = () => {
+  const submit = async () => {
     const next = draft.trim();
     if (!next) return setError("Enter a nickname.");
     if (next.length > MAX_LENGTH)
       return setError(`Keep it within ${MAX_LENGTH} characters.`);
 
-    onSave(next);
-    onClose();
+    try {
+      setIsSubmitting(true);
+      setError(null);
+      await onSave(next);
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || "Failed to update nickname. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -47,20 +56,22 @@ export function EditNicknameSheet({
             setDraft(event.target.value);
             setError(null);
           }}
+          disabled={isSubmitting}
           // The design's own cap, so the field cannot exceed what it promises.
           maxLength={MAX_LENGTH}
           // biome-ignore lint/a11y/noAutofocus: the sheet exists to take this entry
           autoFocus
           aria-label="Nickname"
+          placeholder="Enter nickname"
           aria-invalid={error ? true : undefined}
-          className="h-12 w-full rounded-pill bg-jumpa-neutral-50 px-6 text-sm leading-4 font-medium text-jumpa-primary-950 outline-none placeholder:text-jumpa-secondary-200"
+          className="h-12 w-full rounded-pill bg-jumpa-neutral-50 px-6 text-sm leading-4 font-medium text-jumpa-primary-950 outline-none placeholder:text-jumpa-secondary-200 disabled:opacity-50"
         />
 
         {error ? (
           <FieldError>{error}</FieldError>
         ) : (
           <p className="text-center text-xs leading-3.5 text-jumpa-neutral-375">
-            Enter within {MAX_LENGTH} characters
+            Maximum of {MAX_LENGTH} characters
           </p>
         )}
       </div>
@@ -70,8 +81,9 @@ export function EditNicknameSheet({
         size="lg"
         className="mt-8"
         onClick={submit}
+        disabled={isSubmitting}
       >
-        Continue
+        {isSubmitting ? "Saving..." : "Continue"}
       </Button>
     </SheetPortal>
   );

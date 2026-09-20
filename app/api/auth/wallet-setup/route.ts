@@ -118,6 +118,8 @@ export async function GET(req: NextRequest) {
       needsPinMigration,
       nextRoute,
       userStatus: user?.status || "active",
+      nickname: user?.nickname ?? null,
+      jumpaTag: user?.jumpaTag ?? null,
       isComplete: hasPassword && hasTag && hasPin && !needsPinMigration,//delete once everyone has migrated to v2
     });
   } catch (err) {

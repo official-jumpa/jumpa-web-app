@@ -51,6 +51,12 @@ export type WalletSetupInput = z.infer<typeof walletSetupSchema>;
  */
 export const updateProfileSchema = z.object({
   name: z.string().trim().min(3, "Name cannot be empty").max(50, "Name cannot exceed 50 characters").optional(),
+  nickname: z
+    .string()
+    .trim()
+    .min(1, "Nickname cannot be empty")
+    .max(30, "Nickname cannot exceed 30 characters")
+    .optional(),
   jumpaTag: z
     .string()
     .trim()
@@ -61,6 +67,19 @@ export const updateProfileSchema = z.object({
 });
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
+/**
+ * Validation for updating user nickname.
+ */
+export const updateNicknameSchema = z.object({
+  nickname: z
+    .string({ error: "Nickname is required" })
+    .trim()
+    .min(1, "Enter a nickname")
+    .max(30, "Keep it within 30 characters"),
+});
+
+export type UpdateNicknameInput = z.infer<typeof updateNicknameSchema>;
 
 /**
  * Validation for account deletion requests.

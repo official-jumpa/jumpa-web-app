@@ -21,12 +21,28 @@ export async function getUserById(userId: string): Promise<IUser | null> {
  */
 export async function updateUserProfile(
   userId: string,
-  data: Partial<Pick<IUser, "name" | "country" | "image" | "jumpaTag">>,
+  data: Partial<Pick<IUser, "name" | "nickname" | "country" | "image" | "jumpaTag">>,
 ): Promise<IUser | null> {
   await connectDB();
   const updated = await User.findByIdAndUpdate(
     userId,
     { $set: data },
+    { new: true, runValidators: true },
+  ).lean<IUser>();
+  return updated ?? null;
+}
+
+/**
+ * Updates a user's nickname.
+ */
+export async function updateUserNickname(
+  userId: string,
+  nickname: string,
+): Promise<IUser | null> {
+  await connectDB();
+  const updated = await User.findByIdAndUpdate(
+    userId,
+    { $set: { nickname: nickname.trim() } },
     { new: true, runValidators: true },
   ).lean<IUser>();
   return updated ?? null;

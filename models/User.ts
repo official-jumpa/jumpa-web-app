@@ -8,6 +8,7 @@ export interface IUser {
   email: string;
   emailVerified: boolean;
   image: string | null;
+  nickname?: string | null;
   jumpaTag?: string | null;
   loginPasswordHash?: string | null;
   referralCode?: string | null;
@@ -36,6 +37,7 @@ const UserSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true, lowercase: true },
     emailVerified: { type: Boolean, required: true, default: false },
     image: { type: String, default: null },
+    nickname: { type: String, default: null, trim: true },
     jumpaTag: {
       type: String,
       lowercase: true,

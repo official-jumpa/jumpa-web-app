@@ -12,6 +12,7 @@ export interface AuthUser {
   emailVerified: boolean;
   status?: "pending" | "active" | "banned" | "suspended" | "deleted";
   image?: string | null;
+  nickname?: string | null;
   createdAt: Date;
   updatedAt: Date;
   jumpaTag?: string | null;
@@ -29,6 +30,8 @@ export interface OnboardingStatus {
   needsPinMigration?: boolean;//delete once everyone has migrated to v2
   nextRoute?: string;
   userStatus?: "pending" | "active" | "banned" | "suspended" | "deleted";
+  nickname?: string | null;
+  jumpaTag?: string | null;
   isComplete: boolean;
 }
 
@@ -38,6 +41,8 @@ export interface AuthContextValue {
   isPending: boolean;
   isAuthenticated: boolean;
   status: OnboardingStatus | null;
+  updateUser?: (overrides: Partial<AuthUser>) => void;
+  refreshStatus?: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -70,6 +75,18 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
   const isAuthenticated = Boolean(user?.id);
 
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
+  const [profileOverrides, setProfileOverrides] = useState<{
+    nickname?: string | null;
+    jumpaTag?: string | null;
+  }>({});
+
+  const updateUser = useCallback((overrides: Partial<AuthUser>) => {
+    setProfileOverrides((prev) => ({
+      ...prev,
+      ...overrides,
+    }));
+  }, []);
+
   const [checkingStatus, setCheckingStatus] = useState(true);
   const hasVerifiedOnce = useRef(false);
 
@@ -90,6 +107,12 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
       const data: OnboardingStatus = await res.json();
 
       setStatus(data);
+      if (data.nickname !== undefined || data.jumpaTag !== undefined) {
+        setProfileOverrides({
+          nickname: data.nickname,
+          jumpaTag: data.jumpaTag,
+        });
+      }
       hasVerifiedOnce.current = true;
       setCheckingStatus(false);
 
@@ -192,14 +215,26 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
     return null;
   }
 
+  const effectiveUser: AuthUser = {
+    ...user,
+    ...(profileOverrides.nickname !== undefined
+      ? { nickname: profileOverrides.nickname }
+      : {}),
+    ...(profileOverrides.jumpaTag !== undefined && profileOverrides.jumpaTag !== null
+      ? { jumpaTag: profileOverrides.jumpaTag }
+      : {}),
+  };
+
   return (
     <AuthContext.Provider
       value={{
         session,
-        user,
+        user: effectiveUser,
         isPending,
         isAuthenticated,
         status,
+        updateUser,
+        refreshStatus: checkStatus,
       }}
     >
       {children}

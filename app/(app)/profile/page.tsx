@@ -31,7 +31,9 @@ export default async function ProfilePage() {
         getKycRecordByUserId(session.user.id),
       ]);
 
-      initialUser = user || session.user;
+      initialUser = user
+        ? { ...JSON.parse(JSON.stringify(user)), id: user._id }
+        : session.user;
       initialKycVerified = Boolean(
         kyc?.isCompleted ||
           kyc?.status === "approved" ||

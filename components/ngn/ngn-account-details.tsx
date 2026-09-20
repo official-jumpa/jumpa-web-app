@@ -117,9 +117,9 @@ export function NgnAccountDetails() {
 
   const formattedBalance = balance
     ? new Intl.NumberFormat("en-NG", {
-        style: "currency",
-        currency: "NGN",
-      }).format(balance.availableBalance)
+      style: "currency",
+      currency: "NGN",
+    }).format(balance.availableBalance)
     : null;
 
   return (
@@ -137,7 +137,10 @@ export function NgnAccountDetails() {
         </div>
       ) : null}
 
-      <div className="mt-4">
+      {/* hide the account details and ahsre details for now */}
+      {/* there should be a flow for deposit and withdraw here or top up */}
+      {/* TODO figure this out  */}
+      {/* <div className="mt-4">
         <SettingSection label="Account Details">
           <SettingCard className="pb-4">
             {fields.map((field, index) => (
@@ -158,11 +161,11 @@ export function NgnAccountDetails() {
             ))}
           </SettingCard>
         </SettingSection>
-      </div>
+      </div> */}
 
-      <div className="mt-10">
+      {/* <div className="mt-10">
         <ShareDetailsButton text={shareText} />
-      </div>
+      </div> */}
     </div>
   );
 }

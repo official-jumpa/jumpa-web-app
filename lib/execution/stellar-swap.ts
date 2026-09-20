@@ -13,6 +13,7 @@ import {
   deriveStellarKeypairFromMnemonic,
   getHorizonServer,
   ensureStellarTrustline,
+  wrapWithFeeBump,
 } from "@/lib/chains/stellar";
 import { buildSwapTransaction } from "@/lib/dex";
 import { resolveStellarAsset } from "@/lib/dex/soroswap/client";
@@ -192,20 +193,25 @@ export async function executeSwap(
   let txHash = "";
   let explorerUrl = "";
   let horizonRes: any = null;
+  let feeSponsored = false;
   try {
     const passphrase =
       network === "mainnet"
         ? StellarSdk.Networks.PUBLIC
         : StellarSdk.Networks.TESTNET;
 
-    const tx = StellarSdk.TransactionBuilder.fromXDR(builtXdr, passphrase);
+    const tx = StellarSdk.TransactionBuilder.fromXDR(builtXdr, passphrase) as StellarSdk.Transaction;
     tx.sign(sourceKeypair);
 
+    // Wrap in fee bump so the sponsor pays the fee
+    const { tx: finalTx, sponsored } = wrapWithFeeBump(tx, network);
+
     const server = getHorizonServer(network);
-    horizonRes = await server.submitTransaction(tx);
+    horizonRes = await server.submitTransaction(finalTx);
     txHash = horizonRes.hash;
+    feeSponsored = sponsored;
     explorerUrl = getExplorerTxUrl("stellar", txHash, network === "testnet");
-    console.log(`[executeSwap] SUCCESS — txHash: ${txHash}`);
+    console.log(`SUCCESS — txHash: ${txHash}${sponsored ? " (fee sponsored)" : ""}`);
   } catch (signErr: any) {
     const errorMsg = horizonErrorMessage(signErr);
     console.error("[executeSwap] Horizon submission error:", signErr?.response?.data?.extras?.result_codes || signErr?.message);
@@ -256,9 +262,11 @@ export async function executeSwap(
     },
     txHash,
     explorerUrl,
-    feePaid: (horizonRes as any)?.fee_charged
-      ? `${(Number((horizonRes as any).fee_charged) / 10_000_000).toFixed(5)} XLM`
-      : "0.00001 XLM",
+    feePaid: feeSponsored
+      ? "None"
+      : (horizonRes as any)?.fee_charged
+        ? `${(Number((horizonRes as any).fee_charged) / 10_000_000).toFixed(5)} XLM`
+        : "0.00001 XLM",
     executedAt: new Date(),
   }).catch((e) => console.error("[executeSwap] TX log error:", e));
 

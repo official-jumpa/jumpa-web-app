@@ -116,7 +116,11 @@ export async function ensureStellarTrustline(
       .build();
 
     tx.sign(keypair);
-    const result = await server.submitTransaction(tx);
+
+    // Wrap in fee bump so the sponsor pays the fee
+    const { wrapWithFeeBump } = await import("./sponsor");
+    const { tx: finalTx } = wrapWithFeeBump(tx, network);
+    const result = await server.submitTransaction(finalTx);
     console.log(
       `[Stellar Trustline] Trustline established! TxHash: ${result.hash}`,
     );

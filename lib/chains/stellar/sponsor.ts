@@ -27,6 +27,72 @@ export function getSponsorKeypair(): StellarSdk.Keypair | null {
   }
 }
 
+/** Maximum fee (in stroops) we're willing to sponsor per transaction — 1 XLM. */
+const MAX_SPONSOR_FEE_STROOPS = 10_000_000;
+
+/**
+ * Wraps a signed Stellar transaction in a fee bump envelope so the sponsor
+ * account pays the fee instead of the user.
+ *
+ * - If the sponsor key is not configured, returns the original transaction unchanged.
+ * - If the inner fee exceeds MAX_SPONSOR_FEE_STROOPS (1 XLM), returns the original.
+ * - Returns `{ tx, sponsored }` so callers can adjust UI labels accordingly.
+ */
+export function wrapWithFeeBump(
+  signedTx: StellarSdk.Transaction,
+  network: "mainnet" | "testnet" = "mainnet",
+): { tx: StellarSdk.FeeBumpTransaction | StellarSdk.Transaction; sponsored: boolean } {
+  const sponsorKey = getSponsorKeypair();
+  if (!sponsorKey) {
+    console.warn("[Stellar Sponsor] SPONSORED_FEE_ wallet not set — user pays fee");
+    return { tx: signedTx, sponsored: false };
+  }
+
+  // Don't sponsor unusually expensive transactions
+  const innerFee = Number(signedTx.fee);
+  if (innerFee > MAX_SPONSOR_FEE_STROOPS) {
+    console.warn(`Inner fee ${innerFee} exceeds 1 XLM cap — skipping sponsorship`);
+    return { tx: signedTx, sponsored: false };
+  }
+
+  const passphrase =
+    network === "mainnet"
+      ? StellarSdk.Networks.PUBLIC
+      : StellarSdk.Networks.TESTNET;
+
+  try {
+    // Fee bump fee must be >= inner fee. Use 2× base fee or inner fee, whichever is larger.
+    const bumpFee = Math.max(innerFee, (Number(StellarSdk.BASE_FEE) || 100) * 2).toString();
+
+    const feeBumpTx = StellarSdk.TransactionBuilder.buildFeeBumpTransaction(
+      sponsorKey,
+      bumpFee,
+      signedTx,
+      passphrase,
+    );
+    feeBumpTx.sign(sponsorKey);
+
+    return { tx: feeBumpTx, sponsored: true };
+  } catch (err) {
+    console.warn("Fee bump wrapping failed — falling back to user-paid fee:", err);
+    return { tx: signedTx, sponsored: false };
+  }
+}
+
+/**
+ * Convenience: wraps a signed tx in a fee bump, then submits to Horizon.
+ * Returns the Horizon response plus whether the fee was sponsored.
+ */
+export async function sponsoredSubmit(
+  signedTx: StellarSdk.Transaction,
+  network: "mainnet" | "testnet" = "mainnet",
+): Promise<{ response: any; sponsored: boolean }> {
+  const { tx, sponsored } = wrapWithFeeBump(signedTx, network);
+  const server = getHorizonServer(network);
+  const response = await server.submitTransaction(tx);
+  return { response, sponsored };
+}
+
 export interface ActivationResult {
   success: boolean;
   alreadyActive: boolean;
@@ -169,7 +235,9 @@ export async function establishUsdcTrustline(
 
     tx.sign(userKeypair);
 
-    const res = await server.submitTransaction(tx);
+    // Wrap in fee bump so the sponsor pays the fee
+    const { tx: finalTx } = wrapWithFeeBump(tx, network);
+    const res = await server.submitTransaction(finalTx);
     return {
       success: true,
       alreadyTrustlined: false,

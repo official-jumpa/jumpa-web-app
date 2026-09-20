@@ -79,7 +79,7 @@ export function SwapView({
 
   const received = quote?.amountOut ?? "—";
   const rate = quote?.rate ?? (quoteLoading ? "Fetching…" : "—");
-  const estimatedFee = quote?.estimatedFee ?? "0.00001 XLM";
+  const estimatedFee = "None";
   const quoteSlippage = quote?.slippage ?? `${slippage}%`;
 
   // ── Balance lookup ──

@@ -31,6 +31,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { base, mainnet as ethMainnet } from "viem/chains";
 import { getHorizonServer } from "./stellar/client";
+import { wrapWithFeeBump } from "./stellar/sponsor";
 import { environment } from "@/lib/environment";
 import { CONTRACT_ADDRESSES, getExplorerTxUrl } from "@/lib/blockchain";
 
@@ -182,8 +183,11 @@ export async function sendStellar(params: {
   const tx = txBuilder.setTimeout(60).build();
   tx.sign(sourceKeypair);
 
-  console.log(`[Transfer Service] Submitting Stellar (${network}) transfer...`);
-  const horizonRes = await server.submitTransaction(tx);
+  // Wrap in fee bump so the sponsor pays the fee
+  const { tx: finalTx, sponsored } = wrapWithFeeBump(tx, network);
+
+  console.log(`[Transfer Service] Submitting Stellar (${network}) transfer...${sponsored ? " (fee sponsored)" : ""}`);
+  const horizonRes = await server.submitTransaction(finalTx);
 
   const txHash = horizonRes.hash;
   const explorerUrl = getExplorerTxUrl("stellar", txHash, network === "testnet");
@@ -192,7 +196,7 @@ export async function sendStellar(params: {
     success: true,
     txHash,
     explorerUrl,
-    feePaid: "0.00001 XLM",
+    feePaid: sponsored ? "None" : "0.00001 XLM",
     fromAddress,
   };
 }

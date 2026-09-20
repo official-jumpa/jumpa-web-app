@@ -8,6 +8,7 @@ import type {
   TransactionDetailRow,
   TransactionKind,
 } from "@/lib/wallet";
+import { detectCarrierFromPhone } from "@/lib/bills";
 
 /**
  * Creates a new transaction record in MongoDB.
@@ -320,6 +321,18 @@ export function formatDbTransaction(tx: any) {
         ? "pending"
         : "completed";
 
+  let carrier = (tx as any).carrier;
+  if (!carrier && (typeUpper === "AIRTIME" || typeUpper === "DATA")) {
+    const memoLower = (tx.memo || "").toLowerCase();
+    if (memoLower.includes("mtn")) carrier = "mtn";
+    else if (memoLower.includes("airtel")) carrier = "airtel";
+    else if (memoLower.includes("glo")) carrier = "glo";
+    else if (memoLower.includes("9mobile") || memoLower.includes("etisalat")) carrier = "9mobile";
+    else if (tx.toAddress) {
+      carrier = detectCarrierFromPhone(tx.toAddress) || undefined;
+    }
+  }
+
   return {
     id: tx._id,
     kind,
@@ -328,6 +341,7 @@ export function formatDbTransaction(tx: any) {
     amount,
     status,
     chain: tx.chain,
+    carrier,
     token: tx.swapDetails?.fromToken || tx.token,
     headline: `${formatDecimal(tx.swapDetails?.fromAmount ?? rawAmount, 4)} ${
       tx.swapDetails?.fromToken || tokenPart

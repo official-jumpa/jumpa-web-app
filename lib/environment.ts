@@ -85,6 +85,10 @@ export const environment = {
   // FossaPay NGN Provider
   FOSSAPAY_API_KEY: process.env.FOSSAPAY_API_KEY || "",
   FOSSAPAY_BASE_URL: process.env.FOSSAPAY_BASE_URL || "",
+  JUMPA_ACCOUNT_NAME: process.env.JUMPA_ACCOUNT_NAME || "",
+  JUMPA_ACCOUNT_NUMBER: process.env.JUMPA_ACCOUNT_NUMBER || "",
+  JUMPA_BANK_NAME: process.env.JUMPA_BANK_NAME || "",
+  // JUMPA_BANK_CODE: process.env.JUMPA_BANK_CODE || "",
 
   // ImportaPay NGN Provider (retiring)
   IMPORTAPAY_API_KEY: process.env.IMPORTAPAY_API_KEY || "",

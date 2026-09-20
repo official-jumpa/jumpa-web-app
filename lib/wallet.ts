@@ -129,6 +129,8 @@ export type Transaction = {
   status: TransactionStatus;
   /** Network badge on the tile; omit for none. */
   chain?: string;
+  /** Carrier / network logo for bills (e.g. mtn, airtel, glo, 9mobile) */
+  carrier?: string;
 
   /** Asset whose mark heads the detail screen, e.g. "SOL". */
   token?: string;

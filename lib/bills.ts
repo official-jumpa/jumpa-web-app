@@ -38,6 +38,19 @@ export function getNetwork(id: string): MobileNetwork | undefined {
 }
 
 /**
+ * Resolves the logo asset URL for a given mobile network/carrier (e.g. MTN, Glo, Airtel, 9mobile).
+ */
+export function getCarrierLogo(carrierOrName?: string | null): string | null {
+  if (!carrierOrName) return null;
+  const lower = carrierOrName.toLowerCase().trim();
+  if (lower.includes("mtn")) return "/images/networks/mtn.webp";
+  if (lower.includes("airtel")) return "/images/networks/airtel.svg";
+  if (lower.includes("glo")) return "/images/networks/glo.svg";
+  if (lower.includes("9mobile") || lower.includes("etisalat")) return "/images/networks/9mobile.svg";
+  return null;
+}
+
+/**
  * Detects the Nigerian mobile carrier from a phone number prefix.
  * Supports standard formats: 0803..., 803..., +234803..., 234803...
  */

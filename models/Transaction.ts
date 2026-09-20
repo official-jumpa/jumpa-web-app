@@ -25,6 +25,7 @@ export interface ITransaction {
 
   chain?: "stellar" | "solana" | "base" | "eth" | "fiat";
   network?: "mainnet" | "testnet";
+  carrier?: "mtn" | "airtel" | "glo" | "9mobile" | string;
 
   // Transfer, Faucet & Bank Details
   fromAddress?: string;
@@ -141,6 +142,7 @@ const TransactionSchema = new Schema<ITransaction>(
       enum: ["mainnet", "testnet"],
       default: null,
     },
+    carrier: { type: String, default: null },
 
     fromAddress: { type: String, default: null, required: false },
     toAddress: { type: String, default: null, required: false },

@@ -4,6 +4,7 @@ import { BillPayment } from "@/models/BillPayment";
 import { Transaction } from "@/models/Transaction";
 import { normalizeNigerianPhone } from "@/lib/validations/bills.validation";
 import {
+  detectCarrierFromPhone,
   detectCarrierFromProductType,
   formatDataVolume,
   formatPlanValidity,
@@ -11,7 +12,8 @@ import {
   type DataPlanPeriod,
 } from "@/lib/bills";
 import {
-  atomicDebitNgnBalance,
+  transferToOfficialJumpaWallet,
+  refundFromOfficialJumpaWallet,
   atomicCreditNgnBalance,
 } from "@/lib/functions/fossapayFunctions";
 
@@ -141,11 +143,11 @@ export async function purchaseAirtime(params: {
     throw new Error("API key not configured");
   }
 
-  // 1. Atomically debit user's NGN balance to prevent exploits and overdrafts
-  await atomicDebitNgnBalance({
+  // 1. Transfer equivalent funds from user's FossaPay virtual account to official Jumpa account
+  const transfer = await transferToOfficialJumpaWallet({
     userId: params.userId,
     amount: params.amount,
-    memo: `Airtime: ${normalizedPhone} (${params.network || "VTU"})`,
+    narration: `Airtime: ${normalizedPhone} (${params.network || "VTU"})`,
   });
 
   // 2. Create pre-flight record in MongoDB in PENDING status
@@ -202,18 +204,21 @@ export async function purchaseAirtime(params: {
       },
     );
 
+    const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
+
     // 3. Record confirmed transaction in Transaction history
     await Transaction.create({
       userId: params.userId,
       type: "AIRTIME",
       status: "CONFIRMED",
-      chain: "base",
+      chain: "fiat",
       network: "mainnet",
+      carrier,
       fromAddress: params.walletAddress,
       toAddress: normalizedPhone,
       amount: params.amount.toString(),
       token: "NGN",
-      memo: `Airtime: ${normalizedPhone} (${params.network?.toUpperCase() || "VTU"})`,
+      memo: `Airtime: ${normalizedPhone} (${carrier ? carrier.toUpperCase() : "VTU"})`,
       txHash: data.data?.id || refId,
       executedAt: new Date(),
     });
@@ -233,11 +238,12 @@ export async function purchaseAirtime(params: {
       { _id: order._id },
       { status: "FAILED", errorMessage: err.message },
     );
-    // Refund debited amount atomically on provider failure
-    await atomicCreditNgnBalance({
+    // Refund debited amount from official Jumpa wallet back to user's account on downstream failure
+    await refundFromOfficialJumpaWallet({
       userId: params.userId,
       amount: params.amount,
-      memo: `Refund for failed airtime (${normalizedPhone})`,
+      userAccountNumber: transfer?.fromAccount,
+      narration: `Refund for failed airtime (${normalizedPhone})`,
     }).catch((refundErr) => console.error("Airtime refund failed:", refundErr));
     throw err;
   }
@@ -267,11 +273,11 @@ export async function purchaseData(params: {
     throw new Error("API key is not configured");
   }
 
-  // 1. Atomically debit user's NGN balance to prevent exploits and overdrafts
-  await atomicDebitNgnBalance({
+  // 1. Transfer equivalent funds from user's FossaPay virtual account to official Jumpa account
+  const transfer = await transferToOfficialJumpaWallet({
     userId: params.userId,
     amount: params.amount,
-    memo: `Data: ${params.productName} (${normalizedPhone})`,
+    narration: `Data: ${params.productName} (${normalizedPhone})`,
   });
 
   // 2. Create pre-flight record in MongoDB in PENDING status
@@ -334,18 +340,21 @@ export async function purchaseData(params: {
       },
     );
 
+    const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
+
     // 3. Record confirmed transaction in Transaction history
     await Transaction.create({
       userId: params.userId,
       type: "DATA",
       status: "CONFIRMED",
-      chain: "base",
+      chain: "fiat",
       network: "mainnet",
+      carrier,
       fromAddress: params.walletAddress,
       toAddress: normalizedPhone,
       amount: params.amount.toString(),
       token: "NGN",
-      memo: `Data: ${params.productName}`,
+      memo: `Data: ${params.productName}${carrier ? ` (${carrier.toUpperCase()})` : ""}`,
       txHash: data.data?.id || refId,
       executedAt: new Date(),
     });
@@ -365,11 +374,12 @@ export async function purchaseData(params: {
       { _id: order._id },
       { status: "FAILED", errorMessage: err.message },
     );
-    // Refund debited amount atomically on provider failure
-    await atomicCreditNgnBalance({
+    // Refund debited amount from official Jumpa wallet back to user's account on downstream failure
+    await refundFromOfficialJumpaWallet({
       userId: params.userId,
       amount: params.amount,
-      memo: `Refund for failed data (${params.productName})`,
+      userAccountNumber: transfer?.fromAccount,
+      narration: `Refund for failed data (${params.productName})`,
     }).catch((refundErr) => console.error("Data refund failed:", refundErr));
     throw err;
   }

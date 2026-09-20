@@ -6,6 +6,7 @@ import { mapCountryCodeToName } from "@/lib/ngn-account";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
+import { generateBillReference, generateId } from "@/lib/schema-ids";
 
 function getBaseUrl(): string {
   return (
@@ -341,6 +342,173 @@ export async function getFossapayWalletTransactions(
   );
 }
 
+// ── Wallet-to-Wallet Transfers (Internal P2P & Official Master Wallet Funding)
+
+export interface WalletToWalletTransferPayload {
+  fromAccount: string;
+  toAccount: string;
+  amount: number;
+  reference: string;
+  narration: string;
+}
+
+export interface WalletToWalletTransferResponse {
+  status: string;
+  statusCode: number;
+  message: string;
+  data: any;
+}
+
+/**
+ * 6. Executes internal wallet-to-wallet transfer between two accounts
+ */
+export async function fossapayWalletToWalletTransfer(
+  payload: WalletToWalletTransferPayload
+): Promise<WalletToWalletTransferResponse["data"]> {
+  console.log(
+    `[FossaPay P2P] Transferring ₦${payload.amount} from ${payload.fromAccount} to ${payload.toAccount} (ref: ${payload.reference})`
+  );
+
+  try {
+    const response = await fossapayRequest<WalletToWalletTransferResponse>(
+      "/api/v1/wallets/fiat/transfers/wallet-to-wallet",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          fromAccount: payload.fromAccount,
+          toAccount: payload.toAccount,
+          amount: payload.amount,
+          reference: payload.reference,
+          narration: payload.narration,
+        }),
+      }
+    );
+    return response?.data;
+  } catch (error: any) {
+    console.error("[FossaPay P2P] Transfer failed:", error.message, error.data || "");
+    const msg = (error.data?.message || error.message || "").toLowerCase();
+    if (msg.includes("insufficient") || msg.includes("balance")) {
+      throw new Error("Insufficient funds in your Naira account");
+    }
+    throw new Error(error.data?.message || error.message || "Wallet transfer failed");
+  }
+}
+
+/**
+ * Transfers funds from the user's FossaPay virtual account to the official Jumpa master account
+ * before vending services like Airtime or Data.
+ */
+export async function transferToOfficialJumpaWallet(params: {
+  userId: string;
+  amount: number;
+  narration: string;
+  reference?: string;
+}): Promise<{ success: boolean; reference: string; fromAccount: string }> {
+  await connectDB();
+
+  // 1. Verify user's active FossaPay account and account number
+  const userAccount = await NgnAccount.findOne({
+    userId: params.userId,
+    provider: "fossapay",
+    status: "active",
+  }).lean<INgnAccount>();
+
+  if (!userAccount || !userAccount.accountNumber) {
+    throw new Error("No active Naira virtual account found");
+  }
+
+  // 2. Retrieve official Jumpa account number
+  const jumpaAccountNumber =
+    environment.JUMPA_ACCOUNT_NUMBER || process.env.JUMPA_ACCOUNT_NUMBER;
+
+  if (!jumpaAccountNumber) {
+    console.error("Missing ACCOUNT_NUMBER");
+    throw new Error("Jumpa account number is not configured");
+  }
+
+  const reference = params.reference || generateBillReference();
+
+  // 3. Perform FossaPay wallet-to-wallet transfer
+  await fossapayWalletToWalletTransfer({
+    fromAccount: userAccount.accountNumber,
+    toAccount: jumpaAccountNumber,
+    amount: params.amount,
+    reference,
+    narration: params.narration,
+  });
+
+  // 4. Update local DB ledger balance
+  await atomicDebitNgnBalance({
+    userId: params.userId,
+    amount: params.amount,
+    memo: params.narration,
+  }).catch((dbErr) => {
+    console.warn("[FossaPay P2P] Local DB debit sync warning:", dbErr.message);
+  });
+
+  return {
+    success: true,
+    reference,
+    fromAccount: userAccount.accountNumber,
+  };
+}
+
+/**
+ * Refunds funds from the official Jumpa wallet back to the user's FossaPay virtual account
+ * if a downstream provider (SmartSMS) fails to deliver the purchase.
+ */
+export async function refundFromOfficialJumpaWallet(params: {
+  userId: string;
+  amount: number;
+  userAccountNumber?: string;
+  narration: string;
+  reference?: string;
+}): Promise<boolean> {
+  await connectDB();
+
+  let targetAccount = params.userAccountNumber;
+  if (!targetAccount) {
+    const userAccount = await NgnAccount.findOne({
+      userId: params.userId,
+      provider: "fossapay",
+      status: "active",
+    }).lean<INgnAccount>();
+    targetAccount = userAccount?.accountNumber || undefined;
+  }
+
+  const jumpaAccountNumber =
+    environment.JUMPA_ACCOUNT_NUMBER || process.env.JUMPA_ACCOUNT_NUMBER;
+
+  const refundRef = params.reference || `ref_${generateBillReference()}`;
+
+  if (targetAccount && jumpaAccountNumber) {
+    try {
+      console.log(`[FossaPay Refund] Returning ₦${params.amount} to user account ${targetAccount}...`);
+      await fossapayWalletToWalletTransfer({
+        fromAccount: jumpaAccountNumber,
+        toAccount: targetAccount,
+        amount: params.amount,
+        reference: refundRef,
+        narration: params.narration,
+      });
+    } catch (err: any) {
+      console.error("[FossaPay Refund] Wallet-to-wallet refund failed, falling back to local credit:", err.message);
+    }
+  }
+
+  // Always credit local DB ledger so user balance is restored
+  await atomicCreditNgnBalance({
+    userId: params.userId,
+    amount: params.amount,
+    memo: params.narration,
+    reference: refundRef,
+  }).catch((creditErr) => {
+    console.error("[FossaPay Refund] Failed to atomically credit user balance on refund:", creditErr);
+  });
+
+  return true;
+}
+
 // ── Local Database Operations (NgnAccount model)
 
 /**
@@ -543,7 +711,7 @@ export async function atomicCreditNgnBalance(params: {
       reference: dedupKey,
     },
     memo: params.memo || `Deposit via ${bName} (₦${params.amount.toLocaleString()})`,
-    txHash: dedupKey || `fossa_tx_${Date.now()}`,
+    txHash: dedupKey || generateId("tx"),
     executedAt: new Date(),
   });
 

@@ -7,6 +7,7 @@ import { ReceiptSheet } from "@/components/transactions/receipt-sheet";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { getAssetLogo } from "@/lib/assets";
+import { getCarrierLogo } from "@/lib/bills";
 import { cn } from "@/lib/cn";
 import type { Receipt } from "@/lib/receipt";
 import type { Transaction } from "@/lib/wallet";
@@ -58,6 +59,10 @@ export function TransactionDetail({ id }: { id: string }) {
 
   const rows = transaction?.rows ?? [];
   const mark = transaction?.token || transaction?.chain || "";
+  const isBill = transaction?.kind === "airtime" || transaction?.kind === "data";
+  const networkLogo = isBill
+    ? getCarrierLogo(transaction?.carrier || transaction?.title || transaction?.heading)
+    : null;
 
   return (
     <div className="flex flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-10">
@@ -67,13 +72,23 @@ export function TransactionDetail({ id }: { id: string }) {
         {transaction ? (
           <>
             <div className="flex flex-col items-center gap-4.5">
-              <Image
-                src={getAssetLogo(mark)}
-                alt=""
-                width={100}
-                height={100}
-                className="size-12.5 rounded-full"
-              />
+              {networkLogo ? (
+                <Image
+                  src={networkLogo}
+                  alt=""
+                  width={100}
+                  height={100}
+                  className="size-12.5 rounded-full object-contain"
+                />
+              ) : (
+                <Image
+                  src={getAssetLogo(mark)}
+                  alt=""
+                  width={100}
+                  height={100}
+                  className="size-12.5 rounded-full"
+                />
+              )}
               <p className="text-[32px] leading-10 font-medium text-jumpa-black">
                 {transaction.headline || transaction.amount}
               </p>

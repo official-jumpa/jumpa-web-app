@@ -8,6 +8,7 @@ import { PhoneAltOutlineIcon } from "@/components/ui/icons/phone-alt-outline";
 import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
 import { WifiIcon } from "@/components/ui/icons/wifi";
 import { getAssetLogo } from "@/lib/assets";
+import { getCarrierLogo } from "@/lib/bills";
 import { cn } from "@/lib/cn";
 import type { Transaction, TransactionKind } from "@/lib/wallet";
 
@@ -46,17 +47,33 @@ export function TransactionRow({
   /** The chain mark on the tile. Off on a fiat-only screen, where no token is involved. */
   badge?: boolean;
 }) {
-  const { id, kind, chain, title, detail, amount, status } = transaction;
+  const { id, kind, chain, title, detail, amount, status, carrier } = transaction;
   const { Icon, spin } = GLYPH[kind] ?? GLYPH.send;
+
+  // Resolve carrier network logo for airtime / data
+  const isBill = kind === "airtime" || kind === "data";
+  const networkLogo = isBill
+    ? getCarrierLogo(carrier || title || detail)
+    : null;
 
   const body = (
     <>
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-jumpa-white">
-          <Icon
-            className={cn("size-6 text-jumpa-primary-600", spin)}
-          />
-          {badge && chain ? (
+          {networkLogo ? (
+            <Image
+              src={networkLogo}
+              alt={carrier || "Network"}
+              width={28}
+              height={28}
+              className="size-7 rounded-full object-contain"
+            />
+          ) : (
+            <Icon
+              className={cn("size-6 text-jumpa-primary-600", spin)}
+            />
+          )}
+          {badge && chain && chain !== "fiat" ? (
             <Image
               src={getAssetLogo(chain)}
               alt=""

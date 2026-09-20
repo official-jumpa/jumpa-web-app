@@ -79,11 +79,13 @@ export async function POST(req: NextRequest) {
       providerData: result.providerData,
     });
   } catch (err: any) {
-    console.error("Purchase error:", err?.message || err);
+    const msg = (err.message || "").toLowerCase();
     const isClientError =
-      err.message?.includes("Naira account") ||
-      err.message?.includes("balance") ||
-      err.message?.includes("PIN");
+      msg.includes("naira account") ||
+      msg.includes("balance") ||
+      msg.includes("insufficient") ||
+      msg.includes("funds") ||
+      msg.includes("pin");
     return NextResponse.json(
       { error: err.message || "Failed to process airtime recharge" },
       { status: isClientError ? 400 : 500 },

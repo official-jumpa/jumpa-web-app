@@ -12,6 +12,15 @@ import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
 import { EyeIcon } from "@/components/ui/icons/eye";
 import { EyeOffIcon } from "@/components/ui/icons/eye-off";
 import { NairaSignIcon } from "@/components/ui/icons/naira-sign";
+import { CopyButton } from "@/components/auth/copy-button";
+import { SettingRow } from "@/components/settings/setting-row";
+import {
+  SettingCard,
+  SettingRule,
+  SettingSection,
+} from "@/components/settings/setting-section";
+import { TagsIcon } from "@/components/ui/icons/tags";
+import { ShareDetailsButton } from "@/components/ngn/share-details-button";
 import { TransactionEmpty } from "@/components/transactions/transaction-empty";
 import {
   TransactionRow,
@@ -161,6 +170,14 @@ export function NgnAccountDetails() {
       }).format(balance.availableBalance)
     : "₦0.00";
 
+  const fields = [
+    { label: "Bank Name", value: account.bankName || "Bank" },
+    { label: "Account Number", value: account.accountNumber || "---" },
+    { label: "Account Name", value: account.accountName || "Jumpa User" },
+  ];
+
+  const shareText = fields.map((f) => `${f.label}: ${f.value}`).join("\n");
+
   const actions = [
     {
       label: "Deposit",
@@ -230,6 +247,34 @@ export function NgnAccountDetails() {
           </Link>
         ))}
       </nav>
+
+      {/* Dedicated Bank Account Details Card */}
+      <div className="mt-6">
+        <SettingSection label="Account Details">
+          <SettingCard className="pb-4">
+            {fields.map((field, index) => (
+              <Fragment key={field.label}>
+                <SettingRow
+                  icon={TagsIcon}
+                  label={field.label}
+                  value={field.value}
+                  action={
+                    <CopyButton
+                      value={field.value}
+                      name={`Copy ${field.label.toLowerCase()}`}
+                    />
+                  }
+                />
+                {index < fields.length - 1 ? <SettingRule /> : null}
+              </Fragment>
+            ))}
+          </SettingCard>
+        </SettingSection>
+      </div>
+
+      <div className="mt-4">
+        <ShareDetailsButton text={shareText} />
+      </div>
 
       {/* Transaction History specific to Naira Account */}
       <div className="mt-8 flex items-center justify-between text-sm leading-4.5 font-medium text-jumpa-black">

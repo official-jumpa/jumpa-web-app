@@ -39,7 +39,7 @@ export function isAtLeast16YearsOld(dobString: string): boolean {
 }
 
 /**
- * @deprecated Legacy FossaPay account registration schema. ImportaPay uses lightweight virtual account sessions and does not require customer personal details. Do not delete yet for backward compatibility.
+ * FossaPay account registration schema.
  */
 export const createNgnAccountSchema = z.object({
   firstName: z
@@ -93,6 +93,6 @@ export const createNgnAccountSchema = z.object({
 });
 
 /**
- * @deprecated Legacy FossaPay account registration input type.
+ * FossaPay account registration input type.
  */
 export type CreateNgnAccountInput = z.infer<typeof createNgnAccountSchema>;

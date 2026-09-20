@@ -82,7 +82,11 @@ export const environment = {
   OPENROUTER_VISION_MODEL:
     process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.5-flash",
 
-  // ImportaPay NGN Provider
+  // FossaPay NGN Provider
+  FOSSAPAY_API_KEY: process.env.FOSSAPAY_API_KEY || "",
+  FOSSAPAY_BASE_URL: process.env.FOSSAPAY_BASE_URL || "",
+
+  // ImportaPay NGN Provider (retiring)
   IMPORTAPAY_API_KEY: process.env.IMPORTAPAY_API_KEY || "",
   IMPORTAPAY_BASE_URL:
     process.env.IMPORTAPAY_BASE_URL ||

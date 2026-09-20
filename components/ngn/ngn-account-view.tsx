@@ -7,6 +7,7 @@ import { ScreenHeader } from "@/components/ui/screen-header";
 import { NgnConfirm } from "@/components/ngn/ngn-confirm";
 import { NgnIntro } from "@/components/ngn/ngn-intro";
 import { NgnReady } from "@/components/ngn/ngn-ready";
+import type { CreateNgnAccountInput } from "@/lib/validations/fossapay.validation";
 
 type Stage = "intro" | "confirm" | "ready";
 
@@ -48,17 +49,20 @@ export function NgnAccountView() {
     };
   }, [router]);
 
-  const handleCreateAccount = async () => {
+  const handleCreateAccount = async (formData: CreateNgnAccountInput) => {
     setOpening(true);
     setServerError(null);
 
-    console.log("Activating NGN account...");
+    console.log("Creating FossaPay NGN account...", {
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+    });
 
     try {
       const res = await fetch("/api/ngn-account", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify(formData),
       });
 
       const data = await res.json();

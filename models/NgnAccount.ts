@@ -33,7 +33,7 @@ const NgnAccountSchema = new Schema<INgnAccount>(
     _id: { type: String, default: () => generateId("ngn") },
     userId: { type: String, required: true, index: true },
     currency: { type: String, required: true, default: "NGN" },
-    provider: { type: String, required: true, default: "importapay" },
+    provider: { type: String, required: true, default: "fossapay" },
     status: {
       type: String,
       enum: ["pending", "active", "failed"],

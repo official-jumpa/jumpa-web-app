@@ -1,11 +1,22 @@
 import { connectDB } from "@/lib/db";
+import { environment } from "@/lib/environment";
 import { NgnAccount, type INgnAccount } from "@/models/NgnAccount";
+import { Transaction } from "@/models/Transaction";
 import { mapCountryCodeToName } from "@/lib/ngn-account";
+import { invalidateBalanceCache } from "@/lib/wallet-balances";
+import { logUserActivity } from "@/lib/functions/userFunctions";
+import { createNotification } from "@/lib/functions/notificationFunctions";
 
-const FOSSAPAY_BASE_URL = process.env.FOSSAPAY_BASE_URL;
+function getBaseUrl(): string {
+  return (
+    environment.FOSSAPAY_BASE_URL ||
+    process.env.FOSSAPAY_BASE_URL ||
+    ""
+  ).replace(/\/+$/, "");
+}
 
 function getApiKey(): string {
-  const key = process.env.FOSSAPAY_API_KEY;
+  const key = environment.FOSSAPAY_API_KEY || process.env.FOSSAPAY_API_KEY;
   if (!key) {
     console.error("[FossaPay] Missing API_KEY");
     throw new Error("Server configuration error: API_KEY is missing");
@@ -16,6 +27,38 @@ function getApiKey(): string {
 export { mapCountryCodeToName };
 
 /**
+ * Calculates FossaPay deposit (virtual account collection) fee based on official tier schedule:
+ * - ₦0 – ₦4,999.99: ₦60
+ * - ₦5,000 – ₦9,999.99: ₦100
+ * - ₦10,000 – ₦14,999.99: ₦150
+ * - ₦15,000 – ₦24,999.99: ₦200
+ * - ₦25,000 and above: 1.2% (capped at ₦1,000)
+ */
+export function calculateFossaPayDepositFee(amount: number): number {
+  if (amount <= 0) return 0;
+  if (amount < 5000) return 60;
+  if (amount < 10000) return 100;
+  if (amount < 15000) return 150;
+  if (amount < 25000) return 200;
+  return Math.min(amount * 0.012, 1000);
+}
+
+/**
+ * Calculates FossaPay withdrawal (bank payout) fee based on official tier schedule:
+ * - ₦0 – ₦5,000: ₦30
+ * - ₦5,001 – ₦9,999: ₦50
+ * - ₦10,000 – ₦50,000: ₦100
+ * - Above ₦50,000: ₦150
+ */
+export function calculateFossaPayWithdrawalFee(amount: number): number {
+  if (amount <= 0) return 0;
+  if (amount <= 5000) return 30;
+  if (amount <= 9999) return 50;
+  if (amount <= 50000) return 100;
+  return 150;
+}
+
+/**
  * Base HTTP helper for FossaPay API
  */
 async function fossapayRequest<T>(
@@ -23,7 +66,7 @@ async function fossapayRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const apiKey = getApiKey();
-  const url = `${FOSSAPAY_BASE_URL}${endpoint}`;
+  const url = `${getBaseUrl()}${endpoint}`;
   const method = options.method || "GET";
 
   console.log(`[FossaPay] API Request: ${method} ${url}`);
@@ -179,21 +222,46 @@ export async function createFossapayCustomer(
     mobileNumber: payload.mobileNumber ? `${payload.mobileNumber.slice(0, 5)}***` : "",
   });
 
-  const response = await fossapayRequest<FossaPayCustomerResponse>(
-    "/api/v1/customers",
-    {
-      method: "POST",
-      body: JSON.stringify(payload),
+  try {
+    const response = await fossapayRequest<FossaPayCustomerResponse>(
+      "/api/v1/customers",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }
+    );
+
+    if (!response?.data?.id) {
+      console.error("[FossaPay] Invalid response format on customer create:", response);
+      throw new Error("FossaPay customer creation did not return a valid customer ID");
     }
-  );
 
-  if (!response?.data?.id) {
-    console.error("[FossaPay] Invalid response format on customer create:", response);
-    throw new Error("FossaPay customer creation did not return a valid customer ID");
+    console.log("[FossaPay] Customer created successfully with ID:", response.data.id);
+    return response.data;
+  } catch (error: any) {
+    if (
+      error.status === 400 ||
+      error.message?.toLowerCase().includes("duplicate") ||
+      error.message?.toLowerCase().includes("already")
+    ) {
+      console.log("[FossaPay] Customer creation returned duplicate/400. Reconciling by email search:", params.emailAddress);
+      try {
+        const searchRes = await fossapayRequest<any>(
+          `/api/v1/customers?search=${encodeURIComponent(params.emailAddress)}`
+        );
+        const existing = searchRes?.data?.result?.find(
+          (c: any) => c.emailAddress?.toLowerCase() === params.emailAddress.toLowerCase()
+        );
+        if (existing?.id) {
+          console.log("[FossaPay] Reconciled existing customer successfully:", existing.id);
+          return existing;
+        }
+      } catch (searchErr) {
+        console.warn("[FossaPay] Reconcile search failed:", searchErr);
+      }
+    }
+    throw error;
   }
-
-  console.log("[FossaPay] Customer created successfully with ID:", response.data.id);
-  return response.data;
 }
 
 /**
@@ -355,3 +423,161 @@ export async function getNgnAccountByAccountNumber(
   await connectDB();
   return NgnAccount.findOne({ accountNumber }).lean();
 }
+
+/**
+ * Atomically deducts Naira from a user's active FossaPay account with a balance-guard to prevent overdrafts.
+ */
+export async function atomicDebitNgnBalance(params: {
+  userId: string;
+  amount: number;
+  memo?: string;
+}): Promise<{ success: boolean; newBalance: number }> {
+  await connectDB();
+
+  // 1. Verify user has an existing NGN account
+  const account = await NgnAccount.findOne({ userId: params.userId }).lean<INgnAccount>();
+  if (!account) {
+    throw new Error("No active Naira account found. Please activate your NGN account first.");
+  }
+  if (account.status !== "active") {
+    throw new Error("Your Naira account is currently inactive. Please contact support.");
+  }
+
+  // 2. Debit from FossaPay account (fallback to any active account for backward compatibility)
+  let updatedAccount = await NgnAccount.findOneAndUpdate(
+    {
+      userId: params.userId,
+      provider: "fossapay",
+      status: "active",
+      balance: { $gte: params.amount },
+    },
+    {
+      $inc: { balance: -params.amount },
+    },
+    { returnDocument: "after" }
+  );
+
+  if (!updatedAccount) {
+    // Fallback if legacy account was tagged with another provider
+    updatedAccount = await NgnAccount.findOneAndUpdate(
+      {
+        userId: params.userId,
+        status: "active",
+        balance: { $gte: params.amount },
+      },
+      {
+        $inc: { balance: -params.amount },
+      },
+      { returnDocument: "after" }
+    );
+  }
+
+  if (!updatedAccount) {
+    console.warn(`[FossaPay Debit] Insufficient balance for user ${params.userId} attempting to debit ₦${params.amount}`);
+    throw new Error("Insufficient NGN wallet balance");
+  }
+
+  // Invalidate balance cache
+  invalidateBalanceCache(params.userId);
+
+  console.log(`[FossaPay Debit] ✅ Atomically debited ₦${params.amount} from user ${params.userId}. Remaining: ₦${updatedAccount.balance}`);
+
+  return { success: true, newBalance: updatedAccount.balance };
+}
+
+/**
+ * Atomically credits Naira to a user's active FossaPay account, creating transaction and notification.
+ */
+export async function atomicCreditNgnBalance(params: {
+  userId: string;
+  amount: number;
+  reference?: string;
+  memo?: string;
+  eventId?: string;
+}): Promise<{ success: boolean; newBalance: number }> {
+  await connectDB();
+
+  const dedupKey = params.eventId || params.reference;
+
+  // 1. Idempotency check: Guard against duplicate events
+  if (dedupKey) {
+    const existing = await Transaction.findOne({ txHash: dedupKey });
+    if (existing) {
+      console.log(`Duplicate transaction ignored, hash: ${dedupKey}`);
+      const acc = await NgnAccount.findOne({ userId: params.userId, provider: "fossapay" }).lean<INgnAccount>();
+      return { success: true, newBalance: acc?.balance || 0 };
+    }
+  }
+
+  // 2. Atomic Balance Increment
+  const updatedAccount = await NgnAccount.findOneAndUpdate(
+    { userId: params.userId, provider: "fossapay" },
+    {
+      $inc: { balance: params.amount },
+      $set: { status: "active" },
+    },
+    { returnDocument: "after", upsert: true }
+  );
+
+  const newBalance = updatedAccount?.balance ?? params.amount;
+
+  const accNum = updatedAccount?.accountNumber || "FOSSAPAY_ACCOUNT";
+  const bName = updatedAccount?.bankName || "Provider Bank";
+  const accName = updatedAccount?.accountName || "Jumpa User";
+
+  // 3. Record confirmed transaction in immutable ledger
+  await Transaction.create({
+    userId: params.userId,
+    type: "DEPOSIT",
+    status: "CONFIRMED",
+    chain: "fiat",
+    network: "mainnet",
+    fromAddress: `BANK_TRANSFER (${bName})`,
+    toAddress: accNum,
+    amount: params.amount.toString(),
+    token: "NGN",
+    bankDetails: {
+      bankName: bName,
+      accountNumber: accNum,
+      accountName: accName,
+      reference: dedupKey,
+    },
+    memo: params.memo || `Deposit via ${bName} (₦${params.amount.toLocaleString()})`,
+    txHash: dedupKey || `fossa_tx_${Date.now()}`,
+    executedAt: new Date(),
+  });
+
+  // 4. Invalidate balance cache so user immediately sees their funds
+  invalidateBalanceCache(params.userId);
+
+  // 5. Activity log and in-app notification
+  logUserActivity({
+    userId: params.userId,
+    action: "DEPOSIT_COMPLETED",
+    details: { amount: params.amount, token: "NGN", reference: dedupKey },
+  }).catch(() => { });
+
+  createNotification({
+    userId: params.userId,
+    tab: "transactions",
+    type: "DEPOSIT_COMPLETED",
+    title: "Deposit Successful",
+    body: `₦${params.amount.toLocaleString()} has been credited to your Naira balance`,
+    metadata: { amount: params.amount, token: "NGN", txHash: dedupKey },
+    link: "/ngn-account",
+  }).catch(() => { });
+
+  console.log(`[FossaPay Credit] ✅ Atomically credited ₦${params.amount} to user ${params.userId}. New balance: ₦${newBalance}`);
+
+  return { success: true, newBalance };
+}
+
+/**
+ * Retrieves the authenticated user's current spendable Naira balance from their active FossaPay account.
+ */
+export async function getNgnBalance(userId: string): Promise<number> {
+  await connectDB();
+  const account = await NgnAccount.findOne({ userId, provider: "fossapay" }).lean<INgnAccount>();
+  return account?.balance ?? 0;
+}
+

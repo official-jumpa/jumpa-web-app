@@ -13,7 +13,7 @@ import {
 import {
   atomicDebitNgnBalance,
   atomicCreditNgnBalance,
-} from "@/lib/functions/importapayFunctions";
+} from "@/lib/functions/fossapayFunctions";
 
 /**
  * Formats a phone number to standard Nigerian 11-digit format (e.g. 08031234567).

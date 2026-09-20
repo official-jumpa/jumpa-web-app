@@ -238,7 +238,7 @@ export const BETA_CTA = {
   buttonSubmitting: "Joining...",
   buttonSuccess: "You're on the list",
   successNotice: "You're on the list. Check your email to continue",
-  alreadyJoinedNotice: "You're already on the waitlist! We'll be in touch soon",
+  alreadyJoinedNotice: "You're already on the waitlist! Check your email to continue",
   desktop: {
     heading: "Help shape how money moves.",
     blurb:

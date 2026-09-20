@@ -73,6 +73,10 @@ export const environment = {
   // FEES
   SWITCH_JUMPA_FEE: process.env.SWITCH_JUMPA_FEE ? Number(process.env.SWITCH_JUMPA_FEE) : 0,
 
+  // (Airtime & Data)
+  SMART_SMS_API: process.env.SMART_SMS_API || "",
+  SMART_SMS_BASE_URL: process.env.SMART_SMS_BASE_URL,
+
   // OpenRouter (Vision & LLM)
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
   OPENROUTER_VISION_MODEL:

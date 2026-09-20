@@ -9,10 +9,11 @@ import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { ReceiptSheet } from "@/components/transactions/receipt-sheet";
+import { ResultSheet } from "@/components/ui/result-sheet";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { type DataPlan, getNetwork, getPeriodLabel } from "@/lib/bills";
-import { newReference, type Receipt } from "@/lib/receipt";
-import { DEMO_PIN } from "@/lib/transfer";
+import type { Receipt } from "@/lib/receipt";
+
 
 type Stage = "form" | "plans" | "done";
 type Sheet = "review" | "pin" | null;
@@ -22,6 +23,12 @@ export function MobileDataView() {
   const [stage, setStage] = useState<Stage>("form");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
+  const [failure, setFailure] = useState<{
+    title: string;
+    message: string;
+    retry?: boolean;
+  } | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [phone, setPhone] = useState("");
   const [networkId, setNetworkId] = useState("");
   const [plan, setPlan] = useState<DataPlan | null>(null);
@@ -31,25 +38,77 @@ export function MobileDataView() {
 
   const network = getNetwork(networkId);
 
-  const settle = () => {
-    if (!plan || !network) return;
+  const fail = (message: string, title = "Data Subscription Failed") => {
+    setSheet(null);
+    setFailure({ title, message, retry: true });
+  };
 
-    setReceipt({
-      // TODO: replace with the reference the bills provider returns.
-      reference: newReference("DATA"),
-      title: "Data purchase",
-      amount: plan.price,
-      status: "Successful",
-      timestamp: new Date().toLocaleString(),
-      rows: [
-        { label: "From", value: "Jumpa wallet" },
-        { label: "Type", value: "Data" },
-        { label: "Network", value: network.label },
-        { label: "Phone number", value: phone },
-        { label: "Plan", value: plan.validity },
-      ],
-    });
-    setStage("done");
+  const handlePinComplete = async (pin: string) => {
+    if (!plan || !network || isProcessing) return;
+    setIsProcessing(true);
+    setPinError(false);
+    setFailure(null);
+
+    const priceNum =
+      plan.numericPrice ||
+      parseFloat(plan.price.replace(/[^0-9.]/g, "")) ||
+      0;
+
+    try {
+      const res = await fetch("/api/bills/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone,
+          productName: plan.productName || plan.validity,
+          amount: priceNum,
+          packageSize: plan.size,
+          validity: plan.validity,
+          network: networkId,
+          pin,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (
+          res.status === 400 &&
+          (data.error?.toLowerCase().includes("pin") ||
+            data.code === "INVALID_PIN")
+        ) {
+          setPinError(true);
+        } else {
+          fail(data.error || "Data subscription failed.", "Data Subscription Failed");
+        }
+        setIsProcessing(false);
+        return;
+      }
+
+      setReceipt({
+        reference: data.reference,
+        title: "Data purchase",
+
+        amount: plan.price,
+        status: "Successful",
+        timestamp: new Date().toLocaleString(),
+        rows: [
+          { label: "From", value: "Jumpa wallet" },
+          { label: "Type", value: "Data" },
+          { label: "Network", value: network.label },
+          { label: "Phone number", value: phone },
+          { label: "Plan", value: plan.validity },
+          { label: "Amount", value: plan.price },
+        ],
+      });
+
+      setSheet(null);
+      setStage("done");
+    } catch (err: any) {
+      fail(err.message || "Network error. Please try again.", "Data Subscription Failed");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (stage === "done" && plan) {
@@ -94,6 +153,7 @@ export function MobileDataView() {
           onSelect={setPlan}
           onClose={() => setStage("form")}
           onContinue={() => setSheet("review")}
+          onNetworkChange={setNetworkId}
         />
 
         {sheet === "review" && plan ? (
@@ -114,7 +174,8 @@ export function MobileDataView() {
               <DetailRow label="Type" value="Data" />
               <DetailRow label="Network" value={network.label} />
               <DetailRow label="Phone number" value={phone} />
-              <DetailRow label="Plan" value={plan.validity} rule={false} />
+              <DetailRow label="Plan" value={plan.validity} />
+              <DetailRow label="Amount" value={plan.price} rule={false} />
             </DetailList>
           </ReviewSheet>
         ) : null}
@@ -122,12 +183,36 @@ export function MobileDataView() {
         {sheet === "pin" ? (
           <TransferPinSheet
             error={pinError}
-            onRetry={() => setPinError(false)}
-            onClose={() => setSheet("review")}
-            onComplete={(pin) => {
-              if (pin === DEMO_PIN) settle();
-              else setPinError(true);
+            pending={isProcessing}
+            pendingLabel="Processing data subscription..."
+            onRetry={() => {
+              setPinError(false);
+              setFailure(null);
             }}
+            onClose={() => {
+              if (!isProcessing) {
+                setSheet("review");
+                setPinError(false);
+                setFailure(null);
+              }
+            }}
+            onComplete={handlePinComplete}
+          />
+        ) : null}
+
+        {failure ? (
+          <ResultSheet
+            title={failure.title}
+            message={failure.message}
+            onRetry={
+              failure.retry
+                ? () => {
+                    setFailure(null);
+                    setSheet("review");
+                  }
+                : undefined
+            }
+            onClose={() => setFailure(null)}
           />
         ) : null}
       </>
@@ -145,3 +230,4 @@ export function MobileDataView() {
     />
   );
 }
+

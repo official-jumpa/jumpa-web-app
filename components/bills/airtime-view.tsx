@@ -9,8 +9,13 @@ import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
+import { ReceiptSheet } from "@/components/transactions/receipt-sheet";
+import { ResultSheet } from "@/components/ui/result-sheet";
+import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { AIRTIME_AMOUNTS, getNetwork } from "@/lib/bills";
-import { DEMO_PIN, formatAmount, SEND_BALANCE } from "@/lib/transfer";
+import type { Receipt } from "@/lib/receipt";
+import { formatAmount, SEND_BALANCE } from "@/lib/transfer";
+
 
 type Stage = "form" | "amount" | "done";
 type Sheet = "review" | "pin" | null;
@@ -20,21 +25,94 @@ export function AirtimeView() {
   const [stage, setStage] = useState<Stage>("form");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
+  const [failure, setFailure] = useState<{
+    title: string;
+    message: string;
+    retry?: boolean;
+  } | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [phone, setPhone] = useState("");
   const [networkId, setNetworkId] = useState("");
   const [amount, setAmount] = useState("");
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
 
   const network = getNetwork(networkId);
   const total = formatAmount(amount);
+
+  const fail = (message: string, title = "Recharge Failed") => {
+    setSheet(null);
+    setFailure({ title, message, retry: true });
+  };
 
   const details = (
     <DetailList>
       <DetailRow label="From" value="Jumpa wallet" />
       <DetailRow label="Type" value="Airtime" />
       <DetailRow label="Network" value={network?.label ?? ""} />
-      <DetailRow label="Phone number" value={phone} rule={false} />
+      <DetailRow label="Phone number" value={phone} />
+      <DetailRow label="Amount" value={total} rule={false} />
     </DetailList>
   );
+
+  const handlePinComplete = async (pin: string) => {
+    if (!network || isProcessing) return;
+    setIsProcessing(true);
+    setPinError(false);
+    setFailure(null);
+
+    try {
+      const res = await fetch("/api/bills/airtime", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone,
+          amount: parseFloat(amount) || 0,
+          network: networkId,
+          pin,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (
+          res.status === 400 &&
+          (data.error?.toLowerCase().includes("pin") ||
+            data.code === "INVALID_PIN")
+        ) {
+          setPinError(true);
+        } else {
+          fail(data.error || "Airtime recharge failed", "Recharge Failed");
+        }
+        setIsProcessing(false);
+        return;
+      }
+
+      setReceipt({
+        reference: data.reference,
+        title: "Airtime recharge",
+
+        amount: total,
+        status: "Successful",
+        timestamp: new Date().toLocaleString(),
+        rows: [
+          { label: "From", value: "Jumpa wallet" },
+          { label: "Type", value: "Airtime" },
+          { label: "Network", value: network.label },
+          { label: "Phone number", value: phone },
+          { label: "Amount", value: total },
+        ],
+      });
+
+      setSheet(null);
+      setStage("done");
+    } catch (err: any) {
+      fail(err.message || "Network error. Please try again.", "Recharge Failed");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   if (stage === "done") {
     return (
@@ -46,6 +124,25 @@ export function AirtimeView() {
         amount={total}
         details={details}
         ctaLabel="Back to home"
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => setReceiptOpen(true)}
+              className="tap flex h-13 w-full items-center gap-3 rounded-tile bg-jumpa-neutral-50 px-4.5 text-xs leading-4 font-medium text-jumpa-black active:scale-[0.98]"
+            >
+              <FileDownloadIcon className="size-5 text-jumpa-primary-600" />
+              Download Receipt
+            </button>
+
+            {receiptOpen && receipt ? (
+              <ReceiptSheet
+                receipt={receipt}
+                onClose={() => setReceiptOpen(false)}
+              />
+            ) : null}
+          </>
+        }
       />
     );
   }
@@ -89,12 +186,36 @@ export function AirtimeView() {
         {sheet === "pin" ? (
           <TransferPinSheet
             error={pinError}
-            onRetry={() => setPinError(false)}
-            onClose={() => setSheet("review")}
-            onComplete={(pin) => {
-              if (pin === DEMO_PIN) setStage("done");
-              else setPinError(true);
+            pending={isProcessing}
+            pendingLabel="Processing airtime recharge..."
+            onRetry={() => {
+              setPinError(false);
+              setFailure(null);
             }}
+            onClose={() => {
+              if (!isProcessing) {
+                setSheet("review");
+                setPinError(false);
+                setFailure(null);
+              }
+            }}
+            onComplete={handlePinComplete}
+          />
+        ) : null}
+
+        {failure ? (
+          <ResultSheet
+            title={failure.title}
+            message={failure.message}
+            onRetry={
+              failure.retry
+                ? () => {
+                    setFailure(null);
+                    setSheet("review");
+                  }
+                : undefined
+            }
+            onClose={() => setFailure(null)}
           />
         ) : null}
       </>
@@ -112,3 +233,4 @@ export function AirtimeView() {
     />
   );
 }
+

@@ -1,17 +1,19 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CloseButton } from "@/components/transfer/close-button";
 import { CanvasError } from "@/components/ui/field-error";
 import { SearchAltIcon } from "@/components/ui/icons/search-alt";
 import {
   DATA_PERIODS,
-  DATA_PLANS,
   type DataPlan,
   type DataPlanPeriod,
   type MobileNetwork,
+  getNetwork,
+  formatDataVolume,
 } from "@/lib/bills";
+import { useRef } from "react";
 
 const PERIOD =
   "tap h-8.5 rounded-pill px-5 text-xs leading-4 font-medium active:scale-95";
@@ -24,6 +26,7 @@ export function DataPlans({
   onSelect,
   onClose,
   onContinue,
+  onNetworkChange,
 }: {
   network: MobileNetwork;
   phone: string;
@@ -31,19 +34,93 @@ export function DataPlans({
   onSelect: (plan: DataPlan) => void;
   onClose: () => void;
   onContinue: () => void;
+  onNetworkChange?: (networkId: string) => void;
 }) {
-  const [period, setPeriod] = useState<DataPlanPeriod>("monthly");
+  const [period, setPeriod] = useState<DataPlanPeriod>("daily");
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string>();
+  const [plansList, setPlansList] = useState<DataPlan[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [carrierNotice, setCarrierNotice] = useState<string | null>(null);
+
+  const networkIdRef = useRef(network.id);
+  networkIdRef.current = network.id;
+
+  const loadPlans = useCallback(async () => {
+    if (!phone) {
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const res = await fetch(
+        `/api/bills/data-plans?phone=${encodeURIComponent(phone)}&_t=${Date.now()}`,
+        {
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache",
+            Pragma: "no-cache",
+          },
+        },
+      );
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.success) {
+        const errMsg =
+          data.error || "Failed to load data plans from network provider.";
+        console.error("[DataPlans] Error:", errMsg);
+        setFetchError(errMsg);
+        setPlansList([]);
+        return;
+      }
+
+      if (data.plans && Array.isArray(data.plans) && data.plans.length > 0) {
+        const sanitized = data.plans.map((p: DataPlan) => ({
+          ...p,
+          size: formatDataVolume(p.size, p.productName || p.validity),
+        }));
+        setPlansList(sanitized);
+        if (data.detectedNetwork && data.detectedNetwork !== networkIdRef.current) {
+          const detectedNet = getNetwork(data.detectedNetwork);
+          const targetName = detectedNet?.label || data.detectedNetwork.toUpperCase();
+          setCarrierNotice(`Detected ${targetName} number — updated to ${targetName} bundles.`);
+          onNetworkChange?.(data.detectedNetwork);
+        } else {
+          setCarrierNotice(null);
+        }
+      } else {
+        setFetchError("No data plans available for this phone number.");
+        setPlansList([]);
+      }
+    } catch (err: any) {
+      console.error("[DataPlans] Request failed:", err);
+      setFetchError(
+        err?.message || "Failed to connect to network provider. Please try again.",
+      );
+      setPlansList([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [phone, onNetworkChange]);
+
+  useEffect(() => {
+    loadPlans();
+  }, [loadPlans]);
 
   const term = query.trim().toLowerCase();
-  const plans = DATA_PLANS.filter(
-    (plan) =>
-      plan.period === period &&
-      (term === "" ||
-        plan.size.toLowerCase().includes(term) ||
-        plan.price.toLowerCase().includes(term)),
-  );
+  const plans = plansList
+    .filter(
+      (plan) =>
+        plan.period === period &&
+        (term === "" ||
+          plan.size.toLowerCase().includes(term) ||
+          plan.price.toLowerCase().includes(term) ||
+          plan.validity.toLowerCase().includes(term)),
+    )
+    .sort((a, b) => (a.numericPrice || 0) - (b.numericPrice || 0));
+
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -61,6 +138,15 @@ export function DataPlans({
       </header>
 
       <div className="flex flex-1 flex-col rounded-t-dock bg-jumpa-primary-575 px-4.5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+        {carrierNotice ? (
+          <div className="mb-3.5 flex items-center gap-2.5 rounded-2xl bg-jumpa-white/20 px-4 py-2.5 text-xs font-medium text-jumpa-white backdrop-blur-xs shadow-xs">
+            <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-jumpa-white text-[11px] font-bold text-jumpa-primary-600">
+              ✓
+            </span>
+            <span className="flex-1 leading-4">{carrierNotice}</span>
+          </div>
+        ) : null}
+
         <label className="flex h-13 shrink-0 items-center gap-3 rounded-pill bg-jumpa-white px-5">
           <SearchAltIcon className="size-5 shrink-0 text-jumpa-primary-600" />
           <input
@@ -90,65 +176,96 @@ export function DataPlans({
           ))}
         </div>
 
-        <ul className="mt-4.5 min-h-0 flex-1 overflow-y-auto rounded-surface bg-jumpa-white px-4 py-1 [scrollbar-width:none]">
-          {plans.map((plan, position) => (
-            <li key={plan.id}>
-              <button
-                type="button"
-                aria-pressed={plan.id === selected?.id}
-                onClick={() => {
-                  setError(undefined);
-                  onSelect(plan);
-                }}
-                className={`tap flex w-full items-center gap-3 rounded-xl px-2 py-3.5 text-left ${
-                  plan.id === selected?.id ? "bg-jumpa-primary-50" : ""
-                }`}
-              >
-                <span
-                  style={{ backgroundColor: network.tint }}
-                  className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full"
+        {isLoading ? (
+          <div className="mt-4.5 flex min-h-48 flex-1 items-center justify-center rounded-surface bg-jumpa-white p-6">
+            <div className="flex flex-col items-center gap-2">
+              <span className="size-6 animate-spin rounded-full border-2 border-jumpa-primary-600 border-t-transparent" />
+              <span className="text-xs font-medium text-jumpa-neutral-500">
+                Loading data bundles...
+              </span>
+            </div>
+          </div>
+        ) : fetchError ? (
+          <div className="mt-4.5 flex min-h-48 flex-1 flex-col items-center justify-center rounded-surface bg-jumpa-white p-6 text-center">
+            <p className="max-w-xs text-xs font-medium text-jumpa-danger">
+              {fetchError}
+            </p>
+            <button
+              type="button"
+              onClick={() => loadPlans()}
+              className="mt-3.5 rounded-pill bg-jumpa-primary-50 px-5 py-2 text-xs font-semibold text-jumpa-primary-600 active:scale-95"
+            >
+              Try Again
+            </button>
+          </div>
+        ) : plans.length === 0 ? (
+          <div className="mt-4.5 flex min-h-48 flex-1 items-center justify-center rounded-surface bg-jumpa-white p-6">
+            <span className="text-xs font-medium text-jumpa-neutral-500">
+              No bundles available for this period
+            </span>
+          </div>
+        ) : (
+
+          <ul className="mt-4.5 min-h-0 flex-1 overflow-y-auto rounded-surface bg-jumpa-white px-4 py-1 [scrollbar-width:none]">
+            {plans.map((plan, position) => (
+              <li key={plan.id}>
+                <button
+                  type="button"
+                  aria-pressed={plan.id === selected?.id}
+                  onClick={() => {
+                    setError(undefined);
+                    onSelect(plan);
+                  }}
+                  className={`tap flex w-full items-center gap-3 rounded-xl px-2 py-3.5 text-left ${
+                    plan.id === selected?.id ? "bg-jumpa-primary-50" : ""
+                  }`}
                 >
-                  <Image
-                    src={network.logo}
-                    alt=""
-                    width={40}
-                    height={40}
-                    className={
-                      network.tint
-                        ? "size-5.5 object-contain"
-                        : "size-full object-cover"
-                    }
-                  />
-                </span>
+                  <span
+                    style={{ backgroundColor: network.tint }}
+                    className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full"
+                  >
+                    <Image
+                      src={network.logo}
+                      alt=""
+                      width={40}
+                      height={40}
+                      className={
+                        network.tint
+                          ? "size-5.5 object-contain"
+                          : "size-full object-cover"
+                      }
+                    />
+                  </span>
 
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="flex items-center gap-1.5">
-                    <span className="text-sm leading-4.5 font-bold text-jumpa-black">
-                      {plan.size}
-                    </span>
-                    {plan.hot ? (
-                      <span className="rounded-pill bg-jumpa-danger px-1.5 py-0.5 text-[8px] leading-3 font-bold text-jumpa-white">
-                        Hot Deals
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-sm leading-4.5 font-bold text-jumpa-black">
+                        {formatDataVolume(plan.size, plan.productName || plan.validity)}
                       </span>
-                    ) : null}
+                      {plan.hot ? (
+                        <span className="rounded-pill bg-jumpa-danger px-1.5 py-0.5 text-[8px] leading-3 font-bold text-jumpa-white">
+                          Hot Deals
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="truncate text-xs leading-4 text-jumpa-neutral-500">
+                      {plan.validity}
+                    </span>
                   </span>
-                  <span className="truncate text-xs leading-4 text-jumpa-neutral-500">
-                    {plan.validity}
+
+                  <span className="shrink-0 text-base leading-5 font-bold text-jumpa-black">
+                    {plan.price}
                   </span>
-                </span>
+                </button>
 
-                <span className="shrink-0 text-base leading-5 font-bold text-jumpa-black">
-                  {plan.price}
-                </span>
-              </button>
-
-              {/* -mb-px: the design draws a zero-height line. */}
-              {position < plans.length - 1 ? (
-                <span className="-mb-px block h-px w-full bg-jumpa-neutral-100" />
-              ) : null}
-            </li>
-          ))}
-        </ul>
+                {/* -mb-px: the design draws a zero-height line. */}
+                {position < plans.length - 1 ? (
+                  <span className="-mb-px block h-px w-full bg-jumpa-neutral-100" />
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
 
         <div className="mt-6 flex shrink-0 flex-col items-center gap-3">
           <CanvasError>{error}</CanvasError>

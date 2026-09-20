@@ -7,7 +7,12 @@ import { FieldLabel } from "@/components/transfer/field";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field-error";
 import { ScreenHeader } from "@/components/ui/screen-header";
-import { MOBILE_NETWORKS, PHONE_NUMBER_MIN } from "@/lib/bills";
+import {
+  detectCarrierFromPhone,
+  MOBILE_NETWORKS,
+  PHONE_NUMBER_MIN,
+} from "@/lib/bills";
+import { isValidNigerianPhone } from "@/lib/validations/bills.validation";
 import {
   checkLength,
   type FormErrors,
@@ -37,18 +42,24 @@ export function RechargeForm({
 }) {
   const [errors, setErrors] = useState<FormErrors<Field>>({});
   const fields = useRef<HTMLDivElement>(null);
+  const lastDetectedRef = useRef<string | null>(detectCarrierFromPhone(phone));
 
   const clear = (field: Field) =>
     setErrors((current) => ({ ...current, [field]: undefined }));
 
   const submit = () => {
+    let phoneError = checkLength(
+      phone,
+      PHONE_NUMBER_MIN,
+      "Phone numbers",
+      "Enter the phone number to top up.",
+    );
+    if (!phoneError && !isValidNigerianPhone(phone)) {
+      phoneError = "Enter a valid Nigerian phone number (e.g. 08031234567)";
+    }
+
     const found: FormErrors<Field> = {
-      phone: checkLength(
-        phone,
-        PHONE_NUMBER_MIN,
-        "Phone numbers",
-        "Enter the phone number to top up.",
-      ),
+      phone: phoneError,
       network: network ? undefined : "Choose the network for this number.",
     };
 
@@ -56,7 +67,7 @@ export function RechargeForm({
     setErrors(found);
     if (blocked) revealFirstError(fields.current);
     else onContinue();
-  };
+  }
 
   return (
     <div className="flex min-h-dvh flex-col pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
@@ -82,7 +93,16 @@ export function RechargeForm({
               value={phone}
               onChange={(event) => {
                 clear("phone");
-                onPhoneChange(event.target.value);
+                const nextPhone = event.target.value;
+                onPhoneChange(nextPhone);
+                const detected = detectCarrierFromPhone(nextPhone);
+                if (detected && detected !== lastDetectedRef.current) {
+                  lastDetectedRef.current = detected;
+                  clear("network");
+                  onNetworkChange(detected);
+                } else if (!nextPhone) {
+                  lastDetectedRef.current = null;
+                }
               }}
               inputMode="tel"
               placeholder="0913829919"

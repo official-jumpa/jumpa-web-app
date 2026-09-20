@@ -38,6 +38,7 @@ export const SCHEMA_IDS = {
   wait: { prefix: "wait", length: 16, description: "Waitlist entries" },
   att: { prefix: "att", length: 16, description: "Chat attachments and media" },
   ngn: { prefix: "ngn", length: 16, description: "NGN fiat accounts" },
+  bill: { prefix: "bill", length: 16, description: "Airtime and data bill purchases" },
 
   // ── Utility Entities
   cardref: { prefix: "cardref", length: 12, description: "Card references" },
@@ -120,6 +121,14 @@ export const generateReferralCode = (): string => {
  */
 export const generateCardReference = (): string => {
   return `cardref_${nanoid12()}`;
+};
+
+/**
+ * Generates an alphanumeric bill payment reference ID (without underscores or hyphens)
+ * @returns returns a string in the format billxxxxxxxxxxxxxxxx
+ */
+export const generateBillReference = (): string => {
+  return `bill${nanoid16()}`;
 };
 
 /**

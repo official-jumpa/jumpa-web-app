@@ -14,11 +14,12 @@ import { generateBillReference, generateId } from "@/lib/schema-ids";
 import { FossaPayBanks, findFossaPayBank } from "@/lib/constants/fossapay-banks";
 
 function getBaseUrl(): string {
-  return (
-    environment.FOSSAPAY_BASE_URL ||
-    process.env.FOSSAPAY_BASE_URL ||
-    ""
-  ).replace(/\/+$/, "");
+  const url = environment.FOSSAPAY_BASE_URL || process.env.FOSSAPAY_BASE_URL;
+  if (!url) {
+    console.error("Missing BASE_URL");
+    throw new Error("BASE_URL is missing");
+  }
+  return url.replace(/\/+$/, "");
 }
 
 function getApiKey(): string {

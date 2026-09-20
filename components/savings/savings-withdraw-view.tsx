@@ -155,7 +155,7 @@ export function SavingsWithdrawView() {
     }
     if (numAmount > savedNum) {
       setAmountError(
-        `Insufficient balance. You have ${selectedPlan?.saved} available.`,
+        `Insufficient balance. You have ${selectedPlan?.saved} available`,
       );
       return;
     }

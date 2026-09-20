@@ -186,7 +186,7 @@ export function NgnAccountDetails() {
     },
     {
       label: "Withdraw",
-      href: "/send/bank",
+      href: "/send/bank?network=Nigeria%20Bank&asset=NGN",
       Icon: ArrowUpRightIcon,
     },
   ];

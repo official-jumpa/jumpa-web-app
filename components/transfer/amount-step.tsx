@@ -96,7 +96,7 @@ export function AmountStep({
   const review = () => {
     if (!Number(amount)) return setError("Enter an amount greater than 0");
     if (low)
-      return setError(`Your balance is ${balance}. Enter less than that.`);
+      return setError(`Insufficient balance. You have ${balance} available`);
     onReview();
   };
 

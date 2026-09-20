@@ -36,6 +36,8 @@ export type UserActivityAction =
   // Fiat / Naira Transactions
   | "DEPOSIT_INITIATED"
   | "DEPOSIT_COMPLETED"
+  | "WITHDRAWAL_INITIATED"
+  | "WITHDRAWAL_COMPLETED"
   // Identity & KYC
   | "KYC_STAGE_UPDATED"
   | "KYC_SUBMITTED";
@@ -86,6 +88,8 @@ const UserActivityLogSchema = new Schema<IUserActivityLog>(
         "SAVINGS_WITHDRAWAL",
         "DEPOSIT_INITIATED",
         "DEPOSIT_COMPLETED",
+        "WITHDRAWAL_INITIATED",
+        "WITHDRAWAL_COMPLETED",
         "KYC_STAGE_UPDATED",
         "KYC_SUBMITTED",
       ],

@@ -19,19 +19,24 @@ import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { getAssetLogo } from "@/lib/assets";
 import { COUNTRIES } from "@/lib/transfer";
+import { calculateFossaPayWithdrawalFee } from "@/lib/ngn-account";
 
 type Stage = "form" | "amount" | "done";
 type Sheet = "review" | "pin" | null;
 
 /** Standard crypto amount chips (e.g. 25, 50, 100 USDC) */
 const CRYPTO_CHIPS = [25, 50, 100] as const;
-/** Standard fiat amount chips in Naira (e.g. 10k, 25k, 50k, 100k NGN) */
+/** Standard fiat amount chips in Naira (e.g. 1k, 5k, 10k NGN) */
 const FIAT_CHIPS = [1000, 5000, 10000] as const;
 
 export function BankTransferView({
   defaultCountry = "Nigeria",
+  initialNetwork,
+  initialAsset,
 }: {
   defaultCountry?: string;
+  initialNetwork?: string;
+  initialAsset?: string;
 }) {
   const [stage, setStage] = useState<Stage>("form");
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -39,15 +44,28 @@ export function BankTransferView({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
   const [currencyMode, setCurrencyMode] = useState<"crypto" | "fiat">("crypto");
-  const [form, setForm] = useState<BankForm>({
-    ...EMPTY_BANK_FORM,
-    country: defaultCountry,
+
+  const [form, setForm] = useState<BankForm>(() => {
+    const net = initialNetwork || EMPTY_BANK_FORM.network;
+    const ast =
+      initialAsset ||
+      (net === "Nigeria Bank" ? "NGN" : EMPTY_BANK_FORM.asset);
+    return {
+      ...EMPTY_BANK_FORM,
+      country: defaultCountry,
+      network: net,
+      asset: ast,
+    };
   });
   const [amount, setAmount] = useState("");
 
   // Live offramp rate & crypto balance
   const [offrampRate, setOfframpRate] = useState<number>(1450);
   const [cryptoBalance, setCryptoBalance] = useState<number>(0);
+  const [ngnBalance, setNgnBalance] = useState<number>(0);
+
+  const isFiatWithdrawal =
+    form.network === "Nigeria Bank" || form.asset === "NGN";
 
   const country = COUNTRIES.find(
     (entry) =>
@@ -57,13 +75,35 @@ export function BankTransferView({
   const fiatCurrency = country?.currency ?? "NGN";
   const momo = form.destination === "momo";
 
-  const selectedAsset = form.asset || "USDC";
-  const selectedNetwork = form.network || "Base";
+  const selectedAsset = form.asset || (isFiatWithdrawal ? "NGN" : "USDC");
+  const selectedNetwork = form.network || "Nigeria Bank";
   const selectedChain =
     OFFRAMP_NETWORK_CONFIGS[selectedNetwork]?.chain || "base";
 
+  // Fetch live NGN balance for FossaPay fiat withdrawals
+  useEffect(() => {
+    let isMounted = true;
+    async function loadNgnBalance() {
+      try {
+        const res = await fetch("/api/ngn-account");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isMounted && data.hasAccount && data.balance) {
+          setNgnBalance(data.balance.availableBalance || 0);
+        }
+      } catch {
+        // keep fallback
+      }
+    }
+    loadNgnBalance();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Fetch live balance for the selected asset
   useEffect(() => {
+    if (isFiatWithdrawal) return;
     let isMounted = true;
     async function loadBalance() {
       try {
@@ -102,10 +142,11 @@ export function BankTransferView({
     return () => {
       isMounted = false;
     };
-  }, [selectedAsset, selectedChain]);
+  }, [selectedAsset, selectedChain, isFiatWithdrawal]);
 
   // Fetch live Switch offramp rate for selected asset & chain
   useEffect(() => {
+    if (isFiatWithdrawal) return;
     let isMounted = true;
     async function loadRate() {
       try {
@@ -132,11 +173,33 @@ export function BankTransferView({
     return () => {
       isMounted = false;
     };
-  }, [selectedAsset, selectedChain]);
+  }, [selectedAsset, selectedChain, isFiatWithdrawal]);
 
   const rawTypedNumber = parseFloat(amount) || 0;
 
-  // Bidirectional conversions
+  const isInternal = Boolean(form.isInternal);
+  const fiatFee = isFiatWithdrawal
+    ? isInternal
+      ? 0
+      : calculateFossaPayWithdrawalFee(rawTypedNumber)
+    : 0;
+  const fiatTotalDebit = isFiatWithdrawal ? rawTypedNumber + fiatFee : 0;
+
+  // Calculate maximum spendable Naira reserving the correct tier fee for external payouts
+  const calculateMaxSpendableNgn = (
+    balance: number,
+    isInternalAcc: boolean,
+  ): number => {
+    if (balance <= 0) return 0;
+    if (isInternalAcc) return balance;
+    const feeCandidate = calculateFossaPayWithdrawalFee(balance);
+    const candidate = balance - feeCandidate;
+    if (candidate <= 0) return 0;
+    const actualFee = calculateFossaPayWithdrawalFee(candidate);
+    return Math.max(0, balance - actualFee);
+  };
+
+  // Bidirectional conversions for crypto offramp
   const numCryptoAmount =
     currencyMode === "crypto"
       ? rawTypedNumber
@@ -149,12 +212,18 @@ export function BankTransferView({
       ? rawTypedNumber
       : Math.floor(rawTypedNumber * offrampRate);
 
-  const displayBalance = `${cryptoBalance.toFixed(2)} ${selectedAsset}`;
-  const maxFiatSpendable = Math.floor(cryptoBalance * offrampRate);
+      // balance and asset
+  const displayBalance = isFiatWithdrawal
+    ? `₦${ngnBalance.toLocaleString()}`
+    : `${cryptoBalance.toFixed(2)} ${selectedAsset}`;
+
+  const maxFiatSpendable = isFiatWithdrawal
+    ? calculateMaxSpendableNgn(ngnBalance, isInternal)
+    : Math.floor(cryptoBalance * offrampRate);
 
   // Smooth mode toggle with live conversion
   const handleCurrencyModeChange = (newMode: "crypto" | "fiat") => {
-    if (newMode === currencyMode) return;
+    if (newMode === currencyMode || isFiatWithdrawal) return;
     if (!amount || parseFloat(amount) === 0) {
       setCurrencyMode(newMode);
       return;
@@ -171,42 +240,68 @@ export function BankTransferView({
     setCurrencyMode(newMode);
   };
 
-  const currencyOptions = [
-    { value: "crypto" as const, label: selectedAsset },
-    { value: "fiat" as const, label: "NGN (₦)" },
-  ];
-
-  const rows = momo
-    ? [
-        { label: "From", value: `Jumpa wallet (${selectedNetwork})` },
-        { label: "Type", value: "Mobile money" },
-        { label: "To", value: `${form.network} - ${form.phone}` },
-        { label: "Recipient", value: form.name || "—" },
-      ]
+  const currencyOptions = isFiatWithdrawal
+    ? [{ value: "fiat" as const, label: "NGN (₦)" }]
     : [
+        { value: "crypto" as const, label: selectedAsset },
+        { value: "fiat" as const, label: "NGN (₦)" },
+      ];
+
+  const rows = isFiatWithdrawal
+    ? [
+        { label: "From", value: "Jumpa NGN Wallet" },
         {
-          label: "From",
-          value: `Jumpa wallet (${selectedNetwork})`,
+          label: "Type",
+          value: isInternal ? "Internal Transfer" : "Bank transfer",
         },
-        { label: "Type", value: country?.routing ? "ACH" : "Bank transfer" },
         { label: "To", value: `${form.bank} - ${form.account}` },
         { label: "Recipient", value: form.name || "—" },
         {
-          label: "You'll receive",
-          value: `₦${targetFiatAmount.toLocaleString()} ${fiatCurrency}`,
+          label: "Transfer amount",
+          value: `₦${rawTypedNumber.toLocaleString()}`,
         },
         {
-          label: "You'll pay",
-          value: `${numCryptoAmount} ${selectedAsset}`,
+          label: "Withdrawal fee",
+          value: isInternal ? "₦0" : `₦${fiatFee}`,
         },
         {
-          label: "Exchange rate",
-          value: `1 ${selectedAsset} ≈ ₦${offrampRate.toLocaleString()}`,
+          label: "Total debit",
+          value: `₦${fiatTotalDebit.toLocaleString()}`,
         },
-        { label: "Settlement", value: "Within seconds" },
-        ...(form.routing ? [{ label: "Routing", value: form.routing }] : []),
+        { label: "Settlement", value: "Instant" },
         ...(form.note ? [{ label: "Narration", value: form.note }] : []),
-      ];
+      ]
+    : momo
+      ? [
+          { label: "From", value: `Jumpa wallet (${selectedNetwork})` },
+          { label: "Type", value: "Mobile money" },
+          { label: "To", value: `${form.network} - ${form.phone}` },
+          { label: "Recipient", value: form.name || "—" },
+        ]
+      : [
+          {
+            label: "From",
+            value: `Jumpa wallet (${selectedNetwork})`,
+          },
+          { label: "Type", value: country?.routing ? "ACH" : "Bank transfer" },
+          { label: "To", value: `${form.bank} - ${form.account}` },
+          { label: "Recipient", value: form.name || "—" },
+          {
+            label: "You'll receive",
+            value: `₦${targetFiatAmount.toLocaleString()} ${fiatCurrency}`,
+          },
+          {
+            label: "You'll pay",
+            value: `${numCryptoAmount} ${selectedAsset}`,
+          },
+          {
+            label: "Exchange rate",
+            value: `1 ${selectedAsset} ≈ ₦${offrampRate.toLocaleString()}`,
+          },
+          { label: "Settlement", value: "Within seconds" },
+          ...(form.routing ? [{ label: "Routing", value: form.routing }] : []),
+          ...(form.note ? [{ label: "Narration", value: form.note }] : []),
+        ];
 
   const details = (
     <DetailList>
@@ -225,6 +320,47 @@ export function BankTransferView({
     setIsSubmitting(true);
     setPinError(false);
 
+    if (isFiatWithdrawal) {
+      try {
+        const res = await fetch("/api/ngn-account/withdraw", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: rawTypedNumber,
+            accountNumber: form.account.trim(),
+            bankName: form.bank.trim(),
+            accountName: form.name.trim(),
+            pin,
+            narration: form.note || undefined,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          if (res.status === 401 && data.error?.toLowerCase().includes("pin")) {
+            setPinError(true);
+          } else {
+            setErrorMessage(data.error || "Failed to process bank withdrawal.");
+            setSheet(null);
+          }
+          return;
+        }
+
+        setSheet(null);
+        setStage("done");
+      } catch (err: any) {
+        setErrorMessage(
+          err?.message || "Failed to connect to withdrawal service",
+        );
+        setSheet(null);
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    // Crypto offramp execution via Switch
     const assetKey = `${selectedChain}:${selectedAsset.toLowerCase()}`;
 
     try {
@@ -269,7 +405,11 @@ export function BankTransferView({
     return (
       <TransferSuccess
         back="/home"
-        amount={`${numCryptoAmount} ${selectedAsset} (≈ ₦${targetFiatAmount.toLocaleString()})`}
+        amount={
+          isFiatWithdrawal
+            ? `₦${rawTypedNumber.toLocaleString()}`
+            : `${numCryptoAmount} ${selectedAsset} (≈ ₦${targetFiatAmount.toLocaleString()})`
+        }
         note={
           <>
             Your money is on its way to{" "}
@@ -284,8 +424,13 @@ export function BankTransferView({
   }
 
   if (stage === "amount") {
-    const rateSubtitle =
-      currencyMode === "crypto"
+    const rateSubtitle = isFiatWithdrawal
+      ? isInternal
+        ? "₦0 fee"
+        : rawTypedNumber > 0
+          ? `Fee: ₦${fiatFee}`
+          : "Standard bank transfer fee applies"
+      : currencyMode === "crypto"
         ? `1 ${selectedAsset} ≈ ₦${offrampRate.toLocaleString()}${
             numCryptoAmount > 0
               ? ` (≈ ₦${targetFiatAmount.toLocaleString()})`
@@ -311,20 +456,30 @@ export function BankTransferView({
           }
           onClose={() => setStage("form")}
           amount={amount}
-          symbol={selectedAsset}
+          symbol={isFiatWithdrawal ? "NGN" : selectedAsset}
           balance={
-            currencyMode === "crypto"
-              ? displayBalance
-              : `₦${maxFiatSpendable.toLocaleString()} (${displayBalance})`
+            isFiatWithdrawal
+              ? `₦${ngnBalance.toLocaleString()}`
+              : currencyMode === "crypto"
+                ? displayBalance
+                : `₦${maxFiatSpendable.toLocaleString()} (${displayBalance})`
           }
           maxAmount={
-            currencyMode === "crypto" ? cryptoBalance : maxFiatSpendable
+            isFiatWithdrawal
+              ? maxFiatSpendable
+              : currencyMode === "crypto"
+                ? cryptoBalance
+                : maxFiatSpendable
           }
-          inputPrefix={currencyMode === "fiat" ? "₦" : undefined}
+          inputPrefix={
+            isFiatWithdrawal || currencyMode === "fiat" ? "₦" : undefined
+          }
           rate={rateSubtitle}
-          chips={currencyMode === "crypto" ? CRYPTO_CHIPS : FIAT_CHIPS}
-          chipUnit={currencyMode === "crypto" ? selectedAsset : "₦"}
-          currencyMode={currencyMode}
+          chips={isFiatWithdrawal ? FIAT_CHIPS : currencyMode === "crypto" ? CRYPTO_CHIPS : FIAT_CHIPS}
+          chipUnit={
+            isFiatWithdrawal ? "₦" : currencyMode === "crypto" ? selectedAsset : "₦"
+          }
+          currencyMode={isFiatWithdrawal ? "fiat" : currencyMode}
           currencyOptions={currencyOptions}
           onCurrencyModeChange={handleCurrencyModeChange}
           onAmountChange={setAmount}
@@ -337,10 +492,14 @@ export function BankTransferView({
               <div className="flex items-center justify-between gap-3">
                 <PairPill
                   left="Sending"
-                  right={selectedAsset}
+                  right={isFiatWithdrawal ? "NGN" : selectedAsset}
                   media={
                     <Image
-                      src={getAssetLogo(selectedAsset)}
+                      src={
+                        isFiatWithdrawal
+                          ? "/images/usd/ngncoin.svg"
+                          : getAssetLogo(selectedAsset)
+                      }
                       alt=""
                       width={20}
                       height={20}
@@ -360,9 +519,11 @@ export function BankTransferView({
               </div>
             }
             headline={
-              currencyMode === "fiat"
-                ? `₦${targetFiatAmount.toLocaleString()} (${numCryptoAmount} ${selectedAsset})`
-                : `${numCryptoAmount} ${selectedAsset}`
+              isFiatWithdrawal
+                ? `₦${rawTypedNumber.toLocaleString()}`
+                : currencyMode === "fiat"
+                  ? `₦${targetFiatAmount.toLocaleString()} (${numCryptoAmount} ${selectedAsset})`
+                  : `${numCryptoAmount} ${selectedAsset}`
             }
             onConfirm={() => setSheet("pin")}
             onClose={() => setSheet(null)}

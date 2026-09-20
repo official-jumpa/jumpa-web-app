@@ -19,6 +19,7 @@ import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { getAssetLogo } from "@/lib/assets";
 import { MOBILE_NETWORKS, PHONE_NUMBER_MIN } from "@/lib/bills";
 import { supportedBanks } from "@/lib/constants/banks";
+import { FossaPayBanks } from "@/lib/constants/fossapay-banks";
 import {
   ACCOUNT_NUMBER_MIN,
   BANKS,
@@ -48,6 +49,7 @@ export type BankForm = {
   network: string;
   asset: string;
   phone: string;
+  isInternal?: boolean;
 };
 
 export interface BankAccountItem {
@@ -58,12 +60,22 @@ export interface BankAccountItem {
   country?: string;
 }
 
-export const OFFRAMP_NETWORKS = ["Base", "Solana", "Ethereum"] as const;
+export const OFFRAMP_NETWORKS = [
+  "Nigeria Bank",
+  "Base",
+  "Solana",
+  "Ethereum",
+] as const;
 
 export const OFFRAMP_NETWORK_CONFIGS: Record<
   string,
-  { name: string; chain: "base" | "solana" | "eth"; assets: readonly string[] }
+  { name: string; chain: "base" | "solana" | "eth" | "fiat"; assets: readonly string[] }
 > = {
+  "Nigeria Bank": {
+    name: "Nigeria Bank",
+    chain: "fiat",
+    assets: ["NGN"],
+  },
   Base: {
     name: "Base",
     chain: "base",
@@ -84,19 +96,19 @@ export const OFFRAMP_NETWORK_CONFIGS: Record<
 export const OFFRAMP_NETWORK_OPTIONS = OFFRAMP_NETWORKS.map((net) => ({
   value: net,
   label: net,
-  icon: getAssetLogo(net),
+  icon: net === "Nigeria Bank" ? "/images/flags/ng.png" : getAssetLogo(net),
 }));
 
 export const EMPTY_BANK_FORM: BankForm = {
   destination: "bank",
-  country: "",
+  country: "Nigeria",
   account: "",
   bank: "",
   routing: "",
   name: "",
   note: "",
-  network: "Base",
-  asset: "USDC",
+  network: "Nigeria Bank",
+  asset: "NGN",
   phone: "",
 };
 
@@ -279,7 +291,11 @@ export function BankTransferForm({
           const data = await res.json();
           if (live) {
             if (res.ok && data.success && data.accountName) {
-              onChange({ ...latest.current, name: data.accountName });
+              onChange({
+                ...latest.current,
+                name: data.accountName,
+                isInternal: Boolean(data.isInternal),
+              });
               setErrors((prev) => {
                 const next = { ...prev };
                 delete next.name;
@@ -319,17 +335,20 @@ export function BankTransferForm({
 
   const isNigeria =
     country?.code === "NG" || form.country.toLowerCase().includes("nigeria");
-  const bankOptions = isNigeria
-    ? NIGERIA_BANK_OPTIONS
-    : BANKS[country?.code ?? ""] ?? [];
+  const bankOptions =
+    form.network === "Nigeria Bank"
+      ? FossaPayBanks.map((b) => b.name)
+      : isNigeria
+        ? NIGERIA_BANK_OPTIONS
+        : BANKS[country?.code ?? ""] ?? [];
 
   const currentNetworkConfig =
-    OFFRAMP_NETWORK_CONFIGS[form.network || "Base"] ||
-    OFFRAMP_NETWORK_CONFIGS.Base;
+    OFFRAMP_NETWORK_CONFIGS[form.network || "Nigeria Bank"] ||
+    OFFRAMP_NETWORK_CONFIGS["Nigeria Bank"];
   const assetOptions = currentNetworkConfig.assets.map((symbol) => ({
     value: symbol,
     label: symbol,
-    icon: getAssetLogo(symbol),
+    icon: symbol === "NGN" ? "/images/usd/ngncoin.svg" : getAssetLogo(symbol),
   }));
 
   return (
@@ -440,18 +459,20 @@ export function BankTransferForm({
           <SelectField
             label="Network"
             icon={<GlobeIcon aria-hidden="true" className="size-6 shrink-0" />}
-            value={form.network || "Base"}
+            value={form.network || "Nigeria Bank"}
             options={OFFRAMP_NETWORK_OPTIONS}
             onChange={(network) => {
               const defaultAsset =
                 OFFRAMP_NETWORK_CONFIGS[network]?.assets[0] || "USDC";
-              set({ network, asset: defaultAsset });
+              const nextCountry =
+                network === "Nigeria Bank" ? "Nigeria" : form.country;
+              set({ network, asset: defaultAsset, country: nextCountry });
             }}
           />
 
           <SelectField
             label="Asset to send"
-            value={form.asset || "USDC"}
+            value={form.asset || "NGN"}
             options={assetOptions}
             onChange={(asset) => set({ asset })}
           />
@@ -492,7 +513,9 @@ export function BankTransferForm({
                   className="size-5 shrink-0 text-jumpa-primary-600"
                 />
                 <span className="text-[10px] leading-3.5 font-medium text-jumpa-primary-600">
-                  {country.routing
+                  {form.network === "Nigeria Bank"
+                    ? "Direct NGN transfer settles within seconds"
+                    : country.routing
                     ? "ACH transfer typically arrives within 1-2 business days"
                     : `${country.currency} transfers typically arrive within seconds`}
                 </span>

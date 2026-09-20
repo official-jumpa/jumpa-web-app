@@ -96,3 +96,33 @@ export const createNgnAccountSchema = z.object({
  * FossaPay account registration input type.
  */
 export type CreateNgnAccountInput = z.infer<typeof createNgnAccountSchema>;
+
+/**
+ * Validation schema for NGN wallet withdrawals (P2P & Inter-Bank).
+ */
+export const withdrawNgnSchema = z.object({
+  amount: z
+    .number({ error: "Amount must be a number" })
+    .positive("Amount must be greater than 0")
+    .min(100, "Minimum withdrawal amount is ₦100"),
+  accountNumber: z
+    .string({ error: "Account number is required" })
+    .trim()
+    .regex(/^\d{10}$/, "Account number must be exactly 10 digits"),
+  bankName: z
+    .string({ error: "Bank name is required" })
+    .trim()
+    .min(1, "Bank name is required"),
+  bankCode: z.string().trim().optional(),
+  accountName: z
+    .string({ error: "Account name is required" })
+    .trim()
+    .min(1, "Account name is required"),
+  pin: z
+    .string({ error: "PIN is required" })
+    .trim()
+    .min(4, "Transaction PIN must be at least 4 digits"),
+  narration: z.string().trim().max(100).optional(),
+});
+
+export type WithdrawNgnInput = z.infer<typeof withdrawNgnSchema>;

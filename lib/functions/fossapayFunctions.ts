@@ -2,11 +2,16 @@ import { connectDB } from "@/lib/db";
 import { environment } from "@/lib/environment";
 import { NgnAccount, type INgnAccount } from "@/models/NgnAccount";
 import { Transaction } from "@/models/Transaction";
-import { mapCountryCodeToName } from "@/lib/ngn-account";
+import {
+  mapCountryCodeToName,
+  calculateFossaPayDepositFee,
+  calculateFossaPayWithdrawalFee,
+} from "@/lib/ngn-account";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
-import { logUserActivity } from "@/lib/functions/userFunctions";
+import { logUserActivity, saveOrUpdateBeneficiary } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { generateBillReference, generateId } from "@/lib/schema-ids";
+import { FossaPayBanks, findFossaPayBank } from "@/lib/constants/fossapay-banks";
 
 function getBaseUrl(): string {
   return (
@@ -25,39 +30,11 @@ function getApiKey(): string {
   return key;
 }
 
-export { mapCountryCodeToName };
-
-/**
- * Calculates FossaPay deposit (virtual account collection) fee based on official tier schedule:
- * - ₦0 – ₦4,999.99: ₦60
- * - ₦5,000 – ₦9,999.99: ₦100
- * - ₦10,000 – ₦14,999.99: ₦150
- * - ₦15,000 – ₦24,999.99: ₦200
- * - ₦25,000 and above: 1.2% (capped at ₦1,000)
- */
-export function calculateFossaPayDepositFee(amount: number): number {
-  if (amount <= 0) return 0;
-  if (amount < 5000) return 60;
-  if (amount < 10000) return 100;
-  if (amount < 15000) return 150;
-  if (amount < 25000) return 200;
-  return Math.min(amount * 0.012, 1000);
-}
-
-/**
- * Calculates FossaPay withdrawal (bank payout) fee based on official tier schedule:
- * - ₦0 – ₦5,000: ₦30
- * - ₦5,001 – ₦9,999: ₦50
- * - ₦10,000 – ₦50,000: ₦100
- * - Above ₦50,000: ₦150
- */
-export function calculateFossaPayWithdrawalFee(amount: number): number {
-  if (amount <= 0) return 0;
-  if (amount <= 5000) return 30;
-  if (amount <= 9999) return 50;
-  if (amount <= 50000) return 100;
-  return 150;
-}
+export {
+  mapCountryCodeToName,
+  calculateFossaPayDepositFee,
+  calculateFossaPayWithdrawalFee,
+};
 
 /**
  * Base HTTP helper for FossaPay API
@@ -394,6 +371,325 @@ export async function fossapayWalletToWalletTransfer(
   }
 }
 
+// ── Outbound Bank Transfers (Name Enquiry & Inter-Bank Payouts)
+
+export interface BankNameEnquiryResponse {
+  status: boolean | string;
+  statusCode: number;
+  message: string;
+  data: {
+    accountNumber: string;
+    accountName: string;
+    sessionId?: string | null;
+  };
+}
+
+/**
+ * Validates a destination Nigerian bank account using FossaPay live Name Enquiry.
+ */
+export async function fossapayBankNameEnquiry(params: {
+  accountNumber: string;
+  bankCode: string;
+}): Promise<{ accountNumber: string; accountName: string }> {
+  console.log(
+    `Verifying ${params.accountNumber} with bankCode ${params.bankCode}`
+  );
+
+  const response = await fossapayRequest<BankNameEnquiryResponse>(
+    "/api/v1/transfers/fiat/bank-name-enquiry",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        accountNumber: params.accountNumber,
+        bankCode: params.bankCode,
+      }),
+    }
+  );
+
+  if (!response?.data?.accountName) {
+    throw new Error(response?.message || "Could not verify bank account name");
+  }
+
+  return {
+    accountNumber: response.data.accountNumber,
+    accountName: response.data.accountName,
+  };
+}
+
+export interface InterBankTransferPayload {
+  customerId: string;
+  destinationBankCode: string;
+  destinationAccountNumber: string;
+  destinationAccountName: string;
+  destinationBankName: string;
+  amount: number;
+  reference?: string;
+  remarks?: string;
+}
+
+export interface InterBankTransferResponse {
+  status: string | boolean;
+  statusCode: number;
+  message: string;
+  data: any;
+}
+
+/**
+ * Executes an automated inter-bank payout to any Nigerian commercial or microfinance bank via FossaPay.
+ */
+export async function fossapayInterBankTransfer(
+  payload: InterBankTransferPayload
+): Promise<any> {
+  console.log(
+    `[FossaPay Payout] Inter-bank payout: ₦${payload.amount} to ${payload.destinationBankName} (${payload.destinationAccountNumber}) for customer ${payload.customerId}`
+  );
+
+  try {
+    const response = await fossapayRequest<InterBankTransferResponse>(
+      "/api/v1/transfers/fiat/inter-bank",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }
+    );
+    return response?.data;
+  } catch (error: any) {
+    console.error(
+      "[FossaPay Payout] Inter-bank transfer failed:",
+      error.message,
+      error.data || ""
+    );
+    const msg = (error.data?.message || error.message || "").toLowerCase();
+    if (msg.includes("insufficient") || msg.includes("balance")) {
+      throw new Error("Insufficient funds in your Naira account");
+    }
+    throw new Error(error.data?.message || error.message || "Bank payout failed");
+  }
+}
+
+export interface WithdrawNgnFiatParams {
+  userId: string;
+  amount: number;
+  accountNumber: string;
+  bankName: string;
+  bankCode?: string;
+  accountName: string;
+  narration?: string;
+}
+
+/**
+ * Orchestrates an NGN wallet withdrawal from a user's FossaPay virtual account.
+ * Supports:
+ * 1. Internal P2P transfers to another FossaPay virtual wallet (Zero Fee)
+ * 2. External payouts to any other Nigerian bank account (Tiered Fee)
+ */
+export async function withdrawNgnFiat(params: WithdrawNgnFiatParams): Promise<{
+  success: boolean;
+  reference: string;
+  fee: number;
+  totalDebited: number;
+  isInternal: boolean;
+  transactionId: string;
+}> {
+  await connectDB();
+
+  // 1. Verify user's active FossaPay NGN account
+  const userAccount = await NgnAccount.findOne({
+    userId: params.userId,
+    provider: "fossapay",
+    status: "active",
+  }).lean<INgnAccount>();
+
+  if (!userAccount || !userAccount.accountNumber) {
+    throw new Error("No active Naira virtual account found");
+  }
+
+  // Guard against self-transfer to the same account
+  if (userAccount.accountNumber === params.accountNumber) {
+    throw new Error("Cannot withdraw to your own account");
+  }
+
+  // 2. Check if destination is an internal FossaPay wallet
+  const internalRecipient = await NgnAccount.findOne({
+    accountNumber: params.accountNumber,
+  }).lean<INgnAccount>();
+
+  const isInternal = Boolean(internalRecipient);
+  const fee = isInternal ? 0 : calculateFossaPayWithdrawalFee(params.amount);
+  const totalDebited = params.amount + fee;
+
+  // 3. Balance verification
+  const currentBalance = userAccount.balance ?? 0;
+  if (currentBalance < totalDebited) {
+    throw new Error(
+      `Insufficient funds. Transfer of ₦${params.amount.toLocaleString()}${
+        fee > 0 ? ` + ₦${fee} withdrawal fee` : ""
+      } requires ₦${totalDebited.toLocaleString()} (Available: ₦${currentBalance.toLocaleString()})`
+    );
+  }
+
+  const reference = generateId("tx");
+
+  // 4. Resolve destination bank details
+  let resolvedBankCode = params.bankCode;
+  let resolvedBankName = params.bankName;
+
+  if (!resolvedBankCode) {
+    const matchedBank = findFossaPayBank(params.bankName);
+    if (matchedBank) {
+      resolvedBankCode = matchedBank.code;
+      resolvedBankName = matchedBank.name;
+    }
+  }
+
+  if (!isInternal && !resolvedBankCode) {
+    throw new Error(`Could not find a valid bank code for "${params.bankName}"`);
+  }
+
+  // 5. Execute downstream transfer on FossaPay
+  if (isInternal) {
+    console.log(
+      `Internal transfer of ₦${params.amount} to ${params.accountNumber} (${params.accountName})`
+    );
+    await fossapayWalletToWalletTransfer({
+      fromAccount: userAccount.accountNumber,
+      toAccount: params.accountNumber,
+      amount: params.amount,
+      reference,
+      narration: params.narration || `Transfer to ${params.accountName}`,
+    });
+
+    // Debit sender atomic balance
+    await atomicDebitNgnBalance({
+      userId: params.userId,
+      amount: params.amount,
+      memo: `Transfer to ${params.accountName} (${params.accountNumber})`,
+    });
+
+    // Credit recipient Jumpa user if they belong to this platform
+    if (internalRecipient && internalRecipient.userId !== params.userId) {
+      await atomicCreditNgnBalance({
+        userId: internalRecipient.userId,
+        amount: params.amount,
+        reference,
+        memo: `Transfer from ${userAccount.accountName || "Jumpa User"}`,
+      }).catch((creditErr) => {
+        console.error(
+          "Failed to credit recipient:",
+          creditErr
+        );
+      });
+    }
+  } else {
+    // External Inter-Bank payout
+    const customerId = userAccount.providerCustomerId;
+    if (!customerId) {
+      throw new Error("Missing customer identifier for bank payout");
+    }
+
+    console.log(
+      `Inter-bank transfer: ₦${params.amount} + ₦${fee} fee to ${resolvedBankName} (${params.accountNumber})`
+    );
+
+    await fossapayInterBankTransfer({
+      customerId,
+      destinationBankCode: resolvedBankCode!,
+      destinationAccountNumber: params.accountNumber,
+      destinationAccountName: params.accountName,
+      destinationBankName: resolvedBankName,
+      amount: params.amount,
+      reference,
+      remarks: params.narration || `Withdrawal to ${params.accountName}`,
+    });
+
+    // Debit sender totalDebited (amount + fee)
+    await atomicDebitNgnBalance({
+      userId: params.userId,
+      amount: totalDebited,
+      memo: `Withdrawal to ${resolvedBankName} (${params.accountNumber})`,
+    });
+  }
+
+  // 6. Record confirmed Transaction
+  const transaction: any = await Transaction.create({
+    userId: params.userId,
+    type: "WITHDRAW",
+    status: "CONFIRMED",
+    chain: "fiat",
+    network: "mainnet",
+    fromAddress: userAccount.accountNumber,
+    toAddress: `${resolvedBankName} - ${params.accountNumber}`,
+    amount: params.amount.toString(),
+    feePaid: fee.toString(),
+    token: "NGN",
+    bankDetails: {
+      bankName: resolvedBankName,
+      bankCode: resolvedBankCode,
+      accountNumber: params.accountNumber,
+      accountName: params.accountName,
+      reference,
+    },
+    memo:
+      params.narration ||
+      `Withdrawal to ${params.accountName} (${resolvedBankName})`,
+    txHash: reference,
+    executedAt: new Date(),
+  });
+
+  // 7. Save beneficiary for quick repeat transfers
+  saveOrUpdateBeneficiary(params.userId, {
+    type: "bank",
+    name: params.accountName,
+    identifier: params.accountNumber,
+    details: {
+      accountNumber: params.accountNumber,
+      bankName: resolvedBankName,
+      bankCode: resolvedBankCode,
+      country: "Nigeria",
+    },
+  }).catch(() => {});
+
+  // 8. Invalidate balance cache
+  invalidateBalanceCache(params.userId);
+
+  // 9. Activity log & notification
+  logUserActivity({
+    userId: params.userId,
+    action: "WITHDRAWAL_COMPLETED",
+    details: {
+      amount: params.amount,
+      fee,
+      recipient: params.accountName,
+      bank: resolvedBankName,
+      accountNumber: params.accountNumber,
+      reference,
+    },
+  }).catch(() => {});
+
+  createNotification({
+    userId: params.userId,
+    tab: "transactions",
+    type: "WITHDRAWAL_COMPLETED",
+    title: "Withdrawal Sent",
+    body: `₦${params.amount.toLocaleString()} was sent to ${params.accountName} (${resolvedBankName})`,
+    metadata: {
+      amount: params.amount,
+      fee,
+      txHash: reference,
+    },
+    link: "/ngn-account",
+  }).catch(() => {});
+
+  return {
+    success: true,
+    reference,
+    fee,
+    totalDebited,
+    isInternal,
+    transactionId: transaction?._id ? transaction._id.toString() : reference,
+  };
+}
+
 /**
  * Transfers funds from the user's FossaPay virtual account to the official Jumpa master account
  * before vending services like Airtime or Data.
@@ -443,7 +739,7 @@ export async function transferToOfficialJumpaWallet(params: {
     amount: params.amount,
     memo: params.narration,
   }).catch((dbErr) => {
-    console.warn("[FossaPay P2P] Local DB debit sync warning:", dbErr.message);
+    console.warn("Local DB debit sync warning:", dbErr.message);
   });
 
   return {

@@ -2,12 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
 import { supportedBanks } from "@/lib/constants/banks";
+import { findFossaPayBank } from "@/lib/constants/fossapay-banks";
+import { fossapayBankNameEnquiry } from "@/lib/functions/fossapayFunctions";
 import { resolveAccountQuerySchema } from "@/lib/validations/bank.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { connectDB } from "@/lib/db";
+import { NgnAccount } from "@/models/NgnAccount";
+import { environment } from "@/lib/environment";
 
 /**
  * GET /api/bank/resolve?accountNumber=...&bank=...
- * Live bank name enquiry via Paystack.
+ * Live bank name enquiry via FossaPay (with Paystack fallback) and internal wallet detection.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -32,7 +37,50 @@ export async function GET(req: NextRequest) {
 
     const { accountNumber: cleanAccount, bank: bankParam } = validation.data;
 
-    // Match by code first or fuzzy match bank name
+    // Check if the destination account is an internal FossaPay wallet
+    await connectDB();
+    const internalAccount = await NgnAccount.findOne({
+      accountNumber: cleanAccount,
+    }).lean();
+
+    const jumpaMasterAccount =
+      environment.JUMPA_ACCOUNT_NUMBER || process.env.JUMPA_ACCOUNT_NUMBER;
+
+    // 1. Check FossaPay supported banks first
+    const fossapayBank = findFossaPayBank(bankParam);
+    if (fossapayBank) {
+      try {
+        const fpRes = await fossapayBankNameEnquiry({
+          accountNumber: cleanAccount,
+          bankCode: fossapayBank.code,
+        });
+        if (fpRes?.accountName) {
+          const isFpInternal =
+            Boolean(internalAccount) ||
+            cleanAccount === jumpaMasterAccount ||
+            fpRes.accountName.toLowerCase().startsWith("fossapay/");
+          const cleanName = fpRes.accountName
+            .replace(/^fossapay\//i, "")
+            .trim();
+
+          return NextResponse.json({
+            success: true,
+            accountName: cleanName,
+            accountNumber: fpRes.accountNumber || cleanAccount,
+            bankName: fossapayBank.name,
+            bankCode: fossapayBank.code,
+            isInternal: isFpInternal,
+          });
+        }
+      } catch (fpErr: any) {
+        console.warn(
+          `FossaPay resolution failed for ${fossapayBank.name}:`,
+          fpErr.message
+        );
+      }
+    }
+
+    // 2. Fallback to Paystack resolution
     const bankByCode = supportedBanks.find((b) => b.code === bankParam);
     const paystackBank = bankByCode || findPaystackBank(bankParam);
 
@@ -65,6 +113,7 @@ export async function GET(req: NextRequest) {
       accountNumber: accountCheck.data.account_number || cleanAccount,
       bankName: paystackBank.name,
       bankCode: paystackBank.code,
+      isInternal: Boolean(internalAccount),
     });
   } catch (err: any) {
     console.error("[Bank Resolve GET] Error:", err);

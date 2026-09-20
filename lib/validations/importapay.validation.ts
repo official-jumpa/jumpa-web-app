@@ -7,8 +7,8 @@ export const depositNgnSchema = z.object({
   amount: z
     .number({ error: "Deposit amount must be a number" })
     .positive("Deposit amount must be greater than zero")
-    .min(100, "Minimum deposit amount is ₦100")
-    .max(50_000_000, "Maximum single deposit is ₦50,000,000"),
+    .min(200, "Minimum deposit amount is ₦200")
+    .max(1_000_000, "Maximum single deposit is ₦1,000,000"),
 });
 
 export type DepositNgnInput = z.infer<typeof depositNgnSchema>;

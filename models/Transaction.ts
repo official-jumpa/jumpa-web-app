@@ -142,8 +142,8 @@ const TransactionSchema = new Schema<ITransaction>(
       default: null,
     },
 
-    fromAddress: { type: String, default: null },
-    toAddress: { type: String, default: null },
+    fromAddress: { type: String, default: null, required: false },
+    toAddress: { type: String, default: null, required: false },
     amount: { type: String, required: true },
     token: { type: String, required: true },
     memo: { type: String, default: null },

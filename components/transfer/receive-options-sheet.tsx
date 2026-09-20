@@ -53,20 +53,14 @@ export function ReceiveOptionsSheet({ onClose }: { onClose: () => void }) {
                       setPicked(id);
                       setError(undefined);
                     }}
-                    className={`${RECEIVE_ROW} ${
-                      picked === id ? RECEIVE_ROW_PICKED : RECEIVE_ROW_RESTING
-                    }`}
+                    className={`${RECEIVE_ROW} ${picked === id ? RECEIVE_ROW_PICKED : RECEIVE_ROW_RESTING
+                      }`}
                   >
                     <ReceiveOptionBody id={id} />
                   </button>
                 </li>
               ))}
             </ul>
-
-            <p className="text-center text-xs leading-3.5 text-jumpa-neutral-350">
-              Your informations are protected safely
-            </p>
-
             <FieldError>{error}</FieldError>
           </div>
 

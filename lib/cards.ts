@@ -112,7 +112,7 @@ export const TRANSACTION_FILTERS: TransactionFilter[] = [
   },
   {
     label: "Chain",
-    options: ["Show All", "Stellar", "Solana", "Base"],
+    options: ["Show All", "Stellar", "Solana", "Base", "Fiat"],
   },
 ];
 

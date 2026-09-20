@@ -18,7 +18,7 @@ export const RECEIVE_OPTIONS: ReceiveOption[] = [
   {
     id: "fiat",
     Icon: BankIcon,
-    title: "Deposit Fiat",
+    title: "Deposit Naira",
     href: "/receive?rail=fiat",
   },
   {

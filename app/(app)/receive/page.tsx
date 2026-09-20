@@ -14,7 +14,7 @@ export async function generateMetadata({
 }: ReceivePageProps): Promise<Metadata> {
   const { rail } = await searchParams;
   if (rail === "crypto") return { title: "Deposit Crypto" };
-  if (rail === "fiat") return { title: "Deposit Fiat" };
+  if (rail === "fiat") return { title: "Deposit Naira" };
   return { title: "Add Money" };
 }
 

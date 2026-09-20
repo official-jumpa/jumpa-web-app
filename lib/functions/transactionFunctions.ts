@@ -498,6 +498,7 @@ export async function queryUserTransactions(params: {
       { "swapDetails.fromToken": tokenUpper },
       { "swapDetails.toToken": tokenUpper },
       { "rampDetails.asset": rampRegex },
+      { "rampDetails.fiatCurrency": tokenUpper },
     ];
     query.$or = tokenMatch;
   }

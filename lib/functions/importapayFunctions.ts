@@ -42,6 +42,72 @@ export async function getOrCreateImportaPayAccount(
 }
 
 /**
+ * Retrieves the authenticated user's currently active and unexpired dynamic deposit session from their account record.
+ */
+export async function getActiveDepositSession(
+  userId: string
+): Promise<DepositSessionResult | null> {
+  await connectDB();
+
+  const account = await NgnAccount.findOne({
+    userId,
+    provider: "importapay",
+  }).lean<INgnAccount>();
+
+  if (!account) {
+    return null;
+  }
+
+  const session = (account as any)?.providerMetadata?.lastDepositSession;
+  if (!session || !session.dvaId || !session.expiresAt) {
+    return null;
+  }
+
+  const expiry = new Date(session.expiresAt).getTime();
+  if (isNaN(expiry) || expiry <= Date.now()) {
+    return null;
+  }
+
+  // Verify that this session was not already confirmed/credited in transaction ledger
+  const alreadyCredited = await Transaction.findOne({
+    $or: [
+      { txHash: session.dvaId },
+      { "bankDetails.reference": session.dvaId },
+    ],
+    status: "CONFIRMED",
+  });
+
+  if (alreadyCredited) {
+    return null;
+  }
+
+  return {
+    sessionId: session.dvaId,
+    accountNumber: session.accountNumber || account.accountNumber || "",
+    accountName: session.accountName || account.accountName || "",
+    bankName: session.bankName || account.bankName || "",
+    amount: session.amount,
+    currency: "NGN",
+    expiresAt: session.expiresAt,
+    status: "active",
+  };
+}
+
+/**
+ * Cancels or clears the user's active dynamic deposit session to allow creating a new session with different parameters.
+ */
+export async function cancelActiveDepositSession(userId: string): Promise<boolean> {
+  await connectDB();
+
+  await NgnAccount.updateOne(
+    { userId, provider: "importapay" },
+    { $unset: { "providerMetadata.lastDepositSession": "" } }
+  );
+
+  return true;
+}
+
+/**
  * Generates a 30-minute branded dynamic virtual account for an exact top-up amount and returns bank transfer details
  */
 export async function createDepositSession(params: {
@@ -51,7 +117,13 @@ export async function createDepositSession(params: {
 }): Promise<DepositSessionResult> {
   await connectDB();
 
-  const accountName = `Jumpa - ${params.userName || "User"}`.slice(0, 50);
+  // Return existing active unexpired session if the requested amount matches
+  const active = await getActiveDepositSession(params.userId);
+  if (active && active.amount === params.amount) {
+    return active;
+  }
+
+  const accountName = `Jumpa - ${params.userName || "User"}`;
 
   const dva = await importaPay.createDynamicVirtualAccount({
     accountName,
@@ -70,6 +142,9 @@ export async function createDepositSession(params: {
         "providerMetadata.lastDepositSession": {
           dvaId: dva.id,
           amount: params.amount,
+          accountNumber: dva.accountNumber,
+          bankName: dva.bankName,
+          accountName: dva.accountName,
           expiresAt: dva.expiresAt,
           createdAt: new Date(),
         },
@@ -126,20 +201,37 @@ export async function atomicCreditNgnBalance(params: {
 
   const newBalance = updatedAccount?.balance ?? params.amount;
 
+  const lastSession = (updatedAccount as any)?.providerMetadata?.lastDepositSession;
+  const accNum =
+    updatedAccount?.accountNumber ||
+    lastSession?.accountNumber ||
+    "DVA_ACCOUNT";
+  const bName =
+    updatedAccount?.bankName ||
+    lastSession?.bankName ||
+    "ImportaPay";
+  const accName =
+    updatedAccount?.accountName ||
+    lastSession?.accountName;
+
   // 3. Record confirmed transaction in immutable ledger
   await Transaction.create({
     userId: params.userId,
     type: "DEPOSIT",
     status: "CONFIRMED",
+    chain: "fiat",
+    network: "mainnet",
+    fromAddress: `BANK_TRANSFER (${bName})`,
+    toAddress: accNum,
     amount: params.amount.toString(),
     token: "NGN",
     bankDetails: {
-      bankName: updatedAccount?.bankName || "ImportaPay",
-      accountNumber: updatedAccount?.accountNumber,
-      accountName: updatedAccount?.accountName,
+      bankName: bName,
+      accountNumber: accNum,
+      accountName: accName,
       reference: dedupKey,
     },
-    memo: params.memo || `Deposit via ${updatedAccount?.bankName || "ImportaPay"} (₦${params.amount.toLocaleString()})`,
+    memo: params.memo || `Deposit via ${bName} (₦${params.amount.toLocaleString()})`,
     txHash: dedupKey || `importa_tx_${Date.now()}`,
     executedAt: new Date(),
   });
@@ -297,6 +389,9 @@ export async function verifyDepositSession(
       memo: `Deposit via ImportaPay (${liveAccount.bankName || "Aella MFB"})`,
       eventId: `verify_${dvaId}_${liveAccount.lastSyncedAt || Date.now()}`,
     });
+
+    // Clear active deposit session now that it is completed
+    await cancelActiveDepositSession(userId).catch(() => {});
 
     return {
       success: true,

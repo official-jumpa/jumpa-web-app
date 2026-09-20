@@ -21,10 +21,14 @@ const LOGOS: Record<string, string> = {
   TRX: "/coins/trx.webp",
   TON: "/coins/ton.webp",
   SUI: "/coins/sui.webp",
+  NGN: "/images/usd/ngncoin.svg",
+  NAIRA: "/images/usd/ngncoin.svg",
 };
 
 /** Alias list */
 const ALIASES: [string, string][] = [
+  ["NAIRA", "NGN"],
+  ["NGN", "NGN"],
   ["STELLAR", "XLM"],
   ["BITCOIN", "BTC"],
   ["BTC", "BTC"],

@@ -153,6 +153,12 @@ export async function createDepositSession(params: {
     { upsert: false }
   );
 
+  logUserActivity({
+    userId: params.userId,
+    action: "DEPOSIT_INITIATED",
+    details: { amount: params.amount, token: "NGN", sessionId: dva.id },
+  }).catch(() => {});
+
   return {
     sessionId: dva.id,
     accountNumber: dva.accountNumber,
@@ -242,14 +248,14 @@ export async function atomicCreditNgnBalance(params: {
   // 5. Activity log and in-app notification
   logUserActivity({
     userId: params.userId,
-    action: "ONRAMP_COMPLETED",
+    action: "DEPOSIT_COMPLETED",
     details: { amount: params.amount, token: "NGN", reference: dedupKey },
   }).catch(() => {});
 
   createNotification({
     userId: params.userId,
     tab: "transactions",
-    type: "ONRAMP_COMPLETED",
+    type: "DEPOSIT_COMPLETED",
     title: "Deposit Successful",
     body: `₦${params.amount.toLocaleString()} has been credited to your Naira balance`,
     metadata: { amount: params.amount, token: "NGN", txHash: dedupKey },
@@ -295,6 +301,7 @@ export async function atomicDebitNgnBalance(params: {
   );
 
   // Fallback to legacy FossaPay account if applicable
+  //delete after fossapay is depreciated
   if (!updatedAccount) {
     updatedAccount = await NgnAccount.findOneAndUpdate(
       {

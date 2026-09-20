@@ -33,6 +33,9 @@ export type UserActivityAction =
   | "SAVINGS_PLAN_CREATED"
   | "SAVINGS_TOP_UP"
   | "SAVINGS_WITHDRAWAL"
+  // Fiat / Naira Transactions
+  | "DEPOSIT_INITIATED"
+  | "DEPOSIT_COMPLETED"
   // Identity & KYC
   | "KYC_STAGE_UPDATED"
   | "KYC_SUBMITTED";
@@ -81,6 +84,8 @@ const UserActivityLogSchema = new Schema<IUserActivityLog>(
         "SAVINGS_PLAN_CREATED",
         "SAVINGS_TOP_UP",
         "SAVINGS_WITHDRAWAL",
+        "DEPOSIT_INITIATED",
+        "DEPOSIT_COMPLETED",
         "KYC_STAGE_UPDATED",
         "KYC_SUBMITTED",
       ],

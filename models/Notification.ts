@@ -10,6 +10,7 @@ export type NotificationType =
   | "ONRAMP_COMPLETED"
   | "OFFRAMP_INITIATED"
   | "OFFRAMP_COMPLETED"
+  | "DEPOSIT_COMPLETED"
   | "SWAP_COMPLETED"
   | "FAUCET_CLAIMED"
   | "LOGIN"

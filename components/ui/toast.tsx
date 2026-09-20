@@ -9,14 +9,28 @@ import { cn } from "@/lib/cn";
 const LIFETIME_MS = 3600;
 /** Three is all the column has room for; the oldest drops off the top. */
 const MAX_VISIBLE = 3;
+/**
+ * React runs an effect twice on mount under Strict Mode, which is on by default
+ * in dev, so a receipt screen raised the same toast twice. The same message
+ * inside this window is that second call, not a second transaction.
+ */
+const REPEAT_MS = 1500;
 
 type Tone = "success" | "error";
 type Entry = { id: number; tone: Tone; title: string; detail?: string };
 
 const listeners = new Set<(entry: Entry) => void>();
 let nextId = 0;
+let lastKey = "";
+let lastAt = 0;
 
 function emit(tone: Tone, title: string, detail?: string) {
+  const key = `${tone}|${title}|${detail ?? ""}`;
+  const now = Date.now();
+  if (key === lastKey && now - lastAt < REPEAT_MS) return;
+  lastKey = key;
+  lastAt = now;
+
   nextId += 1;
   const entry: Entry = { id: nextId, tone, title, detail };
   for (const listener of listeners) listener(entry);

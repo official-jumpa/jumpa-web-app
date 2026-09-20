@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { TriangleWarningIcon } from "@/components/ui/icons/triangle-warning";
 import { SheetPortal } from "@/components/ui/sheet-portal";
+import { toast } from "@/components/ui/toast";
 
 /**
  * A failed action, in place of the browser alert the flows used to raise.
@@ -25,6 +27,12 @@ export function ResultSheet({
   onRetry?: () => void;
   onClose: () => void;
 }) {
+  // Every failed transaction surfaces through this sheet, so the failure toast
+  // fires here rather than in each of the eleven flows that raise it.
+  useEffect(() => {
+    toast.error(title, message);
+  }, [title, message]);
+
   return (
     <SheetPortal onClose={onClose} className="px-6 pb-7.5">
       <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-jumpa-danger-50 text-jumpa-danger">

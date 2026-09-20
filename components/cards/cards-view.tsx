@@ -79,7 +79,6 @@ export function CardsView({
         </div>
 
         <CardActions
-          frozen={card.frozen}
           onDetails={() => setSheet("details")}
           onFreeze={() => setSheet("freeze")}
           onFund={() => setSheet("fund")}

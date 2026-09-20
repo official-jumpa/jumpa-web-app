@@ -44,7 +44,7 @@ export function MessageBubble({
   return (
     <div
       className={cn(
-        "bg-jumpa-neutral-95 text-[15px] leading-5.5 text-jumpa-black break-words [overflow-wrap:anywhere] max-w-full overflow-hidden",
+        "bg-jumpa-neutral-95 text-[15px] leading-5.5 text-jumpa-black wrap-anywhere max-w-full overflow-hidden",
         // The design draws prose square-ish and a one-liner as a capsule.
         isMultiLineOrLong
           ? // The group in transcript.tsx sets the column width per role.

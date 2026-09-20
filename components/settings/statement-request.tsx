@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
 import { Fragment, useState } from "react";
-import { settingsHref } from "@/components/settings/sections";
 import {
   SettingCard,
   SettingRule,
@@ -44,35 +42,23 @@ export function StatementRequestSheet({ onClose }: { onClose: () => void }) {
             Duration
           </h2>
           <div className="flex flex-wrap items-center gap-1">
-            {STATEMENT_DURATIONS.map((option) =>
-              // A custom range is the statement screens' whole job, so the
-              // chip hands over to them rather than opening a second picker.
-              option.id === "custom" ? (
-                <Link
-                  key={option.id}
-                  href={settingsHref("statements")}
-                  className={cn(CHIP, CHIP_OFF)}
-                >
-                  {option.label}
-                </Link>
-              ) : (
-                <button
-                  key={option.id}
-                  type="button"
-                  aria-pressed={duration === option.id}
-                  onClick={() => {
-                    setDuration(option.id);
-                    setRequested(false);
-                  }}
-                  className={cn(
-                    CHIP,
-                    duration === option.id ? CHIP_ON : CHIP_OFF,
-                  )}
-                >
-                  {option.label}
-                </button>
-              ),
-            )}
+            {STATEMENT_DURATIONS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={duration === option.id}
+                onClick={() => {
+                  setDuration(option.id);
+                  setRequested(false);
+                }}
+                className={cn(
+                  CHIP,
+                  duration === option.id ? CHIP_ON : CHIP_OFF,
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         </div>
 

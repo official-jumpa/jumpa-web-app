@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
+import { cn } from "@/lib/cn";
 import { FIAT_ACCOUNTS, type FiatAccount } from "@/lib/wallet";
 import { FiatBalance } from "./fiat-balance";
 
@@ -130,7 +131,15 @@ export function FiatAccounts() {
   );
 }
 
+/**
+ * USD accounts are not issued yet at the client's ask. The opening flow is
+ * built and untouched — drop this constant to put the card back in service.
+ */
+const NOT_LIVE: FiatAccount["id"][] = ["usd"];
+
 function AccountCard({ account }: { account: FiatAccount }) {
+  const soon = NOT_LIVE.includes(account.id);
+
   if (account.balance !== null) {
     return (
       <Link
@@ -166,26 +175,40 @@ function AccountCard({ account }: { account: FiatAccount }) {
   }
 
   return (
-    <div className="relative flex flex-1 flex-col gap-4 rounded-panel bg-jumpa-neutral-50 px-4 py-2.5">
+    <div
+      className={cn(
+        "relative flex flex-1 flex-col gap-4 rounded-panel bg-jumpa-neutral-50 px-4 py-2.5",
+        soon && "opacity-80",
+      )}
+    >
       <span className="flex items-center gap-1">
         <Image
           src={account.flag}
           alt=""
           width={64}
           height={64}
-          className="size-4 rounded-full object-contain"
+          className={cn(
+            "size-4 rounded-full object-contain",
+            soon && "grayscale",
+          )}
         />
         <span className="text-[10px] font-medium text-jumpa-black">
           {account.label}
         </span>
       </span>
 
-      <Link
-        href={CREATE[account.id]}
-        className="tap flex h-8.25 items-center justify-center rounded-pill bg-jumpa-white text-[10px] font-medium text-jumpa-primary-600 active:scale-95"
-      >
-        Create Account
-      </Link>
+      {soon ? (
+        <span className="flex h-8.25 cursor-not-allowed items-center justify-center rounded-pill bg-jumpa-white text-[10px] font-medium text-jumpa-neutral-300 select-none">
+          <span className="blur-[0.7px]">Coming soon</span>
+        </span>
+      ) : (
+        <Link
+          href={CREATE[account.id]}
+          className="tap flex h-8.25 items-center justify-center rounded-pill bg-jumpa-white text-[10px] font-medium text-jumpa-primary-600 active:scale-95"
+        >
+          Create Account
+        </Link>
+      )}
     </div>
   );
 }

@@ -242,9 +242,11 @@ export function NgnAccountDetails() {
         </Link>
       </div>
 
-      <div className="mt-3 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-5 py-5">
+      {/* `gap-4` is the approved 72px row pitch from the home card — without it
+          the rules are `-mb-px` and the rows sit flush against each other. */}
+      <div className="mt-3 flex flex-col gap-4 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-5 py-5">
         {loadingTransactions ? (
-          <div className="flex flex-col gap-3 animate-pulse py-2">
+          <div className="flex flex-col gap-4 animate-pulse">
             <div className="h-10 w-full rounded-md bg-jumpa-neutral-200/50" />
             <div className="h-10 w-full rounded-md bg-jumpa-neutral-200/50" />
           </div>

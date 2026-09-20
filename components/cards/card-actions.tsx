@@ -18,15 +18,13 @@ function Action({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** Row under the card: details, freeze toggle, funding and PIN. */
+/** Row under the card: details, freeze, funding and PIN. */
 export function CardActions({
-  frozen,
   onDetails,
   onFreeze,
   onFund,
   onPin,
 }: {
-  frozen: boolean;
   onDetails: () => void;
   onFreeze: () => void;
   onFund: () => void;
@@ -43,7 +41,8 @@ export function CardActions({
       </button>
 
       <button type="button" onClick={onFreeze}>
-        <Action label={frozen ? "Unfreeze" : "Freeze"}>
+        {/* Always "Freeze" at the client's ask — the sheet is the confirmation. */}
+        <Action label="Freeze">
           <span className={TILE}>
             <SnowIcon className="size-6" />
           </span>

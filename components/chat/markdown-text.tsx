@@ -1,4 +1,10 @@
 import type React from "react";
+import { Fragment } from "react";
+import {
+  CopyableAddress,
+  isAddress,
+  splitAddresses,
+} from "@/components/chat/copyable-address";
 
 interface MarkdownTextProps {
   content: string;
@@ -38,7 +44,7 @@ export function MarkdownText({
    * does not chase it.
    */
   const revealWords = (text: string, key: number) => (
-    <span key={key} className="break-words [overflow-wrap:anywhere]">
+    <span key={key} className="wrap-anywhere">
       {text.split(/(\s+)/).map((token, tokenIndex) =>
         token.trim() === "" ? (
           token
@@ -46,7 +52,10 @@ export function MarkdownText({
           <span
             // biome-ignore lint/suspicious/noArrayIndexKey: tokens never reorder
             key={tokenIndex}
-            className="inline-block animate-word stagger-word whitespace-pre-wrap"
+            // `wrap-anywhere` is what lets the inline-block shrink: it counts
+            // toward min-content, where `break-words` does not, so without it a
+            // long token sits in a box too wide to wrap and runs off the bubble.
+            className="inline-block max-w-full animate-word stagger-word wrap-anywhere whitespace-pre-wrap"
             style={{ "--i": wordIndex++ } as React.CSSProperties}
           >
             {token}
@@ -73,7 +82,7 @@ export function MarkdownText({
             href={linkMatch[2]}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-semibold text-jumpa-primary-600 underline hover:text-jumpa-primary-700 break-all [overflow-wrap:anywhere] transition-colors"
+            className="font-semibold text-jumpa-primary-600 underline hover:text-jumpa-primary-700 break-all wrap-anywhere transition-colors"
           >
             {linkMatch[1]}
           </a>
@@ -84,13 +93,18 @@ export function MarkdownText({
       const boldMatch =
         part.match(/^\*\*([^*]+)\*\*$/) || part.match(/^__([^_]+)__$/);
       if (boldMatch) {
+        // An address arrives as a bold run; it gets the copy chip, not `strong`.
+        const bold = boldMatch[1].trim();
         return (
-          <strong
-            key={index}
-            className="font-bold text-jumpa-black break-words [overflow-wrap:anywhere]"
-          >
-            {boldMatch[1]}
-          </strong>
+          <Fragment key={index}>
+            {isAddress(bold) ? (
+              <CopyableAddress value={bold} />
+            ) : (
+              <strong className="font-bold text-jumpa-black wrap-anywhere">
+                {boldMatch[1]}
+              </strong>
+            )}
+          </Fragment>
         );
       }
 
@@ -111,19 +125,36 @@ export function MarkdownText({
         return (
           <code
             key={index}
-            className="rounded bg-black/[0.06] px-1 py-0.5 font-mono text-xs text-jumpa-black break-all [overflow-wrap:anywhere] inline max-w-full"
+            className="rounded bg-black/[0.06] px-1 py-0.5 font-mono text-xs text-jumpa-black break-all wrap-anywhere inline max-w-full"
           >
             {codeMatch[1]}
           </code>
         );
       }
 
-      // Normal text
-      if (reveal) return revealWords(part, index);
+      // Normal text, with any bare address in it lifted out as a copy chip.
       return (
-        <span key={index} className="break-words [overflow-wrap:anywhere]">
-          {part}
-        </span>
+        <Fragment key={index}>
+          {splitAddresses(part).map((chunk, chunkIndex) =>
+            chunk.address ? (
+              <CopyableAddress
+                // biome-ignore lint/suspicious/noArrayIndexKey: chunks never reorder
+                key={chunkIndex}
+                value={chunk.text}
+              />
+            ) : reveal ? (
+              revealWords(chunk.text, chunkIndex)
+            ) : (
+              <span
+                // biome-ignore lint/suspicious/noArrayIndexKey: chunks never reorder
+                key={chunkIndex}
+                className="wrap-anywhere"
+              >
+                {chunk.text}
+              </span>
+            ),
+          )}
+        </Fragment>
       );
     });
   };
@@ -227,7 +258,7 @@ export function MarkdownText({
                     {row.map((cell, cIdx) => (
                       <td
                         key={cIdx}
-                        className="px-2.5 py-2 font-mono text-xs text-jumpa-grey-800 break-all [overflow-wrap:anywhere]"
+                        className="px-2.5 py-2 font-mono text-xs text-jumpa-grey-800 break-all wrap-anywhere"
                       >
                         {renderInline(cell)}
                       </td>
@@ -250,7 +281,7 @@ export function MarkdownText({
           className="flex items-start gap-1.5 pl-1 my-0.5 max-w-full"
         >
           <span className="text-jumpa-primary-600 font-bold shrink-0">•</span>
-          <div className="flex-1 leading-5.5 break-words [overflow-wrap:anywhere] min-w-0">
+          <div className="flex-1 leading-5.5 wrap-anywhere min-w-0">
             {renderInline(trimmed.slice(2))}
           </div>
         </div>,
@@ -270,7 +301,7 @@ export function MarkdownText({
           <span className="font-semibold text-jumpa-primary-600 text-sm shrink-0">
             {numMatch[1]}.
           </span>
-          <div className="flex-1 leading-5.5 break-words [overflow-wrap:anywhere] min-w-0">
+          <div className="flex-1 leading-5.5 wrap-anywhere min-w-0">
             {renderInline(numMatch[2])}
           </div>
         </div>,
@@ -281,10 +312,7 @@ export function MarkdownText({
 
     // Regular line
     elements.push(
-      <div
-        key={`line-${i}`}
-        className="leading-5.5 break-words [overflow-wrap:anywhere]"
-      >
+      <div key={`line-${i}`} className="leading-5.5 wrap-anywhere">
         {renderInline(line)}
       </div>,
     );

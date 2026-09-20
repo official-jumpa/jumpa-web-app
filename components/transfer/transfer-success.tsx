@@ -3,11 +3,12 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { Button } from "@/components/ui/button";
 import { ShareArrowIcon } from "@/components/ui/icons/share-arrow";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 
 const ACTION =
@@ -52,6 +53,12 @@ export function TransferSuccess({
 }) {
   const router = useRouter();
   const [showDetails, setShowDetails] = useState(false);
+
+  // Every completed transaction in the app ends on this screen, so it is the one
+  // place the success toast has to fire from.
+  useEffect(() => {
+    toast.success(title, amount);
+  }, [title, amount]);
 
   const heading = (
     <p

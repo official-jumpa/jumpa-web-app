@@ -27,7 +27,12 @@ type Sheet = "review" | "pin" | null;
 const CHIPS = [25, 50, 100] as const;
 
 /** On-chain send, end to end: address, amount, review, PIN, receipt. */
-export function WalletAddressView() {
+export function WalletAddressView({
+  /** Arrives from `/send/scan`; treated as pasted, which the design calls out. */
+  initialAddress,
+}: {
+  initialAddress?: string;
+}) {
   const [stage, setStage] = useState<Stage>("form");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
@@ -37,7 +42,11 @@ export function WalletAddressView() {
     txHash: string;
     explorerUrl: string;
   } | null>(null);
-  const [form, setForm] = useState<WalletForm>(EMPTY_WALLET_FORM);
+  const [form, setForm] = useState<WalletForm>(() =>
+    initialAddress
+      ? { ...EMPTY_WALLET_FORM, address: initialAddress.trim(), pasted: true }
+      : EMPTY_WALLET_FORM,
+  );
   const [amount, setAmount] = useState("");
   const [liveBalance, setLiveBalance] = useState("$0.00");
 

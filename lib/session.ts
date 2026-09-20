@@ -1,5 +1,5 @@
 import { cookies, headers } from "next/headers";
-import type { NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { Wallet } from "@/models/Wallet";
 import { connectDB } from "./db";
@@ -62,21 +62,70 @@ export async function getSession(
   }
 }
 
+export const AUTH_COOKIE_NAMES = [
+  "better-auth.session_token",
+  "__Secure-better-auth.session_token",
+  "better-auth.session_data",
+  "__Secure-better-auth.session_data",
+  "better-auth.csrf_token",
+  "__Secure-better-auth.csrf_token",
+  "better-auth.dont_remember",
+  "jumpa_session",
+  "selected_wallet_address",
+] as const;
+
 /**
- * Clear every cookie the proxy treats as a session. It gates on any name ending
- * in `session_token`, and BetterAuth prefixes that with `__Secure-` over HTTPS,
- * so deleting a literal name is not enough to sign someone out.
+ * Attaches expired Set-Cookie headers for all authentication and session
+ * cookies to ensure they are properly deleted in the client browser.
+ */
+export function attachClearSessionCookies(response: NextResponse): NextResponse {
+  for (const name of AUTH_COOKIE_NAMES) {
+    response.cookies.set({
+      name,
+      value: "",
+      path: "/",
+      maxAge: 0,
+      expires: new Date(0),
+      httpOnly: true,
+      sameSite: "lax",
+    });
+  }
+  return response;
+}
+
+/**
+ * Clear every cookie the proxy treats as a session. It gates on any name containing
+ * session or better-auth, and ensures path="/" is specified so cookies are actually dropped.
  */
 export async function clearSession(): Promise<void> {
   const cookieStore = await cookies();
 
   for (const { name } of cookieStore.getAll()) {
-    if (name.toLowerCase().includes("session_token")) {
+    if (
+      name.toLowerCase().includes("session") ||
+      name.toLowerCase().includes("better-auth")
+    ) {
+      cookieStore.set({
+        name,
+        value: "",
+        path: "/",
+        maxAge: 0,
+        expires: new Date(0),
+      });
       cookieStore.delete(name);
     }
   }
 
-  cookieStore.delete("jumpa_session");
-  cookieStore.delete("selected_wallet_address");
+  for (const name of AUTH_COOKIE_NAMES) {
+    cookieStore.set({
+      name,
+      value: "",
+      path: "/",
+      maxAge: 0,
+      expires: new Date(0),
+    });
+    cookieStore.delete(name);
+  }
+
   console.log("[Session] Session cleared");
 }

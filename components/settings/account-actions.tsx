@@ -12,6 +12,7 @@ import { CheckIcon } from "@/components/ui/icons/check";
 import { LogOutIcon } from "@/components/ui/icons/log-out";
 import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
 import { TrashAltIcon } from "@/components/ui/icons/trash-alt";
+import { authClient } from "@/lib/auth-client";
 
 type Sheet = "logout" | "delete" | null;
 
@@ -46,6 +47,14 @@ export function AccountActions() {
         }
         throw new Error(errorMsg);
       }
+
+      // Explicitly sign out from Better-Auth client to clear reactive in-memory session
+      try {
+        await authClient.signOut();
+      } catch {
+        // Ignore client error if server already cleared session
+      }
+
       // A full load, not router.replace: it applies the cleared cookies, drops
       // Next's client router cache (which would otherwise serve the signed-in
       // tree until a manual refresh) and leaves no session state in memory.

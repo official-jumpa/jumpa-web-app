@@ -1,14 +1,17 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { clearSession } from "@/lib/session";
+import { clearSession, attachClearSessionCookies } from "@/lib/session";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 
+export const dynamic = "force-dynamic";
+
 /** POST /api/auth/logout — signs out the BetterAuth session */
 export async function POST() {
+  const reqHeaders = await headers();
+
   try {
-    const reqHeaders = await headers();
     const session = await getCachedAuthSession();
     if (session?.user?.id) {
       await logUserActivity({
@@ -27,5 +30,6 @@ export async function POST() {
 
   await clearSession();
 
-  return NextResponse.json({ message: "Logged out" });
+  const response = NextResponse.json({ message: "Logged out" });
+  return attachClearSessionCookies(response);
 }

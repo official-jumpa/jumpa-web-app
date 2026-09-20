@@ -1,11 +1,13 @@
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { clearSession } from "@/lib/session";
+import { clearSession, attachClearSessionCookies } from "@/lib/session";
 import { requireAuth } from "@/lib/functions/permissionFunctions";
 import { deleteUserAndAccountData, logUserActivity } from "@/lib/functions/userFunctions";
 import { deleteAccountSchema } from "@/lib/validations/user.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+
+export const dynamic = "force-dynamic";
 
 /**
  * POST /api/auth/delete-account — removes the signed-in user and everything
@@ -50,5 +52,6 @@ export async function POST(req: NextRequest) {
 
   await clearSession();
 
-  return NextResponse.json({ message: "Account deleted" });
+  const response = NextResponse.json({ message: "Account deleted" });
+  return attachClearSessionCookies(response);
 }

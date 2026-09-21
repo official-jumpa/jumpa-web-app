@@ -95,6 +95,13 @@ export const environment = {
   IMPORTAPAY_BASE_URL:
     process.env.IMPORTAPAY_BASE_URL ||
     "https://importa-pay-payments-x72y4.ondigitalocean.app",
+
+
+  // CENTIIV
+  CENTIIV_API_KEY: process.env.CENTIIV_API_KEY || "",
+  CENTIIV_BASE_URL: process.env.CENTIIV_BASE_URL || "",
+  CENTIIV_PUBLIC_KEY: process.env.CENTIIV_PUBLIC_KEY || "",
+  CENTIIV_SECRET_KEY: process.env.CENTIIV_SECRET_KEY || "",
 };
 
 export default environment;

@@ -8,6 +8,7 @@ import {
   findTransactionByReference,
   updateTransactionByReference,
 } from "@/lib/functions/transactionFunctions";
+import { getCentiivRequestStatus } from "@/lib/functions/centiivFunctions";
 
 export async function GET(req: NextRequest) {
   try {
@@ -44,17 +45,30 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Fallback to Switch if not already confirmed in DB
-    const result = await SwitchService.getTransactionStatus(validation.data.reference);
+    // Determine provider
+    const provider = existingTx?.rampDetails?.provider || "switch";
 
-    if (!result.success) {
-      return NextResponse.json(
-        { success: false, error: result.message || "Failed to fetch transaction status" },
-        { status: 400 },
-      );
+    let rawStatus = "";
+    let resultData: any = {};
+    let txHash: string | undefined;
+
+    if (provider === "centiiv") {
+      const centiivRes = await getCentiivRequestStatus(validation.data.reference);
+      rawStatus = centiivRes.status.toUpperCase();
+      resultData = centiivRes;
+      txHash = centiivRes.txHash;
+    } else {
+      const result = await SwitchService.getTransactionStatus(validation.data.reference);
+      if (!result.success) {
+        return NextResponse.json(
+          { success: false, error: result.message || "Failed to fetch transaction status" },
+          { status: 400 },
+        );
+      }
+      rawStatus = (result.data?.status || "").toUpperCase();
+      resultData = result.data;
+      txHash = result.data?.meta?.hash;
     }
-
-    const rawStatus = (result.data?.status || "").toUpperCase();
 
     // Normalize status for UI consumers
     const isCompleted = [
@@ -63,6 +77,7 @@ export async function GET(req: NextRequest) {
       "SUCCESSFUL",
       "DELIVERED",
       "SETTLED",
+      "FULFILLED",
     ].includes(rawStatus);
 
     const isAwaiting = [
@@ -74,13 +89,13 @@ export async function GET(req: NextRequest) {
       "INITIATED",
     ].includes(rawStatus);
 
-    const isFailed = ["FAILED", "EXPIRED", "CANCELLED", "REJECTED"].includes(rawStatus);
+    const isFailed = ["FAILED", "EXPIRED", "CANCELLED", "REJECTED", "REFUNDED"].includes(rawStatus);
 
     let humanMessage = "Awaiting deposit. Waiting for a few seconds before trying again.";
     if (isCompleted) {
       humanMessage = "Transaction completed";
-      const txHash = result.data?.meta?.hash || validation.data.reference;
-      const explorerUrl = result.data?.meta?.explorer_url || null;
+      txHash = txHash || validation.data.reference;
+      const explorerUrl = resultData?.meta?.explorer_url || null;
 
       try {
         await updateTransactionByReference(validation.data.reference, {
@@ -91,7 +106,7 @@ export async function GET(req: NextRequest) {
         });
         invalidateBalanceCache(session.user.id);
       } catch (dbErr: any) {
-        console.warn("[Switch Status API] Notice updating transaction status:", dbErr?.message);
+        console.warn("Err updating transaction status:", dbErr?.message);
       }
     } else if (isFailed) {
       humanMessage = "Transaction failed or expired. Please initiate a new transaction.";
@@ -101,7 +116,7 @@ export async function GET(req: NextRequest) {
           updatedAt: new Date(),
         });
       } catch (dbErr: any) {
-        console.warn("[Switch Status API] Notice updating failed transaction status:", dbErr?.message);
+        console.warn("Err updating failed transaction status:", dbErr?.message);
       }
     } else if (isAwaiting) {
       humanMessage = "Deposit received. Processing payout...";
@@ -114,10 +129,10 @@ export async function GET(req: NextRequest) {
       isAwaiting,
       isFailed,
       message: humanMessage,
-      data: result.data,
+      data: resultData,
     });
   } catch (err: any) {
-    console.error("[Switch Status] ✗ Unhandled error:", err);
+    console.error("error:", err);
     return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
   }
 }

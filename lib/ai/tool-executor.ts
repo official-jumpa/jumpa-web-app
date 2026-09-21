@@ -31,6 +31,8 @@ import { listSavingsPlansByUserId } from "@/lib/functions/savingsFunctions";
 import { toChatPlan } from "./savings-plan-card";
 import { getNetworkFromToolName, type JumpaToolName } from "./tools";
 import { analyzeImageWithGemini } from "./vision";
+import { getCentiivQuote, createCentiivOnramp, createCentiivOfframp } from "@/lib/functions/centiivFunctions";
+import { findCentiivBank } from "@/lib/constants/centiiv-banks";
 
 export type CardHint =
   | { type: "quote"; data: QuoteCardData }
@@ -898,9 +900,7 @@ export async function executeTool(
 
       try {
         const cleanAsset = String(asset || "").toLowerCase();
-        if (cleanAsset.includes("stellar")) {
-          throw new Error("NGN fiat onramp is not available on Stellar. Please select Base, Solana, or Ethereum.");
-        }
+        const isStellar = cleanAsset.includes("stellar");
         if (cleanAsset.includes("base") && cleanAsset.includes("usdt")) {
           throw new Error("USDT is not supported on Base. Please choose Solana or Ethereum for USDT.");
         }
@@ -916,16 +916,21 @@ export async function executeTool(
         if (cleanFiat > 0) {
           amount = Math.round(cleanFiat);
         } else if (cleanCrypto > 0) {
-          const rateRes = await SwitchService.getOnrampRate(asset);
-          if (!rateRes.success || !rateRes.rate) {
-            throw new Error(
-              rateRes.message || "Failed to fetch live onramp exchange rate"
+          if (isStellar) {
+            const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: cleanCrypto });
+            amount = Math.round(Number(quote.estimatedReceivableAmount) || 0);
+          } else {
+            const rateRes = await SwitchService.getOnrampRate(asset);
+            if (!rateRes.success || !rateRes.rate) {
+              throw new Error(
+                rateRes.message || "Failed to fetch live onramp exchange rate"
+              );
+            }
+            amount = Math.round(cleanCrypto * rateRes.rate);
+            console.log(
+              `[ToolExecutor] [User: ${userId}] Computed onramp fiat amount: ₦${amount.toLocaleString()} for ${cleanCrypto} ${cryptoToken} (Rate: ₦${rateRes.rate})`
             );
           }
-          amount = Math.round(cleanCrypto * rateRes.rate);
-          console.log(
-            `[ToolExecutor] [User: ${userId}] Computed onramp fiat amount: ₦${amount.toLocaleString()} for ${cleanCrypto} ${cryptoToken} (Rate: ₦${rateRes.rate})`
-          );
         } else {
           throw new Error("Please specify the amount in Naira (fiatAmount) or crypto (cryptoAmount).");
         }
@@ -934,20 +939,55 @@ export async function executeTool(
           throw new Error("Invalid onramp amount");
         }
 
-        const result = await SwitchService.initiateOnRamp(
-          amount,
-          asset,
-          walletAddress,
-        );
-        console.log(
-          `[ToolExecutor] [User: ${userId}] onramp_ngn ← Switch result: ${JSON.stringify(result)}`,
-        );
+        let deposit: any;
+        let reference: string;
+        let destinationAmount: string;
+        let providerName: "switch" | "centiiv";
 
-        if (!result.success || !result.data) {
-          throw new Error(result.message || "Switch onramp failed");
+        if (isStellar) {
+          providerName = "centiiv";
+          const res = await createCentiivOnramp({
+            fiatAmount: amount,
+            destinationAddress: walletAddress,
+            senderName: "Jumpa User",
+            senderEmail: "user@jumpa.cash",
+            senderPhone: "0000000000",
+            userId,
+          });
+          
+          reference = res.id;
+          deposit = {
+            bank_name: res.temporaryWallet.virtualBankName,
+            account_name: res.temporaryWallet.virtualAccountName,
+            account_number: res.temporaryWallet.virtualAccountNumber,
+            note: "Centiiv Onramp",
+          };
+          
+          if (cleanFiat > 0) {
+            const quote = await getCentiivQuote({ fromAsset: "NGN", toAsset: "USDC", amount: cleanFiat });
+            destinationAmount = quote.estimatedReceivableAmount || "0";
+          } else {
+             destinationAmount = String(cleanCrypto);
+          }
+        } else {
+          providerName = "switch";
+          const result = await SwitchService.initiateOnRamp(
+            amount,
+            asset,
+            walletAddress,
+          );
+          console.log(
+            `[ToolExecutor] [User: ${userId}] onramp_ngn ← Switch result: ${JSON.stringify(result)}`,
+          );
+
+          if (!result.success || !result.data) {
+            throw new Error(result.message || "Switch onramp failed");
+          }
+          
+          deposit = result.data.deposit;
+          reference = result.data.reference;
+          destinationAmount = String(result.data.destination.amount);
         }
-
-        const { deposit, reference, destination } = result.data;
 
         // Record in ledger tied to authenticated user
         try {
@@ -958,14 +998,14 @@ export async function executeTool(
             status: "PENDING",
             chain: mapAssetToTxChain(asset),
             network: "mainnet",
-            fromAddress: "SWITCH_NGN_BANK",
+            fromAddress: isStellar ? "CENTIIV_NGN_BANK" : "SWITCH_NGN_BANK",
             toAddress: walletAddress,
-            amount: String(destination.amount),
+            amount: destinationAmount,
             token: cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC",
             txHash: reference,
             feePaid: "0",
             rampDetails: {
-              provider: "switch",
+              provider: providerName,
               fiatCurrency: "NGN",
               fiatAmount: amount,
               reference,
@@ -987,7 +1027,7 @@ export async function executeTool(
           title: "Buy Crypto / Deposit",
           fiatAmount: finalFiatAmount,
           fiatCurrency: "NGN",
-          cryptoAmount: String(destination.amount),
+          cryptoAmount: destinationAmount,
           cryptoToken,
           bankName: deposit.bank_name,
           accountName: deposit.account_name,
@@ -996,12 +1036,13 @@ export async function executeTool(
           asset,
           notes: deposit.note,
           status: "pending",
+          provider: providerName,
         };
 
         summaryForAI =
-          `Onramp initiated via Switch. User should transfer ₦${amount.toLocaleString()} to ${deposit.bank_name} ` +
+          `Onramp initiated via ${isStellar ? "Centiiv" : "Switch"}. User should transfer ₦${amount.toLocaleString()} to ${deposit.bank_name} ` +
           `account ${deposit.account_number} (${deposit.account_name}). ` +
-          `They will receive ${destination.amount} ${cryptoToken} on ${asset.split(":")[0]}. ` +
+          `They will receive ${destinationAmount} ${cryptoToken} on ${asset.split(":")[0]}. ` +
           `Reference: ${reference}.`;
 
         return {
@@ -1274,9 +1315,7 @@ export async function executeTool(
           effectiveToken || cryptoToken || targetAsset.split(":")[1]?.toUpperCase() || "USDC";
 
         const cleanTargetAsset = targetAsset.toLowerCase();
-        if (cleanTargetAsset.includes("stellar")) {
-          throw new Error("NGN fiat offramp is not available on Stellar. Please select Base, Solana, or Ethereum.");
-        }
+        const isStellar = cleanTargetAsset.includes("stellar");
         if (cleanTargetAsset.includes("base") && cleanTargetAsset.includes("usdt")) {
           throw new Error("USDT is not supported on Base. Please choose Solana or Ethereum for USDT.");
         }
@@ -1284,15 +1323,20 @@ export async function executeTool(
         if (cleanCrypto > 0) {
           amount = cleanCrypto;
         } else if (cleanFiat > 0) {
-          const rateRes = await SwitchService.getOfframpRate(targetAsset);
-          if (!rateRes.success || !rateRes.rate) {
-            throw new Error(
-              rateRes.message || "Failed to fetch live offramp rate for conversion",
-            );
+          if (isStellar) {
+            const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 });
+            appliedRate = Number(quote.rate);
+            amount = parseFloat((cleanFiat / appliedRate).toFixed(2));
+          } else {
+            const rateRes = await SwitchService.getOfframpRate(targetAsset);
+            if (!rateRes.success || !rateRes.rate) {
+              throw new Error(
+                rateRes.message || "Failed to fetch live offramp rate for conversion",
+              );
+            }
+            appliedRate = rateRes.rate;
+            amount = parseFloat((cleanFiat / appliedRate).toFixed(2));
           }
-          appliedRate = rateRes.rate;
-          // Switch offramp expects amount in crypto. Round to 2 decimals for USDC/USDT:
-          amount = parseFloat((cleanFiat / appliedRate).toFixed(2));
           if (amount <= 0) {
             throw new Error("Calculated crypto amount is too small. Please enter a higher amount.");
           }
@@ -1358,26 +1402,54 @@ export async function executeTool(
           console.warn("[ToolExecutor] Balance pre-check notice:", balErr.message);
         }
 
-        // 4. Initiate offramp order with Switch using the verified account name
-        const result = await SwitchService.initiateOfframp(
-          amount,
-          targetAsset,
-          {
-            holder_name: verifiedHolderName,
-            account_number: cleanAccount,
-            bank_code: switchBank.code,
-          },
-        );
+        // 4. Initiate offramp order using the verified account name
+        let deposit: any;
+        let reference: string;
+        let destinationAmount: number;
+        let providerName: "switch" | "centiiv";
 
-        console.log(
-          `[ToolExecutor] [User: ${userId}] offramp_ngn ← Switch result: ${JSON.stringify(result)}`,
-        );
+        if (isStellar) {
+          providerName = "centiiv";
+          const centiivBank = findCentiivBank(bankName) || findCentiivBank(paystackBank.name);
+          if (!centiivBank) {
+            throw new Error(`Bank account not found`);
+          }
+          const res = await createCentiivOfframp({
+            amount: amount,
+            bankCode: centiivBank.code,
+            accountNumber: cleanAccount,
+            accountName: verifiedHolderName,
+            userId: userId,
+          });
+          
+          reference = res.id;
+          deposit = { amount: res.amount, address: res.temporaryWallet.publicAddress };
+          const quoteRate = appliedRate || Number((await getCentiivQuote({fromAsset: "USDC", toAsset: "NGN", amount: 1})).rate);
+          destinationAmount = amount * quoteRate;
+        } else {
+          providerName = "switch";
+          const result = await SwitchService.initiateOfframp(
+            amount,
+            targetAsset,
+            {
+              holder_name: verifiedHolderName,
+              account_number: cleanAccount,
+              bank_code: switchBank.code,
+            },
+          );
 
-        if (!result.success || !result.data) {
-          throw new Error(result.message || "Switch offramp failed");
+          console.log(
+            `[ToolExecutor] [User: ${userId}] offramp_ngn ← Switch result: ${JSON.stringify(result)}`,
+          );
+
+          if (!result.success || !result.data) {
+            throw new Error(result.message || "Switch offramp failed");
+          }
+          
+          deposit = result.data.deposit;
+          reference = result.data.reference;
+          destinationAmount = result.data.destination.amount;
         }
-
-        const { deposit, reference, destination } = result.data;
 
         // Record in ledger tied to authenticated user
         try {
@@ -1395,9 +1467,9 @@ export async function executeTool(
             txHash: reference,
             feePaid: "0",
             rampDetails: {
-              provider: "switch",
+              provider: providerName,
               fiatCurrency: "NGN",
-              fiatAmount: destination.amount,
+              fiatAmount: destinationAmount,
               reference,
               verifiedAccountName: verifiedHolderName,
               bankName: paystackBank.name,
@@ -1420,7 +1492,7 @@ export async function executeTool(
           title: "Withdrawal",
           cryptoAmount: String(deposit.amount),
           cryptoToken: targetToken,
-          fiatAmount: String(destination.amount),
+          fiatAmount: String(destinationAmount),
           fiatCurrency: "NGN",
           bankName: paystackBank.name,
           accountName: verifiedHolderName,
@@ -1429,19 +1501,20 @@ export async function executeTool(
           asset: targetAsset,
           reference,
           status: "pending",
+          provider: providerName,
         };
 
         let summaryForAI =
-          `Offramp draft created for ${deposit.amount} ${cardData.cryptoToken} via Switch. ` +
+          `Offramp draft created for ${deposit.amount} ${cardData.cryptoToken} via ${isStellar ? "Centiiv" : "Switch"}. ` +
           `Account verified via Paystack as **${verifiedHolderName}** (${paystackBank.name} - ${cleanAccount}). ` +
-          `The user will receive **₦${destination.amount.toLocaleString()}**. ` +
+          `The user will receive **₦${destinationAmount.toLocaleString()}**. ` +
           `Ask the user to confirm to proceed with the withdrawal. Do NOT use emojis or tell them to click buttons.`;
 
         if (cleanFiat > 0 && appliedRate) {
           summaryForAI =
             `Offramp draft created: Based on your request for ₦${cleanFiat.toLocaleString()}, at the current rate of 1 ${cardData.cryptoToken} = ₦${appliedRate.toLocaleString()}, you will withdraw ${deposit.amount} ${cardData.cryptoToken}. ` +
             `Account verified via Paystack as **${verifiedHolderName}** (${paystackBank.name} - ${cleanAccount}). ` +
-            `The user will receive **₦${destination.amount.toLocaleString()}**. ` +
+            `The user will receive **₦${destinationAmount.toLocaleString()}**. ` +
             `Ask the user to confirm to proceed with the withdrawal. Do NOT use emojis or tell them to click buttons.`;
         }
 
@@ -1506,17 +1579,28 @@ export async function executeTool(
         let onrampRate: number | undefined;
         let offrampRate: number | undefined;
 
+        const isStellar = targetAsset.toLowerCase().includes("stellar");
         if (direction === "onramp" || direction === "both") {
-          const res = await SwitchService.getOnrampRate(targetAsset);
-          if (res.success && res.rate) {
-            onrampRate = res.rate;
+          if (isStellar) {
+            const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 });
+            onrampRate = Number(quote.rate);
+          } else {
+            const res = await SwitchService.getOnrampRate(targetAsset);
+            if (res.success && res.rate) {
+              onrampRate = res.rate;
+            }
           }
         }
 
         if (direction === "offramp" || direction === "both") {
-          const res = await SwitchService.getOfframpRate(targetAsset);
-          if (res.success && res.rate) {
-            offrampRate = res.rate;
+          if (isStellar) {
+            const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 });
+            offrampRate = Number(quote.rate);
+          } else {
+            const res = await SwitchService.getOfframpRate(targetAsset);
+            if (res.success && res.rate) {
+              offrampRate = res.rate;
+            }
           }
         }
 

@@ -102,7 +102,7 @@ export const switchOfframpSchema = z.object({
 export type SwitchOfframpInput = z.infer<typeof switchOfframpSchema>;
 
 /**
- * Validation for switch status checks (/api/switch/status)
+ * Validation for switch status checks (/api/onramp/status)
  */
 export const switchStatusQuerySchema = z.object({
   reference: z

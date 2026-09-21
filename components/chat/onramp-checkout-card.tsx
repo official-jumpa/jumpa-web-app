@@ -33,7 +33,7 @@ export function OnrampCheckoutCard({ card, onPaid }: OnrampCheckoutCardProps) {
     if (isDone || isAlreadyDone || !card.reference) return;
 
     let isMounted = true;
-    fetch(`/api/switch/status?reference=${encodeURIComponent(card.reference)}`)
+    fetch(`/api/onramp/status?reference=${encodeURIComponent(card.reference)}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (isMounted && data?.success && data.isCompleted) {
@@ -54,7 +54,7 @@ export function OnrampCheckoutCard({ card, onPaid }: OnrampCheckoutCardProps) {
 
     try {
       const res = await fetch(
-        `/api/switch/status?reference=${encodeURIComponent(card.reference)}`,
+        `/api/onramp/status?reference=${encodeURIComponent(card.reference)}`,
       );
       const data = await res.json();
 

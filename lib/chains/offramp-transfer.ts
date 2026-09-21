@@ -25,6 +25,8 @@ import { createPublicClient, createWalletClient, http, parseUnits } from "viem";
 import { base } from "viem/chains";
 import { mnemonicToAccount } from "viem/accounts";
 import { environment } from "@/lib/environment";
+import { submitCentiivStellarPayment } from "@/lib/functions/centiivFunctions";
+import * as StellarSdk from "@stellar/stellar-sdk";
 
 const ERC20_ABI = [
   {
@@ -47,13 +49,17 @@ const ERC20_ABI = [
 import { CONTRACT_ADDRESSES, getExplorerTxUrl } from "@/lib/blockchain";
 
 export interface OfframpAssetConfig {
-  chain: "base" | "solana";
+  chain: "base" | "solana" | "stellar";
   address?: string; // For EVM
   mint?: string; // For Solana
   decimals: number;
 }
 
 export const OFFRAMP_ASSETS: Record<string, OfframpAssetConfig> = {
+  "stellar:usdc": {
+    chain: "stellar" as any,
+    decimals: 7,
+  },
   "base:usdc": {
     chain: "base",
     address: CONTRACT_ADDRESSES.base.mainnet.USDC.address,
@@ -110,6 +116,37 @@ export async function executeOfframpTransfer(options: {
 
   try {
     // ── 1. Base / EVM Transfer
+    if (config.chain === "stellar") {
+      try {
+        const seed = await bip39.mnemonicToSeed(mnemonic);
+        const derivationPath = "m/44'/148'/0'";
+        const derivedSeed = derivePath(derivationPath, seed.toString("hex")).key;
+        const keypair = StellarSdk.Keypair.fromRawEd25519Seed(Buffer.from(derivedSeed));
+        const secret = keypair.secret();
+        
+        console.log(`[OfframpTransfer] Stellar account: ${keypair.publicKey()}`);
+        
+        const txRes = await submitCentiivStellarPayment({
+          destinationAddress: depositAddress,
+          usdcAmount: amount.toString(),
+          userSecretKey: secret
+        });
+        
+        return {
+          success: true,
+          txHash: txRes.hash,
+          explorerUrl: `https://stellar.expert/explorer/public/tx/${txRes.hash}`
+        };
+      } catch (err: any) {
+        let details = err.message;
+        if (err.response && err.response.data) {
+          details += " - " + JSON.stringify(err.response.data);
+        }
+        console.error("[OfframpTransfer] Stellar error:", details);
+        return { success: false, error: "Stellar transfer failed: " + details };
+      }
+    }
+
     if (config.chain === "base") {
       const baseRpc =
         environment.ALCHEMY_BASE_MAINNET_RPC;

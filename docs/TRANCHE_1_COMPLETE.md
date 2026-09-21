@@ -157,7 +157,7 @@ Jumpa integrates interactive sandboxes and checkout sheets for hosted ramp provi
 
 - **Responsive Bottom Sheet Primitive:** [`components/ui/bottom-sheet.tsx`](../components/ui/bottom-sheet.tsx) provides a mobile-first dimmed overlay and bottom panel tailored for 393px viewport constraints.
 - **Onramp & Offramp Sheets / Cards:**
-  - [`components/chat/onramp-checkout-card.tsx`](../components/chat/onramp-checkout-card.tsx): Step-by-step deposit details with live status verification and polling (`/api/switch/status`).
+  - [`components/chat/onramp-checkout-card.tsx`](../components/chat/onramp-checkout-card.tsx): Step-by-step deposit details with live status verification and polling (`/api/onramp/status`).
   - [`components/chat/offramp-checkout-card.tsx`](../components/chat/offramp-checkout-card.tsx): Direct offramp staging with account number validation.
   - [`components/chat/ramp-parts.tsx`](../components/chat/ramp-parts.tsx): Atomic conversion blocks, copyable account fields, step labels, and notice banners.
 - **Multi-Provider Data Model:** [`models/Transaction.ts`](../models/Transaction.ts) explicitly models `provider: "switch" | "moneygram" | "mercuryo"` with dedicated fields for tracking interactive sandbox sessions, deposit addresses, and payment references.

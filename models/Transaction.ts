@@ -55,7 +55,7 @@ export interface ITransaction {
 
   // Fiat Ramp Details (if type === "ONRAMP" | "OFFRAMP")
   rampDetails?: {
-    provider: "switch" | "moneygram" | "mercuryo";
+    provider: "switch" | "moneygram" | "mercuryo" | "centiiv";
     fiatCurrency: string;
     fiatAmount: number;
     reference?: string;

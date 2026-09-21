@@ -8,22 +8,6 @@ export default function robots(): MetadataRoute.Robots {
         allow: '/',
         disallow: ['/api/'],
       },
-      {
-        userAgent: [
-          'GPTBot',
-          'ChatGPT-User',
-          'Google-Extended',
-          'AnthropicAI',
-          'ClaudeBot',
-          'Claude-Web',
-          'Omgilibot',
-          'FacebookExternalHit',
-          'PerplexityBot',
-          'Bytespider',
-          'CCBot',
-        ],
-        disallow: '/',
-      },
     ],
   };
 }

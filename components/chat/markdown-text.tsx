@@ -101,7 +101,9 @@ export function MarkdownText({
               <CopyableAddress value={bold} />
             ) : (
               <strong className="font-bold text-jumpa-black wrap-anywhere">
-                {boldMatch[1]}
+                {/* Bold runs reveal with the rest, or a figure pops in ahead of
+                    the words around it. */}
+                {reveal ? revealWords(boldMatch[1], index) : boldMatch[1]}
               </strong>
             )}
           </Fragment>

@@ -101,6 +101,20 @@ export function isSellable(token: TokenBalanceInfo): boolean {
 }
 
 /**
+ * Balances are printed rounded DOWN. A raw float ("7.9966835 XLM") reads as a
+ * broken number, and rounding up would claim more than the wallet holds.
+ */
+function formatBalance(raw: string | number): string {
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return "0";
+  const digits = value > 0 && value < 0.01 ? 6 : 2;
+  const factor = 10 ** digits;
+  return (Math.floor(value * factor) / factor).toLocaleString("en-US", {
+    maximumFractionDigits: digits,
+  });
+}
+
+/**
  * Where the money comes from. The design draws a Savings/Balance split; there is
  * no savings balance yet, so the rows are the holdings that can actually be sold
  * — which is also what the offramp needs (token + network) and saves asking twice.
@@ -112,7 +126,7 @@ function fundingOptions(tokens: TokenBalanceInfo[]): ChatOption[] {
       label: token.network
         ? `${token.symbol} on ${token.network}`
         : token.symbol,
-      amount: `${Number(token.balance).toLocaleString("en-US", { maximumFractionDigits: 2 })}`,
+      amount: formatBalance(token.balance),
       icon: "balance",
       reply: token.network
         ? `Sell my ${token.symbol} on ${token.network}`
@@ -1180,12 +1194,17 @@ export async function executeTool(
         // Nothing sellable. Never fall back to a chain the user did not name —
         // quoting one reports an empty balance on a network they never chose.
         if (allTokens.length > 0) {
+          // Testnet coins are not money. Listing them in a cash-out answer reads
+          // as a balance the user could sell, so only mainnet holdings are named.
           const held = allTokens
-            .filter((t) => Number(t.balance) > 0)
+            .filter((t) => !t.isTestnet && Number(t.balance) > 0)
             .map(
               (t) =>
-                `${Number(t.balance)} ${t.symbol}${t.network ? ` on ${t.network}` : ""}`,
+                `**${formatBalance(t.balance)} ${t.symbol}**${t.network ? ` on ${t.network}` : ""}`,
             );
+          const onTestnet = allTokens.some(
+            (t) => t.isTestnet && Number(t.balance) > 0,
+          );
           return {
             toolName: name,
             summaryForAI:
@@ -1193,7 +1212,11 @@ export async function executeTool(
               (held.length > 0
                 ? `They hold ${held.join(", ")}. `
                 : "Their mainnet wallets are empty. ") +
+              (onTestnet
+                ? "Any testnet balance they have is test money and can never be cashed out — do not quote it or convert it. "
+                : "") +
               "Cash-out works from USDC on Base, Solana, Ethereum or Stellar, and USDT on Solana or Ethereum (mainnet only). " +
+              "There is no exchange rate in this answer: state NO naira value and NO rate, because none was fetched. " +
               "Say so without naming one of those networks as if they had picked it, and offer to fund a wallet or swap into a sellable token.",
             cardHint: { type: "none" },
             requiresConfirmation: false,
@@ -1437,9 +1460,16 @@ export async function executeTool(
           );
 
           if (tokenObj && currentBal < amount) {
+            // Only print a naira figure we actually have — with no rate fetched
+            // this used to render a bare "₦".
+            const naira = cleanFiat
+              ? cleanFiat.toLocaleString()
+              : appliedRate
+                ? Math.round(amount * appliedRate).toLocaleString()
+                : "";
             return {
               toolName: name,
-              summaryForAI: `Insufficient balance: you have ${currentBal.toFixed(2)} ${targetToken} on ${chainLabel}, but ${amount} ${targetToken} (approx. ₦${cleanFiat ? cleanFiat.toLocaleString() : (appliedRate ? (amount * appliedRate).toLocaleString() : "")}) is required for this withdrawal. Please fund your ${chainLabel} wallet or choose a smaller amount.`,
+              summaryForAI: `Insufficient balance: you have **${formatBalance(currentBal)} ${targetToken}** on **${chainLabel}**, but **${amount} ${targetToken}**${naira ? ` (approx. **₦${naira}**)` : ""} is required for this withdrawal. Keep every figure bold in your reply, and do not state any rate or naira value beyond the ones given here. Please fund your ${chainLabel} wallet or choose a smaller amount.`,
               cardHint: { type: "none" },
               requiresConfirmation: false,
             };

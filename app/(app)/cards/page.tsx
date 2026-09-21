@@ -4,6 +4,7 @@ import { CardLimitsView } from "@/components/cards/card-limits-view";
 import { CardsView } from "@/components/cards/cards-view";
 import { CreateCardView } from "@/components/cards/create-card-view";
 import { FundCardView } from "@/components/cards/fund-card-view";
+import { ComingSoon } from "@/components/ui/coming-soon";
 import {
   CARD_TIER,
   CARDS,
@@ -16,6 +17,13 @@ interface CardsPageProps {
   searchParams: Promise<{ view?: string; account?: string }>;
 }
 
+/**
+ * Cards is muted in the nav until the card service lands. The whole route is
+ * gated here too, so a typed URL or an old link cannot reach a `?view=` step —
+ * flip this to true to go live, along with `soon` on the Cards tab.
+ */
+const CARDS_ENABLED: boolean = false;
+
 const TITLES: Record<string, string> = {
   new: "Create new card",
   fund: "Fund your card",
@@ -27,6 +35,7 @@ export async function generateMetadata({
   searchParams,
 }: CardsPageProps): Promise<Metadata> {
   const { view } = await searchParams;
+  if (!CARDS_ENABLED) return { title: "Cards" };
   return { title: (view && TITLES[view]) || "Cards" };
 }
 
@@ -36,6 +45,9 @@ export async function generateMetadata({
  */
 export default async function CardsPage({ searchParams }: CardsPageProps) {
   const { view, account } = await searchParams;
+
+  // One gate for the tab and all four `?view=` steps.
+  if (!CARDS_ENABLED) return <ComingSoon feature="Cards" />;
 
   if (view === "limits") {
     return <CardLimitsView tier={CARD_TIER} limits={USAGE_LIMITS} />;

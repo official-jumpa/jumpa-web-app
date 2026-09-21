@@ -66,10 +66,10 @@ export function BottomNav() {
   const searchParams = useSearchParams();
 
   // Only render on primary tab roots, not inside modal-like subflows (e.g. chat, tx-detail, notifications).
-  // `/cards` is flattened, so its `?view=` steps (new, create, fund, limits) are flows, not the tab.
+  // `/cards` is gated behind CARDS_ENABLED and renders a stub, so it draws no bar —
+  // put `(pathname === "/cards" && !searchParams?.get("view"))` back when it goes live.
   const isTabRoute =
     pathname === "/home" ||
-    (pathname === "/cards" && !searchParams?.get("view")) ||
     (pathname === "/transactions" &&
       !searchParams?.get("id") &&
       !searchParams?.get("statement")) ||

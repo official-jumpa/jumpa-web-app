@@ -96,7 +96,7 @@ export function LandingFooter() {
             >
               {FOOTER.columns[0].links.map((link) => (
                 <li key={link.label}>
-                  <Link href={link.href} className={COLUMN_LINK}>
+                  <Link prefetch href={link.href} className={COLUMN_LINK}>
                     {link.label}
                   </Link>
                 </li>
@@ -142,6 +142,7 @@ export function LandingFooter() {
             >
               {FOOTER.legal.map((link) => (
                 <Link
+                  prefetch
                   key={link.label}
                   href={link.href}
                   className={`tap text-u-14/20 font-medium tracking-jumpa-snug text-jumpa-white/85 hover:text-jumpa-alt-400 ${TEXT_14}`}

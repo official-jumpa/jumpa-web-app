@@ -86,6 +86,7 @@ export function ProductScreen({
         title={title}
         action={
           <Link
+            prefetch
             href={newHref}
             aria-label={cta}
             className="tap flex size-9.5 items-center justify-center rounded-full border border-jumpa-primary-600 bg-jumpa-secondary-150 text-jumpa-primary-600 active:scale-95"
@@ -98,6 +99,7 @@ export function ProductScreen({
       <div className="mt-4 flex flex-col gap-2">
         <SavingsBalance {...balance} />
         <Link
+          prefetch
           href={newHref}
           className="tap flex h-11 items-center justify-center rounded-pill bg-jumpa-primary-600 text-xs leading-3 font-semibold text-jumpa-primary-50 active:scale-[0.98]"
         >

@@ -21,7 +21,7 @@ export function TransactionHistory({
       title="Transaction History"
       className="mt-4 gap-4"
       action={
-        <Link href="/transactions" className="tap active:scale-95">
+        <Link prefetch href="/transactions" className="tap active:scale-95">
           See All
         </Link>
       }

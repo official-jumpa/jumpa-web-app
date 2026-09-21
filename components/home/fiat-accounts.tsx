@@ -146,6 +146,7 @@ function AccountCard({ account }: { account: FiatAccount }) {
   if (account.balance !== null) {
     return (
       <Link
+        prefetch
         href={DETAILS[account.id]}
         aria-label={`Open your ${account.label}`}
         className="relative flex flex-1 flex-col gap-4 rounded-panel bg-jumpa-neutral-50 px-4 py-2.5 transition-colors hover:bg-jumpa-neutral-100/70 active:scale-[0.99]"
@@ -205,6 +206,7 @@ function AccountCard({ account }: { account: FiatAccount }) {
         </span>
       ) : (
         <Link
+          prefetch
           href={CREATE[account.id]}
           className="tap flex h-8.25 items-center justify-center rounded-pill bg-jumpa-white text-[10px] font-medium text-jumpa-primary-600 active:scale-95"
         >

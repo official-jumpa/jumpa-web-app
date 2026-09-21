@@ -43,6 +43,7 @@ export function CardsView({
             back="/home"
             action={
               <Link
+                prefetch
                 href="/cards?view=new"
                 className="flex items-center gap-1 rounded-pill bg-jumpa-primary-50 px-2 py-2.5 text-[10px] leading-3.5 font-medium text-jumpa-primary-950 inset-ring-1 inset-ring-jumpa-primary-200"
               >

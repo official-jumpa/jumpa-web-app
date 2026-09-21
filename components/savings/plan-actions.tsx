@@ -24,7 +24,7 @@ export function PlanAction({
   children: ReactNode;
 }) {
   return (
-    <Link href={href} className={PLAN_ACTION_BUTTON}>
+    <Link prefetch href={href} className={PLAN_ACTION_BUTTON}>
       <Icon className="size-6 text-jumpa-primary-600" />
       {children}
     </Link>

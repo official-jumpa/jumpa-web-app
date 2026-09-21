@@ -52,6 +52,7 @@ export function StatementRequestSheet({ onClose }: { onClose: () => void }) {
               // opens it directly rather than a second picker on the way.
               option.id === "custom" ? (
                 <Link
+                  prefetch
                   key={option.id}
                   href={statementHref("general")}
                   className={cn(CHIP, CHIP_OFF)}

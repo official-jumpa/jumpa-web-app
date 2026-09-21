@@ -79,6 +79,7 @@ export function ChatHeader({
         className={`sticky top-0 z-50 flex items-center justify-between gap-3 px-4 pt-[calc(env(safe-area-inset-top)+13px)] pb-2 ${HEADER_BLUR}`}
       >
         <Link
+          prefetch
           href="/home"
           aria-label="Close chat"
           className={`${CONTROL} size-10`}

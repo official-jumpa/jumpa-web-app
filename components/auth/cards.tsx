@@ -30,7 +30,7 @@ export function InsetCard({
 
   if (href) {
     return (
-      <Link href={href} className="block w-full">
+      <Link prefetch href={href} className="block w-full">
         {content}
       </Link>
     );
@@ -53,6 +53,7 @@ export function OptionRow({
 }) {
   return (
     <Link
+      prefetch
       href={href}
       className="flex items-center gap-2.5 rounded-panel border border-jumpa-primary-100 bg-jumpa-white py-4.75 pr-4.5 pl-5.5 transition-all hover:border-jumpa-primary-300"
     >

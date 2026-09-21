@@ -15,6 +15,7 @@ export function LandingNav() {
           at 768, where the frame unit is at its smallest. */}
       <div className="mx-auto flex h-32.25 w-320 items-center justify-between md:h-auto md:min-h-50 md:w-1300">
         <Link
+          prefetch
           href="/"
           aria-label="Jumpa home"
           className="shrink-0 animate-drop-in"

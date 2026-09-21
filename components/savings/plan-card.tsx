@@ -107,7 +107,7 @@ export function PlanCard({ plan, href }: { plan: SavingsPlan; href?: string }) {
   }`;
 
   return href ? (
-    <Link href={href} className={`tap ${shell} active:scale-[0.99]`}>
+    <Link prefetch href={href} className={`tap ${shell} active:scale-[0.99]`}>
       {body}
     </Link>
   ) : (

@@ -1,17 +1,16 @@
+import { BiometricRows } from "@/components/settings/biometric-rows";
 import { settingsHref } from "@/components/settings/sections";
-import { SettingLink, SettingRow } from "@/components/settings/setting-row";
+import { SettingLink } from "@/components/settings/setting-row";
 import {
   SettingCard,
   SettingRule,
   SettingSection,
 } from "@/components/settings/setting-section";
 import { SettingsHeader } from "@/components/settings/settings-header";
-import { Toggle } from "@/components/settings/toggle";
 import { DialpadCircleIcon } from "@/components/ui/icons/dialpad-circle";
-import { FaceIdIcon } from "@/components/ui/icons/face-id";
 import { KeyIcon } from "@/components/ui/icons/key";
 import { MobileIcon } from "@/components/ui/icons/mobile";
-import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
+import { ACCOUNT } from "@/lib/wallet";
 
 /** `?section=security`. */
 export function SecuritySettings() {
@@ -22,16 +21,8 @@ export function SecuritySettings() {
       <div className="mt-4.25 flex flex-col gap-4">
         <SettingSection label="Biometrics/Authentications">
           <SettingCard>
-            <SettingRow
-              icon={FaceIdIcon}
-              label="Face ID/ Fingerprints for Login"
-              action={<Toggle label="Face ID or fingerprint for login" />}
-            />
-            <SettingRule />
-            <SettingRow
-              icon={FaceIdIcon}
-              label="Face ID for Transactions"
-              action={<Toggle label="Face ID for transactions" />}
+            <BiometricRows
+              account={{ id: ACCOUNT.firstName, name: ACCOUNT.firstName }}
             />
           </SettingCard>
         </SettingSection>

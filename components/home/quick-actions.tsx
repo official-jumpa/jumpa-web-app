@@ -51,7 +51,11 @@ export function QuickActions() {
             </li>
           ) : (
             <li key={label}>
-              <Link href={href} className={`tap ${TILE} active:scale-95`}>
+              <Link
+                prefetch
+                href={href}
+                className={`tap ${TILE} active:scale-95`}
+              >
                 <span className={DISC}>
                   <Icon className="size-6" />
                 </span>

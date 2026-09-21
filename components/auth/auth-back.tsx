@@ -12,6 +12,7 @@ export function AuthBack({ href }: { href: string }) {
 
   return (
     <Link
+      prefetch
       href={href}
       onClick={(event) => {
         if (!hasInAppHistory()) return;

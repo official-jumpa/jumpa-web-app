@@ -20,7 +20,7 @@ export function RingedButton({
 )) {
   if (href !== undefined) {
     return (
-      <Link href={href} className={RING}>
+      <Link prefetch href={href} className={RING}>
         <span className={FILL}>{children}</span>
       </Link>
     );

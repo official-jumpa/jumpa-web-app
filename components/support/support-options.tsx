@@ -73,7 +73,7 @@ export function SupportOptionList() {
               <SupportOptionBody option={option} />
             </a>
           ) : (
-            <Link href={option.href} className={ROW}>
+            <Link prefetch href={option.href} className={ROW}>
               <SupportOptionBody option={option} />
             </Link>
           )}

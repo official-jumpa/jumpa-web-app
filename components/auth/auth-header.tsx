@@ -41,6 +41,7 @@ export function AuthTitleBar({
   return (
     <header className="flex items-center">
       <Link
+        prefetch
         href={backHref}
         aria-label="Back"
         className="rounded-pill bg-jumpa-neutral-50 p-2.5 text-jumpa-primary-950"

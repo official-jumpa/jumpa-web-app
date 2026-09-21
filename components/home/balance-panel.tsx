@@ -113,7 +113,7 @@ export function BalancePanel({
           Receive
         </button>
 
-        <Link href="/swap" className={TRANSFER}>
+        <Link prefetch href="/swap" className={TRANSFER}>
           <span className="flex size-8 items-center justify-center rounded-panel bg-jumpa-primary-400 text-jumpa-alt-400">
             <SwitchHorizontalIcon className="size-6" />
           </span>

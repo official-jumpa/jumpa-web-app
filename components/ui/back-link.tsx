@@ -37,6 +37,7 @@ export function BackLink({
 
   return (
     <Link
+      prefetch
       href={href}
       aria-label={label ? undefined : "Go back"}
       onClick={(event) => {

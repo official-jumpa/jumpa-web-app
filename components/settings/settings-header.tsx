@@ -31,7 +31,12 @@ export function SettingsHeader({
           <CornerUpLeftIcon className="size-6" />
         </button>
       ) : (
-        <Link href={back ?? "/home"} aria-label="Go back" className={CONTROL}>
+        <Link
+          prefetch
+          href={back ?? "/home"}
+          aria-label="Go back"
+          className={CONTROL}
+        >
           <CornerUpLeftIcon className="size-6" />
         </Link>
       )}

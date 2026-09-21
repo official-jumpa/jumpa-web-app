@@ -54,6 +54,7 @@ export function WalletHeader() {
   return (
     <header className="flex items-center justify-between">
       <Link
+        prefetch
         href="/profile"
         className="flex items-center gap-2 tap active:scale-95"
       >

@@ -237,7 +237,7 @@ export function NgnAccountDetails() {
       {/* Action Buttons: Deposit & Withdraw */}
       <nav className="mt-6 flex items-start justify-center gap-10">
         {actions.map(({ label, href, Icon }) => (
-          <Link key={label} href={href} className={ACTION}>
+          <Link prefetch key={label} href={href} className={ACTION}>
             <span className="flex size-14 items-center justify-center rounded-full bg-jumpa-primary-50 text-jumpa-primary-600 shadow-sm transition hover:bg-jumpa-primary-100">
               <Icon className="size-6" />
             </span>
@@ -280,6 +280,7 @@ export function NgnAccountDetails() {
       <div className="mt-8 flex items-center justify-between text-sm leading-4.5 font-medium text-jumpa-black">
         <h2>Transaction History</h2>
         <Link
+          prefetch
           href="/transactions?chain=fiat"
           className="text-jumpa-primary-950 tap active:scale-95"
         >

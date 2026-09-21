@@ -16,7 +16,7 @@ export default function SignInPage() {
       header={<AuthHeader backHref="/onboarding" />}
       footer={
         <div className="mt-8 flex flex-col gap-3.25">
-          <Link href="/import-wallet">
+          <Link prefetch href="/import-wallet">
             <InsetCard>
               <span className="flex items-center gap-2">
                 <WalletArrowRightIcon className="size-6 shrink-0 text-jumpa-primary-600" />
@@ -53,7 +53,7 @@ export default function SignInPage() {
 
         <p className="text-xs font-semibold text-jumpa-black">
           Don't have an account?{" "}
-          <Link href="/sign-up" className="text-jumpa-primary-600">
+          <Link prefetch href="/sign-up" className="text-jumpa-primary-600">
             Sign Up
           </Link>
         </p>

@@ -68,7 +68,7 @@ export function Button({
   if ("href" in rest && rest.href !== undefined) {
     const { href, ...linkRest } = rest;
     return (
-      <Link href={href} className={classes} {...linkRest}>
+      <Link prefetch href={href} className={classes} {...linkRest}>
         {children}
       </Link>
     );

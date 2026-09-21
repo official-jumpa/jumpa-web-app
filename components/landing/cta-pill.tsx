@@ -32,7 +32,7 @@ export function CtaPill({
 
   if (rest.href !== undefined) {
     return (
-      <Link href={rest.href} className={classes} style={style}>
+      <Link prefetch href={rest.href} className={classes} style={style}>
         {children}
       </Link>
     );

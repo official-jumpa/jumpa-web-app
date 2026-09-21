@@ -59,7 +59,11 @@ export function ReceiveOptionList() {
     <ul className="flex w-full flex-col gap-2">
       {RECEIVE_OPTIONS.map(({ id, href }) => (
         <li key={id}>
-          <Link href={href} className={`${RECEIVE_ROW} ${RECEIVE_ROW_RESTING}`}>
+          <Link
+            prefetch
+            href={href}
+            className={`${RECEIVE_ROW} ${RECEIVE_ROW_RESTING}`}
+          >
             <ReceiveOptionBody id={id} />
           </Link>
         </li>

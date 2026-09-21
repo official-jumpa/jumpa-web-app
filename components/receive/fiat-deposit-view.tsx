@@ -243,6 +243,7 @@ export function FiatDepositView() {
           <ShareDetailsButton text={shareText} />
 
           <Link
+            prefetch
             href="/ngn-account?view=details"
             className="tap py-2 text-center text-xs leading-4 font-semibold text-jumpa-primary-600 active:scale-95"
           >

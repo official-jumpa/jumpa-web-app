@@ -26,6 +26,7 @@ export function PromotionList({ promotions }: { promotions: Promotion[] }) {
         return (
           <li key={promotion.id} className="shrink-0 snap-start">
             <Link
+              prefetch
               href={promotion.href}
               className={`relative block h-20 w-61.25 overflow-hidden rounded-panel ${tone.surface}`}
             >

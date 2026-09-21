@@ -80,6 +80,7 @@ export function PasteAction({ onPaste }: { onPaste: (text: string) => void }) {
 export function ScanAction({ href = "/send/scan" }: { href?: string }) {
   return (
     <Link
+      prefetch
       href={href}
       aria-label="Scan a QR code"
       className="tap flex size-9 shrink-0 items-center justify-center rounded-full bg-jumpa-primary-50 text-jumpa-primary-600 active:scale-95"

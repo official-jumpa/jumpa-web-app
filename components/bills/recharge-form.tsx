@@ -141,6 +141,7 @@ export function RechargeForm({
                         alt=""
                         width={44}
                         height={44}
+                        loading="eager"
                         className={
                           entry.tint
                             ? "size-6 object-contain"

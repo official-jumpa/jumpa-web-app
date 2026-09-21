@@ -237,7 +237,7 @@ export function TokenDetailView({
           );
 
           return href ? (
-            <Link key={label} href={href} className={ACTION}>
+            <Link prefetch key={label} href={href} className={ACTION}>
               {body}
             </Link>
           ) : (
@@ -256,6 +256,7 @@ export function TokenDetailView({
       <div className="mt-8 flex items-center justify-between text-sm leading-4.5 font-medium text-jumpa-black">
         <h2>Transaction History</h2>
         <Link
+          prefetch
           href={
             chain
               ? `/transactions?chain=${encodeURIComponent(chain.id)}`

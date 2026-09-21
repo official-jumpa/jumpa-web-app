@@ -40,7 +40,7 @@ export function OptionRow({
 
   if (href) {
     return (
-      <Link href={href} className={className}>
+      <Link prefetch href={href} className={className}>
         {body}
       </Link>
     );

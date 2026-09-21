@@ -15,6 +15,7 @@ export default function BiometricsPage() {
           backHref="/sign-up/pin/confirm"
           action={
             <Link
+              prefetch
               href="/sign-up/done"
               className="flex h-9 items-center rounded-pill bg-jumpa-primary-50 px-5.5 text-sm leading-4 font-medium text-jumpa-primary-950"
             >

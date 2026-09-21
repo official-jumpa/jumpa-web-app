@@ -110,6 +110,7 @@ export function AdBanner({ ads = ADS }: { ads?: Ad[] }) {
 
           return (
             <Link
+              prefetch
               key={ad.id}
               href={ad.href}
               aria-hidden={!active}

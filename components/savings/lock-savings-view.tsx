@@ -181,6 +181,7 @@ export function LockSavingsView() {
         }
         actions={
           <Link
+            prefetch
             href="/savings/lock"
             className="tap flex h-16 w-full items-center justify-between rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-6 text-xs leading-3.5 text-jumpa-black active:scale-[0.99]"
           >

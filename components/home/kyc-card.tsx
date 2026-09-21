@@ -7,6 +7,7 @@ export function KycCard() {
 
   return (
     <Link
+      prefetch
       href="/kyc"
       className="flex h-20 items-center gap-4.5 rounded-xl border-[1.5px] border-jumpa-primary-50 bg-jumpa-neutral-50 pr-4 pl-3.25"
     >

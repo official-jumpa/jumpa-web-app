@@ -26,7 +26,7 @@ export default function SignUpPage() {
 
         <p className="text-xs font-semibold text-jumpa-black">
           Have an account?{" "}
-          <Link href="/sign-in" className="text-jumpa-primary-600">
+          <Link prefetch href="/sign-in" className="text-jumpa-primary-600">
             Sign In
           </Link>
         </p>

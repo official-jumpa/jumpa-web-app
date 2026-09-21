@@ -18,7 +18,11 @@ export function AssetList({ assets, visible = false }: AssetListProps) {
     <HomeSection
       title="Your Wallets"
       action={
-        <Link href="/assets" className="text-xs text-jumpa-primary-950">
+        <Link
+          prefetch
+          href="/assets"
+          className="text-xs text-jumpa-primary-950"
+        >
           See All
         </Link>
       }
@@ -31,6 +35,7 @@ export function AssetList({ assets, visible = false }: AssetListProps) {
             className="shrink-0 snap-start"
           >
             <Link
+              prefetch
               href={`/assets?token=${asset.symbol.toLowerCase()}`}
               className="tap flex h-27 w-38.75 flex-col justify-between rounded-panel bg-jumpa-neutral-50 px-4 py-3.5 active:scale-[0.98]"
             >

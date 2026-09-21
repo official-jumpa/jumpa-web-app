@@ -76,6 +76,7 @@ export function SettingLink({
 }) {
   return (
     <Link
+      prefetch
       href={href}
       className="flex items-center justify-between gap-3 tap active:scale-[0.99]"
     >

@@ -21,6 +21,7 @@ export function SavingsView() {
         title="Savings"
         action={
           <Link
+            prefetch
             href={savingsHref("individual", { create: true })}
             aria-label="Start a new savings goal"
             className="tap flex size-9.5 items-center justify-center rounded-full border border-jumpa-primary-600 bg-jumpa-secondary-150 text-jumpa-primary-600 active:scale-95"

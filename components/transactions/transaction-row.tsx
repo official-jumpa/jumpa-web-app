@@ -116,6 +116,7 @@ export function TransactionRow({
 
   return (
     <Link
+      prefetch
       href={`/transactions?id=${encodeURIComponent(id)}`}
       className="tap flex items-center gap-1.5 text-left active:scale-[0.98]"
     >

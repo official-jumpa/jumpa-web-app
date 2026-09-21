@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { AppColumn } from "@/components/ui/app-column";
 import { Toaster } from "@/components/ui/toast";
@@ -9,6 +10,12 @@ export { AuthGuard, useAuthContext };
 
 export const dynamic = "force-dynamic";
 
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 /** Signed-in column. Same shell as the auth flow. */
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (

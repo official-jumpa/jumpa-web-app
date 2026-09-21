@@ -5,7 +5,7 @@ export const STELLAR_TESTNET_HORIZON = environment.STELLAR_TESTNET;
 export const STELLAR_MAINNET_HORIZON = environment.STELLAR_MAINNET;
 export const STELLAR_FRIENDBOT_URL = "https://friendbot.stellar.org";
 export const STELLAR_TESTNET_SOROBAN_RPC = "https://soroban-testnet.stellar.org";
-export const STELLAR_MAINNET_SOROBAN_RPC = "https://soroban-rpc.stellar.org";
+export const STELLAR_MAINNET_SOROBAN_RPC = "https://mainnet.sorobanrpc.com";
 
 // Horizon server singletons
 export const stellarTestnetServer = new StellarSdk.Horizon.Server(

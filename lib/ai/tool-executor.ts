@@ -120,6 +120,19 @@ function fundingOptions(tokens: TokenBalanceInfo[]): ChatOption[] {
     }));
 }
 
+/**
+ * Every pair that can be cashed out, as a chooser. Used only when balances
+ * cannot be read — the user picks the network, we never assume one for them.
+ */
+const SELLABLE_ASSETS: ChatOption[] = [
+  "USDC on Base",
+  "USDC on Solana",
+  "USDC on Ethereum",
+  "USDC on Stellar",
+  "USDT on Solana",
+  "USDT on Ethereum",
+].map((label) => ({ label, icon: "balance", reply: `Sell my ${label}` }));
+
 /** Map a balance record's network label to a Switch-supported chain identifier. */
 function networkToSwitchChain(network?: string): string | null {
   if (!network) return null;
@@ -1145,13 +1158,14 @@ export async function executeTool(
 
       if (!effectiveAsset || !effectiveToken) {
         const balances = await getCachedWalletBalances(userId);
+        const allTokens = balances?.tokens || [];
         const relevantTokens = effectiveToken
-          ? (balances?.tokens || []).filter(
+          ? allTokens.filter(
               (t) => t.symbol.toUpperCase() === effectiveToken!.toUpperCase(),
             )
-          : (balances?.tokens || []);
+          : allTokens;
         const sources = fundingOptions(
-          relevantTokens.length > 0 ? relevantTokens : (balances?.tokens || []),
+          relevantTokens.length > 0 ? relevantTokens : allTokens,
         );
 
         if (sources.length > 0) {
@@ -1162,9 +1176,37 @@ export async function executeTool(
             requiresConfirmation: false,
           };
         }
-        // No sellable balance on supported offramp networks — default to base:usdc for quotes/rate check
-        effectiveAsset = effectiveAsset || "base:usdc";
-        effectiveToken = effectiveToken || "USDC";
+
+        // Nothing sellable. Never fall back to a chain the user did not name —
+        // quoting one reports an empty balance on a network they never chose.
+        if (allTokens.length > 0) {
+          const held = allTokens
+            .filter((t) => Number(t.balance) > 0)
+            .map(
+              (t) =>
+                `${Number(t.balance)} ${t.symbol}${t.network ? ` on ${t.network}` : ""}`,
+            );
+          return {
+            toolName: name,
+            summaryForAI:
+              "The user has nothing that can be cashed out to NGN. " +
+              (held.length > 0
+                ? `They hold ${held.join(", ")}. `
+                : "Their mainnet wallets are empty. ") +
+              "Cash-out works from USDC on Base, Solana, Ethereum or Stellar, and USDT on Solana or Ethereum (mainnet only). " +
+              "Say so without naming one of those networks as if they had picked it, and offer to fund a wallet or swap into a sellable token.",
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+
+        // Balances could not be read at all — ask which network rather than guessing.
+        return {
+          toolName: name,
+          summaryForAI: "Which balance would you like to cash out from?",
+          cardHint: { type: "options", data: { options: SELLABLE_ASSETS } },
+          requiresConfirmation: false,
+        };
       }
 
       if (cleanedAccount.length !== 10) {

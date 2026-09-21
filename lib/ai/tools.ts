@@ -267,7 +267,9 @@ const offrampNgn: DeepSeekTool = {
       "(USDT on Base is NOT supported for NGN offramp). " +
       "(All fiat offramps operate exclusively on MAINNET). " +
       "Call this as soon as the user says they want to cash out, with WHATEVER they have given so far — " +
-      "omit anything they have not said. The tool returns the chooser for the next missing detail " +
+      "omit anything they have not said. In particular, NEVER pass 'asset' or 'cryptoToken' unless the user named " +
+      "that token or network: the tool reads them from the user's own balances, and guessing one makes it quote a " +
+      "chain they never chose. The tool returns the chooser for the next missing detail " +
       "(which balance to sell, which account to pay, which bank holds that account), so the user taps " +
       "instead of being asked in prose. Users can specify cryptoAmount (e.g. 'convert 20 USDC') OR fiatAmount (e.g. 'I want 20,000 naira in my bank account').",
     parameters: {

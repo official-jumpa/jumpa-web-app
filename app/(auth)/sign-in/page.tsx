@@ -8,7 +8,10 @@ import { SocialSignUp } from "@/components/auth/social-sign-up";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
 import { WalletArrowRightIcon } from "@/components/ui/icons/wallet-arrow-right";
 
-export const metadata: Metadata = { title: "Sign in" };
+export const metadata: Metadata = {
+  title: "Sign in",
+  description: "Sign in to your Jumpa wallet. Access your balances, send money, and manage your crypto — all in one place.",
+};
 
 export default function SignInPage() {
   return (

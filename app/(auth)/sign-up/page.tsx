@@ -5,7 +5,10 @@ import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { EmailAuthForm } from "@/components/auth/email-auth-form";
 import { SocialSignUp } from "@/components/auth/social-sign-up";
 
-export const metadata: Metadata = { title: "Create account" };
+export const metadata: Metadata = {
+  title: "Create account",
+  description: "Create your free Jumpa account. Set up a self-custodial wallet in minutes and start moving money across currencies and chains.",
+};
 
 export default function SignUpPage() {
   return (

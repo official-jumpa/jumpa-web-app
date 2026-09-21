@@ -237,8 +237,8 @@ export const BETA_CTA = {
   note: "We'll only email you about Jumpa access and important updates concerning Jumpa",
   buttonSubmitting: "Joining...",
   buttonSuccess: "You're on the list",
-  successNotice: "You're on the list. Check your email to continue",
-  alreadyJoinedNotice: "You're already on the waitlist! Check your email to continue",
+  successNotice: "You're on the list! Check your email to continue — if you don't see it, check your spam or junk folder.",
+  alreadyJoinedNotice: "You're already on the waitlist! Check your email to continue — if you don't see it, check your spam or junk folder.",
   desktop: {
     heading: "Help shape how money moves.",
     blurb:

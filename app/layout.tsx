@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     default: 'Jumpa',
     template: '%s | Jumpa',
   },
-  description: 'Send, swap, save, and spend across currencies and chains all in one conversation.',
+  description: 'Move Money the way you Chat. Send, swap, save, and spend across currencies and chains all in one conversation.',
   applicationName: 'Jumpa',
   category: 'finance',
   keywords: [

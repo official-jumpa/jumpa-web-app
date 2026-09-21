@@ -142,7 +142,7 @@ export async function executeOfframpTransfer(options: {
         if (err.response && err.response.data) {
           details += " - " + JSON.stringify(err.response.data);
         }
-        console.error("[OfframpTransfer] Stellar error:", details);
+        console.error("Stellar error:", details);
         return { success: false, error: "Stellar transfer failed: " + details };
       }
     }

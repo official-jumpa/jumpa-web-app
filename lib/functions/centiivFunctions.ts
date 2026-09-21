@@ -1,4 +1,6 @@
 import { environment } from "@/lib/environment";
+import { generateId } from "@/lib/schema-ids";
+import { sponsoredSubmit } from "@/lib/chains/stellar/sponsor";
 import {
   Horizon,
   Keypair,
@@ -13,12 +15,12 @@ import {
 const PUBLIC_KEY = environment.CENTIIV_PUBLIC_KEY || environment.CENTIIV_API_KEY;
 const SECRET_KEY = environment.CENTIIV_SECRET_KEY || environment.CENTIIV_API_KEY;
 const BASE_URL = environment.CENTIIV_BASE_URL || "https://api.centiiv.io";
-const ENV = "live"; // Hardcoded to live per request
+const ENV = "live";
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${BASE_URL}${endpoint}`;
   const headers = {
-    "x-api-key": PUBLIC_KEY, // The API requires public keys for order creation & quotes
+    "x-api-key": PUBLIC_KEY,
     "X-Environment": ENV,
     "Content-Type": "application/json",
     ...options.headers,
@@ -80,7 +82,7 @@ export async function createCentiivOfframp(params: {
   }>("/requests", {
     method: "POST",
     headers: {
-      "idempotency-key": `IDEM_OFFRAMP_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+      "idempotency-key": generateId("idem"),
     },
     body: JSON.stringify({
       fromAsset: "USDC",
@@ -89,7 +91,7 @@ export async function createCentiivOfframp(params: {
       network: "STELLAR",
       refundAddress: params.refundAddress,
       beneficiary: {
-        externalId: `user_${params.userId}`,
+        externalId: params.userId,
         destination: {
           type: "BANK",
           bankCode: params.bankCode,
@@ -128,7 +130,7 @@ export async function createCentiivOnramp(params: {
       network: "STELLAR",
       destinationAddress: params.destinationAddress,
       sender: {
-        externalId: `user_${params.userId}`,
+        externalId: params.userId,
         fullName: params.senderName,
         email: params.senderEmail,
         phone: params.senderPhone,
@@ -157,6 +159,7 @@ export async function submitCentiivStellarPayment(params: {
   
   const server = new Horizon.Server(horizonUrl);
   const networkPassphrase = Networks.PUBLIC;
+  // move this later to a centralised file
   const usdcIssuer = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 
   const userKeypair = Keypair.fromSecret(params.userSecretKey);
@@ -183,5 +186,6 @@ export async function submitCentiivStellarPayment(params: {
   const transaction = builder.build();
   transaction.sign(userKeypair);
 
-  return await server.submitTransaction(transaction);
+  const { response } = await sponsoredSubmit(transaction as any, "mainnet");
+  return response;
 }

@@ -15,10 +15,32 @@ const TRIGGERS = {
   statement:
     "h-12 rounded-pill bg-jumpa-neutral-50 pr-5.25 pl-6 text-xs " +
     "aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-jumpa-danger",
+  /** Account forms: the same lavender pill as the text fields beside it. */
+  account: "h-12 rounded-pill border bg-jumpa-primary-50 px-4 text-sm",
 } as const;
 
 const TRIGGER =
   "flex w-full items-center justify-between gap-2 text-left leading-4 font-medium outline-none";
+
+/** Tones are chosen per variant, never layered — `cn` is a plain join, so two
+    classes of the same family would race on Tailwind's sort instead of order. */
+const RESTING_BORDER = {
+  field: "border-jumpa-grey-100",
+  statement: "",
+  account: "border-jumpa-primary-100",
+} as const;
+
+const FILLED = {
+  field: "text-jumpa-primary-950",
+  statement: "text-jumpa-black",
+  account: "text-jumpa-primary-950",
+} as const;
+
+const PLACEHOLDER = {
+  field: "text-jumpa-grey-400",
+  statement: "text-jumpa-neutral-500",
+  account: "text-jumpa-primary-950/40",
+} as const;
 
 /** `YYYY-MM-DD` parsed as local time — `new Date(iso)` would read it as UTC. */
 function toDate(iso: string): Date | undefined {
@@ -43,6 +65,11 @@ const CALENDAR = {
   month: "w-full",
   month_caption: "flex h-10 items-center justify-center",
   caption_label: "text-sm font-semibold",
+  dropdowns: "flex items-center gap-2",
+  dropdown_root:
+    "relative flex items-center rounded-tile bg-jumpa-white px-2 py-1",
+  /** The real `<select>` covers its chip so the OS picker opens on tap. */
+  dropdown: "absolute inset-0 cursor-pointer opacity-0",
   nav: "absolute inset-x-0 top-0 flex h-10 items-center justify-between",
   button_previous:
     "tap flex size-9 items-center justify-center rounded-full text-jumpa-primary-600 active:scale-95 disabled:opacity-30",
@@ -76,6 +103,7 @@ export function DateField({
   variant = "field",
   min,
   max,
+  dropdown,
   className,
   onChange,
 }: {
@@ -88,6 +116,8 @@ export function DateField({
   /** `YYYY-MM-DD` bounds. Days outside them are shown but not selectable. */
   min?: string;
   max?: string;
+  /** Month and year pickers instead of arrows — a birth date is decades back. */
+  dropdown?: boolean;
   onChange: (next: string) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -101,6 +131,10 @@ export function DateField({
   if (first) bounds.push({ before: first });
   if (last) bounds.push({ after: last });
 
+  // Opening on today is wrong when today is out of bounds, which is the whole
+  // point of a `max` — a date of birth lands the user 16 years from the arrows.
+  const start = selected ?? last ?? first;
+
   return (
     <>
       <button
@@ -111,15 +145,9 @@ export function DateField({
         className={cn(
           TRIGGER,
           TRIGGERS[variant],
-          statement
-            ? value
-              ? "text-jumpa-black"
-              : "text-jumpa-neutral-500"
-            : invalid
-              ? "border-jumpa-danger"
-              : "border-jumpa-grey-100",
           !statement &&
-            (value ? "text-jumpa-primary-950" : "text-jumpa-grey-400"),
+            (invalid ? "border-jumpa-danger" : RESTING_BORDER[variant]),
+          value ? FILLED[variant] : PLACEHOLDER[variant],
           className,
         )}
       >
@@ -147,9 +175,12 @@ export function DateField({
               <DayPicker
                 mode="single"
                 selected={selected}
-                defaultMonth={selected}
+                defaultMonth={start}
                 disabled={bounds}
                 showOutsideDays
+                captionLayout={dropdown ? "dropdown" : "label"}
+                startMonth={dropdown ? first : undefined}
+                endMonth={dropdown ? last : undefined}
                 classNames={CALENDAR}
                 onSelect={(next) => {
                   if (!next) return;

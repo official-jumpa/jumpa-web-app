@@ -8,6 +8,7 @@ import {
   SettingRule,
 } from "@/components/settings/setting-section";
 import { Button } from "@/components/ui/button";
+import { DateField } from "@/components/ui/date-field";
 import { CheckIcon } from "@/components/ui/icons/check";
 import { GlobeIcon } from "@/components/ui/icons/globe";
 import { IdCardIcon } from "@/components/ui/icons/id-card";
@@ -34,6 +35,9 @@ function getMaxDob(): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
+
+/** Floor for the year dropdown — without one it would list every year there is. */
+const MIN_DOB = `${new Date().getFullYear() - 100}-01-01`;
 
 interface NgnConfirmProps {
   onContinue: (formData: CreateNgnAccountInput) => void;
@@ -244,13 +248,19 @@ export function NgnConfirm({
               Must be at least 16 years old
             </span>
           </div>
-          <input
-            type="date"
-            required
-            max={maxDob}
+          {/* Our own calendar, not the native control: `input[type=date]` sizes
+              itself to its widget rather than to `w-full`, which pushed the page
+              wider than the column and let it scroll off the white. */}
+          <DateField
+            label="Date of Birth"
+            variant="account"
+            placeholder="Select your date of birth"
             value={dateOfBirth}
-            onChange={(e) => setDateOfBirth(e.target.value)}
-            className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
+            min={MIN_DOB}
+            max={maxDob}
+            dropdown
+            invalid={Boolean(fieldErrors.dateOfBirth)}
+            onChange={setDateOfBirth}
           />
           <FieldError>{fieldErrors.dateOfBirth}</FieldError>
         </div>

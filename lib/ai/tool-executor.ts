@@ -89,19 +89,25 @@ function mapAssetToTxChain(
 const OFFRAMPABLE = new Set(["USDC", "USDT", "CNGN"]);
 
 /**
+ * Can this holding actually be cashed out? Stellar settles through Centiiv
+ * rather than Switch, and Centiiv only handles USDC — so the chain decides the
+ * token, not just the token itself.
+ */
+export function isSellable(token: TokenBalanceInfo): boolean {
+  const symbol = token.symbol.toUpperCase();
+  if (token.isTestnet || !OFFRAMPABLE.has(symbol)) return false;
+  if (token.network?.toLowerCase().includes("stellar")) return symbol === "USDC";
+  return true;
+}
+
+/**
  * Where the money comes from. The design draws a Savings/Balance split; there is
  * no savings balance yet, so the rows are the holdings that can actually be sold
  * — which is also what the offramp needs (token + network) and saves asking twice.
  */
 function fundingOptions(tokens: TokenBalanceInfo[]): ChatOption[] {
   return tokens
-    .filter(
-      (token) =>
-        OFFRAMPABLE.has(token.symbol.toUpperCase()) &&
-        Number(token.balance) > 0 &&
-        !token.network?.toLowerCase().includes("stellar") &&
-        !token.isTestnet,
-    )
+    .filter((token) => isSellable(token) && Number(token.balance) > 0)
     .map((token) => ({
       label: token.network
         ? `${token.symbol} on ${token.network}`
@@ -118,6 +124,8 @@ function fundingOptions(tokens: TokenBalanceInfo[]): ChatOption[] {
 function networkToSwitchChain(network?: string): string | null {
   if (!network) return null;
   const n = network.toLowerCase();
+  // Stellar first — "Stellar Mainnet" would otherwise be read as Ethereum below.
+  if (n.includes("stellar")) return "stellar";
   if (n.includes("base")) return "base";
   if (n.includes("solana")) return "solana";
   if (n.includes("tron")) return "tron";
@@ -1118,8 +1126,7 @@ export async function executeTool(
           (t) =>
             t.symbol.toUpperCase() === effectiveToken!.toUpperCase() &&
             Number(t.balance) > 0 &&
-            !t.network?.toLowerCase().includes("stellar") &&
-            !t.isTestnet,
+            isSellable(t),
         );
 
         if (matchingHoldings.length === 1) {
@@ -1360,6 +1367,7 @@ export async function executeTool(
               if (t.isTestnet) return false;
               if (t.symbol.toUpperCase() !== targetToken.toUpperCase()) return false;
               const net = (t.network || "").toLowerCase();
+              if (targetChain === "stellar") return net.includes("stellar");
               if (targetChain === "solana") return net.includes("solana");
               if (targetChain === "base") return net.includes("base");
               if (targetChain === "ethereum") return net.includes("ethereum") || (net.includes("mainnet") && !net.includes("stellar") && !net.includes("solana"));

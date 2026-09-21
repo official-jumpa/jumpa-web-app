@@ -15,7 +15,10 @@ import { ReceiptAltSolidIcon } from "@/components/ui/icons/receipt-alt-solid";
 import { cn } from "@/lib/cn";
 import { triggerHaptic } from "@/lib/haptics";
 
-/** A tab draws its stroked glyph at rest and the filled cut on the page it is on. */
+/**
+ * A tab draws its stroked glyph at rest and the filled cut on the page it is on.
+ * `soon` mutes one and takes it out of the tab order — drop it to go live.
+ */
 const TABS = [
   {
     label: "Home",
@@ -28,6 +31,7 @@ const TABS = [
     href: "/cards",
     Icon: CreditCardNavIcon,
     ActiveIcon: CreditCardNavSolidIcon,
+    soon: true,
   },
   {
     label: "Transactions",
@@ -49,6 +53,12 @@ const TABS = [
  * Rendered in flow beside the bar, so no screen has to know this number.
  */
 const CLEARANCE = "h-[calc(env(safe-area-inset-bottom)+114px)]";
+
+/** One box for both branches, so a muted tab is exactly as wide as a live one. */
+const TAB = "flex flex-1 flex-col items-center gap-0.5 rounded-pill px-2 py-1.5";
+const LABEL = "text-[8px] leading-3 font-medium whitespace-nowrap";
+/** Muted, not recoloured — the tab keeps its own glyph so it still reads as Cards. */
+const SOON = "opacity-50 blur-[0.4px]";
 
 /** Floating tab bar. The chat action sits at the centre, between tabs 2 and 3. */
 export function BottomNav() {
@@ -77,7 +87,7 @@ export function BottomNav() {
 
       <div className="pointer-events-none fixed inset-x-0 bottom-5 z-10 mx-auto max-w-app px-4.5 pb-safe">
         <nav className="pointer-events-auto mx-auto flex items-center justify-center h-18.5 gap-1 rounded-pill border border-jumpa-neutral-90 bg-jumpa-white px-2.5">
-          {TABS.map(({ label, href, Icon, ActiveIcon }, index) => {
+          {TABS.map(({ label, href, Icon, ActiveIcon, soon }, index) => {
             const active = pathname === href;
             const Glyph = active ? ActiveIcon : Icon;
 
@@ -95,24 +105,50 @@ export function BottomNav() {
                   </Link>
                 ) : null}
 
-                <Link
-                  href={href}
-                  prefetch={true}
-                  onClick={() => triggerHaptic("light")}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "flex flex-1 flex-col items-center gap-0.5 rounded-pill px-2 py-1.5 active:scale-90 transition-transform duration-75",
-                    active ? "text-jumpa-primary-950" : "text-jumpa-grey-500",
-                  )}
-                >
-                  {/* The glyph is brand purple where the label is the darker 950. */}
-                  <Glyph
-                    className={cn("size-6", active && "text-jumpa-primary-600")}
-                  />
-                  <span className="text-[8px] leading-3 font-medium whitespace-nowrap">
-                    {label}
+                {soon ? (
+                  <span
+                    aria-disabled="true"
+                    className={cn(
+                      TAB,
+                      "cursor-not-allowed select-none text-jumpa-grey-500",
+                    )}
+                  >
+                    <span className="relative">
+                      <Glyph className={cn("size-6", SOON)} />
+                      {/* Same corner badge as the Invest quick action, so "not
+                          yet" reads the same wherever it appears. */}
+                      <span
+                        aria-hidden="true"
+                        className="absolute -top-1 -right-1.5 rounded-pill bg-jumpa-neutral-95 px-1 py-px text-[6px] leading-2 font-semibold tracking-jumpa-wide text-jumpa-neutral-450 uppercase"
+                      >
+                        Soon
+                      </span>
+                    </span>
+                    <span className={cn(LABEL, SOON)}>{label}</span>
+                    <span className="sr-only">Coming soon</span>
                   </span>
-                </Link>
+                ) : (
+                  <Link
+                    href={href}
+                    prefetch={true}
+                    onClick={() => triggerHaptic("light")}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      TAB,
+                      "active:scale-90 transition-transform duration-75",
+                      active ? "text-jumpa-primary-950" : "text-jumpa-grey-500",
+                    )}
+                  >
+                    {/* The glyph is brand purple where the label is the darker 950. */}
+                    <Glyph
+                      className={cn(
+                        "size-6",
+                        active && "text-jumpa-primary-600",
+                      )}
+                    />
+                    <span className={LABEL}>{label}</span>
+                  </Link>
+                )}
               </Fragment>
             );
           })}

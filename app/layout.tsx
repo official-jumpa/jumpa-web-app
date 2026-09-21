@@ -18,9 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL || 'https://usejumpa.com'
-  ),
+  metadataBase: new URL("https://usejumpa.com"),
   title: {
     default: 'Jumpa',
     template: '%s | Jumpa',
@@ -72,11 +70,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/favicon.ico' },
-      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { url: 'https://usejumpa.com/favicon.ico' },
+      { url: 'https://usejumpa.com/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: 'https://usejumpa.com/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
     ],
-    apple: '/icons/apple-icon-180.png',
+    apple: 'https://usejumpa.com/icons/apple-icon-180.png',
   },
   appleWebApp: {
     capable: true,
@@ -92,7 +90,7 @@ export const metadata: Metadata = {
     siteName: 'Jumpa',
     images: [
       {
-        url: '/logo.png',
+        url: 'https://usejumpa.com/icons/icon-512.png',
         width: 512,
         height: 512,
         alt: 'Jumpa - Move Money the way you Chat',
@@ -108,7 +106,7 @@ export const metadata: Metadata = {
       template: '%s | Jumpa',
     },
     description: 'Send, swap, save, and spend across currencies and chains all in one conversation.',
-    images: ['/logo.png'],
+    images: ['https://usejumpa.com/icons/icon-512.png'],
   },
 };
 export const viewport: Viewport = {

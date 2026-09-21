@@ -26,11 +26,60 @@ export const metadata: Metadata = {
     template: '%s | Jumpa',
   },
   description: 'Send, swap, save, and spend across currencies and chains all in one conversation.',
+  applicationName: 'Jumpa',
+  category: 'finance',
+  keywords: [
+    'Jumpa', 'crypto wallet', 'cross-chain', 'crypto messenger', 'swap tokens', 'web3',
+    'AI financial assistant', 'conversational AI', 'crypto chat', 'secure messaging',
+    'crypto chat app', 'crypto messaging app', 'crypto wallet chat', 'web3 assistant',
+    'blockchain assistant', 'crypto AI bot', 'conversational crypto',
+    'Stellar', 'XLM', 'Soroban', 'Soroswap DEX', 'Soroswap', 'DeFindex', 'DeFindex vaults',
+    'Solana', 'Solana Wallet', 'EVM', 'EVM Wallet', 'Base', 'Base Wallet', 'Ethereum', 'ETH',
+    'multi-chain portfolio', 'Stellar Testnet', 'Stellar Mainnet', 'Stellar Horizon',
+    'non-custodial security', 'BIP-39', 'BIP-39 mnemonic', 'non-custodial crypto wallet',
+    'smart contracts', 'blockchain wallet',
+    'DeFi yield', 'target savings', 'crypto savings account', 'yield farming', 'staking',
+    'crypto rewards', 'decentralized finance', 'send crypto', 'receive crypto', 'save crypto',
+    'crypto payments', 'peer-to-peer payments', 'send USDC', 'swap XLM to USDC',
+    'fiat onramp', 'Mercuryo', 'MoneyGram', 'Switch fiat', 'Allbridge Core', 'stablecoins',
+    'USDC', 'USDT', 'bridge tokens', 'cross-chain bridge', 'cross-chain bridge USDC',
+    'crypto exchange', 'social wallet', 'crypto onboarding', 'crypto offramp',
+    'global payments', 'borderless money', 'crypto on-ramp', 'fiat off-ramp',
+    'buy crypto with fiat', 'sell crypto for fiat'
+  ],
+  authors: [{ name: 'Jumpa' }],
+  creator: 'Jumpa',
+  publisher: 'Jumpa',
+  alternates: {
+    canonical: 'https://usejumpa.com',
+  },
+  formatDetection: {
+    telephone: false,
+    date: false,
+    address: false,
+    email: false,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
   icons: {
     // icon: '/logo.png', // its affecting the main favicon
     // The home-screen icon has to be square — /logo.png is the 803x381 mark and
     // iOS letterboxes it. Generated with the PWA icons; see app/manifest.ts.
     apple: '/icons/apple-icon-180.png',
+  },
+  appleWebApp: {
+    capable: true,
+    title: 'Jumpa',
+    statusBarStyle: 'black-translucent',
   },
   openGraph: {
     title: {
@@ -44,9 +93,10 @@ export const metadata: Metadata = {
         url: '/logo.png',
         width: 512,
         height: 512,
-        alt: 'Jumpa Logo',
+        alt: 'Jumpa - Move Money the way you Chat',
       },
     ],
+    locale: 'en_US',
     type: 'website',
   },
   twitter: {
@@ -57,12 +107,6 @@ export const metadata: Metadata = {
     },
     description: 'Send, swap, save, and spend across currencies and chains all in one conversation.',
     images: ['/logo.png'],
-  },
-  // Safari PWA: opens as standalone app with no browser chrome.
-  other: {
-    'apple-mobile-web-app-capable': 'yes',
-    'apple-mobile-web-app-status-bar-style': 'black-translucent',
-    'apple-mobile-web-app-title': 'Jumpa',
   },
 };
 export const viewport: Viewport = {

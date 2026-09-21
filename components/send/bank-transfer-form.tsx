@@ -20,6 +20,7 @@ import { getAssetLogo } from "@/lib/assets";
 import { MOBILE_NETWORKS, PHONE_NUMBER_MIN } from "@/lib/bills";
 import { supportedBanks } from "@/lib/constants/banks";
 import { FossaPayBanks } from "@/lib/constants/fossapay-banks";
+import { centiivBanks } from "@/lib/constants/centiiv-banks";
 import {
   ACCOUNT_NUMBER_MIN,
   BANKS,
@@ -62,6 +63,7 @@ export interface BankAccountItem {
 
 export const OFFRAMP_NETWORKS = [
   "Nigeria Bank",
+  "Stellar",
   "Base",
   "Solana",
   "Ethereum",
@@ -69,12 +71,17 @@ export const OFFRAMP_NETWORKS = [
 
 export const OFFRAMP_NETWORK_CONFIGS: Record<
   string,
-  { name: string; chain: "base" | "solana" | "eth" | "fiat"; assets: readonly string[] }
+  { name: string; chain: "stellar" | "base" | "solana" | "eth" | "fiat"; assets: readonly string[] }
 > = {
   "Nigeria Bank": {
     name: "Nigeria Bank",
     chain: "fiat",
     assets: ["NGN"],
+  },
+  Stellar: {
+    name: "Stellar",
+    chain: "stellar",
+    assets: ["USDC"],
   },
   Base: {
     name: "Base",
@@ -338,9 +345,11 @@ export function BankTransferForm({
   const bankOptions =
     form.network === "Nigeria Bank"
       ? FossaPayBanks.map((b) => b.name)
-      : isNigeria
-        ? NIGERIA_BANK_OPTIONS
-        : BANKS[country?.code ?? ""] ?? [];
+      : form.network === "Stellar"
+        ? centiivBanks.map((b) => b.name)
+        : isNigeria
+          ? NIGERIA_BANK_OPTIONS
+          : BANKS[country?.code ?? ""] ?? [];
 
   const currentNetworkConfig =
     OFFRAMP_NETWORK_CONFIGS[form.network || "Nigeria Bank"] ||

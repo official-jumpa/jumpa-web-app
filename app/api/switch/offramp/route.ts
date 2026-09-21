@@ -55,30 +55,107 @@ export async function POST(req: NextRequest) {
       pin,
     } = validation.data;
 
-    // Resolve bank code and verify account via Paystack
-    const paystackBank = findPaystackBank(bankName);
-    if (!paystackBank) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Bank "${bankName}" is not supported`,
-        },
-        { status: 400 },
-      );
-    }
+    const isStellar = asset.toLowerCase().includes("stellar");
+    let bankMatch: { name: string; code: string };
+    let offrampResult: { deposit: any; reference: string; destination: any; rate: number; provider: string };
 
-    const isAccountValid = await validateAccountNumber(
-      accountNumber,
-      paystackBank.code,
-    );
-    if (!isAccountValid) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Account number "${accountNumber}" could not be verified for ${paystackBank.name}.`,
-        },
-        { status: 400 },
-      );
+    if (isStellar) {
+      const { centiivBanks } = await import("@/lib/constants/centiiv-banks");
+      const { fossapayBankNameEnquiry } = await import("@/lib/functions/fossapayFunctions");
+      
+      let centiivBank = centiivBanks.find((b) => b.name.toLowerCase() === bankName.toLowerCase() || b.code === bankName);
+      
+      // Revalidate: if bankName was preloaded from beneficiary (e.g. Paystack code), 
+      // normalize via Paystack then cross-reference with FossaPay (which shares NIBSS codes with Centiiv)
+      if (!centiivBank) {
+        const paystackBank = findPaystackBank(bankName);
+        if (paystackBank) {
+          const { findFossaPayBank } = await import("@/lib/constants/fossapay-banks");
+          const fPayBank = findFossaPayBank(paystackBank.name);
+          if (fPayBank) {
+            centiivBank = { name: fPayBank.name, code: fPayBank.code };
+          }
+        }
+      }
+
+      if (!centiivBank) {
+        return NextResponse.json({ success: false, error: `Bank "${bankName}" is not supported` }, { status: 400 });
+      }
+      
+      try {
+        const fpRes = await fossapayBankNameEnquiry({ accountNumber, bankCode: centiivBank.code });
+        if (!fpRes?.accountName) throw new Error("Verification failed");
+      } catch {
+        return NextResponse.json({ success: false, error: `Account number "${accountNumber}" could not be verified for ${centiivBank.name}.` }, { status: 400 });
+      }
+      
+      bankMatch = { name: centiivBank.name, code: centiivBank.code };
+
+      // Get temporary wallet from Centiiv
+      const { createCentiivOfframp } = await import("@/lib/functions/centiivFunctions");
+      try {
+        const centiivOrder = await createCentiivOfframp({
+          amount: cryptoAmount,
+          bankCode: centiivBank.code,
+          accountNumber: accountNumber.trim(),
+          accountName: holderName.trim(),
+          userId,
+        });
+        
+        offrampResult = {
+          provider: "centiiv",
+          reference: centiivOrder.id,
+          deposit: {
+            amount: cryptoAmount,
+            address: centiivOrder.temporaryWallet.publicAddress,
+            asset: "USDC",
+          },
+          destination: {
+            amount: fiatAmount,
+            currency: "NGN",
+          },
+          rate: (fiatAmount || 0) / cryptoAmount, // Approximate rate
+        };
+      } catch (err: any) {
+        return NextResponse.json({ success: false, error: err.message || "Centiiv offramp initiation failed" }, { status: 500 });
+      }
+    } else {
+      // Switch Logic
+      const paystackBank = findPaystackBank(bankName);
+      if (!paystackBank) {
+        return NextResponse.json({ success: false, error: `Bank "${bankName}" is not supported` }, { status: 400 });
+      }
+
+      const isAccountValid = await validateAccountNumber(accountNumber, paystackBank.code);
+      if (!isAccountValid) {
+        return NextResponse.json({ success: false, error: `Account number "${accountNumber}" could not be verified for ${paystackBank.name}.` }, { status: 400 });
+      }
+
+      const switchBank = resolveBankCode(paystackBank.name);
+      bankMatch = {
+        name: switchBank?.name || paystackBank.name,
+        code: switchBank?.code || paystackBank.code,
+      };
+
+      const recipient = {
+        holder_name: holderName.trim(),
+        account_number: accountNumber.trim(),
+        bank_code: bankMatch.code,
+      };
+
+      const result = await SwitchService.initiateOfframp(cryptoAmount, asset, recipient);
+
+      if (!result.success || !result.data) {
+        return NextResponse.json({ success: false, error: result.message || "Offramp initiation failed" }, { status: result.status || 500 });
+      }
+
+      offrampResult = {
+        provider: "switch",
+        reference: result.data.reference,
+        deposit: result.data.deposit,
+        destination: result.data.destination,
+        rate: result.data.rate,
+      };
     }
 
     // If PIN is provided, verify it before initiating the transaction
@@ -116,35 +193,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const switchBank = resolveBankCode(paystackBank.name);
-    const bankMatch = {
-      name: switchBank?.name || paystackBank.name,
-      code: switchBank?.code || paystackBank.code,
-    };
-
-    const recipient = {
-      holder_name: holderName.trim(),
-      account_number: accountNumber.trim(),
-      bank_code: bankMatch.code,
-    };
-
-    const result = await SwitchService.initiateOfframp(
-      cryptoAmount,
-      asset,
-      recipient,
-    );
-
-    if (!result.success || !result.data) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: result.message || "Offramp initiation failed",
-        },
-        { status: result.status || 500 },
-      );
-    }
-
-    const { deposit, reference, destination, rate } = result.data;
+    const { deposit, reference, destination, rate, provider } = offrampResult;
     const tokenName =
       cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC";
 
@@ -163,7 +212,7 @@ export async function POST(req: NextRequest) {
         token: tokenName,
         txHash: reference,
         rampDetails: {
-          provider: "switch",
+          provider: (provider || "switch") as "centiiv" | "switch",
           fiatCurrency: "NGN",
           fiatAmount: destination?.amount || fiatAmount || 0,
           reference,

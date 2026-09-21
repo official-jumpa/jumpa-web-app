@@ -80,6 +80,41 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // 1.5. Check Centiiv banks (uses the exact same NIBSS codes as FossaPay)
+    const { centiivBanks } = await import("@/lib/constants/centiiv-banks");
+    const centiivBank = centiivBanks.find((b) => b.name.toLowerCase() === bankParam.toLowerCase() || b.code === bankParam);
+    if (centiivBank) {
+      try {
+        const fpRes = await fossapayBankNameEnquiry({
+          accountNumber: cleanAccount,
+          bankCode: centiivBank.code,
+        });
+        if (fpRes?.accountName) {
+          const isFpInternal =
+            Boolean(internalAccount) ||
+            cleanAccount === jumpaMasterAccount ||
+            fpRes.accountName.toLowerCase().startsWith("fossapay/");
+          const cleanName = fpRes.accountName
+            .replace(/^fossapay\//i, "")
+            .trim();
+
+          return NextResponse.json({
+            success: true,
+            accountName: cleanName,
+            accountNumber: fpRes.accountNumber || cleanAccount,
+            bankName: centiivBank.name,
+            bankCode: centiivBank.code,
+            isInternal: isFpInternal,
+          });
+        }
+      } catch (fpErr: any) {
+        console.warn(
+          `Bank code resolution failed for ${centiivBank.name}:`,
+          fpErr.message
+        );
+      }
+    }
+
     // 2. Fallback to Paystack resolution
     const bankByCode = supportedBanks.find((b) => b.code === bankParam);
     const paystackBank = bankByCode || findPaystackBank(bankParam);

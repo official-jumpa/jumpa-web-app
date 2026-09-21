@@ -19,10 +19,39 @@ export async function POST(req: NextRequest) {
     const { amount, asset, direction = "onramp" } =
       validation.data;
 
-    const result =
-      direction === "offramp"
-        ? await SwitchService.getOfframpQuote(amount, asset)
-        : await SwitchService.getQuote(amount, asset);
+    let result;
+    if (asset.toLowerCase().includes("stellar")) {
+      const { getCentiivQuote } = await import("@/lib/functions/centiivFunctions");
+      try {
+        const centiivQuote = await getCentiivQuote({
+          fromAsset: "USDC",
+          toAsset: "NGN",
+          amount,
+          network: "STELLAR"
+        });
+        result = {
+          success: true,
+          data: {
+            rate: parseFloat(centiivQuote.rate),
+            source: {
+              amount: parseFloat(centiivQuote.totalToPay),
+              currency: "USDC"
+            },
+            destination: {
+              amount: parseFloat(centiivQuote.estimatedReceivableAmount),
+              currency: "NGN"
+            }
+          }
+        };
+      } catch (err: any) {
+        result = { success: false, message: err.message || "Failed to fetch Centiiv quote" };
+      }
+    } else {
+      result =
+        direction === "offramp"
+          ? await SwitchService.getOfframpQuote(amount, asset)
+          : await SwitchService.getQuote(amount, asset);
+    }
 
     if (!result.success) {
       return NextResponse.json(

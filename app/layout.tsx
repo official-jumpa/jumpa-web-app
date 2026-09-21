@@ -71,9 +71,11 @@ export const metadata: Metadata = {
     },
   },
   icons: {
-    // icon: '/logo.png', // its affecting the main favicon
-    // The home-screen icon has to be square — /logo.png is the 803x381 mark and
-    // iOS letterboxes it. Generated with the PWA icons; see app/manifest.ts.
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
     apple: '/icons/apple-icon-180.png',
   },
   appleWebApp: {

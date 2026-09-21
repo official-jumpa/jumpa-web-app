@@ -13,13 +13,23 @@ import {
 import { RampNotes, RampNotice } from "@/components/chat/ramp-parts";
 import type { OnrampCard } from "@/lib/chat";
 
+/** Shared with `ActionRow`'s pair, so the two read as the same control. */
+const PILL =
+  "tap flex h-8 items-center justify-center rounded-panel text-sm leading-4 font-medium active:scale-95 disabled:opacity-50";
+
 interface OnrampCheckoutCardProps {
   card: OnrampCard;
   onPaid?: () => void;
+  /** Drops the order, same handler the other pending cards cancel through. */
+  onCancel?: () => void;
 }
 
 /** Buying crypto with a bank transfer: pay this account, then say you have. */
-export function OnrampCheckoutCard({ card, onPaid }: OnrampCheckoutCardProps) {
+export function OnrampCheckoutCard({
+  card,
+  onPaid,
+  onCancel,
+}: OnrampCheckoutCardProps) {
   const [verifying, setVerifying] = useState(false);
   const isAlreadyDone =
     card.status === "confirmed" || card.status === "completed";
@@ -61,10 +71,11 @@ export function OnrampCheckoutCard({ card, onPaid }: OnrampCheckoutCardProps) {
       if (data.success && data.isCompleted) {
         setIsDone(true);
         onPaid?.();
-      } else if (data.success && data.isAwaiting) {
+      } else if (data.success && data.isProcessing) {
+        setStatusError(data.message || "Deposit received. Processing payout…");
+      } else if (data.success && data.isAwaitingDeposit) {
         setStatusError(
-          data.message ||
-            "Payment awaiting deposit. If you have already transferred, please allow a moment for confirmation.",
+          "We haven't seen your transfer yet. It can take a minute to show up — if you've already sent it, check again shortly.",
         );
       } else {
         setStatusError(
@@ -149,21 +160,33 @@ export function OnrampCheckoutCard({ card, onPaid }: OnrampCheckoutCardProps) {
       </ChatCard>
 
       {isDone || isError ? null : (
-        <button
-          type="button"
-          onClick={handleConfirmPaid}
-          disabled={verifying}
-          className="tap mt-1.5 flex h-8 items-center justify-center gap-2 self-start rounded-panel bg-jumpa-primary-600 px-4 text-sm leading-4 font-medium text-jumpa-neutral-25 active:scale-95 disabled:opacity-50"
-        >
-          {verifying ? (
-            <>
-              <span className="size-3 animate-spin rounded-full border-2 border-jumpa-white border-t-transparent" />
-              Verifying…
-            </>
-          ) : (
-            "I've sent the money"
-          )}
-        </button>
+        <div className="mt-1.5 flex gap-1.75 self-start">
+          {onCancel ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={verifying}
+              className={`${PILL} bg-jumpa-neutral-750 px-4 text-jumpa-neutral-275`}
+            >
+              Cancel
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleConfirmPaid}
+            disabled={verifying}
+            className={`${PILL} gap-2 bg-jumpa-primary-600 px-4 text-jumpa-neutral-25`}
+          >
+            {verifying ? (
+              <>
+                <span className="size-3 animate-spin rounded-full border-2 border-jumpa-white border-t-transparent" />
+                Verifying…
+              </>
+            ) : (
+              "I've sent the money"
+            )}
+          </button>
+        </div>
       )}
     </>
   );

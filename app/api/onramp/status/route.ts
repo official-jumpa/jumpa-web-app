@@ -80,14 +80,18 @@ export async function GET(req: NextRequest) {
       "FULFILLED",
     ].includes(rawStatus);
 
-    const isAwaiting = [
-      "AWAITING_DEPOSIT",
-      "PENDING",
-      "PROCESSING",
-      "IN_PROGRESS",
-      "CONFIRMING",
-      "INITIATED",
-    ].includes(rawStatus);
+    // Nothing has arrived yet. `PENDING` sits here deliberately: providers use
+    // it for both sides of the deposit, so it must not claim money landed.
+    const isAwaitingDeposit = ["AWAITING_DEPOSIT", "INITIATED", "PENDING"].includes(
+      rawStatus,
+    );
+
+    // The deposit is confirmed and the payout is in flight.
+    const isProcessing = ["PROCESSING", "IN_PROGRESS", "CONFIRMING"].includes(
+      rawStatus,
+    );
+
+    const isAwaiting = isAwaitingDeposit || isProcessing;
 
     const isFailed = ["FAILED", "EXPIRED", "CANCELLED", "REJECTED", "REFUNDED"].includes(rawStatus);
 
@@ -118,8 +122,11 @@ export async function GET(req: NextRequest) {
       } catch (dbErr: any) {
         console.warn("Err updating failed transaction status:", dbErr?.message);
       }
-    } else if (isAwaiting) {
+    } else if (isProcessing) {
       humanMessage = "Deposit received. Processing payout...";
+    } else if (isAwaitingDeposit) {
+      humanMessage =
+        "We haven't seen your transfer yet. Send the exact amount to the account above, then check again.";
     }
 
     return NextResponse.json({
@@ -127,6 +134,8 @@ export async function GET(req: NextRequest) {
       status: rawStatus,
       isCompleted,
       isAwaiting,
+      isAwaitingDeposit,
+      isProcessing,
       isFailed,
       message: humanMessage,
       data: resultData,

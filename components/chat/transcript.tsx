@@ -141,7 +141,7 @@ function Item({
     case "transfer":
       return <TransferCard card={item.card} />;
     case "onramp":
-      return <OnrampCheckoutCard card={item.card} />;
+      return <OnrampCheckoutCard card={item.card} onCancel={onCancel} />;
     case "offramp":
       return <OfframpCheckoutCard card={item.card} onReply={onReply} />;
     case "options":

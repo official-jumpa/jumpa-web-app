@@ -90,7 +90,7 @@ export function Toaster() {
     <div className="pointer-events-none fixed inset-x-0 top-0 z-70 flex justify-center px-4.5 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
       {/* Narrower than the column and content-width: a toast is a notice, not a
           banner, so it should not read as full-bleed. */}
-      <div className="flex w-full max-w-80 flex-col items-center gap-2">
+      <div className="flex max-w-80 flex-col items-center gap-2">
         {entries.map((entry) => (
           <ToastCard key={entry.id} entry={entry} onDismiss={dismiss} />
         ))}
@@ -116,7 +116,7 @@ function ToastCard({
 
   return (
     // `output` carries `role="status"`, so the copy is announced without ARIA.
-    <output className="animate-drop-in flex items-center gap-2.5 rounded-pill bg-jumpa-white/95 px-3 py-2.5 shadow-jumpa-toast inset-ring-1 inset-ring-jumpa-neutral-100 backdrop-blur-sm">
+    <output className="pointer-events-auto animate-drop-in flex items-center gap-2.5 rounded-2xl bg-jumpa-white/95 px-3.5 py-2.5 shadow-jumpa-toast inset-ring-1 inset-ring-jumpa-neutral-100 backdrop-blur-sm">
       <span
         className={cn(
           "flex size-7 shrink-0 items-center justify-center rounded-full",
@@ -127,11 +127,11 @@ function ToastCard({
       </span>
 
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate text-xs leading-3.5 font-semibold text-jumpa-black">
+        <span className="text-xs leading-4 font-semibold text-jumpa-black">
           {entry.title}
         </span>
         {entry.detail ? (
-          <span className="truncate text-[10px] leading-3 font-medium text-jumpa-neutral-425">
+          <span className="text-[10px] leading-3.5 font-medium text-jumpa-neutral-425">
             {entry.detail}
           </span>
         ) : null}

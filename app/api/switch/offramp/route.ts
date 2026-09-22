@@ -59,6 +59,42 @@ export async function POST(req: NextRequest) {
     let bankMatch: { name: string; code: string };
     let offrampResult: { deposit: any; reference: string; destination: any; rate: number; provider: string };
 
+    // If PIN is provided, verify it before initiating the transaction
+    let phrase: string | undefined;
+    let wallet: any;
+    if (pin) {
+      wallet = await findWalletForUser(userId);
+      if (!wallet) {
+        return NextResponse.json(
+          { success: false, error: "Wallet not found" },
+          { status: 404 },
+        );
+      }
+
+      const pinCheck = await verifyWalletPin(wallet, pin, { userId });
+      if (!pinCheck.ok) {
+        return NextResponse.json(
+          { success: false, error: pinCheck.error },
+          { status: pinCheck.status },
+        );
+      }
+
+      try {
+        phrase = decryptMnemonic(
+          wallet.encryptedMnemonic,
+          wallet.iv,
+          wallet.salt,
+          pin,
+        );
+      } catch {
+        return NextResponse.json(
+          { success: false, error: "Failed to get wallet credentials" },
+          { status: 401 },
+        );
+      }
+    }
+
+
     if (isStellar) {
       const { centiivBanks } = await import("@/lib/constants/centiiv-banks");
       const { fossapayBankNameEnquiry } = await import("@/lib/functions/fossapayFunctions");
@@ -156,41 +192,6 @@ export async function POST(req: NextRequest) {
         destination: result.data.destination,
         rate: result.data.rate,
       };
-    }
-
-    // If PIN is provided, verify it before initiating the transaction
-    let phrase: string | undefined;
-    let wallet: any;
-    if (pin) {
-      wallet = await findWalletForUser(userId);
-      if (!wallet) {
-        return NextResponse.json(
-          { success: false, error: "Wallet not found" },
-          { status: 404 },
-        );
-      }
-
-      const pinCheck = await verifyWalletPin(wallet, pin, { userId });
-      if (!pinCheck.ok) {
-        return NextResponse.json(
-          { success: false, error: pinCheck.error },
-          { status: pinCheck.status },
-        );
-      }
-
-      try {
-        phrase = decryptMnemonic(
-          wallet.encryptedMnemonic,
-          wallet.iv,
-          wallet.salt,
-          pin,
-        );
-      } catch {
-        return NextResponse.json(
-          { success: false, error: "Failed to get wallet credentials" },
-          { status: 401 },
-        );
-      }
     }
 
     const { deposit, reference, destination, rate, provider } = offrampResult;
@@ -301,13 +302,15 @@ export async function POST(req: NextRequest) {
       }
 
       // Confirm payment with Switch
-      try {
-        await SwitchService.confirmPayment(reference, transferResult.txHash);
-      } catch (switchConfirmErr) {
-        console.warn(
-          "[Switch Offramp] Switch confirmPayment notice:",
-          switchConfirmErr,
-        );
+      if (provider === "switch") {
+        try {
+          await SwitchService.confirmPayment(reference, transferResult.txHash);
+        } catch (switchConfirmErr) {
+          console.warn(
+            "[Switch Offramp] Switch confirmPayment notice:",
+            switchConfirmErr,
+          );
+        }
       }
 
       // Update Transaction in DB

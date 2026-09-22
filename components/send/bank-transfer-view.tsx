@@ -535,6 +535,7 @@ export function BankTransferView({
         {sheet === "pin" ? (
           <TransferPinSheet
             error={pinError}
+            pending={isSubmitting}
             onRetry={() => setPinError(false)}
             onClose={() => setSheet("review")}
             onComplete={handlePinSubmit}

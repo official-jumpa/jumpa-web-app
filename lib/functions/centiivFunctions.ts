@@ -30,7 +30,26 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const data = await res.json();
 
   if (!res.ok) {
-    const error: any = new Error(data.message || `Centiiv HTTP ${res.status}`);
+    let errorMsg = data.message || `Centiiv HTTP ${res.status}`;
+    
+    // Custom error parsing
+    if (errorMsg.toLowerCase().includes("below the minimum transaction amount")) {
+      const match = errorMsg.match(/minimum transaction amount of ([\d.]+)/i);
+      if (match && match[1]) {
+        errorMsg = `The minimum transfer amount is ${match[1]}.`;
+      } else {
+        errorMsg = "Amount is below the minimum allowed limit for this transfer.";
+      }
+    } else if (errorMsg.toLowerCase().includes("exceeds the maximum")) {
+      const match = errorMsg.match(/maximum transaction amount of ([\d.]+)/i);
+      if (match && match[1]) {
+        errorMsg = `The maximum transfer amount is ${match[1]}.`;
+      } else {
+        errorMsg = "Amount exceeds the maximum allowed limit for this transfer.";
+      }
+    }
+
+    const error: any = new Error(errorMsg);
     error.status = res.status;
     error.response = data;
     throw error;

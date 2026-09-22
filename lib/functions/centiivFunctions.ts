@@ -108,6 +108,7 @@ export async function createCentiivOfframp(params: {
       toAsset: "NGN",
       amount: params.amount,
       network: "STELLAR",
+      description: "Jumpa", // Add jumpa name to the description while making offramps
       refundAddress: params.refundAddress,
       beneficiary: {
         externalId: params.userId,

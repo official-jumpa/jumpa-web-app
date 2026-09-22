@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://usejumpa.com"),
   title: {
-    default: 'Jumpa',
+    default: 'Jumpa - Move Money the way you Chat',
     template: '%s | Jumpa',
   },
   description: 'Move Money the way you Chat. Send, swap, save, and spend across currencies and chains all in one conversation.',

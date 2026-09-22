@@ -21,6 +21,10 @@ import { decryptMnemonic } from "@/lib/crypto";
 import { executeOfframpTransfer } from "@/lib/chains/offramp-transfer";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 
+// Tiny helper: returns ms elapsed since a start mark
+function elapsed(start: number) {
+  return `${(performance.now() - start).toFixed(0)}ms`;
+}
 
 /**
  * POST /api/switch/offramp
@@ -28,8 +32,13 @@ import { invalidateBalanceCache } from "@/lib/wallet-balances";
  * to the settlement address, saves the beneficiary, and confirms payment.
  */
 export async function POST(req: NextRequest) {
+  const t0 = performance.now();
+  console.log("[Offramp] ── START ");
+
   try {
+    let t = performance.now();
     const authResult = await requireActiveUser();
+    console.log(`[Offramp] requireActiveUser: ${elapsed(t)}`);
     if (!authResult.ok) return authResult.response;
     const session = authResult.session;
     const userId = authResult.userId;
@@ -63,7 +72,10 @@ export async function POST(req: NextRequest) {
     let phrase: string | undefined;
     let wallet: any;
     if (pin) {
+      t = performance.now();
       wallet = await findWalletForUser(userId);
+      console.log(`[Offramp] findWalletForUser: ${elapsed(t)}`);
+
       if (!wallet) {
         return NextResponse.json(
           { success: false, error: "Wallet not found" },
@@ -71,7 +83,9 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      t = performance.now();
       const pinCheck = await verifyWalletPin(wallet, pin, { userId });
+      console.log(`[Offramp] verifyWalletPin (bcrypt): ${elapsed(t)}`);
       if (!pinCheck.ok) {
         return NextResponse.json(
           { success: false, error: pinCheck.error },
@@ -80,12 +94,14 @@ export async function POST(req: NextRequest) {
       }
 
       try {
+        t = performance.now();
         phrase = decryptMnemonic(
           wallet.encryptedMnemonic,
           wallet.iv,
           wallet.salt,
           pin,
         );
+        console.log(`[Offramp] decryptMnemonic (argon2id): ${elapsed(t)}`);
       } catch {
         return NextResponse.json(
           { success: false, error: "Failed to get wallet credentials" },
@@ -119,7 +135,9 @@ export async function POST(req: NextRequest) {
       }
       
       try {
+        t = performance.now();
         const fpRes = await fossapayBankNameEnquiry({ accountNumber, bankCode: centiivBank.code });
+        console.log(`[Offramp] fossapayBankNameEnquiry: ${elapsed(t)}`);
         if (!fpRes?.accountName) throw new Error("Verification failed");
       } catch {
         return NextResponse.json({ success: false, error: `Account number "${accountNumber}" could not be verified for ${centiivBank.name}.` }, { status: 400 });
@@ -130,6 +148,7 @@ export async function POST(req: NextRequest) {
       // Get temporary wallet from Centiiv
       const { createCentiivOfframp } = await import("@/lib/functions/centiivFunctions");
       try {
+        t = performance.now();
         const centiivOrder = await createCentiivOfframp({
           amount: cryptoAmount,
           bankCode: centiivBank.code,
@@ -137,6 +156,7 @@ export async function POST(req: NextRequest) {
           accountName: holderName.trim(),
           userId,
         });
+        console.log(`[Offramp] createCentiivOfframp (API): ${elapsed(t)}`);
         
         offrampResult = {
           provider: "centiiv",
@@ -162,7 +182,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: `Bank "${bankName}" is not supported` }, { status: 400 });
       }
 
+      t = performance.now();
       const isAccountValid = await validateAccountNumber(accountNumber, paystackBank.code);
+      console.log(`[Offramp] validateAccountNumber (Paystack): ${elapsed(t)}`);
       if (!isAccountValid) {
         return NextResponse.json({ success: false, error: `Account number "${accountNumber}" could not be verified for ${paystackBank.name}.` }, { status: 400 });
       }
@@ -179,7 +201,9 @@ export async function POST(req: NextRequest) {
         bank_code: bankMatch.code,
       };
 
+      t = performance.now();
       const result = await SwitchService.initiateOfframp(cryptoAmount, asset, recipient);
+      console.log(`[Offramp] SwitchService.initiateOfframp: ${elapsed(t)}`);
 
       if (!result.success || !result.data) {
         return NextResponse.json({ success: false, error: result.message || "Offramp initiation failed" }, { status: result.status || 500 });
@@ -201,6 +225,7 @@ export async function POST(req: NextRequest) {
     // Record in Transaction ledger
     let txRecord: any;
     try {
+      t = performance.now();
       txRecord = await createTransactionRecord({
         userId,
         type: "OFFRAMP",
@@ -220,6 +245,7 @@ export async function POST(req: NextRequest) {
         },
         executedAt: new Date(),
       });
+      console.log(`[Offramp] createTransactionRecord (DB): ${elapsed(t)}`);
 
       logUserActivity({
         userId,
@@ -278,12 +304,14 @@ export async function POST(req: NextRequest) {
 
     // If PIN was provided, execute automated on-chain transfer
     if (phrase && deposit.address) {
+      t = performance.now();
       const transferResult = await executeOfframpTransfer({
         mnemonic: phrase,
         asset,
         depositAddress: deposit.address,
         amount: deposit.amount,
       });
+      console.log(`[Offramp] executeOfframpTransfer (Stellar tx): ${elapsed(t)}`);
 
       if (!transferResult.success || !transferResult.txHash) {
         console.error(
@@ -304,7 +332,9 @@ export async function POST(req: NextRequest) {
       // Confirm payment with Switch
       if (provider === "switch") {
         try {
+          t = performance.now();
           await SwitchService.confirmPayment(reference, transferResult.txHash);
+          console.log(`[Offramp] SwitchService.confirmPayment: ${elapsed(t)}`);
         } catch (switchConfirmErr) {
           console.warn(
             "[Switch Offramp] Switch confirmPayment notice:",
@@ -328,6 +358,7 @@ export async function POST(req: NextRequest) {
         invalidateBalanceCache(wallet.address);
       }
 
+      console.log(`[Offramp] ── TOTAL: ${elapsed(t0)} `);
       return NextResponse.json({
         success: true,
         status: "CONFIRMED",
@@ -346,6 +377,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Fallback: 2-step flow without PIN
+    console.log(`[Offramp] ── TOTAL (no-PIN): ${elapsed(t0)} `);
     return NextResponse.json({
       success: true,
       reference,

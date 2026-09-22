@@ -21,37 +21,26 @@ export async function POST(req: Request) {
     }
 
     const payloadText = await req.text();
-    console.log(`FossaPay Webhook Payload: ${payloadText}`);
-
+    const payload = JSON.parse(payloadText);
+    const event = payload.event || payload.eventType;
+    const { data } = payload;
+    
     // Verify signature
     let expectedSignature;
-    let fallbackSignature;
     try {
       expectedSignature = crypto
         .createHmac("sha256", webhookSecret)
-        .update(payloadText)
-        .digest("hex");
-
-      fallbackSignature = crypto
-        .createHmac("sha256", webhookSecret)
-        .update(JSON.stringify(JSON.parse(payloadText)))
+        .update(JSON.stringify(data))
         .digest("hex");
     } catch (err) {
       console.error("FossaPay: Signature hash generation failed:", err);
       return NextResponse.json({ error: "Invalid payload or secret" }, { status: 400 });
     }
 
-    if (
-      (signature.length !== expectedSignature.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) &&
-      (signature.length !== fallbackSignature.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(fallbackSignature)))
-    ) {
-      console.error(`FossaPay: Signature mismatch. Received: ${signature}, Expected: ${expectedSignature}, Fallback: ${fallbackSignature}`);
-      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    if (signature.length !== expectedSignature.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+      console.error(`FossaPay: Signature mismatch. Received: ${signature}, Expected: ${expectedSignature}`);
+      return NextResponse.json({ error: "Invalid signature"}, { status: 401 });
     }
-
-    const payload = JSON.parse(payloadText);
-    const event = payload.event || payload.eventType;
-    const { data } = payload;
 
     console.log(`FossaPay: Event type: ${event}`);
 

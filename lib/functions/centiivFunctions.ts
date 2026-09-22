@@ -174,7 +174,7 @@ export async function submitCentiivStellarPayment(params: {
   destinationAddress: string;
   usdcAmount: string | number;
   memo?: string;
-}) {
+}): Promise<{ hash: string; status: "confirmed" | "pending" }> {
   const horizonUrl = "https://horizon.stellar.org";
   
   const server = new Horizon.Server(horizonUrl);
@@ -206,6 +206,11 @@ export async function submitCentiivStellarPayment(params: {
   const transaction = builder.build();
   transaction.sign(userKeypair);
 
-  const { response } = await sponsoredSubmit(transaction as any, "mainnet");
-  return response;
+  const result = await sponsoredSubmit(transaction as any, "mainnet");
+
+  if (result.status === "pending") {
+    return { hash: result.txHash, status: "pending" };
+  }
+
+  return { hash: result.response.hash, status: "confirmed" };
 }

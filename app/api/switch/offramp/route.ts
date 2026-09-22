@@ -343,25 +343,29 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      const isTxPending = transferResult.txStatus === "PENDING";
+
       // Update Transaction in DB
       if (txRecord?._id) {
         await updateTransactionRecord(txRecord._id, {
-          status: "CONFIRMED",
+          status: isTxPending ? "PENDING" : "CONFIRMED",
           txHash: transferResult.txHash,
           explorerUrl: transferResult.explorerUrl,
         }).catch(() => {});
       }
 
-      // Invalidate balance cache
-      invalidateBalanceCache(userId);
-      if (wallet?.address) {
-        invalidateBalanceCache(wallet.address);
+      // Invalidate balance cache (skip on PENDING — balance unchanged until confirmed)
+      if (!isTxPending) {
+        invalidateBalanceCache(userId);
+        if (wallet?.address) {
+          invalidateBalanceCache(wallet.address);
+        }
       }
 
       console.log(`[Offramp] ── TOTAL: ${elapsed(t0)} `);
       return NextResponse.json({
         success: true,
-        status: "CONFIRMED",
+        status: isTxPending ? "PENDING" : "CONFIRMED",
         reference,
         txHash: transferResult.txHash,
         explorerUrl: transferResult.explorerUrl,
@@ -373,6 +377,12 @@ export async function POST(req: NextRequest) {
         resolvedBankCode: bankMatch.code,
         accountName: holderName.trim(),
         accountNumber: accountNumber.trim(),
+        ...(isTxPending
+          ? {
+              message:
+                "Your transfer has been submitted to the blockchain and is awaiting confirmation. Your withdrawal will be processed shortly.",
+            }
+          : {}),
       });
     }
 

@@ -21,124 +21,114 @@ export async function createTransactionRecord(
 }
 
 /**
- * Automatically syncs a pending Switch onramp or offramp transaction
- * against Switch provider status API, updating the DB and invalidating balance cache if complete.
+ * Syncs a single PENDING ramp transaction against its provider (Switch or Centiiv),
+ * updating the DB and invalidating balance cache if the status has changed.
+ *
+ * Supports:
+ *  - Switch onramp / offramp  (provider: "switch")
+ *  - Centiiv offramp          (provider: "centiiv")
  */
-export async function syncPendingSwitchTransaction(tx: any): Promise<any> {
+export async function syncPendingRampTransaction(tx: any): Promise<any> {
   if (!tx || tx.status !== "PENDING" || !tx.rampDetails?.reference) {
     return tx;
   }
 
-  // Only sync Switch ramp transactions
-  if (
-    tx.rampDetails?.provider !== "switch" &&
-    tx.type !== "ONRAMP" &&
-    tx.type !== "OFFRAMP"
-  ) {
-    return tx;
-  }
+  const provider = tx.rampDetails?.provider;
 
   try {
-    const reference = tx.rampDetails.reference;
-    const result = await SwitchService.getTransactionStatus(reference);
-
-    if (!result.success || !result.data) {
-      return tx;
+    if (provider === "centiiv") {
+      return await _syncCentiivTransaction(tx);
     }
 
-    const rawStatus = (result.data.status || "").toUpperCase();
-    const isCompleted = [
-      "COMPLETED",
-      "SUCCESS",
-      "SUCCESSFUL",
-      "DELIVERED",
-      "SETTLED",
-    ].includes(rawStatus);
-
-    const isFailed = [
-      "FAILED",
-      "EXPIRED",
-      "CANCELLED",
-      "REJECTED",
-    ].includes(rawStatus);
-
-    if (isCompleted) {
-      const txHash = result.data.meta?.hash || reference;
-      const explorerUrl = result.data.meta?.explorer_url || null;
-
-      await Transaction.updateOne(
-        { _id: tx._id },
-        {
-          $set: {
-            status: "CONFIRMED",
-            txHash,
-            ...(explorerUrl ? { explorerUrl } : {}),
-            updatedAt: new Date(),
-          },
-        },
-      );
-
-      tx.status = "CONFIRMED";
-      tx.txHash = txHash;
-      if (explorerUrl) tx.explorerUrl = explorerUrl;
-
-      // Invalidate balance cache so user immediately sees their funds
-      if (tx.userId) invalidateBalanceCache(tx.userId);
-      if (tx.toAddress) invalidateBalanceCache(tx.toAddress);
-      if (tx.fromAddress) invalidateBalanceCache(tx.fromAddress);
-
-      if (tx.userId) {
-        if (tx.type === "ONRAMP" || tx.type === "DEPOSIT") {
-          logUserActivity({
-            userId: tx.userId,
-            action: "ONRAMP_COMPLETED",
-            details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
-          }).catch(() => {});
-
-          createNotification({
-            userId: tx.userId,
-            tab: "transactions",
-            type: "ONRAMP_COMPLETED",
-            title: "Deposit Successful",
-            body: `${tx.amount} ${tx.token} successfully deposited to your wallet`,
-            metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
-            link: "/transactions",
-          }).catch(() => {});
-        } else if (tx.type === "OFFRAMP" || tx.type === "WITHDRAW") {
-          logUserActivity({
-            userId: tx.userId,
-            action: "OFFRAMP_COMPLETED",
-            details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
-          }).catch(() => {});
-
-          createNotification({
-            userId: tx.userId,
-            tab: "transactions",
-            type: "OFFRAMP_COMPLETED",
-            title: "Withdrawal Successful",
-            body: `${tx.amount} ${tx.token} sent to your bank account`,
-            metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
-            link: "/transactions",
-          }).catch(() => {});
-        }
-      }
-    } else if (isFailed) {
-      await Transaction.updateOne(
-        { _id: tx._id },
-        {
-          $set: {
-            status: "FAILED",
-            updatedAt: new Date(),
-          },
-        },
-      );
-      tx.status = "FAILED";
+    // Default: Switch provider
+    if (provider === "switch" || tx.type === "ONRAMP" || tx.type === "OFFRAMP") {
+      return await _syncSwitchTransaction(tx);
     }
   } catch (err) {
-    console.warn(
-      `[Transaction Sync] Notice syncing pending transaction ${tx._id}:`,
-      err,
-    );
+    console.warn(`[Transaction Sync] Notice syncing pending tx ${tx._id}:`, err);
+  }
+
+  return tx;
+}
+
+/** @deprecated Use syncPendingRampTransaction instead */
+export const syncPendingSwitchTransaction = syncPendingRampTransaction;
+
+async function _applySyncResult(
+  tx: any,
+  newStatus: "CONFIRMED" | "FAILED",
+  txHash?: string,
+  explorerUrl?: string,
+) {
+  const updateData: Record<string, any> = { status: newStatus, updatedAt: new Date() };
+  if (txHash) updateData.txHash = txHash;
+  if (explorerUrl) updateData.explorerUrl = explorerUrl;
+
+  await Transaction.updateOne({ _id: tx._id }, { $set: updateData });
+
+  tx.status = newStatus;
+  if (txHash) tx.txHash = txHash;
+  if (explorerUrl) tx.explorerUrl = explorerUrl;
+
+  if (newStatus === "CONFIRMED") {
+    if (tx.userId) invalidateBalanceCache(tx.userId);
+    if (tx.toAddress) invalidateBalanceCache(tx.toAddress);
+    if (tx.fromAddress) invalidateBalanceCache(tx.fromAddress);
+
+    if (tx.userId) {
+      const isDeposit = tx.type === "ONRAMP" || tx.type === "DEPOSIT";
+      const isWithdraw = tx.type === "OFFRAMP" || tx.type === "WITHDRAW";
+
+      if (isDeposit) {
+        logUserActivity({ userId: tx.userId, action: "ONRAMP_COMPLETED", details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash } }).catch(() => {});
+        createNotification({ userId: tx.userId, tab: "transactions", type: "ONRAMP_COMPLETED", title: "Deposit Successful", body: `${tx.amount} ${tx.token} successfully deposited to your wallet`, metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token }, link: "/transactions" }).catch(() => {});
+      } else if (isWithdraw) {
+        logUserActivity({ userId: tx.userId, action: "OFFRAMP_COMPLETED", details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash } }).catch(() => {});
+        createNotification({ userId: tx.userId, tab: "transactions", type: "OFFRAMP_COMPLETED", title: "Withdrawal Successful", body: `${tx.amount} ${tx.token} sent to your bank account`, metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token }, link: "/transactions" }).catch(() => {});
+      }
+    }
+  }
+
+  return tx;
+}
+
+async function _syncSwitchTransaction(tx: any): Promise<any> {
+  const reference = tx.rampDetails.reference;
+  const result = await SwitchService.getTransactionStatus(reference);
+
+  if (!result.success || !result.data) return tx;
+
+  const rawStatus = (result.data.status || "").toUpperCase();
+  const isCompleted = ["COMPLETED", "SUCCESS", "SUCCESSFUL", "DELIVERED", "SETTLED"].includes(rawStatus);
+  const isFailed = ["FAILED", "EXPIRED", "CANCELLED", "REJECTED"].includes(rawStatus);
+
+  if (isCompleted) {
+    const txHash = result.data.meta?.hash || reference;
+    const explorerUrl = result.data.meta?.explorer_url || undefined;
+    return _applySyncResult(tx, "CONFIRMED", txHash, explorerUrl);
+  } else if (isFailed) {
+    return _applySyncResult(tx, "FAILED");
+  }
+
+  return tx;
+}
+
+async function _syncCentiivTransaction(tx: any): Promise<any> {
+  const { getCentiivRequestStatus } = await import("@/lib/functions/centiivFunctions");
+  const requestId = tx.rampDetails.reference;
+  const result = await getCentiivRequestStatus(requestId);
+
+  if (!result?.status) return tx;
+
+  const rawStatus = result.status.toUpperCase();
+  const isCompleted = ["FULFILLED"].includes(rawStatus);
+  const isFailed = ["FAILED", "EXPIRED", "REFUNDED"].includes(rawStatus);
+
+  if (isCompleted) {
+    const txHash = result.txHash || requestId;
+    return _applySyncResult(tx, "CONFIRMED", txHash);
+  } else if (isFailed) {
+    return _applySyncResult(tx, "FAILED");
   }
 
   return tx;
@@ -160,7 +150,7 @@ export async function listTransactionsByUserId(
   return Promise.all(
     raw.map((tx) =>
       tx.status === "PENDING" && tx.rampDetails?.reference
-        ? syncPendingSwitchTransaction(tx)
+        ? syncPendingRampTransaction(tx)
         : Promise.resolve(tx),
     ),
   );
@@ -176,7 +166,7 @@ export async function getTransactionById(
   await connectDB();
   const tx = await Transaction.findOne({ _id: id, userId }).lean();
   if (!tx) return null;
-  return syncPendingSwitchTransaction(tx);
+  return syncPendingRampTransaction(tx);
 }
 
 function formatDecimal(val: string | number, maxDecimals = 4): string {
@@ -609,7 +599,7 @@ export async function queryUserTransactions(params: {
   const transactions = await Promise.all(
     rawTransactions.map((tx) =>
       tx.status === "PENDING" && tx.rampDetails?.reference
-        ? syncPendingSwitchTransaction(tx)
+        ? syncPendingRampTransaction(tx)
         : Promise.resolve(tx),
     ),
   );
@@ -774,8 +764,11 @@ export async function resolveAllPendingTransactions(options?: {
     "rampDetails.reference": { $exists: true, $ne: null },
   }).lean();
 
+  const switchTxs = pendingTxs.filter((tx) => tx.rampDetails?.provider !== "centiiv");
+  const centiivTxs = pendingTxs.filter((tx) => tx.rampDetails?.provider === "centiiv");
+
   console.log(
-    `[ResolveTx] Starting resolution run... Found ${pendingTxs.length} pending transaction(s) with Switch references (stale threshold: ${staleHours}h)`,
+    `[ResolveTx] Starting resolution run... Found ${pendingTxs.length} pending tx(s) (Switch: ${switchTxs.length}, Centiiv: ${centiivTxs.length}) — stale threshold: ${staleHours}h`,
   );
 
   const result: ResolveTransactionsResult = {
@@ -786,7 +779,58 @@ export async function resolveAllPendingTransactions(options?: {
     details: [],
   };
 
-  for (const tx of pendingTxs) {
+  // ── Centiiv resolution ──────────────────────────────────────────────────
+  const { getCentiivRequestStatus } = await import("@/lib/functions/centiivFunctions");
+
+  for (const tx of centiivTxs) {
+    const reference = tx.rampDetails?.reference;
+    if (!reference) continue;
+
+    try {
+      const centiivRes = await getCentiivRequestStatus(reference);
+      const rawStatus = (centiivRes?.status || "").toUpperCase();
+
+      const isCompleted = rawStatus === "FULFILLED";
+      const isFailed = ["FAILED", "EXPIRED", "REFUNDED"].includes(rawStatus);
+      const isStale = tx.createdAt && new Date(tx.createdAt) < cutoffTime;
+
+      if (isCompleted) {
+        const txHash = centiivRes.txHash || reference;
+        await Transaction.updateOne(
+          { _id: tx._id },
+          { $set: { status: "CONFIRMED", txHash, updatedAt: new Date() } },
+        );
+        console.log(`[ResolveTx] ✅ Centiiv tx ${tx._id} (ref: ${reference}) -> CONFIRMED`);
+        if (tx.userId) invalidateBalanceCache(tx.userId);
+        if (tx.userId) {
+          logUserActivity({ userId: tx.userId, action: "OFFRAMP_COMPLETED", details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash } }).catch(() => {});
+          createNotification({ userId: tx.userId, tab: "transactions", type: "OFFRAMP_COMPLETED", title: "Withdrawal Successful", body: `${tx.amount} ${tx.token} sent to your bank account`, metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token }, link: "/transactions" }).catch(() => {});
+        }
+        result.confirmed++;
+        result.details.push({ id: tx._id, reference, type: tx.type, amount: tx.amount, token: tx.token, previousStatus: "PENDING", newStatus: "CONFIRMED", providerStatus: "FULFILLED" });
+      } else if (isFailed || isStale) {
+        const reason = isFailed ? `Centiiv: ${rawStatus}` : `Centiiv order expired (> ${staleHours}h)`;
+        await Transaction.updateOne(
+          { _id: tx._id },
+          { $set: { status: "FAILED", errorMessage: reason, updatedAt: new Date() } },
+        );
+        console.log(`[ResolveTx] ❌ Centiiv tx ${tx._id} (ref: ${reference}) -> FAILED (${reason})`);
+        result.failed++;
+        result.details.push({ id: tx._id, reference, type: tx.type, amount: tx.amount, token: tx.token, previousStatus: "PENDING", newStatus: "FAILED", providerStatus: rawStatus || "EXPIRED", reason });
+      } else {
+        console.log(`[ResolveTx] ⏳ Centiiv tx ${tx._id} still PENDING (${rawStatus || "PROCESSING"})`);
+        result.stillPending++;
+        result.details.push({ id: tx._id, reference, type: tx.type, amount: tx.amount, token: tx.token, previousStatus: "PENDING", newStatus: "PENDING", providerStatus: rawStatus || "PROCESSING" });
+      }
+    } catch (err: any) {
+      console.error(`[ResolveTx] ⚠️ Error resolving Centiiv ref ${reference}:`, err?.message || err);
+      result.stillPending++;
+      result.details.push({ id: tx._id, reference, type: tx.type, amount: tx.amount, token: tx.token, previousStatus: "PENDING", newStatus: "PENDING", providerStatus: "ERROR", reason: err?.message });
+    }
+  }
+
+  // ── Switch resolution ────────────────────────────────────────────────────
+  for (const tx of switchTxs) {
     const reference = tx.rampDetails?.reference;
     if (!reference) continue;
 

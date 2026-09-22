@@ -79,19 +79,85 @@ export function wrapWithFeeBump(
   }
 }
 
+/** Fee multiplier for offramp transactions — 1000 stroops (~$0.0001). Prevents
+ *  surge-pricing queuing on a busy network. Stellar does NOT refund excess fees. */
+const OFFRAMP_FEE_MULTIPLIER = 10;
+
 /**
  * Convenience: wraps a signed tx in a fee bump, then submits to Horizon.
  * Returns the Horizon response plus whether the fee was sponsored.
+ *
+ * On a 504 Gateway Timeout (Horizon timed out waiting for ledger inclusion),
+ * instead of throwing, returns { status: "pending", txHash } so callers can
+ * treat the transaction as in-flight rather than failed.
  */
 export async function sponsoredSubmit(
   signedTx: StellarSdk.Transaction,
   network: "mainnet" | "testnet" = "mainnet",
-): Promise<{ response: any; sponsored: boolean }> {
-  const { tx, sponsored } = wrapWithFeeBump(signedTx, network);
+): Promise<
+  | { status: "confirmed"; response: any; sponsored: boolean }
+  | { status: "pending"; txHash: string; sponsored: boolean }
+> {
+  // Build a fee bump with a higher fee to avoid surge-pricing delays
+  const higherFeeTx = rebuildWithHigherFee(signedTx, network);
+  const { tx, sponsored } = wrapWithFeeBump(higherFeeTx, network);
   const server = getHorizonServer(network);
-  const response = await server.submitTransaction(tx);
-  return { response, sponsored };
+
+  try {
+    const response = await server.submitTransaction(tx);
+    return { status: "confirmed", response, sponsored };
+  } catch (err: any) {
+    // Horizon timed out — the tx may still land. Extract the hash from extras.
+    const httpStatus = err?.response?.status ?? err?.status;
+    const hash =
+      err?.response?.data?.extras?.hash ??
+      err?.extras?.hash ??
+      signedTx.hash().toString("hex");
+
+    if (httpStatus === 504 || httpStatus === 408) {
+      console.warn(
+        `[Stellar Sponsor] Horizon 504 timeout on tx ${hash}. Returning PENDING — transaction may still land on-chain.`,
+      );
+      return { status: "pending", txHash: hash, sponsored };
+    }
+
+    // Any other error — rethrow
+    throw err;
+  }
 }
+
+/**
+ * Rebuilds a signed transaction with a higher fee to improve ledger inclusion
+ * during surge pricing. Uses full XDR round-trip to clone the transaction envelope
+ * then overwrites only the fee before re-signing.
+ */
+function rebuildWithHigherFee(
+  tx: StellarSdk.Transaction,
+  _network: "mainnet" | "testnet",
+): StellarSdk.Transaction {
+  try {
+    const higherFee = Math.max(
+      Number(StellarSdk.BASE_FEE) * OFFRAMP_FEE_MULTIPLIER,
+      1000,
+    );
+
+    // Clone via XDR so we get a proper Transaction (not OperationRecord types)
+    const xdr = tx.toEnvelope().toXDR("base64");
+    const cloned = StellarSdk.TransactionBuilder.fromXDR(
+      xdr,
+      _network === "mainnet" ? StellarSdk.Networks.PUBLIC : StellarSdk.Networks.TESTNET,
+    ) as StellarSdk.Transaction;
+
+    // Overwrite the fee on the inner envelope
+    (cloned as any).tx._attributes.fee = higherFee;
+
+    return cloned;
+  } catch {
+    console.warn("[Stellar Sponsor] rebuildWithHigherFee failed — using original fee");
+    return tx;
+  }
+}
+
 
 export interface ActivationResult {
   success: boolean;

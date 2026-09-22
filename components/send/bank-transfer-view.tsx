@@ -43,6 +43,7 @@ export function BankTransferView({
   const [pinError, setPinError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
+  const [offrampStatus, setOfframpStatus] = useState<"CONFIRMED" | "PENDING">("CONFIRMED");
   const [currencyMode, setCurrencyMode] = useState<"crypto" | "fiat">("crypto");
 
   const [form, setForm] = useState<BankForm>(() => {
@@ -392,6 +393,8 @@ export function BankTransferView({
       }
 
       setSheet(null);
+      // Preserve PENDING status so the success screen can show the right message
+      setOfframpStatus(data.status === "PENDING" ? "PENDING" : "CONFIRMED");
       setStage("done");
     } catch (err: any) {
       setErrorMessage(err?.message || "Failed to connect to transfer service");
@@ -402,21 +405,33 @@ export function BankTransferView({
   };
 
   if (stage === "done") {
+    const isPending = offrampStatus === "PENDING";
     return (
       <TransferSuccess
         back="/home"
+        title={isPending ? "Transfer Submitted" : "Payment Successful"}
         amount={
           isFiatWithdrawal
             ? `₦${rawTypedNumber.toLocaleString()}`
             : `${numCryptoAmount} ${selectedAsset} (≈ ₦${targetFiatAmount.toLocaleString()})`
         }
         note={
-          <>
-            Your money is on its way to{" "}
-            <b className="font-bold">
-              {form.name || (momo ? form.network : form.bank)}
-            </b>
-          </>
+          isPending ? (
+            <>
+              Your transfer is pending and being processed. Your money will arrive at{" "}
+              <b className="font-bold">
+                {form.name || (momo ? form.network : form.bank)}
+              </b>{" "}
+              shortly
+            </>
+          ) : (
+            <>
+              Your money is on its way to{" "}
+              <b className="font-bold">
+                {form.name || (momo ? form.network : form.bank)}
+              </b>
+            </>
+          )
         }
         details={details}
       />

@@ -13,8 +13,8 @@ import {
   deriveStellarKeypairFromMnemonic,
   getHorizonServer,
   ensureStellarTrustline,
-  wrapWithFeeBump,
 } from "@/lib/chains/stellar";
+import { sponsoredSubmit } from "@/lib/chains/stellar/sponsor";
 import { buildSwapTransaction } from "@/lib/dex";
 import { resolveStellarAsset } from "@/lib/dex/soroswap/client";
 import { getExplorerTxUrl } from "@/lib/blockchain";
@@ -41,7 +41,7 @@ export interface SwapExecuteParams {
 }
 
 export type SwapExecuteResult =
-  | { ok: true; txHash: string; explorerUrl: string }
+  | { ok: true; txHash: string; explorerUrl: string; txStatus: "confirmed" | "pending" }
   | { ok: false; error: string; status: number };
 
 /** Human-readable Horizon operation result code → user-facing message. */
@@ -194,6 +194,7 @@ export async function executeSwap(
   let explorerUrl = "";
   let horizonRes: any = null;
   let feeSponsored = false;
+  let txStatus: "confirmed" | "pending" = "confirmed";
   try {
     const passphrase =
       network === "mainnet"
@@ -203,15 +204,23 @@ export async function executeSwap(
     const tx = StellarSdk.TransactionBuilder.fromXDR(builtXdr, passphrase) as StellarSdk.Transaction;
     tx.sign(sourceKeypair);
 
-    // Wrap in fee bump so the sponsor pays the fee
-    const { tx: finalTx, sponsored } = wrapWithFeeBump(tx, network);
+    // sponsoredSubmit: bumps fee to 1000 stroops + catches 504 gracefully
+    const submitResult = await sponsoredSubmit(tx, network);
+    feeSponsored = submitResult.sponsored;
 
-    const server = getHorizonServer(network);
-    horizonRes = await server.submitTransaction(finalTx);
-    txHash = horizonRes.hash;
-    feeSponsored = sponsored;
+    if (submitResult.status === "pending") {
+      // Horizon timed out — tx may still land on-chain
+      txHash = submitResult.txHash;
+      txStatus = "pending";
+      console.warn(`[executeSwap] Horizon 504 timeout — tx ${txHash} is PENDING. Will resolve via cron.`);
+    } else {
+      horizonRes = submitResult.response;
+      txHash = horizonRes.hash;
+      txStatus = "confirmed";
+    }
+
     explorerUrl = getExplorerTxUrl("stellar", txHash, network === "testnet");
-    console.log(`SUCCESS — txHash: ${txHash}${sponsored ? " (fee sponsored)" : ""}`);
+    console.log(`SUCCESS — txHash: ${txHash}${feeSponsored ? " (fee sponsored)" : ""}${txStatus === "pending" ? " [PENDING]" : ""}`);
   } catch (signErr: any) {
     const errorMsg = horizonErrorMessage(signErr);
     console.error("[executeSwap] Horizon submission error:", signErr?.response?.data?.extras?.result_codes || signErr?.message);
@@ -238,7 +247,7 @@ export async function executeSwap(
     return { ok: false, error: errorMsg, status: 400 };
   }
 
-  // 4. Persist CONFIRMED record
+  // 4. Persist record (CONFIRMED or PENDING if Horizon timed out)
   await connectDB();
   Transaction.create({
     userId,
@@ -246,7 +255,7 @@ export async function executeSwap(
     sessionId,
     messageId,
     type: "SWAP",
-    status: "CONFIRMED",
+    status: txStatus === "pending" ? "PENDING" : "CONFIRMED",
     chain: "stellar",
     network,
     fromAddress,
@@ -264,8 +273,8 @@ export async function executeSwap(
     explorerUrl,
     feePaid: feeSponsored
       ? "None"
-      : (horizonRes as any)?.fee_charged
-        ? `${(Number((horizonRes as any).fee_charged) / 10_000_000).toFixed(5)} XLM`
+      : horizonRes?.fee_charged
+        ? `${(Number(horizonRes.fee_charged) / 10_000_000).toFixed(5)} XLM`
         : "0.00001 XLM",
     executedAt: new Date(),
   }).catch((e) => console.error("[executeSwap] TX log error:", e));
@@ -275,5 +284,5 @@ export async function executeSwap(
     { $set: { lastUsedAt: new Date() } },
   ).catch(() => {});
 
-  return { ok: true, txHash, explorerUrl };
+  return { ok: true, txHash, explorerUrl, txStatus };
 }

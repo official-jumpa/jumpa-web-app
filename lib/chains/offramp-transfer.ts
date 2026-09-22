@@ -87,6 +87,8 @@ export interface OfframpExecutionResult {
   txHash?: string;
   explorerUrl?: string;
   error?: string;
+  /** "PENDING" when Horizon timed out (504) but the tx may still land on-chain */
+  txStatus?: "CONFIRMED" | "PENDING";
 }
 
 export async function executeOfframpTransfer(options: {
@@ -131,11 +133,24 @@ export async function executeOfframpTransfer(options: {
           usdcAmount: amount.toString(),
           userSecretKey: secret
         });
-        
+
+        if (txRes.status === "pending") {
+          console.warn(
+            `[OfframpTransfer] Stellar tx ${txRes.hash} is PENDING (Horizon 504). Centiiv will detect the payment on-chain.`,
+          );
+          return {
+            success: true,
+            txHash: txRes.hash,
+            explorerUrl: `https://stellar.expert/explorer/public/tx/${txRes.hash}`,
+            txStatus: "PENDING",
+          };
+        }
+
         return {
           success: true,
           txHash: txRes.hash,
-          explorerUrl: `https://stellar.expert/explorer/public/tx/${txRes.hash}`
+          explorerUrl: `https://stellar.expert/explorer/public/tx/${txRes.hash}`,
+          txStatus: "CONFIRMED",
         };
       } catch (err: any) {
         let details = err.message;

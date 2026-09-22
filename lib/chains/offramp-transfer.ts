@@ -22,7 +22,7 @@ import * as bip39 from "bip39";
 import { derivePath } from "ed25519-hd-key";
 
 import { createPublicClient, createWalletClient, http, parseUnits } from "viem";
-import { base } from "viem/chains";
+import { base, mainnet } from "viem/chains";
 import { mnemonicToAccount } from "viem/accounts";
 import { environment } from "@/lib/environment";
 import { submitCentiivStellarPayment } from "@/lib/functions/centiivFunctions";
@@ -49,7 +49,7 @@ const ERC20_ABI = [
 import { CONTRACT_ADDRESSES, getExplorerTxUrl } from "@/lib/blockchain";
 
 export interface OfframpAssetConfig {
-  chain: "base" | "solana" | "stellar";
+  chain: "base" | "solana" | "stellar" | "ethereum";
   address?: string; // For EVM
   mint?: string; // For Solana
   decimals: number;
@@ -79,6 +79,16 @@ export const OFFRAMP_ASSETS: Record<string, OfframpAssetConfig> = {
     chain: "solana",
     mint: CONTRACT_ADDRESSES.solana.mainnet.USDT.mint,
     decimals: CONTRACT_ADDRESSES.solana.mainnet.USDT.decimals,
+  },
+  "ethereum:usdc": {
+    chain: "ethereum",
+    address: CONTRACT_ADDRESSES.ethereum.mainnet.USDC.address,
+    decimals: CONTRACT_ADDRESSES.ethereum.mainnet.USDC.decimals,
+  },
+  "ethereum:usdt": {
+    chain: "ethereum",
+    address: CONTRACT_ADDRESSES.ethereum.mainnet.USDT.address,
+    decimals: CONTRACT_ADDRESSES.ethereum.mainnet.USDT.decimals,
   },
 };
 
@@ -162,16 +172,21 @@ export async function executeOfframpTransfer(options: {
       }
     }
 
-    if (config.chain === "base") {
-      const baseRpc =
-        environment.ALCHEMY_BASE_MAINNET_RPC;
+    if (config.chain === "base" || config.chain === "ethereum") {
+      const isEthereum = config.chain === "ethereum";
+      const rpc = isEthereum 
+        ? environment.ALCHEMY_MAINNET_RPC 
+        : environment.ALCHEMY_BASE_MAINNET_RPC;
+      const viemChain = isEthereum ? mainnet : base;
+      const networkName = isEthereum ? "Ethereum" : "Base";
+
       const publicClient = createPublicClient({
-        chain: base,
-        transport: http(baseRpc),
+        chain: viemChain,
+        transport: http(rpc),
       });
       const walletClient = createWalletClient({
-        chain: base,
-        transport: http(baseRpc),
+        chain: viemChain,
+        transport: http(rpc),
       });
 
       const account = mnemonicToAccount(mnemonic as `0x${string}`);
@@ -182,13 +197,12 @@ export async function executeOfframpTransfer(options: {
         address: account.address,
       });
       const ethBalance = Number(ethBalanceWei) / 1e18;
-      console.log(
-        `[OfframpTransfer] Base account: ${account.address}, ETH balance: ${ethBalance} ETH`,
-      );
-      if (ethBalance < 0.0003) {
+      
+      const minimumGas = isEthereum ? 0.001 : 0.0003;
+      if (ethBalance < minimumGas) {
         return {
           success: false,
-          error: "Insufficient ETH balance on Base network to pay gas fees (minimum 0.0003 ETH required).",
+          error: `Insufficient ETH balance on ${networkName} network to pay gas fees (minimum ${minimumGas} ETH required).`,
         };
       }
 
@@ -207,14 +221,14 @@ export async function executeOfframpTransfer(options: {
       if (tokenBalance < numAmount) {
         return {
           success: false,
-          error: `Insufficient ${asset.split(":")[1]?.toUpperCase()} balance on Base (available: ${tokenBalance.toFixed(2)}, required: ${numAmount}).`,
+          error: `Insufficient ${asset.split(":")[1]?.toUpperCase()} balance on ${networkName} (available: ${tokenBalance.toFixed(2)}, required: ${numAmount}).`,
         };
       }
 
       const amountUnits = parseUnits(String(numAmount), config.decimals);
 
       console.log(
-        `[OfframpTransfer] Writing ERC20 transfer to ${depositAddress} (${amountUnits} units)...`,
+        `[OfframpTransfer] Writing ERC20 transfer to ${depositAddress} (${amountUnits} units) on ${networkName}...`,
       );
 
       const txHash = await walletClient.writeContract({
@@ -225,12 +239,12 @@ export async function executeOfframpTransfer(options: {
         args: [depositAddress as `0x${string}`, amountUnits],
       });
 
-      console.log(`[OfframpTransfer] Base transfer broadcasted! TxHash: ${txHash}`);
+      console.log(`[OfframpTransfer] ${networkName} transfer sent! TxHash: ${txHash}`);
 
       return {
         success: true,
         txHash,
-        explorerUrl: getExplorerTxUrl("base", txHash),
+        explorerUrl: getExplorerTxUrl(config.chain, txHash),
       };
     }
 

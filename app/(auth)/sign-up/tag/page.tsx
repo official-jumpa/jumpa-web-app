@@ -2,9 +2,15 @@ import type { Metadata } from "next";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { JumpaTagForm } from "@/components/auth/jumpa-tag-form";
+import { pageMetadata } from "@/lib/seo";
 import { SIGN_UP_FLOW } from "@/lib/sign-up";
 
-export const metadata: Metadata = { title: "Pick your Jumpa Tag" };
+export const metadata: Metadata = pageMetadata({
+  title: "Pick your Jumpa Tag",
+  description:
+    "Choose your Jumpa Tag — the unique handle people use to find you and pay you.",
+  path: "/sign-up/tag",
+});
 
 export default function JumpaTagPage() {
   return (

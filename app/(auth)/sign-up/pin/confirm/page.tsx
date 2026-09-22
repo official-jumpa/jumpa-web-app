@@ -2,9 +2,15 @@ import type { Metadata } from "next";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { ConfirmPinForm } from "@/components/auth/confirm-pin-form";
+import { pageMetadata } from "@/lib/seo";
 import { SIGN_UP_FLOW } from "@/lib/sign-up";
 
-export const metadata: Metadata = { title: "Confirm transaction PIN" };
+export const metadata: Metadata = pageMetadata({
+  title: "Confirm transaction PIN",
+  description:
+    "Re-enter your 4-digit transaction PIN to confirm it and secure your payments.",
+  path: "/sign-up/pin/confirm",
+});
 
 export default function ConfirmPinPage() {
   return (

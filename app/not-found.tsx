@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { PlaceholderScreen } from "@/components/ui/placeholder-screen";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Page not found" };
+export const metadata: Metadata = pageMetadata({
+  title: "Page not found",
+  description:
+    "That page doesn't exist. Head back to Jumpa to send, swap, save and spend across currencies and chains.",
+});
 
 /** Catches every unmatched URL. Sits outside the route groups, so it carries its own column. */
 export default function NotFound() {

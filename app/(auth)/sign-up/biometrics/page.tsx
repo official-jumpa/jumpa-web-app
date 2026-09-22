@@ -4,8 +4,14 @@ import Link from "next/link";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { Button } from "@/components/ui/button";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Turn on biometrics" };
+export const metadata: Metadata = pageMetadata({
+  title: "Turn on biometrics",
+  description:
+    "Use Face ID or your fingerprint to unlock Jumpa and approve payments faster.",
+  path: "/sign-up/biometrics",
+});
 
 export default function BiometricsPage() {
   return (

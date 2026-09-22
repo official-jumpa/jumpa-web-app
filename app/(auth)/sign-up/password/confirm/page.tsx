@@ -2,9 +2,15 @@ import type { Metadata } from "next";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { LoginPasswordForm } from "@/components/auth/login-password-form";
+import { pageMetadata } from "@/lib/seo";
 import { SIGN_UP_FLOW } from "@/lib/sign-up";
 
-export const metadata: Metadata = { title: "Confirm login password" };
+export const metadata: Metadata = pageMetadata({
+  title: "Confirm login password",
+  description:
+    "Re-enter your 6-digit login password to confirm it and continue setting up your wallet.",
+  path: "/sign-up/password/confirm",
+});
 
 export default function ConfirmLoginPasswordPage() {
   return (

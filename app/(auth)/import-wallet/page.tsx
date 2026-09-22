@@ -6,8 +6,14 @@ import { SocialSignUp } from "@/components/auth/social-sign-up";
 import { Button } from "@/components/ui/button";
 import { CloudIcon } from "@/components/ui/icons/cloud";
 import { UserLockIcon } from "@/components/ui/icons/user-lock";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Import a wallet" };
+export const metadata: Metadata = pageMetadata({
+  title: "Import a wallet",
+  description:
+    "Bring an existing wallet into Jumpa with your recovery phrase or private key.",
+  path: "/import-wallet",
+});
 
 export default function ImportWalletPage() {
   return (

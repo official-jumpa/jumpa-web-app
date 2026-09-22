@@ -2,8 +2,14 @@ import type { Metadata } from "next";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { PhraseImport } from "@/components/auth/phrase-import";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = { title: "Enter your recovery phrase" };
+export const metadata: Metadata = pageMetadata({
+  title: "Enter your recovery phrase",
+  description:
+    "Restore your wallet in Jumpa with your 12 or 24-word recovery phrase.",
+  path: "/import-wallet/recovery-phrase",
+});
 
 export default function ImportRecoveryPhrasePage() {
   return (

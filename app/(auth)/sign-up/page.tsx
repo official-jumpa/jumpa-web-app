@@ -4,11 +4,14 @@ import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { EmailAuthForm } from "@/components/auth/email-auth-form";
 import { SocialSignUp } from "@/components/auth/social-sign-up";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Create account",
-  description: "Create your free Jumpa account. Set up a self-custodial wallet in minutes and start moving money across currencies and chains.",
-};
+  description:
+    "Create your free Jumpa account. Set up a self-custodial wallet in minutes and start moving money across currencies and chains.",
+  path: "/sign-up",
+});
 
 export default function SignUpPage() {
   return (

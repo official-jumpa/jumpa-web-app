@@ -126,10 +126,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geist.variable} ${geistMono.variable} h-full antialiased`}
     >
-      {/* Black frames the column on desktop. On a phone the column is capped
-          just under the widest viewports, so black there is a thin sliver that
-          reads as a rendering fault — keep it white until the gap is clearly a frame. */}
-      <body className="min-h-full bg-jumpa-white md:bg-jumpa-black">
+      <body className="min-h-full bg-jumpa-black">
         {gaId && (
           <>
             <Script

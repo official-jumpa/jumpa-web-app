@@ -1,5 +1,7 @@
 /** Copy and structured content for the public landing page (`app/page.tsx`). */
 
+import { legalHref } from "@/lib/legal";
+
 export const CTA_LABEL = "Join Beta";
 export const EMAIL_PLACEHOLDER = "Enter your email...";
 
@@ -270,9 +272,11 @@ export const FOOTER = {
   betaTitle: "Private Beta",
   betaBlurb:
     "Be among the first to test Jumpa. Move money by text or voice, explore the experience, and help us make it better before launch.",
-  // TODO(content): neither page exists and the design gives no destination.
+  // The design gives no destination. Both are public pages under /legal, so a
+  // signed-out visitor can read them; the hrefs come from `legalHref` so the
+  // footer cannot drift from the route.
   legal: [
-    { label: "Privacy Policy", href: "#" },
-    { label: "Terms of Service", href: "#" },
+    { label: "Privacy Policy", href: legalHref("privacy") },
+    { label: "Terms and Conditions", href: legalHref("terms") },
   ],
 } as const;

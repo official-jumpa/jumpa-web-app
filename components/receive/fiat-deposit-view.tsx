@@ -43,13 +43,18 @@ function HeroGrid() {
   );
 }
 
-export function FiatDepositView() {
-  const [loading, setLoading] = useState(true);
-  const [account, setAccount] = useState<NgnAccountData | null>(null);
+export function FiatDepositView({
+  initialAccount = null,
+}: {
+  initialAccount?: NgnAccountData | null;
+} = {}) {
+  const [loading, setLoading] = useState(() => !initialAccount);
+  const [account, setAccount] = useState<NgnAccountData | null>(initialAccount);
   const [error, setError] = useState<string | null>(null);
   const [showFeeTiers, setShowFeeTiers] = useState(false);
 
   useEffect(() => {
+    if (initialAccount) return;
     let isMounted = true;
 
     async function loadAccount() {

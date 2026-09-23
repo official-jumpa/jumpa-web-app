@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import {
+  type BankAccountItem,
   type BankForm,
   BankTransferForm,
   EMPTY_BANK_FORM,
@@ -33,10 +34,12 @@ export function BankTransferView({
   defaultCountry = "Nigeria",
   initialNetwork,
   initialAsset,
+  initialBeneficiaries,
 }: {
   defaultCountry?: string;
   initialNetwork?: string;
   initialAsset?: string;
+  initialBeneficiaries?: BankAccountItem[];
 }) {
   const [stage, setStage] = useState<Stage>("form");
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -579,6 +582,7 @@ export function BankTransferView({
       <BankTransferForm
         form={form}
         defaultCountry={defaultCountry}
+        initialBeneficiaries={initialBeneficiaries}
         onChange={setForm}
         onPickRecent={(account) =>
           setForm({

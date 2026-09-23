@@ -3,6 +3,7 @@ import { cancelPendingChatMessage } from "@/lib/functions/chatFunctions";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { cancelChatActionSchema } from "@/lib/validations/chat.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { logUserActivity } from "@/lib/functions/userFunctions";
 
 /**
  * POST /api/chat/cancel
@@ -32,6 +33,16 @@ export async function POST(req: NextRequest) {
       const status = result.error?.includes("not found") ? 404 : 400;
       return NextResponse.json({ error: result.error }, { status });
     }
+
+    logUserActivity({
+      userId: auth.userId,
+      action: "CHAT_TRANSACTION_CANCELLED",
+      details: {
+        sessionId,
+        messageId: result.cancelledMessageId,
+      },
+      req,
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

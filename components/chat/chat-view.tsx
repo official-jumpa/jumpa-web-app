@@ -156,13 +156,31 @@ function messagesToChatEntries(
   return entries;
 }
 
-export function ChatView() {
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<IChatMessage[]>([]);
-  const [totalMessagesCount, setTotalMessagesCount] = useState<number>(0);
-  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+export interface ChatViewProps {
+  initialSessions?: SessionSummary[];
+  initialActiveSessionId?: string | null;
+  initialMessages?: IChatMessage[];
+  initialTotalMessagesCount?: number;
+}
+
+export function ChatView({
+  initialSessions = [],
+  initialActiveSessionId = null,
+  initialMessages = [],
+  initialTotalMessagesCount = 0,
+}: ChatViewProps = {}) {
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(
+    initialActiveSessionId,
+  );
+  const [messages, setMessages] = useState<IChatMessage[]>(initialMessages);
+  const [totalMessagesCount, setTotalMessagesCount] = useState<number>(
+    initialTotalMessagesCount,
+  );
+  const [sessions, setSessions] = useState<SessionSummary[]>(initialSessions);
   const [inputValue, setInputValue] = useState<string>("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(
+    () => !initialActiveSessionId && initialSessions.length === 0,
+  );
   const [loadingEarlier, setLoadingEarlier] = useState(false);
   const [isResponding, setIsResponding] = useState(false);
   const [pinOpen, setPinOpen] = useState(false);
@@ -204,8 +222,12 @@ export function ChatView() {
     }
   }, []);
 
-  // Initial mount: load latest chat session and list of sessions
+  // Initial mount: load latest chat session and list of sessions only if not pre-seeded
   useEffect(() => {
+    if (initialActiveSessionId || initialSessions.length > 0) {
+      return; // Already pre-seeded by server component!
+    }
+
     let mounted = true;
 
     async function initChat() {
@@ -240,7 +262,7 @@ export function ChatView() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [initialActiveSessionId, initialSessions.length]);
 
   // Switch to selected session from Recent dropdown
   const handleSelectSession = useCallback(

@@ -1,27 +1,27 @@
 import type { Metadata } from "next";
 import { SwapView } from "@/components/swap/swap-view";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
-import { findWalletForUser } from "@/lib/functions/walletFunctions";
-import { fetchStellarBalances } from "@/lib/chains/stellar";
+import { getCachedWalletBalances } from "@/lib/wallet-balances";
 
 export const metadata: Metadata = { title: "Swap" };
 
 export default async function SwapPage() {
-  // Pre-fetch Stellar mainnet balances server-side so the initial render
-  // shows real numbers without a client-side waterfall fetch.
   let stellarBalances = { xlm: "0.00", usdc: "0.00" };
 
   try {
     const session = await getCachedAuthSession();
     if (session?.user?.id) {
-      const wallet = await findWalletForUser(session.user.id);
-      const xlmAddress = wallet?.addresses?.xlm || wallet?.address;
-
-      if (xlmAddress) {
-        const result = await fetchStellarBalances(xlmAddress);
+      const balances = await getCachedWalletBalances(session.user.id);
+      if (balances?.tokens) {
+        const xlmToken = balances.tokens.find(
+          (t) => t.symbol === "XLM" && !t.isTestnet,
+        );
+        const usdcToken = balances.tokens.find(
+          (t) => t.symbol === "USDC" && !t.isTestnet,
+        );
         stellarBalances = {
-          xlm: result.mainnet.native,
-          usdc: result.mainnet.usdc,
+          xlm: xlmToken?.balance || "0.00",
+          usdc: usdcToken?.balance || "0.00",
         };
       }
     }

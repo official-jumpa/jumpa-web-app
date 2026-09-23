@@ -6,6 +6,8 @@ import { AuthGuard, useAuthContext } from "@/components/auth/AuthGuard";
 import { UserProfileProvider } from "@/components/profile/user-profile-provider";
 import { BottomNav } from "@/components/home/bottom-nav";
 
+import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
+
 export { AuthGuard, useAuthContext };
 
 export const dynamic = "force-dynamic";
@@ -17,11 +19,20 @@ export const metadata: Metadata = {
   },
 };
 /** Signed-in column. Same shell as the auth flow. */
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  let session = null;
+  try {
+    session = await getCachedAuthSession();
+  } catch (err) {
+    console.warn("[AppLayout] Session resolution:", err);
+  }
+
+  const initialUser = (session?.user as any) ?? null;
+
   return (
     <AppColumn>
-      <AuthGuard>
-        <UserProfileProvider>
+      <AuthGuard initialSession={session} initialUser={initialUser}>
+        <UserProfileProvider initialProfile={initialUser}>
           {children}
           <Suspense fallback={null}>
             <BottomNav />

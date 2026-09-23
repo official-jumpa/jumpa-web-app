@@ -4,6 +4,7 @@ import {
   syncKycToUserProfile,
 } from "@/lib/functions/kycFunctions";
 import { requireAuth } from "@/lib/functions/permissionFunctions";
+import { logUserActivity } from "@/lib/functions/userFunctions";
 import { kycVerifySchema } from "@/lib/validations/kyc.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import type { IKycDetails } from "@/models/KYCSchema";
@@ -90,6 +91,18 @@ export async function POST(req: NextRequest) {
         rawResponse: data,
       });
 
+      logUserActivity({
+        userId,
+        action: "KYC_SUBMITTED",
+        details: {
+          verificationId,
+          idType,
+          status: "failed",
+          rejectionReason: errorMsg,
+        },
+        req,
+      }).catch(() => {});
+
       return NextResponse.json(
         { error: errorMsg, details: data },
         { status: response.status >= 400 ? response.status : 422 },
@@ -143,6 +156,17 @@ export async function POST(req: NextRequest) {
 
     // Sync verified details to User profile
     await syncKycToUserProfile(userId, verifiedDetails);
+
+    logUserActivity({
+      userId,
+      action: "KYC_SUBMITTED",
+      details: {
+        verificationId,
+        idType,
+        status: "approved",
+      },
+      req,
+    }).catch(() => {});
 
     return NextResponse.json(
       {

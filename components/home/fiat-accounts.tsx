@@ -23,17 +23,28 @@ const DETAILS: Record<FiatAccount["id"], string> = {
 // In-memory cache for instant zero-flicker tab returns
 let ngnMemoryCache: { hasAccount?: boolean; balance?: string | null } = {};
 
-/** The NGN and USD balances, side by side under the quick actions. */
-export function FiatAccounts() {
-  const [hasNgnAccount, setHasNgnAccount] = useState<boolean>(
-    () => ngnMemoryCache.hasAccount ?? false
-  );
-  const [ngnBalance, setNgnBalance] = useState<string | null>(
-    () => ngnMemoryCache.balance ?? null
-  );
+interface FiatAccountsProps {
+  initialHasNgnAccount?: boolean;
+  initialNgnBalance?: string | null;
+}
 
-  // Restore cached NGN account info from localStorage if not already in memory
+/** The NGN and USD balances, side by side under the quick actions. */
+export function FiatAccounts({
+  initialHasNgnAccount,
+  initialNgnBalance,
+}: FiatAccountsProps = {}) {
+  const [hasNgnAccount, setHasNgnAccount] = useState<boolean>(() => {
+    if (initialHasNgnAccount !== undefined) return initialHasNgnAccount;
+    return ngnMemoryCache.hasAccount ?? false;
+  });
+  const [ngnBalance, setNgnBalance] = useState<string | null>(() => {
+    if (initialNgnBalance !== undefined) return initialNgnBalance;
+    return ngnMemoryCache.balance ?? null;
+  });
+
+  // Restore cached NGN account info from localStorage if not provided
   useEffect(() => {
+    if (initialHasNgnAccount !== undefined) return;
     try {
       const cached = localStorage.getItem("jumpa_ngn_account_cache");
       if (cached && ngnMemoryCache.hasAccount === undefined) {
@@ -45,10 +56,11 @@ export function FiatAccounts() {
         }
       }
     } catch {}
-  }, []);
+  }, [initialHasNgnAccount]);
 
-  // Fetch live NGN account status and balance from API
+  // Fetch live NGN account status and balance from API only if not pre-provided
   useEffect(() => {
+    if (initialHasNgnAccount !== undefined) return;
     let isMounted = true;
     async function loadNgnAccount() {
       try {

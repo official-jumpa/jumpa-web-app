@@ -29,6 +29,7 @@ import {
   depositSavingsExecution,
   withdrawSavingsExecution,
 } from "@/lib/services/savings-execution";
+import { logUserActivity } from "@/lib/functions/userFunctions";
 
 
 /**
@@ -194,6 +195,20 @@ export async function POST(req: NextRequest) {
       }
 
       const { txHash, explorerUrl } = swapResult;
+
+      logUserActivity({
+        userId,
+        action: "SWAP_EXECUTED",
+        details: {
+          fromToken: payBadge,
+          toToken: receiveBadge,
+          fromAmount: payVal,
+          toAmount: receiveVal,
+          protocol: protocolName,
+          txHash,
+        },
+        req,
+      }).catch(() => {});
 
       receiptCardData = {
         title: `Swapped (${protocolName})`,
@@ -551,6 +566,19 @@ export async function POST(req: NextRequest) {
         );
 
         updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});
+
+        logUserActivity({
+          userId,
+          action: "TRANSFER_SENT",
+          details: {
+            amount,
+            token,
+            recipient: destAddress,
+            network,
+            txHash,
+          },
+          req,
+        }).catch(() => {});
       } catch (payErr: any) {
         const resultCodes =
           payErr?.response?.data?.extras?.result_codes ||
@@ -819,6 +847,22 @@ export async function POST(req: NextRequest) {
 
       updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});
 
+      logUserActivity({
+        userId,
+        action: "OFFRAMP_COMPLETED",
+        details: {
+          reference,
+          cryptoAmount,
+          cryptoToken,
+          fiatAmount,
+          bankName,
+          accountNumber,
+          txHash,
+          targetChainName,
+        },
+        req,
+      }).catch(() => {});
+
       receiptCardData = {
         title: "Withdrawal Sent",
         status: "Successful",
@@ -899,6 +943,18 @@ export async function POST(req: NextRequest) {
     console.log(
       `[Chat Confirm] Saved confirmed messages to ChatLog. Elapsed time: ${elapsedSeconds} s`,
     );
+
+    logUserActivity({
+      userId,
+      action: "CHAT_TRANSACTION_CONFIRMED",
+      details: {
+        sessionId,
+        messageId: targetMsg?.id,
+        cardType,
+        txType: txParams?.type,
+      },
+      req,
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

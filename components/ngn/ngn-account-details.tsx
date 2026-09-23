@@ -44,16 +44,28 @@ interface NgnBalanceData {
 const MASK = "*".repeat(9);
 const ACTION = "tap flex w-16 flex-col items-center gap-2 active:scale-95";
 
+interface NgnAccountDetailsProps {
+  initialAccount?: NgnAccountData | null;
+  initialBalance?: NgnBalanceData | null;
+  initialTransactions?: Transaction[];
+}
+
 /** Upgraded NGN account details screen with balance card, action buttons, and live NGN transaction history. */
-export function NgnAccountDetails() {
-  const [loading, setLoading] = useState(true);
-  const [account, setAccount] = useState<NgnAccountData | null>(null);
-  const [balance, setBalance] = useState<NgnBalanceData | null>(null);
+export function NgnAccountDetails({
+  initialAccount = null,
+  initialBalance = null,
+  initialTransactions = [],
+}: NgnAccountDetailsProps = {}) {
+  const [loading, setLoading] = useState(() => !initialAccount);
+  const [account, setAccount] = useState<NgnAccountData | null>(initialAccount);
+  const [balance, setBalance] = useState<NgnBalanceData | null>(initialBalance);
   const [error, setError] = useState<string | null>(null);
 
   const [visible, setVisible] = useState(true);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loadingTransactions, setLoadingTransactions] = useState(true);
+  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
+  const [loadingTransactions, setLoadingTransactions] = useState(
+    () => initialTransactions.length === 0,
+  );
 
   // Sync visibility state from localStorage
   useEffect(() => {
@@ -65,8 +77,9 @@ export function NgnAccountDetails() {
     } catch {}
   }, []);
 
-  // Fetch account and balance
+  // Fetch account and balance only if not pre-seeded
   useEffect(() => {
+    if (initialAccount) return;
     let isMounted = true;
     async function fetchAccount() {
       try {
@@ -99,10 +112,11 @@ export function NgnAccountDetails() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [initialAccount]);
 
-  // Fetch NGN-specific transaction history
+  // Fetch NGN-specific transaction history only if not pre-seeded
   useEffect(() => {
+    if (initialTransactions.length > 0) return;
     let isMounted = true;
     async function fetchNgnTransactions() {
       try {
@@ -124,7 +138,7 @@ export function NgnAccountDetails() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [initialTransactions.length]);
 
   const ToggleIcon = visible ? EyeOffIcon : EyeIcon;
 

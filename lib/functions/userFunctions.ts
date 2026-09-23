@@ -29,6 +29,13 @@ export async function updateUserProfile(
     { $set: data },
     { new: true, runValidators: true },
   ).lean<IUser>();
+  if (updated) {
+    logUserActivity({
+      userId,
+      action: "PROFILE_UPDATED",
+      details: { updatedFields: Object.keys(data) },
+    }).catch(() => {});
+  }
   return updated ?? null;
 }
 
@@ -85,7 +92,7 @@ export async function markSavingsIntroSeen(
 }
 
 /**
- * Logs a discrete user activity event.
+ * Logs a discrete user activity event safely without throwing on error.
  */
 export async function recordUserActivity(params: {
   userId: string;
@@ -93,14 +100,19 @@ export async function recordUserActivity(params: {
   details?: Record<string, any>;
   ipAddress?: string;
   userAgent?: string;
-}): Promise<IUserActivityLog> {
-  await connectDB();
-  return UserActivityLog.create(params);
+}): Promise<IUserActivityLog | null> {
+  try {
+    await connectDB();
+    return await UserActivityLog.create(params);
+  } catch (error) {
+    console.warn(`[ActivityLog] Failed to record user activity (${params.action}) for ${params.userId}:`, error);
+    return null;
+  }
 }
 
 /**
- * Enhanced user activity logger that optionally accepts a NextRequest or Headers
- * to automatically record IP address and User-Agent.
+ * Enhanced user activity logger that optionally accepts a NextRequest or Headers,
+ * or automatically falls back to next/headers to record IP address and User-Agent.
  */
 export async function logUserActivity(params: {
   userId: string;
@@ -109,7 +121,7 @@ export async function logUserActivity(params: {
   req?: { headers: Headers | { get(key: string): string | null } };
   ipAddress?: string;
   userAgent?: string;
-}): Promise<IUserActivityLog> {
+}): Promise<IUserActivityLog | null> {
   let ip = params.ipAddress;
   let ua = params.userAgent;
 
@@ -120,6 +132,23 @@ export async function logUserActivity(params: {
     }
     if (!ua) {
       ua = params.req.headers.get("user-agent") || undefined;
+    }
+  }
+
+  // If IP or UA is still missing, attempt to extract from current Next.js request context via next/headers
+  if (!ip || !ua) {
+    try {
+      const { headers } = await import("next/headers");
+      const h = await headers();
+      if (!ip) {
+        const forwarded = h.get("x-forwarded-for");
+        ip = forwarded ? forwarded.split(",")[0].trim() : h.get("x-real-ip") || undefined;
+      }
+      if (!ua) {
+        ua = h.get("user-agent") || undefined;
+      }
+    } catch {
+      // Ignored if called outside request context (e.g. background job, worker)
     }
   }
 
@@ -210,6 +239,16 @@ export async function saveOrUpdateBeneficiary(
     setDefaultsOnInsert: true,
   });
 
+  logUserActivity({
+    userId,
+    action: "BENEFICIARY_ADDED",
+    details: {
+      type: data.type,
+      name: data.name,
+      identifier: data.identifier,
+    },
+  }).catch(() => {});
+
   return doc;
 }
 
@@ -222,7 +261,15 @@ export async function deleteBeneficiary(
 ): Promise<boolean> {
   await connectDB();
   const result = await Beneficiary.deleteOne({ _id: beneficiaryId, userId });
-  return (result.deletedCount || 0) > 0;
+  const deleted = (result.deletedCount || 0) > 0;
+  if (deleted) {
+    logUserActivity({
+      userId,
+      action: "BENEFICIARY_DELETED",
+      details: { beneficiaryId },
+    }).catch(() => {});
+  }
+  return deleted;
 }
 
 /**

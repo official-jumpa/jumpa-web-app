@@ -28,6 +28,7 @@ import { Transaction } from "@/models/Transaction";
 import { User } from "@/models/User";
 import { Wallet } from "@/models/Wallet";
 import { listSavingsPlansByUserId } from "@/lib/functions/savingsFunctions";
+import { logUserActivity } from "@/lib/functions/userFunctions";
 import { toChatPlan } from "./savings-plan-card";
 import { getNetworkFromToolName, type JumpaToolName } from "./tools";
 import { analyzeImageWithGemini } from "./vision";
@@ -1752,6 +1753,12 @@ export async function executeTool(
           requiresConfirmation: false,
         };
       }
+
+      logUserActivity({
+        userId,
+        action: "FAUCET_REQUESTED",
+        details: { targetAddress, chain: "stellar", network: "testnet" },
+      }).catch(() => {});
 
       // Fetch fresh testnet balance
       let newBalanceText = "10,000 XLM";

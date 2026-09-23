@@ -5,7 +5,11 @@ import {
   getRawSavingsPlanById,
 } from "@/lib/functions/savingsFunctions";
 import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
-import { setUserCreatedSavings, markSavingsIntroSeen } from "@/lib/functions/userFunctions";
+import {
+  setUserCreatedSavings,
+  markSavingsIntroSeen,
+  logUserActivity,
+} from "@/lib/functions/userFunctions";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { decryptMnemonic } from "@/lib/crypto";
 import {
@@ -282,6 +286,19 @@ export async function createSavingsPlanExecution(
     explorerUrl: explorerUrl || undefined,
   };
 
+  logUserActivity({
+    userId,
+    action: "SAVINGS_PLAN_CREATED",
+    details: {
+      planId: plan._id,
+      name,
+      kind,
+      targetAmount,
+      deposit: numDeposit,
+      txHash,
+    },
+  }).catch(() => {});
+
   return {
     ok: true,
     plan: formatPlanForUI(plan),
@@ -446,6 +463,17 @@ export async function depositSavingsExecution(
     txHash,
     explorerUrl,
   };
+
+  logUserActivity({
+    userId,
+    action: "SAVINGS_TOP_UP",
+    details: {
+      planId: plan._id,
+      name: plan.name,
+      amount,
+      txHash,
+    },
+  }).catch(() => {});
 
   return {
     ok: true,
@@ -616,6 +644,19 @@ export async function withdrawSavingsExecution(
     txHash: txHash || undefined,
     explorerUrl: explorerUrl || undefined,
   };
+
+  logUserActivity({
+    userId,
+    action: "SAVINGS_WITHDRAWAL",
+    details: {
+      planId: plan._id,
+      name: plan.name,
+      withdrawnAmount: withdrawAmount,
+      penaltyFee,
+      netPayout,
+      txHash,
+    },
+  }).catch(() => {});
 
   return {
     ok: true,

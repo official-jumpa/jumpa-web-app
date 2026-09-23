@@ -4,6 +4,7 @@ import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { getRawSavingsPlanById } from "@/lib/functions/savingsFunctions";
 import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
+import { logUserActivity } from "@/lib/functions/userFunctions";
 import { withdrawSavingsSchema } from "@/lib/validations/savings.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
@@ -171,6 +172,20 @@ export async function POST(req: NextRequest) {
       },
       executedAt: new Date(),
     });
+
+    logUserActivity({
+      userId,
+      action: "SAVINGS_WITHDRAWAL",
+      details: {
+        planId: plan._id,
+        name: plan.name,
+        withdrawnAmount: withdrawAmount,
+        penaltyFee,
+        netPayout,
+        txHash,
+      },
+      req,
+    }).catch(() => {});
 
     return NextResponse.json({
       ok: true,

@@ -5,6 +5,7 @@ import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { withdrawNgnSchema } from "@/lib/validations/fossapay.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { withdrawNgnFiat } from "@/lib/functions/fossapayFunctions";
+import { logUserActivity } from "@/lib/functions/userFunctions";
 
 /**
  * POST /api/ngn-account/withdraw
@@ -54,6 +55,18 @@ export async function POST(req: NextRequest) {
         { status: pinCheck.status || 401 }
       );
     }
+
+    logUserActivity({
+      userId,
+      action: "WITHDRAWAL_INITIATED",
+      details: {
+        amount,
+        accountNumber,
+        bankName,
+        accountName,
+      },
+      req,
+    }).catch(() => {});
 
     // 2. Execute FossaPay Withdrawal
     const result = await withdrawNgnFiat({

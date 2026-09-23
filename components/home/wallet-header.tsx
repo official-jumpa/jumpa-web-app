@@ -15,27 +15,28 @@ import { ACCOUNT } from "@/lib/wallet";
 const CONTROL =
   "relative flex size-10 items-center justify-center rounded-full bg-jumpa-white/43";
 
-export function WalletHeader() {
+export function WalletHeader({ initialHasUnread = false }: { initialHasUnread?: boolean }) {
   const auth = useAuthContext();
   const { profile } = useUserProfile();
   const user = auth?.user;
-  const [hasUnread, setHasUnread] = useState(false);
+  const [hasUnread, setHasUnread] = useState(initialHasUnread);
   const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
+    // Only fetch if initial wasn't provided or user is checking again later
     async function checkUnread() {
       try {
         const res = await fetch("/api/notifications?limit=1&unreadOnly=true");
         if (res.ok) {
           const data = await res.json();
-          if (data.unreadCount > 0) {
-            setHasUnread(true);
-          }
+          setHasUnread(data.unreadCount > 0);
         }
       } catch {}
     }
-    checkUnread();
-  }, []);
+    if (!initialHasUnread) {
+      checkUnread();
+    }
+  }, [initialHasUnread]);
 
   let displayName = ACCOUNT.firstName;
   if (profile?.nickname) {

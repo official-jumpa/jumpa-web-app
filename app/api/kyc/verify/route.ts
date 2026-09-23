@@ -17,7 +17,9 @@ const MYAZA_TYPE_MAP: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAuth();
+    const auth = await requireAuth({
+      rateLimit: { tier: "medium", action: "kyc_verify" },
+    });
     if (!auth.ok) return auth.response;
     const userId = auth.userId;
 

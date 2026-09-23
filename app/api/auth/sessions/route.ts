@@ -12,7 +12,9 @@ import { formatZodError } from "@/lib/validations/validation-helper";
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "low", action: "auth_sessions_get" },
+    });
     if (!auth.ok) return auth.response;
 
     const session = auth.session;
@@ -59,7 +61,9 @@ export async function GET(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "medium", action: "auth_session_delete" },
+    });
     if (!auth.ok) return auth.response;
 
     const session = auth.session;

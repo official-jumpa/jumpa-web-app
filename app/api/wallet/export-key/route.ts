@@ -18,7 +18,9 @@ import { logUserActivity } from "@/lib/functions/userFunctions";
  * Returns decrypted private key or mnemonic phrase.
  */
 export async function POST(req: NextRequest) {
-  const authResult = await requireActiveUser();
+  const authResult = await requireActiveUser({
+    rateLimit: { tier: "critical", action: "export_key" },
+  });
   if (!authResult.ok) return authResult.response;
   const session = authResult.session;
 

@@ -27,7 +27,9 @@ const defindexClient = new DefindexClient(
 );
 
 export async function POST(req: NextRequest) {
-  const auth = await requireActiveUser();
+  const auth = await requireActiveUser({
+    rateLimit: { tier: "high", action: "savings_top_up" },
+  });
   if (!auth.ok) return auth.response;
   const { userId } = auth;
   try {

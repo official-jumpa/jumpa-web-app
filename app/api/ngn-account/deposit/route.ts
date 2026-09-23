@@ -15,7 +15,10 @@ import {
  */
 export async function GET() {
   try {
-    const auth = await requireActiveUser({ requireWallet: false });
+    const auth = await requireActiveUser({
+      requireWallet: false,
+      rateLimit: { tier: "low", action: "ngn_deposit_get" },
+    });
     if (!auth.ok) return auth.response;
 
     const session = await getActiveDepositSession(auth.userId);
@@ -39,7 +42,10 @@ export async function GET() {
  */
 export async function DELETE() {
   try {
-    const auth = await requireActiveUser({ requireWallet: false });
+    const auth = await requireActiveUser({
+      requireWallet: false,
+      rateLimit: { tier: "medium", action: "ngn_deposit_cancel" },
+    });
     if (!auth.ok) return auth.response;
 
     await cancelActiveDepositSession(auth.userId);
@@ -63,7 +69,10 @@ export async function DELETE() {
  */
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireActiveUser({ requireWallet: false });
+    const auth = await requireActiveUser({
+      requireWallet: false,
+      rateLimit: { tier: "high", action: "ngn_deposit_create" },
+    });
     if (!auth.ok) return auth.response;
 
     let body: any;

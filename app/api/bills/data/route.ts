@@ -12,7 +12,10 @@ import { formatZodError } from "@/lib/validations/validation-helper";
  */
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireActiveUser({ requireWallet: true });
+    const auth = await requireActiveUser({
+      requireWallet: true,
+      rateLimit: { tier: "high", action: "buy_data" },
+    });
     if (!auth.ok) {
       return auth.response;
     }

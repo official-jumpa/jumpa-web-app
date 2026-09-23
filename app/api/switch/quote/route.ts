@@ -6,7 +6,9 @@ import { formatZodError } from "@/lib/validations/validation-helper";
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "medium", action: "switch_quote" },
+    });
     if (!auth.ok) return auth.response;
 
     const body = await req.json().catch(() => ({}));

@@ -21,7 +21,10 @@ import { NgnAccount, type INgnAccount } from "@/models/NgnAccount";
  */
 export async function GET() {
   try {
-    const auth = await requireActiveUser({ requireWallet: false });
+    const auth = await requireActiveUser({
+      requireWallet: false,
+      rateLimit: { tier: "low", action: "ngn_account_get" },
+    });
     if (!auth.ok) return auth.response;
 
     await connectDB();
@@ -105,7 +108,10 @@ export async function GET() {
  */
 export async function POST(req: Request) {
   try {
-    const auth = await requireActiveUser({ requireWallet: false });
+    const auth = await requireActiveUser({
+      requireWallet: false,
+      rateLimit: { tier: "high", action: "ngn_account_create" },
+    });
     if (!auth.ok) return auth.response;
 
     let body: any;

@@ -5,7 +5,9 @@ import { savingsIntroSeenSchema } from "@/lib/validations/savings.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 
 export async function POST(req: NextRequest) {
-  const auth = await requireActiveUser();
+  const auth = await requireActiveUser({
+    rateLimit: { tier: "medium", action: "savings_intro_seen" },
+  });
   if (!auth.ok) return auth.response;
   const { userId } = auth;
 

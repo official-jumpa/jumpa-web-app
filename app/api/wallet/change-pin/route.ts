@@ -18,7 +18,9 @@ import { formatZodError } from "@/lib/validations/validation-helper";
  */
 export async function POST(req: NextRequest) {
   try {
-    const authResult = await requireActiveUser();
+    const authResult = await requireActiveUser({
+      rateLimit: { tier: "critical", action: "change_pin" },
+    });
     if (!authResult.ok) return authResult.response;
     const session = authResult.session;
 

@@ -12,7 +12,9 @@ import { getCentiivRequestStatus } from "@/lib/functions/centiivFunctions";
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "low", action: "onramp_status_poll" },
+    });
     if (!auth.ok) return auth.response;
 
     const session = auth.session;

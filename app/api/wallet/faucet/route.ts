@@ -14,7 +14,10 @@ import { createNotification } from "@/lib/functions/notificationFunctions";
  */
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireActiveUser({ requireWallet: true });
+    const auth = await requireActiveUser({
+      requireWallet: true,
+      rateLimit: { tier: "high", action: "wallet_faucet" },
+    });
     if (!auth.ok) return auth.response;
 
     const body = await req.json().catch(() => ({}));

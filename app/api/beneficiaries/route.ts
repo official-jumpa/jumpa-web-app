@@ -15,7 +15,9 @@ import { formatZodError } from "@/lib/validations/validation-helper";
  */
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "low", action: "beneficiaries_get" },
+    });
     if (!auth.ok) return auth.response;
     const userId = auth.userId;
 
@@ -52,7 +54,9 @@ export async function GET(req: NextRequest) {
  */
 export async function DELETE(req: NextRequest) {
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "medium", action: "beneficiaries_delete" },
+    });
     if (!auth.ok) return auth.response;
     const userId = auth.userId;
 

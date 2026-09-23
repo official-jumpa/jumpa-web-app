@@ -15,7 +15,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authResult = await requireActiveUser();
+    const authResult = await requireActiveUser({
+      rateLimit: { tier: "low", action: "transactions_detail" },
+    });
     if (!authResult.ok) return authResult.response;
     const session = authResult.session;
 

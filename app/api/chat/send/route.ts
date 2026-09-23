@@ -28,7 +28,9 @@ import { type IChatMessage } from "@/models/ChatLog";
  */
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "medium", action: "chat_send" },
+    });
     if (!auth.ok) return auth.response;
 
     const body = await req.json().catch(() => ({}));

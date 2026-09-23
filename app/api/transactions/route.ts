@@ -14,7 +14,9 @@ import { formatZodError } from "@/lib/validations/validation-helper";
  */
 export async function GET(req: NextRequest) {
   try {
-    const authResult = await requireActiveUser();
+    const authResult = await requireActiveUser({
+      rateLimit: { tier: "low", action: "transactions_list" },
+    });
     if (!authResult.ok) return authResult.response;
     const session = authResult.session;
 

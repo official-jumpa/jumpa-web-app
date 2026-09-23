@@ -3,7 +3,9 @@ import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { getCachedWalletBalances } from "@/lib/wallet-balances";
 
 export async function GET(req: NextRequest) {
-  const auth = await requireActiveUser();
+  const auth = await requireActiveUser({
+    rateLimit: { tier: "low", action: "wallet_balance" },
+  });
   if (!auth.ok) return auth.response;
 
   const { address, userId } = auth;

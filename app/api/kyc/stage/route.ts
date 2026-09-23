@@ -7,7 +7,9 @@ import { logUserActivity } from "@/lib/functions/userFunctions";
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAuth();
+    const auth = await requireAuth({
+      rateLimit: { tier: "medium", action: "kyc_stage" },
+    });
     if (!auth.ok) return auth.response;
 
     const body = await req.json().catch(() => ({}));

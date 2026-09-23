@@ -18,7 +18,9 @@ const TIMEOUT_SECONDS: Record<string, number> = {
  */
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAuth();
+    const auth = await requireAuth({
+      rateLimit: { tier: "critical", action: "verify_password" },
+    });
     if (!auth.ok) return auth.response;
 
     const body = await req.json().catch(() => ({}));

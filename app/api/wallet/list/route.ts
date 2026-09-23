@@ -17,7 +17,9 @@ import { formatZodError } from "@/lib/validations/validation-helper";
  * Returns all wallets owned by the authenticated user, with an isSelected flag.
  */
 export async function GET(req: NextRequest) {
-  const auth = await requireActiveUser();
+  const auth = await requireActiveUser({
+    rateLimit: { tier: "low", action: "wallet_list_get" },
+  });
   if (!auth.ok) return auth.response;
 
   const wallets = await listWalletsByUserId(auth.userId);
@@ -54,7 +56,9 @@ export async function GET(req: NextRequest) {
  * Rename a wallet. Body: { address: string, name: string }
  */
 export async function PATCH(req: NextRequest) {
-  const auth = await requireActiveUser();
+  const auth = await requireActiveUser({
+    rateLimit: { tier: "medium", action: "wallet_rename" },
+  });
   if (!auth.ok) return auth.response;
 
   const body = await req.json().catch(() => ({}));
@@ -83,7 +87,9 @@ export async function PATCH(req: NextRequest) {
  * Sets selected_wallet_address httpOnly cookie.
  */
 export async function PUT(req: NextRequest) {
-  const auth = await requireActiveUser();
+  const auth = await requireActiveUser({
+    rateLimit: { tier: "medium", action: "wallet_select" },
+  });
   if (!auth.ok) return auth.response;
 
   const body = await req.json().catch(() => ({}));

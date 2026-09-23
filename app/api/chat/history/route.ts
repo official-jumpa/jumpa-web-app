@@ -83,7 +83,9 @@ async function syncMessagesWithSettledTransactions(
  */
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "low", action: "chat_history_get" },
+    });
     if (!auth.ok) return auth.response;
 
     const userId = auth.session.user.id;
@@ -190,7 +192,9 @@ export async function GET(req: NextRequest) {
  */
 export async function DELETE(req: NextRequest) {
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "medium", action: "chat_history_delete" },
+    });
     if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(req.url);

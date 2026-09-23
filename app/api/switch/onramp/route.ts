@@ -10,7 +10,9 @@ import { createNotification } from "@/lib/functions/notificationFunctions";
 
 export async function POST(req: NextRequest) {
   try {
-    const authResult = await requireActiveUser();
+    const authResult = await requireActiveUser({
+      rateLimit: { tier: "high", action: "switch_onramp" },
+    });
     if (!authResult.ok) return authResult.response;
     const session = authResult.session;
     const userId = authResult.userId;

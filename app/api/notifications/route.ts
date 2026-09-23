@@ -28,7 +28,9 @@ import { formatZodError } from "@/lib/validations/validation-helper";
 
 export async function GET(req: NextRequest) {
   try {
-    const authResult = await requireActiveUser();
+    const authResult = await requireActiveUser({
+      rateLimit: { tier: "low", action: "notifications_get" },
+    });
     if (!authResult.ok) return authResult.response;
     const session = authResult.session;
 
@@ -70,7 +72,9 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const authResult = await requireActiveUser();
+    const authResult = await requireActiveUser({
+      rateLimit: { tier: "medium", action: "notifications_mark_read" },
+    });
     if (!authResult.ok) return authResult.response;
     const session = authResult.session;
 
@@ -124,7 +128,9 @@ export async function PATCH(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const authResult = await requireActiveUser();
+    const authResult = await requireActiveUser({
+      rateLimit: { tier: "medium", action: "notifications_create" },
+    });
     if (!authResult.ok) return authResult.response;
     const session = authResult.session;
 

@@ -4,7 +4,9 @@ import { requireAuth } from "@/lib/functions/permissionFunctions";
 
 export async function GET() {
   try {
-    const auth = await requireAuth();
+    const auth = await requireAuth({
+      rateLimit: { tier: "low", action: "kyc_status" },
+    });
     if (!auth.ok) return auth.response;
 
     const kycRecord = await getOrCreateKycRecord(auth.userId);

@@ -10,7 +10,10 @@ import { formatZodError } from "@/lib/validations/validation-helper";
  * Retrieves the authenticated user's current profile from the database.
  */
 export async function GET() {
-  const auth = await requireActiveUser({ requireWallet: false });
+  const auth = await requireActiveUser({
+    requireWallet: false,
+    rateLimit: { tier: "low", action: "user_profile_get" },
+  });
   if (!auth.ok) return auth.response;
 
   try {
@@ -46,7 +49,10 @@ export async function GET() {
  * Updates the authenticated user's profile fields (e.g. nickname, name, country, image).
  */
 export async function PATCH(req: NextRequest) {
-  const auth = await requireActiveUser({ requireWallet: false });
+  const auth = await requireActiveUser({
+    requireWallet: false,
+    rateLimit: { tier: "medium", action: "user_profile_update" },
+  });
   if (!auth.ok) return auth.response;
 
   try {

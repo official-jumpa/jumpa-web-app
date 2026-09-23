@@ -41,7 +41,9 @@ export async function POST(req: NextRequest) {
   console.log(" [CHAT CONFIRM START]");
 
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "high", action: "chat_confirm" },
+    });
     if (!auth.ok) return auth.response;
     const session = auth.session;
 

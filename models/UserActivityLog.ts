@@ -21,6 +21,7 @@ export type UserActivityAction =
   | "PRIVATE_KEY_EXPORTED"
   | "SEED_PHRASE_EXPORTED"
   | "PHONE_NUMBER_VERIFIED"
+  | "PHONE_NUMBER_SKIPPED"
   // Financial Transactions
   | "TRANSFER_SENT"
   | "TRANSFER_RECEIVED"
@@ -90,6 +91,7 @@ const UserActivityLogSchema = new Schema<IUserActivityLog>(
         "PRIVATE_KEY_EXPORTED",
         "SEED_PHRASE_EXPORTED",
         "PHONE_NUMBER_VERIFIED",
+        "PHONE_NUMBER_SKIPPED",
         "TRANSFER_SENT",
         "TRANSFER_RECEIVED",
         "FAUCET_REQUESTED",

@@ -9,6 +9,7 @@ export interface IUser {
   emailVerified: boolean;
   phoneNumber?: string | null;
   phoneNumberVerified?: boolean;
+  phoneSkipped?: boolean;
   image: string | null;
   nickname?: string | null;
   jumpaTag?: string | null;
@@ -47,6 +48,7 @@ const UserSchema = new Schema<IUser>(
       },
     },
     phoneNumberVerified: { type: Boolean, default: false },
+    phoneSkipped: { type: Boolean, default: false },
     image: { type: String, default: null },
     nickname: { type: String, default: null, trim: true },
     jumpaTag: {

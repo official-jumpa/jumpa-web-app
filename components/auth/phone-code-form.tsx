@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { InfoNote } from "@/components/auth/info-note";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
@@ -7,7 +8,12 @@ import { PinDisplay } from "@/components/auth/pin-display";
 import { SuccessSheet } from "@/components/auth/success-sheet";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
-import { readSignUpValue, writeSignUpValue, SIGN_UP_KEYS } from "@/lib/sign-up";
+import {
+  readSignUpValue,
+  writeSignUpValue,
+  SIGN_UP_FLOW,
+  SIGN_UP_KEYS,
+} from "@/lib/sign-up";
 
 const CODE_LENGTH = 6;
 
@@ -19,15 +25,17 @@ export function PhoneCodeForm({
   nextHref: string;
   phone?: string;
 }) {
+  const router = useRouter();
   const code = usePinInput(CODE_LENGTH);
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState(false);
   const [resending, setResending] = useState(false);
+  const [skipping, setSkipping] = useState(false);
   const [resolvedHref, setResolvedHref] = useState<string>(nextHref);
   const [error, setError] = useState<string | null>(null);
   const attemptedCodeRef = useRef<string | null>(null);
 
-  useKeypadKeys({ ...code, enabled: !verifying && !verified });
+  useKeypadKeys({ ...code, enabled: !verifying && !verified && !skipping });
 
   useEffect(() => {
     if (code.value.length < CODE_LENGTH) {
@@ -159,6 +167,43 @@ export function PhoneCodeForm({
     }
   };
 
+  const handleSkip = async () => {
+    const targetPhone = phone || readSignUpValue(SIGN_UP_KEYS.phone);
+    if (skipping || verifying) return;
+
+    setSkipping(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/auth/verify-phone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "skip", phone: targetPhone || undefined }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        setError(data.error || "Could not skip verification");
+        setSkipping(false);
+        return;
+      }
+
+      try {
+        const setupRes = await fetch("/api/auth/wallet-setup");
+        if (setupRes.ok) {
+          const setupData = await setupRes.json();
+          router.push(setupData.nextRoute || SIGN_UP_FLOW.password);
+          return;
+        }
+      } catch {}
+
+      router.push(resolvedHref || SIGN_UP_FLOW.password);
+    } catch (err: any) {
+      setError(err?.message || "Failed to skip verification");
+      setSkipping(false);
+    }
+  };
+
   return (
     <>
       <div className="mt-8 flex flex-1 flex-col gap-6">
@@ -197,23 +242,37 @@ export function PhoneCodeForm({
           </p>
         ) : null}
 
-        <InfoNote>
-          Didn't get Code?{" "}
-          <button
-            type="button"
-            onClick={handleResend}
-            disabled={resending || verifying}
-            className="cursor-pointer font-semibold text-jumpa-primary-600 disabled:opacity-50"
-          >
-            {resending ? "Sending..." : "Resend Code"}
-          </button>
-        </InfoNote>
+        <div className="flex flex-col gap-2">
+          <InfoNote>
+            Didn't get Code?{" "}
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resending || verifying || skipping}
+              className="cursor-pointer font-semibold text-jumpa-primary-600 disabled:opacity-50"
+            >
+              {resending ? "Sending..." : "Resend Code"}
+            </button>
+          </InfoNote>
+
+          <div className="flex items-center justify-between text-xs px-1 text-jumpa-neutral-500">
+            <span>Didn't receive SMS?</span>
+            <button
+              type="button"
+              onClick={handleSkip}
+              disabled={resending || verifying || skipping}
+              className="cursor-pointer font-semibold text-jumpa-primary-600 hover:underline disabled:opacity-50"
+            >
+              {skipping ? "Skipping..." : "Skip verification"}
+            </button>
+          </div>
+        </div>
       </div>
 
       <NumericKeypad
         onDigit={code.push}
         onBackspace={code.backspace}
-        disabled={verifying || verified}
+        disabled={verifying || verified || skipping}
         className={KEYPAD_PANEL}
       />
 

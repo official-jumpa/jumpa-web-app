@@ -372,3 +372,50 @@ export async function verifyMyazaPhoneOtp(params: {
     token: data.token,
   };
 }
+
+/**
+ * Allows a user (especially international users outside Nigeria) to save their
+ * phone number and skip SMS OTP verification, or skip the phone step for now.
+ */
+export async function skipPhoneVerification(params: {
+  userId: string;
+  phone?: string | null;
+}): Promise<{
+  success: boolean;
+  skipped: boolean;
+  phone: string | null;
+}> {
+  const { userId, phone } = params;
+  await connectDB();
+
+  const updateFields: Record<string, any> = {
+    phoneSkipped: true,
+  };
+
+  const rawPhone = phone?.trim();
+  if (rawPhone) {
+    const cleaned = rawPhone.replace(/[^\d+]/g, "");
+    if (cleaned.length >= 7) {
+      updateFields.phoneNumber = cleaned;
+      updateFields.phoneNumberVerified = false;
+    }
+  }
+
+  await User.findByIdAndUpdate(userId, {
+    $set: updateFields,
+  });
+
+  await recordUserActivity({
+    userId,
+    action: "PHONE_NUMBER_SKIPPED",
+    details: { phone: updateFields.phoneNumber ?? null, reason: "skipped_or_international" },
+  }).catch(() => {});
+
+  console.log(`[Phone Verification] User ${userId} skipped phone verification. Phone: ${updateFields.phoneNumber ?? "none"}`);
+
+  return {
+    success: true,
+    skipped: true,
+    phone: updateFields.phoneNumber ?? null,
+  };
+}

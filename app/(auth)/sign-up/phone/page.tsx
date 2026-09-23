@@ -21,9 +21,9 @@ export default function SignUpPhonePage() {
       <div className="flex w-full flex-col gap-6">
         <AuthHeading
           title="Verify your mobile number"
-          titleClassName="max-w-85.5"
+          titleClassName="max-w-92"
         >
-          Enter your phone number to receive a verification code.
+          <p className="mt-4">A 6-digit verification code will be sent to the phone number you provided</p>
         </AuthHeading>
 
         <PhoneForm nextHref={SIGN_UP_FLOW.verifyPhone} />

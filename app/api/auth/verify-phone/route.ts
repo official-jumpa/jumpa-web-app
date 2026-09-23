@@ -3,6 +3,7 @@ import { requireAuth } from "@/lib/functions/permissionFunctions";
 import {
   sendMyazaPhoneOtp,
   verifyMyazaPhoneOtp,
+  skipPhoneVerification,
 } from "@/lib/functions/kycFunctions";
 
 export async function POST(req: NextRequest) {
@@ -45,8 +46,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(result, { status: 200 });
     }
 
+    if (action === "skip") {
+      const phone = typeof body.phone === "string" ? body.phone.trim() : null;
+      const result = await skipPhoneVerification({
+        userId: auth.userId,
+        phone,
+      });
+
+      return NextResponse.json(result, { status: 200 });
+    }
+
     return NextResponse.json(
-      { error: "Invalid action. Supported actions: 'send', 'verify'" },
+      { error: "Invalid action. Supported actions: 'send', 'verify', 'skip'" },
       { status: 400 },
     );
   } catch (error: any) {

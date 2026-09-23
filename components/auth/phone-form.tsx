@@ -1,27 +1,83 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field-error";
 import { PhoneIcon } from "@/components/ui/icons/phone";
 import { TextField } from "@/components/ui/text-field";
-import { SIGN_UP_KEYS, writeSignUpValue } from "@/lib/sign-up";
+import { InfoNote } from "@/components/auth/info-note";
+import { SIGN_UP_FLOW, SIGN_UP_KEYS, writeSignUpValue } from "@/lib/sign-up";
 import {
   isValidNigerianPhone,
   normalizeNigerianPhone,
 } from "@/lib/validations/bills.validation";
 
-/** Phone number entry. Sends SMS OTP via Better Auth & SmartSMS before advancing. */
+/** Phone number entry. Sends SMS OTP via or allows skipping for international users. */
 export function PhoneForm({ nextHref }: { nextHref: string }) {
   const router = useRouter();
   const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [skipping, setSkipping] = useState(false);
+
+  const cleaned = phone.trim().replace(/[^\d+]/g, "");
+
+  const isInternational = useMemo(() => {
+    if (!cleaned) return false;
+    if (cleaned.startsWith("+") && !cleaned.startsWith("+234")) return true;
+    if (cleaned.startsWith("00")) return true;
+    // Numbers not starting with 0 or +234
+    if (!cleaned.startsWith("+234") && !cleaned.startsWith("0") && cleaned.length >= 7) {
+      return true;
+    }
+    return false;
+  }, [cleaned]);
+
+  const handleSkip = async (phoneToSave?: string) => {
+    if (submitting || skipping) return;
+    setSkipping(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/auth/verify-phone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "skip", phone: phoneToSave || undefined }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        setError(data.error || "Failed to skip phone verification");
+        setSkipping(false);
+        return;
+      }
+
+      if (phoneToSave) {
+        writeSignUpValue(SIGN_UP_KEYS.phone, phoneToSave);
+      }
+
+      // Check next onboarding step
+      try {
+        const setupRes = await fetch("/api/auth/wallet-setup");
+        if (setupRes.ok) {
+          const setupData = await setupRes.json();
+          router.push(setupData.nextRoute || SIGN_UP_FLOW.password);
+          return;
+        }
+      } catch {}
+
+      router.push(SIGN_UP_FLOW.password);
+    } catch (err: any) {
+      console.error("[PhoneForm] Error skipping verification:", err);
+      setError(err?.message || "Failed to proceed. Please try again.");
+      setSkipping(false);
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (submitting) return;
+    if (submitting || skipping) return;
 
     const rawPhone = phone.trim();
     if (!rawPhone) {
@@ -29,22 +85,21 @@ export function PhoneForm({ nextHref }: { nextHref: string }) {
       return;
     }
 
-    const cleaned = rawPhone.replace(/[^\d+]/g, "");
-
-    // Fallback notice for non-Nigerian phone numbers
-    if (
-      (cleaned.startsWith("+") && !cleaned.startsWith("+234")) ||
-      cleaned.startsWith("00")
-    ) {
-      setError(
-        "Phone number verification is currently supported for Nigerian phone numbers only (+234).",
-      );
+    // If international number, save unverified and proceed directly to password setup
+    if (isInternational) {
+      if (cleaned.length < 7 || cleaned.length > 16) {
+        setError("Please enter a valid international phone number");
+        return;
+      }
+      setSubmitting(true);
+      await handleSkip(cleaned.startsWith("+") ? cleaned : `+${cleaned}`);
       return;
     }
 
+    // Nigerian phone validation
     if (!isValidNigerianPhone(cleaned)) {
       setError(
-        "Please enter a valid Nigerian mobile phone number (e.g. 08123456789)",
+        "Please enter a valid Nigerian mobile phone number (e.g. 08123456789) or international format (+2348123456789)",
       );
       return;
     }
@@ -94,9 +149,9 @@ export function PhoneForm({ nextHref }: { nextHref: string }) {
           name="phone"
           inputMode="tel"
           autoComplete="tel"
-          placeholder="08134623456"
+          placeholder="08134623456 or +1234..."
           value={phone}
-          disabled={submitting}
+          disabled={submitting || skipping}
           onChange={(event) => {
             setPhone(event.target.value);
             if (error) setError(null);
@@ -104,16 +159,39 @@ export function PhoneForm({ nextHref }: { nextHref: string }) {
           icon={<PhoneIcon />}
         />
         <FieldError>{error ?? undefined}</FieldError>
+
+        {isInternational && !error ? (
+          <InfoNote tone="brand" className="mt-1">
+            SMS verification is supported for Nigerian numbers (+234) only. You can save your number and continue without verification
+          </InfoNote>
+        ) : null}
       </div>
 
-      <Button
-        type="submit"
-        variant="gradient"
-        size="lg"
-        disabled={submitting}
-      >
-        {submitting ? "Sending code..." : "Continue"}
-      </Button>
+      <div className="flex flex-col gap-3">
+        <Button
+          type="submit"
+          variant="gradient"
+          size="lg"
+          disabled={submitting || skipping}
+        >
+          {submitting
+            ? isInternational
+              ? "Saving..."
+              : "Sending code..."
+            : isInternational
+              ? "Save & Continue"
+              : "Continue"}
+        </Button>
+
+        <button
+          type="button"
+          onClick={() => handleSkip()}
+          disabled={submitting || skipping}
+          className="cursor-pointer text-center text-xs font-semibold text-jumpa-neutral-500 hover:text-jumpa-neutral-800 disabled:opacity-50 transition-colors py-1"
+        >
+          {skipping ? "Skipping..." : "Skip for now"}
+        </button>
+      </div>
     </form>
   );
 }

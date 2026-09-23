@@ -48,7 +48,7 @@ import { formatZodError } from "@/lib/validations/validation-helper";
 
 /** Resolves the next route a user must complete in onboarding */
 function resolveNextOnboardingRoute(user: any, wallet: any): string {
-  const hasPhone = Boolean(user?.phoneNumber && user?.phoneNumberVerified);
+  const hasPhone = Boolean(user?.phoneNumberVerified || user?.phoneSkipped);
   const hasPassword = Boolean(user?.loginPasswordHash);
   const hasTag = Boolean(user?.jumpaTag);
   const hasPin = Boolean(wallet?.pinHash);
@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
       ? await findWalletById(user.activeWalletId)
       : await findWalletForUser(session.user.id);
 
-    const hasPhone = Boolean(user?.phoneNumber && user?.phoneNumberVerified);
+    const hasPhone = Boolean(user?.phoneNumberVerified || user?.phoneSkipped);
     const hasPassword = Boolean(user?.loginPasswordHash);
     const hasTag = Boolean(user?.jumpaTag);
     const hasPin = Boolean(wallet?.pinHash);

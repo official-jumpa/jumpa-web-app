@@ -520,7 +520,29 @@ export async function withdrawNgnFiat(params: WithdrawNgnFiatParams): Promise<{
   const totalDebited = params.amount + fee;
 
   // 3. Balance verification
-  const currentBalance = userAccount.balance ?? 0;
+  let currentBalance = userAccount.balance ?? 0;
+
+  if (userAccount.providerAccountId) {
+    try {
+      const walletDetails = await getFossapayWallet(userAccount.providerAccountId);
+      if (walletDetails && typeof walletDetails.availableBalance === "number") {
+        currentBalance = walletDetails.availableBalance;
+        // Sync local DB balance to match live FossaPay balance
+        if (userAccount.balance !== currentBalance) {
+          await NgnAccount.updateOne(
+            { _id: userAccount._id },
+            { $set: { balance: currentBalance } }
+          );
+        }
+      }
+    } catch (walletErr: any) {
+      console.warn(
+        "[withdrawNgnFiat] Could not fetch live wallet details from FossaPay, using DB balance:",
+        walletErr.message
+      );
+    }
+  }
+
   if (currentBalance < totalDebited) {
     throw new Error(
       `Insufficient funds. Transfer of ₦${params.amount.toLocaleString()}${
@@ -935,6 +957,34 @@ export async function atomicDebitNgnBalance(params: {
       },
       { returnDocument: "after" }
     );
+  }
+
+  if (!updatedAccount) {
+    // If local DB was not yet synced with FossaPay live ledger, attempt live sync
+    const freshAcc = await NgnAccount.findOne({ userId: params.userId, status: "active" });
+    if (freshAcc?.providerAccountId) {
+      try {
+        const liveWallet = await getFossapayWallet(freshAcc.providerAccountId);
+        if (liveWallet && typeof liveWallet.availableBalance === "number") {
+          freshAcc.balance = liveWallet.availableBalance;
+          await freshAcc.save();
+
+          // Retry debit with refreshed balance
+          updatedAccount = await NgnAccount.findOneAndUpdate(
+            {
+              _id: freshAcc._id,
+              balance: { $gte: params.amount },
+            },
+            {
+              $inc: { balance: -params.amount },
+            },
+            { returnDocument: "after" }
+          );
+        }
+      } catch (err: any) {
+        console.warn("[atomicDebitNgnBalance] Live wallet sync attempt failed:", err.message);
+      }
+    }
   }
 
   if (!updatedAccount) {

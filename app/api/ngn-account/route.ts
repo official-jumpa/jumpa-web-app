@@ -63,6 +63,16 @@ export async function GET() {
             ledgerBalance: walletDetails.ledgerBalance ?? account.balance ?? 0,
             currency: walletDetails.currency ?? account.currency ?? "NGN",
           };
+          // update the db balance to match the live balance
+          if (
+            typeof walletDetails.availableBalance === "number" &&
+            account.balance !== walletDetails.availableBalance
+          ) {
+            await NgnAccount.updateOne(
+              { _id: account._id },
+              { $set: { balance: walletDetails.availableBalance } }
+            );
+          }
         }
       } catch (err: any) {
         console.warn(

@@ -1,22 +1,17 @@
-"use client";
-
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthScreen } from "@/components/auth/auth-screen";
 import { Button } from "@/components/ui/button";
 
 export default function SignUpDonePage() {
-  const router = useRouter();
-
   return (
     <AuthScreen
       header={<AuthHeader backHref="/sign-up/pin/confirm" />}
       className="[--auth-pb:67px]"
       footer={
         <Button
-          type="button"
-          onClick={() => router.replace("/home")}
+          href="/home"
+          replace
           variant="gradient"
           size="lg"
           className="mt-8 cursor-pointer"
@@ -41,8 +36,7 @@ export default function SignUpDonePage() {
             You're All Set
           </h1>
           <p className="max-w-73.5 text-sm leading-4.5 text-jumpa-neutral-800">
-            Your account has been securely verified. You're ready to manage your
-            portfolio and explore the market
+            Your account has been securely verified. You're ready to manage your portfolio and explore the market
           </p>
         </div>
       </div>

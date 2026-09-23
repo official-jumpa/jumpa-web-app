@@ -40,7 +40,20 @@ export type UserActivityAction =
   | "WITHDRAWAL_COMPLETED"
   // Identity & KYC
   | "KYC_STAGE_UPDATED"
-  | "KYC_SUBMITTED";
+  | "KYC_SUBMITTED"
+  | "KYC_DOCUMENT_UPLOADED"
+  // Bills & Utilities
+  | "AIRTIME_PURCHASED"
+  | "DATA_PURCHASED"
+  // Beneficiaries & Contacts
+  | "BENEFICIARY_ADDED"
+  | "BENEFICIARY_DELETED"
+  // Chat & AI Interactions
+  | "CHAT_TRANSACTION_CONFIRMED"
+  | "CHAT_TRANSACTION_CANCELLED"
+  // Profile & Settings
+  | "PROFILE_UPDATED"
+  | "PREFERENCE_UPDATED";
 
 export interface IUserActivityLog {
   _id: string;
@@ -92,6 +105,15 @@ const UserActivityLogSchema = new Schema<IUserActivityLog>(
         "WITHDRAWAL_COMPLETED",
         "KYC_STAGE_UPDATED",
         "KYC_SUBMITTED",
+        "KYC_DOCUMENT_UPLOADED",
+        "AIRTIME_PURCHASED",
+        "DATA_PURCHASED",
+        "BENEFICIARY_ADDED",
+        "BENEFICIARY_DELETED",
+        "CHAT_TRANSACTION_CONFIRMED",
+        "CHAT_TRANSACTION_CANCELLED",
+        "PROFILE_UPDATED",
+        "PREFERENCE_UPDATED",
       ],
       required: true,
     },

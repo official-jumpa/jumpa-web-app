@@ -3,6 +3,13 @@ import { notFound } from "next/navigation";
 import { NgnAccountDetails } from "@/components/ngn/ngn-account-details";
 import { NgnAccountView } from "@/components/ngn/ngn-account-view";
 
+import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
+import { getUserNgnAccountDetails } from "@/lib/functions/ngnFunctions";
+import {
+  queryUserTransactions,
+  formatDbTransaction,
+} from "@/lib/functions/transactionFunctions";
+
 interface NgnAccountPageProps {
   searchParams: Promise<{ view?: string }>;
 }
@@ -20,7 +27,40 @@ export default async function NgnAccountPage({
 }: NgnAccountPageProps) {
   const { view } = await searchParams;
 
-  if (view === "details") return <NgnAccountDetails />;
+  if (view === "details") {
+    let initialAccount: any = null;
+    let initialBalance: any = null;
+    let initialTransactions: any[] = [];
+
+    try {
+      const session = await getCachedAuthSession();
+      if (session?.user?.id) {
+        const userId = session.user.id;
+        const [accountData, txData] = await Promise.all([
+          getUserNgnAccountDetails(userId, session.user.name || "Jumpa User"),
+          queryUserTransactions({ userId, chain: "fiat", limit: 10 }),
+        ]);
+
+        initialAccount = accountData.account;
+        initialBalance = accountData.balance;
+
+        if (txData?.transactions) {
+          initialTransactions = txData.transactions.map(formatDbTransaction);
+        }
+      }
+    } catch (err) {
+      console.warn("[NgnAccountPage SSR] Prefetch fallback:", err);
+    }
+
+    return (
+      <NgnAccountDetails
+        initialAccount={initialAccount}
+        initialBalance={initialBalance}
+        initialTransactions={initialTransactions}
+      />
+    );
+  }
+
   if (view) notFound();
 
   return <NgnAccountView />;

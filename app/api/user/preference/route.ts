@@ -4,6 +4,7 @@ import {
   getUserPreferences,
   updateUserPreferences,
 } from "@/lib/functions/userPreferenceFunctions";
+import { logUserActivity } from "@/lib/functions/userFunctions";
 import { updatePreferencesSchema } from "@/lib/validations/preference.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 
@@ -45,6 +46,14 @@ export async function PATCH(req: NextRequest) {
     }
 
     const preferences = await updateUserPreferences(userId, validation.data);
+
+    logUserActivity({
+      userId,
+      action: "PREFERENCE_UPDATED",
+      details: { updatedFields: Object.keys(validation.data) },
+      req,
+    }).catch(() => {});
+
     return NextResponse.json({ success: true, preferences });
   } catch (err: any) {
     console.error("[PATCH /api/user/preference] Error:", err);

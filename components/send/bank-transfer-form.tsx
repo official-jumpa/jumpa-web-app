@@ -195,17 +195,21 @@ function validate(
 export function BankTransferForm({
   form,
   defaultCountry,
+  initialBeneficiaries,
   onChange,
   onPickRecent,
   onContinue,
 }: {
   form: BankForm;
   defaultCountry?: string;
+  initialBeneficiaries?: BankAccountItem[];
   onChange: (next: BankForm) => void;
   onPickRecent: (account: BankAccountItem) => void;
   onContinue: () => void;
 }) {
-  const [recentAccounts, setRecentAccounts] = useState<BankAccountItem[]>([]);
+  const [recentAccounts, setRecentAccounts] = useState<BankAccountItem[]>(
+    () => initialBeneficiaries || [],
+  );
   const [resolving, setResolving] = useState(false);
   const [errors, setErrors] = useState<FormErrors<BankField>>({});
   const fields = useRef<HTMLDivElement>(null);
@@ -225,6 +229,7 @@ export function BankTransferForm({
 
   // Load saved beneficiaries for bank transfers
   useEffect(() => {
+    if (initialBeneficiaries !== undefined) return;
     let live = true;
     async function loadBeneficiaries() {
       try {

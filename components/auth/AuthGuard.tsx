@@ -57,6 +57,8 @@ export function useAuthContext(): AuthContextValue | null {
 interface AuthGuardProps {
   children: ReactNode;
   fallback?: ReactNode;
+  initialSession?: any;
+  initialUser?: AuthUser | null;
 }
 
 /**
@@ -66,13 +68,20 @@ interface AuthGuardProps {
  * - Enforces progressive setup: Login Password -> Jumpa Tag -> Transaction PIN.
  * - Provides verified session, user & setup context to children.
  */
-export function AuthGuard({ children, fallback }: AuthGuardProps) {
+export function AuthGuard({
+  children,
+  fallback,
+  initialSession,
+  initialUser,
+}: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { data: session, isPending } = useSession();
+  const { data: clientSession, isPending: clientPending } = useSession();
 
-  const user = session?.user as AuthUser | undefined;
+  const session = clientSession || initialSession;
+  const user = ((session?.user as AuthUser | undefined) || initialUser) ?? undefined;
   const isAuthenticated = Boolean(user?.id);
+  const isPending = clientPending && !session;
 
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [profileOverrides, setProfileOverrides] = useState<{
@@ -87,8 +96,10 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
     }));
   }, []);
 
-  const [checkingStatus, setCheckingStatus] = useState(true);
-  const hasVerifiedOnce = useRef(false);
+  const [checkingStatus, setCheckingStatus] = useState(
+    () => !initialUser && !initialSession,
+  );
+  const hasVerifiedOnce = useRef(Boolean(initialUser || initialSession));
 
   // 1. Handle unauthenticated users
   useEffect(() => {
@@ -183,8 +194,8 @@ export function AuthGuard({ children, fallback }: AuthGuardProps) {
     }
   }, [isPending, isAuthenticated, user?.id, checkStatus, status?.isComplete, pathname]);
 
-  // While checking session or onboarding status, show clean loading shell
-  if (isPending || (isAuthenticated && checkingStatus)) {
+  // While checking session or onboarding status, show clean loading shell only when user is not yet known
+  if (isPending || (!user && checkingStatus)) {
     if (fallback) return <>{fallback}</>;
     return <JumpaLoaderScreen label="Loading your wallet" />;
   }

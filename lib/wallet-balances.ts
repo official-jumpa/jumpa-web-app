@@ -517,6 +517,44 @@ export async function getCachedWalletBalances(
     return cached.data;
   }
 
+  // Stale-while-revalidate: If we have cached data and not forced, return cached data immediately and refresh in background
+  if (!forceRefresh && cached) {
+    const ageSec = Math.round((now - cached.timestamp) / 1000);
+    console.log(
+      `[Balance Service] Stale-while-revalidate HIT for "${userIdOrAddress}" (cached ${ageSec}s ago) - refreshing in background`,
+    );
+    (async () => {
+      try {
+        await connectDB();
+        const bgWallet = await Wallet.findOne({
+          $or: [
+            { userId: userIdOrAddress },
+            { address: userIdOrAddress.toLowerCase() },
+          ],
+        }).lean();
+        if (bgWallet) {
+          const freshResult = await fetchWalletBalances(bgWallet.addresses, chains);
+          const updateTime = Date.now();
+          if (bgWallet.userId) {
+            balanceCache[bgWallet.userId.toLowerCase()] = {
+              timestamp: updateTime,
+              data: freshResult,
+            };
+          }
+          if (bgWallet.address) {
+            balanceCache[bgWallet.address.toLowerCase()] = {
+              timestamp: updateTime,
+              data: freshResult,
+            };
+          }
+        }
+      } catch (err) {
+        console.warn("[Balance Service] Background revalidation failed:", err);
+      }
+    })();
+    return cached.data;
+  }
+
   console.log(
     `[Balance Service] Fetching on-demand balances for "${userIdOrAddress}" on chains: [${chains?.join(", ") || "ALL"}]...`,
   );

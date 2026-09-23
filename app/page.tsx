@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import { AuthRedirect } from "@/components/landing/auth-redirect";
 // import { BetaCtaSection } from "@/components/landing/beta-cta-section";
 // import { FaqSection } from "@/components/landing/faq-section";
@@ -35,7 +37,12 @@ import { RevealObserver } from "@/components/landing/reveal-observer";
  * which is scroll-linked rather than looping. Nothing in either path moves a
  * property that reflows, so the geometry at rest is the geometry in the design.
  */
-export default function LandingPage() {
+export default async function LandingPage() {
+  const session = await getCachedAuthSession();
+  if (session?.user) {
+    redirect("/home");
+  }
+
   return (
     <>
       {/* Outside the frame: the card is app chrome, so it measures in the app's

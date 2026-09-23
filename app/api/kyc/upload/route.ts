@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { saveKycMedia } from "@/lib/functions/kycFunctions";
 import { requireAuth } from "@/lib/functions/permissionFunctions";
+import { logUserActivity } from "@/lib/functions/userFunctions";
 import type { KycIdType } from "@/models/KYCSchema";
 
 const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB max upload size
@@ -75,6 +76,17 @@ export async function POST(req: NextRequest) {
       idType,
       idNumber,
     });
+
+    logUserActivity({
+      userId,
+      action: "KYC_DOCUMENT_UPLOADED",
+      details: {
+        type: type === "selfie" ? "selfie" : "document",
+        mediaId: data.mediaId,
+        idType,
+      },
+      req,
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

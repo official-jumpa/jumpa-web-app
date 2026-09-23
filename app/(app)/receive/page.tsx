@@ -5,6 +5,9 @@ import { ReceiveOptionList } from "@/components/transfer/receive-options";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { SUPPORTED_ASSETS } from "@/lib/wallet";
 
+import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
+import { getUserNgnAccountDetails } from "@/lib/functions/ngnFunctions";
+
 interface ReceivePageProps {
   searchParams: Promise<{ rail?: string }>;
 }
@@ -22,7 +25,23 @@ export async function generateMetadata({
 export default async function ReceivePage({ searchParams }: ReceivePageProps) {
   const { rail } = await searchParams;
 
-  if (rail === "fiat") return <FiatDepositView />;
+  if (rail === "fiat") {
+    let initialAccount: any = null;
+    try {
+      const session = await getCachedAuthSession();
+      if (session?.user?.id) {
+        const accountData = await getUserNgnAccountDetails(
+          session.user.id,
+          session.user.name || "Jumpa User",
+        );
+        initialAccount = accountData.account;
+      }
+    } catch (e) {
+      console.error("[ReceivePage] Failed to prefetch NGN deposit account:", e);
+    }
+
+    return <FiatDepositView initialAccount={initialAccount} />;
+  }
   if (rail === "crypto") {
     return <AssetPicker assets={SUPPORTED_ASSETS} receive back="/receive" />;
   }

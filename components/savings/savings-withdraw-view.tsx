@@ -27,7 +27,11 @@ import { formatAmount, sanitiseAmount } from "@/lib/transfer";
 
 type Sheet = "review" | "pin" | null;
 
-export function SavingsWithdrawView() {
+interface SavingsWithdrawViewProps {
+  initialPlans?: SavingsPlan[];
+}
+
+export function SavingsWithdrawView({ initialPlans }: SavingsWithdrawViewProps = {}) {
   const searchParams = useSearchParams();
   const planId = searchParams.get("id");
   const paramName = searchParams.get("name");
@@ -35,8 +39,16 @@ export function SavingsWithdrawView() {
   const paramKind = (searchParams.get("kind") as any) || "individual";
   const paramDaysLeft = Number(searchParams.get("daysLeft")) || 0;
 
-  const [plans, setPlans] = useState<SavingsPlan[]>([]);
+  const [plans, setPlans] = useState<SavingsPlan[]>(() => initialPlans || []);
   const [selectedPlan, setSelectedPlan] = useState<SavingsPlan | null>(() => {
+    if (initialPlans && initialPlans.length > 0) {
+      if (planId) {
+        const found = initialPlans.find((p) => p.id === planId);
+        if (found) return found;
+      } else if (initialPlans.length === 1) {
+        return initialPlans[0];
+      }
+    }
     if (planId && paramName && paramSaved) {
       return {
         id: planId,
@@ -55,7 +67,7 @@ export function SavingsWithdrawView() {
     }
     return null;
   });
-  const [hasFetched, setHasFetched] = useState(false);
+  const [hasFetched, setHasFetched] = useState(() => initialPlans !== undefined);
   const [amount, setAmount] = useState("");
   const [amountError, setAmountError] = useState<string>();
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -73,6 +85,9 @@ export function SavingsWithdrawView() {
   const [createdTx, setCreatedTx] = useState<string>();
 
   useEffect(() => {
+    if (initialPlans !== undefined && (!planId || (selectedPlan && selectedPlan.target !== "$0.00"))) {
+      return;
+    }
     let isMounted = true;
 
     async function loadData() {

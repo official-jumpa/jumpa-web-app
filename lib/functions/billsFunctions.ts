@@ -16,6 +16,7 @@ import {
   refundFromOfficialJumpaWallet,
   atomicCreditNgnBalance,
 } from "@/lib/functions/fossapayFunctions";
+import { logUserActivity } from "@/lib/functions/userFunctions";
 
 /**
  * Formats a phone number to standard Nigerian 11-digit format (e.g. 08031234567).
@@ -225,6 +226,18 @@ export async function purchaseAirtime(params: {
 
     console.log(`Order ${refId} SUCCESSFUL. Provider ref: ${data.data?.id}, Balance after: ${data.data?.balance}`);
 
+    logUserActivity({
+      userId: params.userId,
+      action: "AIRTIME_PURCHASED",
+      details: {
+        orderId: order._id,
+        phone: normalizedPhone,
+        amount: params.amount,
+        carrier,
+        refId,
+      },
+    }).catch(() => {});
+
     return {
       success: true,
       type: "AIRTIME",
@@ -360,6 +373,21 @@ export async function purchaseData(params: {
     });
 
     console.log(`Order ${refId} SUCCESSFUL. Provider ref: ${data.data?.id}, Balance after: ${data.data?.balance}`);
+
+    logUserActivity({
+      userId: params.userId,
+      action: "DATA_PURCHASED",
+      details: {
+        orderId: order._id,
+        phone: normalizedPhone,
+        productName: params.productName,
+        packageSize: params.packageSize,
+        validity: params.validity,
+        amount: params.amount,
+        carrier,
+        refId,
+      },
+    }).catch(() => {});
 
     return {
       success: true,

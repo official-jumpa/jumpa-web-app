@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CloseButton } from "@/components/transfer/close-button";
 import { CanvasError } from "@/components/ui/field-error";
 import { SearchAltIcon } from "@/components/ui/icons/search-alt";
+import { friendlyBillError } from "@/lib/bills-errors";
 import {
   DATA_PERIODS,
   type DataPlan,
@@ -94,11 +95,10 @@ export function DataPlans({
         setFetchError("No data plans available for this phone number.");
         setPlansList([]);
       }
-    } catch (err: any) {
-      console.error("[DataPlans] Request failed:", err);
-      setFetchError(
-        err?.message || "Failed to connect to network provider. Please try again.",
-      );
+    } catch (err) {
+      // Same mapper as the checkout, so a parser or gateway error from the
+      // plans lookup cannot reach the user verbatim either.
+      setFetchError(friendlyBillError(err, "data").message);
       setPlansList([]);
     } finally {
       setIsLoading(false);

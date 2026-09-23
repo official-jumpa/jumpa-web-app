@@ -4,18 +4,18 @@ import { useState } from "react";
 import { BillSummary } from "@/components/bills/bill-review";
 import { RechargeForm } from "@/components/bills/recharge-form";
 import { RecipientPill } from "@/components/bills/recipient-pill";
+import { ReceiptSheet } from "@/components/transactions/receipt-sheet";
 import { AmountScreen } from "@/components/transfer/amount-screen";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
-import { ReceiptSheet } from "@/components/transactions/receipt-sheet";
-import { ResultSheet } from "@/components/ui/result-sheet";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
+import { ResultSheet } from "@/components/ui/result-sheet";
 import { AIRTIME_AMOUNTS, getNetwork } from "@/lib/bills";
+import { friendlyBillError, readBillResponse } from "@/lib/bills-errors";
 import type { Receipt } from "@/lib/receipt";
 import { formatAmount, SEND_BALANCE } from "@/lib/transfer";
-
 
 type Stage = "form" | "amount" | "done";
 type Sheet = "review" | "pin" | null;
@@ -40,9 +40,11 @@ export function AirtimeView() {
   const network = getNetwork(networkId);
   const total = formatAmount(amount);
 
-  const fail = (message: string, title = "Recharge Failed") => {
+  // Everything the route, the provider or `fetch` can throw goes through
+  // one mapper, so a parser or gateway error can never reach the user.
+  const fail = (raw: unknown) => {
     setSheet(null);
-    setFailure({ title, message, retry: true });
+    setFailure(friendlyBillError(raw, "airtime"));
   };
 
   const details = (
@@ -73,24 +75,26 @@ export function AirtimeView() {
         }),
       });
 
-      const data = await res.json();
+      const { data, raw } = await readBillResponse(res);
 
       if (!res.ok) {
         if (
           res.status === 400 &&
-          (data.error?.toLowerCase().includes("pin") ||
-            data.code === "INVALID_PIN")
+          (String(data?.error ?? "")
+            .toLowerCase()
+            .includes("pin") ||
+            data?.code === "INVALID_PIN")
         ) {
           setPinError(true);
         } else {
-          fail(data.error || "Airtime recharge failed", "Recharge Failed");
+          fail(data?.error ?? raw);
         }
         setIsProcessing(false);
         return;
       }
 
       setReceipt({
-        reference: data.reference,
+        reference: String(data?.reference ?? ""),
         title: "Airtime recharge",
 
         amount: total,
@@ -107,8 +111,8 @@ export function AirtimeView() {
 
       setSheet(null);
       setStage("done");
-    } catch (err: any) {
-      fail(err.message || "Network error. Please try again.", "Recharge Failed");
+    } catch (err) {
+      fail(err);
     } finally {
       setIsProcessing(false);
     }
@@ -210,9 +214,9 @@ export function AirtimeView() {
             onRetry={
               failure.retry
                 ? () => {
-                  setFailure(null);
-                  setSheet("review");
-                }
+                    setFailure(null);
+                    setSheet("review");
+                  }
                 : undefined
             }
             onClose={() => setFailure(null)}
@@ -233,4 +237,3 @@ export function AirtimeView() {
     />
   );
 }
-

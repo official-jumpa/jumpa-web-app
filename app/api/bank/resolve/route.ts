@@ -16,7 +16,9 @@ import { environment } from "@/lib/environment";
  */
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "medium", action: "bank_resolve" },
+    });
     if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(req.url);

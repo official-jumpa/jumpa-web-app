@@ -17,7 +17,9 @@ export const dynamic = "force-dynamic";
  * address, not the funds. Recovering them needs the user's recovery phrase.
  */
 export async function POST(req: NextRequest) {
-  const authResult = await requireAuth();
+  const authResult = await requireAuth({
+    rateLimit: { tier: "critical", action: "delete_account" },
+  });
   if (!authResult.ok) return authResult.response;
 
   const body = await req.json().catch(() => ({}));

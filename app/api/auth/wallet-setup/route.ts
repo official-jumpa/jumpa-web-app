@@ -69,7 +69,9 @@ function resolveNextOnboardingRoute(user: any, wallet: any): string {
  */
 export async function GET(req: NextRequest) {
   try {
-    const authResult = await requireAuth();
+    const authResult = await requireAuth({
+      rateLimit: { tier: "medium", action: "wallet_setup_status" },
+    });
     if (!authResult.ok) return authResult.response;
     const session = authResult.session;
 
@@ -145,7 +147,9 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const authResult = await requireAuth();
+    const authResult = await requireAuth({
+      rateLimit: { tier: "critical", action: "wallet_setup" },
+    });
     if (!authResult.ok) return authResult.response;
     const session = authResult.session;
 

@@ -21,7 +21,9 @@ function isInline(mime: string) {
  */
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "low", action: "chat_attachments_get" },
+    });
     if (!auth.ok) return auth.response;
     const userId = auth.userId;
 
@@ -66,7 +68,9 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "medium", action: "chat_attachments_upload" },
+    });
     if (!auth.ok) return auth.response;
     const userId = auth.userId;
 

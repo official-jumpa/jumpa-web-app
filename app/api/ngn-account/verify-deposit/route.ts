@@ -9,7 +9,10 @@ import { verifyDepositSession } from "@/lib/functions/importapayFunctions";
  */
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireActiveUser({ requireWallet: false });
+    const auth = await requireActiveUser({
+      requireWallet: false,
+      rateLimit: { tier: "low", action: "ngn_verify_deposit" },
+    });
     if (!auth.ok) return auth.response;
 
     let body: any = {};
@@ -36,7 +39,10 @@ export async function POST(req: NextRequest) {
  */
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireActiveUser({ requireWallet: false });
+    const auth = await requireActiveUser({
+      requireWallet: false,
+      rateLimit: { tier: "low", action: "ngn_poll_deposit" },
+    });
     if (!auth.ok) return auth.response;
 
     const sessionId = req.nextUrl.searchParams.get("sessionId") || undefined;

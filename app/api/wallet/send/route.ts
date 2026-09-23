@@ -60,7 +60,9 @@ function resolveChainPrivateKey(
  * Body: { recipient: string, amount: string, asset: string, network: string, memo?: string, pin: string }
  */
 export async function POST(req: NextRequest) {
-  const auth = await requireActiveUser();
+  const auth = await requireActiveUser({
+    rateLimit: { tier: "high", action: "send_crypto" },
+  });
   if (!auth.ok) return auth.response;
   const { session } = auth;
 

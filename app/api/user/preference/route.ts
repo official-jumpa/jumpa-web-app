@@ -13,7 +13,9 @@ import { formatZodError } from "@/lib/validations/validation-helper";
  * Returns current preferences for the authenticated user.
  */
 export async function GET(req: NextRequest) {
-  const auth = await requireActiveUser();
+  const auth = await requireActiveUser({
+    rateLimit: { tier: "low", action: "preference_get" },
+  });
   if (!auth.ok) return auth.response;
   const { userId } = auth;
 
@@ -34,7 +36,9 @@ export async function GET(req: NextRequest) {
  * Updates user notification and app preferences.
  */
 export async function PATCH(req: NextRequest) {
-  const auth = await requireActiveUser();
+  const auth = await requireActiveUser({
+    rateLimit: { tier: "medium", action: "preference_update" },
+  });
   if (!auth.ok) return auth.response;
   const { userId } = auth;
 

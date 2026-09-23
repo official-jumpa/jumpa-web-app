@@ -11,6 +11,7 @@ import {
 } from "@/lib/validations/waitlist.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
+import { enforceRateLimit } from "@/lib/functions/rateLimitFunctions";
 import { sendWaitlistWelcomeEmail } from "@/lib/email-notifications";
 
 /**
@@ -18,6 +19,12 @@ import { sendWaitlistWelcomeEmail } from "@/lib/email-notifications";
  */
 export async function POST(req: NextRequest) {
   try {
+    const rateLimitResponse = await enforceRateLimit(req, {
+      tier: "medium",
+      action: "waitlist_join",
+    });
+    if (rateLimitResponse) return rateLimitResponse;
+
     const body = await req.json().catch(() => ({}));
     const validation = joinWaitlistSchema.safeParse(body);
 

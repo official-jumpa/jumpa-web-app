@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { buildSwapTransaction } from "@/lib/dex";
 import { swapBuildSchema } from "@/lib/validations/swap.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { enforceRateLimit } from "@/lib/functions/rateLimitFunctions";
 
 /**
  * POST /api/swap/build
@@ -10,6 +11,12 @@ import { formatZodError } from "@/lib/validations/validation-helper";
  */
 export async function POST(req: NextRequest) {
   try {
+    const rateLimitResponse = await enforceRateLimit(req, {
+      tier: "medium",
+      action: "swap_build",
+    });
+    if (rateLimitResponse) return rateLimitResponse;
+
     const body = await req.json().catch(() => ({}));
     const validation = swapBuildSchema.safeParse(body);
     if (!validation.success) {

@@ -12,7 +12,9 @@ import { logUserActivity } from "@/lib/functions/userFunctions";
  */
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "medium", action: "chat_cancel" },
+    });
     if (!auth.ok) return auth.response;
 
     const body = await req.json().catch(() => ({}));

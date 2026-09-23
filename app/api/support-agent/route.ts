@@ -36,7 +36,9 @@ const supportSendSchema = z.object({
  * Fetches the user's persistent support chat transcript.
  */
 export async function GET() {
-  const auth = await requireAuth();
+  const auth = await requireAuth({
+    rateLimit: { tier: "low", action: "support_agent_get" },
+  });
   if (!auth.ok) return auth.response;
 
   try {
@@ -56,7 +58,9 @@ export async function GET() {
  * Sends a message to the Jumpa AI support specialist and returns the assistant's reply.
  */
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth();
+  const auth = await requireAuth({
+    rateLimit: { tier: "medium", action: "support_agent_send" },
+  });
   if (!auth.ok) return auth.response;
 
   const body = await req.json().catch(() => ({}));

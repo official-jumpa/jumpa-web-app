@@ -8,7 +8,9 @@ import { listSavingsPlansQuerySchema } from "@/lib/validations/savings.validatio
 import { formatZodError } from "@/lib/validations/validation-helper";
 
 export async function GET(req: NextRequest) {
-  const auth = await requireActiveUser();
+  const auth = await requireActiveUser({
+    rateLimit: { tier: "low", action: "savings_list" },
+  });
   if (!auth.ok) return auth.response;
   const { userId } = auth;
   try {

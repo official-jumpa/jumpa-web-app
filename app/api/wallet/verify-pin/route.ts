@@ -10,7 +10,9 @@ import { formatZodError } from "@/lib/validations/validation-helper";
  * Verifies PIN against pinHash for the selected wallet with rate limiting & lockout.
  */
 export async function POST(req: NextRequest) {
-  const auth = await requireActiveUser();
+  const auth = await requireActiveUser({
+    rateLimit: { tier: "critical", action: "verify_pin" },
+  });
   if (!auth.ok) return auth.response;
 
   const body = await req.json().catch(() => ({}));

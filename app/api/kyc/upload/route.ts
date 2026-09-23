@@ -13,7 +13,9 @@ const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB max upload size
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAuth();
+    const auth = await requireAuth({
+      rateLimit: { tier: "medium", action: "kyc_upload" },
+    });
     if (!auth.ok) return auth.response;
     const userId = auth.userId;
     const apiKey =

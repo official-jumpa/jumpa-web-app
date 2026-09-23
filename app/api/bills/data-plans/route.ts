@@ -14,7 +14,9 @@ export const revalidate = 0;
  */
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "medium", action: "bills_data_plans" },
+    });
     if (!auth.ok) {
       return auth.response;
     }

@@ -15,7 +15,9 @@ import { logUserActivity } from "@/lib/functions/userFunctions";
  */
 export async function POST(req: NextRequest) {
   try {
-    const authResult = await requireActiveUser();
+    const authResult = await requireActiveUser({
+      rateLimit: { tier: "high", action: "ngn_withdraw" },
+    });
     if (!authResult.ok) return authResult.response;
     const userId = authResult.userId;
 

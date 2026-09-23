@@ -8,7 +8,9 @@ import { getReferralStatsForUser } from "@/lib/functions/referralFunctions";
  */
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireActiveUser();
+    const auth = await requireActiveUser({
+      rateLimit: { tier: "low", action: "referrals_get" },
+    });
     if (!auth.ok) return auth.response;
 
     const stats = await getReferralStatsForUser(auth.userId);

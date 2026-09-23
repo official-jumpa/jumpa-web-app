@@ -6,6 +6,11 @@ import { connectDB } from "@/lib/db";
 import { User } from "@/models/User";
 import { Wallet } from "@/models/Wallet";
 
+import {
+  checkRateLimit,
+  type RateLimitTier,
+} from "@/lib/functions/rateLimitFunctions";
+
 export type UserStatus = "pending" | "active" | "banned" | "suspended" | "deleted";
 
 export interface AuthenticatedUser {
@@ -41,6 +46,16 @@ export interface RouteGuardOptions {
    * Defaults to false (optional wallet). Set to true for financial transactions.
    */
   requireWallet?: boolean;
+  /**
+   * Optional rate limiting configuration enforced by Redis.
+   */
+  rateLimit?: {
+    tier?: RateLimitTier;
+    action: string;
+    limit?: number;
+    windowSec?: number;
+    customMessage?: string;
+  };
 }
 
 export interface StatusCheckResult {
@@ -242,6 +257,42 @@ export async function requireActiveUser(
     };
   }
 
+  if (options.rateLimit) {
+    const rateLimit = await checkRateLimit({
+      identifier: session.user.id,
+      tier: options.rateLimit.tier || "high",
+      action: options.rateLimit.action,
+      customLimit: options.rateLimit.limit,
+      customWindowSec: options.rateLimit.windowSec,
+    });
+
+    if (!rateLimit.allowed) {
+      const errorMsg =
+        options.rateLimit.customMessage ||
+        `Too many requests. Please try again in ${rateLimit.resetInSeconds} second${rateLimit.resetInSeconds === 1 ? "" : "s"}.`;
+
+      return {
+        ok: false,
+        response: NextResponse.json(
+          {
+            error: errorMsg,
+            code: "RATE_LIMIT_EXCEEDED",
+            retryAfter: rateLimit.resetInSeconds,
+          },
+          {
+            status: 429,
+            headers: {
+              "Retry-After": rateLimit.resetInSeconds.toString(),
+              "X-RateLimit-Limit": rateLimit.limit.toString(),
+              "X-RateLimit-Remaining": "0",
+              "X-RateLimit-Reset": rateLimit.resetInSeconds.toString(),
+            },
+          },
+        ),
+      };
+    }
+  }
+
   return {
     ok: true,
     userId: session.user.id,
@@ -282,6 +333,42 @@ export async function requireAuth(
         { status: 404 },
       ),
     };
+  }
+
+  if (options.rateLimit) {
+    const rateLimit = await checkRateLimit({
+      identifier: session.user.id,
+      tier: options.rateLimit.tier || "high",
+      action: options.rateLimit.action,
+      customLimit: options.rateLimit.limit,
+      customWindowSec: options.rateLimit.windowSec,
+    });
+
+    if (!rateLimit.allowed) {
+      const errorMsg =
+        options.rateLimit.customMessage ||
+        `Too many requests. Please try again in ${rateLimit.resetInSeconds} second${rateLimit.resetInSeconds === 1 ? "" : "s"}.`;
+
+      return {
+        ok: false,
+        response: NextResponse.json(
+          {
+            error: errorMsg,
+            code: "RATE_LIMIT_EXCEEDED",
+            retryAfter: rateLimit.resetInSeconds,
+          },
+          {
+            status: 429,
+            headers: {
+              "Retry-After": rateLimit.resetInSeconds.toString(),
+              "X-RateLimit-Limit": rateLimit.limit.toString(),
+              "X-RateLimit-Remaining": "0",
+              "X-RateLimit-Reset": rateLimit.resetInSeconds.toString(),
+            },
+          },
+        ),
+      };
+    }
   }
 
   return {

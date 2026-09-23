@@ -37,7 +37,9 @@ export async function POST(req: NextRequest) {
 
   try {
     let t = performance.now();
-    const authResult = await requireActiveUser();
+    const authResult = await requireActiveUser({
+      rateLimit: { tier: "high", action: "switch_offramp" },
+    });
     console.log(`[Offramp] requireActiveUser: ${elapsed(t)}`);
     if (!authResult.ok) return authResult.response;
     const session = authResult.session;

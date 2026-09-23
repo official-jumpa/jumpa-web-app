@@ -10,7 +10,9 @@ import {
 } from "@/lib/savings-service";
 
 export async function GET(req: NextRequest) {
-  const auth = await requireActiveUser();
+  const auth = await requireActiveUser({
+    rateLimit: { tier: "low", action: "savings_details" },
+  });
   if (!auth.ok) return auth.response;
   const { userId } = auth;
   try {

@@ -234,7 +234,7 @@ export function KycCaptureScreen({
 
       {/* ID Number Input for Document Stage */}
       {/* remove the sandbox values after testing */}
-      {documentType && (
+      {/* {documentType && (
         <div className="mt-3 p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2">
           <div className="flex items-center justify-between">
             <label
@@ -276,7 +276,7 @@ export function KycCaptureScreen({
             </div>
           )}
         </div>
-      )}
+      )} */}
 
       {/* Main Dynamic Action Button */}
       <div className="mt-auto pt-4">

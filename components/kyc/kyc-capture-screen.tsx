@@ -10,10 +10,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { CameraIcon } from "@/components/ui/icons/camera";
 
-/** Rectangle for a document, dashed oval for a face. */
+/** Rectangle for a document, dashed portrait oval for a face. */
 const FRAME = {
-  box: "h-48 shrink-0 rounded-surface bg-jumpa-neutral-50 border border-jumpa-neutral-200",
-  oval: "min-h-52 max-h-96 flex-1 rounded-[50%] border-2 border-dashed border-jumpa-neutral-200 bg-jumpa-neutral-50",
+  box: "w-full h-48 shrink-0 rounded-surface bg-jumpa-neutral-50 border border-jumpa-neutral-200",
+  // Fixed 4:5, so the frame is the same soft oval empty or filled. Height leads,
+  // so it shrinks on short screens instead of pushing the CTA down.
+  oval: "mx-auto aspect-[4/5] h-[min(46dvh,340px)] rounded-[50%] border-2 border-dashed border-jumpa-neutral-200 bg-jumpa-neutral-50",
 } as const;
 
 interface TestScenario {
@@ -173,7 +175,7 @@ export function KycCaptureScreen({
             }
           }}
           aria-label={preview ? "Photo preview" : "Choose a photo"}
-          className={`w-full flex items-center justify-center overflow-hidden relative ${
+          className={`flex items-center justify-center overflow-hidden relative ${
             preview ? "cursor-default" : "cursor-pointer tap"
           } ${camera ? "mb-4" : ""} ${FRAME[shape]}`}>
           {preview ? (

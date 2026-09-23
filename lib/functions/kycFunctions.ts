@@ -419,3 +419,88 @@ export async function skipPhoneVerification(params: {
     phone: updateFields.phoneNumber ?? null,
   };
 }
+
+export const ALLOWED_KYC_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "video/webm",
+  "video/mp4",
+  "application/pdf",
+] as const;
+
+export type AllowedKycMimeType = (typeof ALLOWED_KYC_MIME_TYPES)[number];
+
+/**
+ * Inspects binary magic bytes, declared MIME type, and filename extension
+ * to determine the canonical MIME type supported by KYC providers.
+ */
+export function detectAndNormalizeKycMimeType(
+  buffer: Buffer,
+  declaredType?: string,
+  fileName?: string,
+): string {
+  // 1. Magic byte inspection
+  if (
+    buffer.length >= 3 &&
+    buffer[0] === 0xff &&
+    buffer[1] === 0xd8 &&
+    buffer[2] === 0xff
+  ) {
+    return "image/jpeg";
+  }
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47
+  ) {
+    return "image/png";
+  }
+  if (
+    buffer.length >= 4 &&
+    buffer.subarray(0, 4).toString("ascii") === "%PDF"
+  ) {
+    return "application/pdf";
+  }
+
+  // 2. Normalized declared type
+  const norm = (declaredType || "").toLowerCase().trim();
+  if (norm === "image/jpg" || norm === "image/jpeg" || norm === "image/pjpeg") {
+    return "image/jpeg";
+  }
+  if (norm === "image/png") return "image/png";
+  if (norm === "application/pdf") return "application/pdf";
+  if (norm === "video/mp4") return "video/mp4";
+  if (norm === "video/webm") return "video/webm";
+
+  // 3. File extension fallback
+  const ext = (fileName || "").split(".").pop()?.toLowerCase();
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "png") return "image/png";
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "mp4") return "video/mp4";
+  if (ext === "webm") return "video/webm";
+
+  // Default fallback for camera/image captures
+  return "image/jpeg";
+}
+
+/**
+ * Resolves standard file extension for a given MIME type.
+ */
+export function getKycExtensionForMime(mime: string): string {
+  switch (mime) {
+    case "image/png":
+      return "png";
+    case "application/pdf":
+      return "pdf";
+    case "video/mp4":
+      return "mp4";
+    case "video/webm":
+      return "webm";
+    default:
+      return "jpeg";
+  }
+}
+

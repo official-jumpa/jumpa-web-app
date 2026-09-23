@@ -79,18 +79,97 @@ export function KycCaptureScreen({
     };
   }, [preview]);
 
+/** Normalizes uploaded images to standard JPEG and resizes large phone photos if needed */
+async function normalizeImageFile(file: File): Promise<File> {
+  // If it's a PDF, leave as is
+  if (
+    file.type === "application/pdf" ||
+    file.name.toLowerCase().endsWith(".pdf")
+  ) {
+    return file;
+  }
+
+  // If already standard small JPEG/PNG under 2.5MB, return directly
+  const isStandard =
+    (file.type === "image/jpeg" || file.type === "image/png") &&
+    file.size <= 2.5 * 1024 * 1024;
+  if (isStandard) {
+    return file;
+  }
+
+  // Draw onto canvas to guarantee valid image/jpeg and scale down huge smartphone shots
+  try {
+    return await new Promise<File>((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const maxDim = 1920;
+        let width = img.naturalWidth || img.width;
+        let height = img.naturalHeight || img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              resolve(file);
+              return;
+            }
+            const cleanName =
+              file.name.replace(/\.[^/.]+$/, "") + ".jpeg";
+            const normalized = new File([blob], cleanName, {
+              type: "image/jpeg",
+              lastModified: Date.now(),
+            });
+            resolve(normalized);
+          },
+          "image/jpeg",
+          0.88,
+        );
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      };
+      img.src = url;
+    });
+  } catch {
+    return file;
+  }
+}
+
   // When user picks or snaps a photo, show preview without auto-uploading
-  const handleFilePicked = (file: File | undefined) => {
+  const handleFilePicked = async (file: File | undefined) => {
     if (!file) return;
 
     // Reset upload state since this is a new image
     setUploadedMediaId(null);
     setUploadError(null);
 
-    setSelectedFile(file);
+    const processedFile = await normalizeImageFile(file);
+
+    setSelectedFile(processedFile);
     setPreview((prev) => {
       if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(file);
+      return URL.createObjectURL(processedFile);
     });
   };
 
@@ -157,7 +236,7 @@ export function KycCaptureScreen({
       <input
         ref={field}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/jpg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf,image/*"
         capture={
           camera ? (shape === "oval" ? "user" : "environment") : undefined
         }

@@ -1,5 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { saveKycMedia } from "@/lib/functions/kycFunctions";
+import {
+  saveKycMedia,
+  ALLOWED_KYC_MIME_TYPES,
+  detectAndNormalizeKycMimeType,
+  getKycExtensionForMime,
+} from "@/lib/functions/kycFunctions";
 import { requireAuth } from "@/lib/functions/permissionFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import type { KycIdType } from "@/models/KYCSchema";
@@ -11,7 +16,8 @@ export async function POST(req: NextRequest) {
     const auth = await requireAuth();
     if (!auth.ok) return auth.response;
     const userId = auth.userId;
-    const apiKey = process.env.MYAZA_TRUST_SECRET_KEY || process.env.MYAZA_TRUST_SANDBOX_KEY;
+    const apiKey =
+      process.env.MYAZA_TRUST_SECRET_KEY || process.env.MYAZA_TRUST_SANDBOX_KEY;
     const baseUrl = process.env.MYAZA_TRUST_BASE_URL;
     if (!apiKey || !baseUrl) {
       console.error("[Myaza Upload] Error: Missing API Key or Base URL");
@@ -28,13 +34,12 @@ export async function POST(req: NextRequest) {
       ? String(formData.get("idNumber"))
       : null;
 
-    if (!file || typeof file === "string") {
+    if (!file || typeof file === "string" || !(file instanceof Blob)) {
       return NextResponse.json(
         { error: "No valid file provided" },
         { status: 400 },
       );
     }
-    console.log("uploading image of size", file.size);
 
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
@@ -43,12 +48,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const originalName = typeof (file as any).name === "string" ? (file as any).name : "";
+    const mimeType = detectAndNormalizeKycMimeType(buffer, file.type, originalName);
+
+    if (!ALLOWED_KYC_MIME_TYPES.includes(mimeType as any)) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid file format. Please upload an image in JPEG, PNG, or PDF format",
+        },
+        { status: 400 },
+      );
+    }
+
+    const extension = getKycExtensionForMime(mimeType);
+    const safeFilename =
+      originalName && originalName.includes(".")
+        ? originalName.replace(/\.jpe?g$/i, ".jpeg")
+        : `upload_${Date.now()}.${extension}`;
+
+    const cleanBlob = new Blob([buffer], { type: mimeType });
+
     const myazaFormData = new FormData();
-    myazaFormData.append("file", file);
+    myazaFormData.append("file", cleanBlob, safeFilename);
     myazaFormData.append("type", type);
+    myazaFormData.append("mimeType", mimeType);
 
     console.log(
-      `[Myaza Upload] Uploading file for user: ${userId} Type: ${type}`
+      `[Myaza Upload] Uploading file for user: ${userId} Type: ${type} Mime: ${mimeType} Size: ${file.size}`,
     );
 
     const response = await fetch(`${baseUrl}/upload`, {
@@ -61,10 +90,14 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok || !data.mediaId) {
       console.error("[Myaza Upload] Error from provider:", data);
+      let errorMsg =
+        data.message || data.error || "Failed to upload file to Myaza";
+      if (typeof errorMsg === "string" && errorMsg.includes("mimeType")) {
+        errorMsg =
+          "Unsupported image format. Please upload a clear photo in JPEG, PNG, or PDF format.";
+      }
       return NextResponse.json(
-        {
-          error: data.message || data.error || "Failed to upload file to Myaza",
-        },
+        { error: errorMsg },
         { status: response.status || 500 },
       );
     }

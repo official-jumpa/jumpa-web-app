@@ -67,12 +67,12 @@ export function VerifyCodeForm({
           return;
         }
 
-        // Check if user already has an existing wallet
+        // Resolve user onboarding / destination route
         try {
-          const res = await fetch("/api/wallet/list");
-          const wallets = await res.json();
-          if (Array.isArray(wallets) && wallets.length > 0) {
-            setTargetActionHref("/home");
+          const res = await fetch("/api/auth/wallet-setup");
+          if (res.ok) {
+            const data = await res.json();
+            setTargetActionHref(data.nextRoute || SIGN_UP_FLOW.phone);
           } else {
             setTargetActionHref(SIGN_UP_FLOW.phone);
           }

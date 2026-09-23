@@ -7,6 +7,8 @@ export interface IUser {
   country: string | null;
   email: string;
   emailVerified: boolean;
+  phoneNumber?: string | null;
+  phoneNumberVerified?: boolean;
   image: string | null;
   nickname?: string | null;
   jumpaTag?: string | null;
@@ -36,6 +38,15 @@ const UserSchema = new Schema<IUser>(
     country: { type: String, default: null },
     email: { type: String, required: true, unique: true, lowercase: true },
     emailVerified: { type: Boolean, required: true, default: false },
+    phoneNumber: {
+      type: String,
+      default: null,
+      index: {
+        unique: true,
+        partialFilterExpression: { phoneNumber: { $type: "string" } },
+      },
+    },
+    phoneNumberVerified: { type: Boolean, default: false },
     image: { type: String, default: null },
     nickname: { type: String, default: null, trim: true },
     jumpaTag: {

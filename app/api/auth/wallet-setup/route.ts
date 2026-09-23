@@ -48,11 +48,13 @@ import { formatZodError } from "@/lib/validations/validation-helper";
 
 /** Resolves the next route a user must complete in onboarding */
 function resolveNextOnboardingRoute(user: any, wallet: any): string {
+  const hasPhone = Boolean(user?.phoneNumber && user?.phoneNumberVerified);
   const hasPassword = Boolean(user?.loginPasswordHash);
   const hasTag = Boolean(user?.jumpaTag);
   const hasPin = Boolean(wallet?.pinHash);
   const needsPinMigration = Boolean(wallet && wallet.pinVersion !== "v2");
 
+  if (!hasPhone) return "/sign-up/phone";
   if (!hasPassword) return "/sign-up/password";
   if (!hasTag) return "/sign-up/tag";
   if (!hasPin) return "/sign-up/pin";
@@ -90,11 +92,11 @@ export async function GET(req: NextRequest) {
       const suggestions = available
         ? []
         : [`${handle}_`, `${handle}1`, `the${handle}`]
-            .map((opt) =>
-              opt.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 20),
-            )
-            .filter((opt) => opt.length >= 3)
-            .slice(0, 3);
+          .map((opt) =>
+            opt.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 20),
+          )
+          .filter((opt) => opt.length >= 3)
+          .slice(0, 3);
 
       return NextResponse.json({ available, suggestions });
     }
@@ -105,6 +107,7 @@ export async function GET(req: NextRequest) {
       ? await findWalletById(user.activeWalletId)
       : await findWalletForUser(session.user.id);
 
+    const hasPhone = Boolean(user?.phoneNumber && user?.phoneNumberVerified);
     const hasPassword = Boolean(user?.loginPasswordHash);
     const hasTag = Boolean(user?.jumpaTag);
     const hasPin = Boolean(wallet?.pinHash);
@@ -112,6 +115,7 @@ export async function GET(req: NextRequest) {
     const nextRoute = resolveNextOnboardingRoute(user, wallet);
 
     return NextResponse.json({
+      hasPhone,
       hasPassword,
       hasTag,
       hasPin,
@@ -120,7 +124,7 @@ export async function GET(req: NextRequest) {
       userStatus: user?.status || "active",
       nickname: user?.nickname ?? null,
       jumpaTag: user?.jumpaTag ?? null,
-      isComplete: hasPassword && hasTag && hasPin && !needsPinMigration,//delete once everyone has migrated to v2
+      isComplete: hasPhone && hasPassword && hasTag && hasPin && !needsPinMigration,//delete once everyone has migrated to v2
     });
   } catch (err) {
     console.error("[WalletSetup GET]", err);
@@ -259,7 +263,7 @@ export async function POST(req: NextRequest) {
       // If the user already has a wallet:
       const existingWallets = await listWalletsByUserId(session.user.id);
       console.log("🟢🟢🟢 Total user wallets", existingWallets.length)
-      
+
       // Pre-validation path: Verify current 6-digit PIN before prompting for new PIN
       if (body.action === "validate-current" || body.action === "verify-current") {
         const oldPin = (validation.data.oldPin || body.pin)!;
@@ -485,7 +489,7 @@ export async function POST(req: NextRequest) {
     const existingWallets = await listWalletsByUserId(session.user.id);
     const existingWallet = existingWallets[0];
     console.log("🟢🟢🟢 Total user wallets", existingWallets.length)
-    
+
     if (existingWallet) {
       // If the wallet exists but is missing pinHash, complete the setup instead of throwing error:
       if (!existingWallet.pinHash) {
@@ -496,14 +500,14 @@ export async function POST(req: NextRequest) {
         });
         return NextResponse.json({ success: true, walletId: existingWallet._id });
       }
-    
+
       // Otherwise, block creating a duplicate
       return NextResponse.json(
         { error: "Maximum wallet limit reached" },
         { status: 400 },
       );
     }
-    
+
 
     const walletName = await getNextWalletName(session.user.id);
 

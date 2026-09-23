@@ -31,6 +31,8 @@ export function AuthRedirect() {
         const status = await res.json();
         if (status.nextRoute) {
           router.replace(status.nextRoute);
+        } else if (!status.hasPhone) {
+          router.replace("/sign-up/phone");
         } else if (!status.hasPassword) {
           router.replace("/sign-up/password");
         } else if (!status.hasTag) {

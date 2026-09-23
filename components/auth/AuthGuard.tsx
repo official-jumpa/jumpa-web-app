@@ -24,6 +24,7 @@ export interface AuthUser {
 }
 
 export interface OnboardingStatus {
+  hasPhone?: boolean;
   hasPassword: boolean;
   hasTag: boolean;
   hasPin: boolean;
@@ -129,12 +130,15 @@ export function AuthGuard({
 
       // If user is on an onboarding step they have ALREADY completed, forward them to the next required step
       if (
+        (pathname?.startsWith("/sign-up/phone") && data.hasPhone) ||
         (pathname?.startsWith("/sign-up/password") && data.hasPassword) ||
         (pathname?.startsWith("/sign-up/tag") && data.hasTag) ||
         (pathname?.startsWith("/sign-up/pin") && data.hasPin)
       ) {
         if (data.nextRoute) {
           router.replace(data.nextRoute);
+        } else if (!data.hasPhone) {
+          router.replace("/sign-up/phone");
         } else if (!data.hasPassword) {
           router.replace("/sign-up/password");
         } else if (!data.hasTag) {
@@ -159,9 +163,11 @@ export function AuthGuard({
         return;
       }
 
-      // Sequential onboarding check: Password -> Tag -> PIN / Migration
+      // Sequential onboarding check: Phone -> Password -> Tag -> PIN / Migration
       if (data.nextRoute && data.nextRoute !== "/home") {
         router.replace(data.nextRoute);
+      } else if (!data.hasPhone) {
+        router.replace("/sign-up/phone");
       } else if (!data.hasPassword) {
         router.replace("/sign-up/password");
       } else if (!data.hasTag) {
@@ -213,8 +219,8 @@ export function AuthGuard({
             {userStatus === "banned"
               ? "Your account has been permanently restricted from accessing Jumpa."
               : userStatus === "deleted"
-              ? "This account has been scheduled for deletion. If you believe this is a mistake, please contact support."
-              : "Your account is temporarily suspended. Please contact support for assistance."}
+                ? "This account has been scheduled for deletion. If you believe this is a mistake, please contact support."
+                : "Your account is temporarily suspended. Please contact support for assistance."}
           </p>
         </div>
       </div>

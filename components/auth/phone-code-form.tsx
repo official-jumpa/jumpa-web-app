@@ -1,40 +1,114 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { InfoNote } from "@/components/auth/info-note";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
 import { SuccessSheet } from "@/components/auth/success-sheet";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
+import { readSignUpValue, writeSignUpValue, SIGN_UP_KEYS } from "@/lib/sign-up";
 
 const CODE_LENGTH = 6;
 
-/** Phone code entry, same shape as the email screen and the same success sheet. */
-// TODO(backend): check the code against the SMS provider, and resend through it.
-export function PhoneCodeForm({ nextHref }: { nextHref: string }) {
+/** Phone code entry. Verifies OTP against Myaza Trust via /api/auth/verify-phone. */
+export function PhoneCodeForm({
+  nextHref,
+  phone,
+}: {
+  nextHref: string;
+  phone?: string;
+}) {
   const code = usePinInput(CODE_LENGTH);
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resolvedHref, setResolvedHref] = useState<string>(nextHref);
   const [error, setError] = useState<string | null>(null);
+  const attemptedCodeRef = useRef<string | null>(null);
 
   useKeypadKeys({ ...code, enabled: !verifying && !verified });
 
-  // Keyed on `complete` alone — setting `verifying` here would re-run the effect
-  // and its cleanup would clear the timer before it fired.
   useEffect(() => {
-    if (!code.complete) return;
+    if (code.value.length < CODE_LENGTH) {
+      attemptedCodeRef.current = null;
+      if (error && !error.includes("sent")) setError(null);
+    }
+  }, [code.value, error]);
 
-    setVerifying(true);
-    setError(null);
-    // Stands in for the provider round trip, so the pending state is real.
-    const timer = setTimeout(() => {
-      setVerifying(false);
-      setVerified(true);
-    }, 600);
+  const handleVerify = useCallback(
+    async (otpValue: string) => {
+      const targetPhone = phone || readSignUpValue(SIGN_UP_KEYS.phone);
+      const challengeId = readSignUpValue(SIGN_UP_KEYS.phoneChallengeId);
 
-    return () => clearTimeout(timer);
-  }, [code.complete]);
+      if (!targetPhone) {
+        setError("Phone number not found. Please go back and enter your number.");
+        return;
+      }
+
+      if (!challengeId) {
+        setError("Verification session expired. Please request a new code.");
+        return;
+      }
+
+      setVerifying(true);
+      setError(null);
+
+      try {
+        const res = await fetch("/api/auth/verify-phone", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "verify",
+            phone: targetPhone,
+            code: otpValue,
+            challengeId,
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || !data.verified) {
+          console.warn("[PhoneCodeForm] Verification failed:", data);
+          setError(data.error || "Invalid verification code");
+          setVerifying(false);
+          return;
+        }
+
+        try {
+          const setupRes = await fetch("/api/auth/wallet-setup");
+          if (setupRes.ok) {
+            const setupData = await setupRes.json();
+            if (setupData.nextRoute) {
+              setResolvedHref(setupData.nextRoute);
+            }
+          }
+        } catch (e) {
+          console.warn("[PhoneCodeForm] Could not fetch nextRoute:", e);
+        }
+
+        setVerifying(false);
+        setVerified(true);
+      } catch (err: any) {
+        console.error("[PhoneCodeForm] Verification error:", err);
+        setError(err?.message || "Verification failed. Please try again.");
+        setVerifying(false);
+      }
+    },
+    [phone],
+  );
+
+  useEffect(() => {
+    if (
+      code.complete &&
+      !verifying &&
+      !verified &&
+      attemptedCodeRef.current !== code.value
+    ) {
+      attemptedCodeRef.current = code.value;
+      handleVerify(code.value);
+    }
+  }, [code.complete, code.value, verifying, verified, handleVerify]);
 
   /** Clipboard reads are blocked in some browsers; fall back to the callout. */
   const handlePaste = async () => {
@@ -50,6 +124,38 @@ export function PhoneCodeForm({ nextHref }: { nextHref: string }) {
       code.set(digits);
     } catch {
       setError("Long-press the code box and choose Paste.");
+    }
+  };
+
+  const handleResend = async () => {
+    const targetPhone = phone || readSignUpValue(SIGN_UP_KEYS.phone);
+    if (!targetPhone || resending) return;
+
+    setResending(true);
+    setError(null);
+    attemptedCodeRef.current = null;
+
+    try {
+      const res = await fetch("/api/auth/verify-phone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "send", phone: targetPhone }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.success) {
+        setError(data.error || "Could not resend code");
+      } else {
+        if (data.challengeId) {
+          writeSignUpValue(SIGN_UP_KEYS.phoneChallengeId, data.challengeId);
+        }
+        setError("New verification code sent!");
+      }
+    } catch {
+      setError("Could not resend code. Please try again later.");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -74,7 +180,15 @@ export function PhoneCodeForm({ nextHref }: { nextHref: string }) {
         </button>
 
         {error ? (
-          <p className="text-center text-xs text-jumpa-danger">{error}</p>
+          <p
+            className={`text-center text-xs ${
+              error.includes("sent")
+                ? "text-jumpa-primary-600"
+                : "text-jumpa-danger"
+            }`}
+          >
+            {error}
+          </p>
         ) : null}
 
         {verifying ? (
@@ -87,10 +201,11 @@ export function PhoneCodeForm({ nextHref }: { nextHref: string }) {
           Didn't get Code?{" "}
           <button
             type="button"
-            onClick={() => code.clear()}
-            className="cursor-pointer font-semibold text-jumpa-primary-600"
+            onClick={handleResend}
+            disabled={resending || verifying}
+            className="cursor-pointer font-semibold text-jumpa-primary-600 disabled:opacity-50"
           >
-            Resend Code
+            {resending ? "Sending..." : "Resend Code"}
           </button>
         </InfoNote>
       </div>
@@ -106,7 +221,7 @@ export function PhoneCodeForm({ nextHref }: { nextHref: string }) {
         <SuccessSheet
           title="Verification successful"
           description="Your mobile number has been verified successfully. You can now continue."
-          actionHref={nextHref}
+          actionHref={resolvedHref}
           actionLabel="Continue"
         />
       ) : null}

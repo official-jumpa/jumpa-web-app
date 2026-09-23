@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 
 interface OnboardingStatus {
+  hasPhone?: boolean;
   hasPassword: boolean;
   hasTag: boolean;
   hasPin: boolean;
@@ -36,6 +37,13 @@ export function AuthStepGuard({ children }: { children: ReactNode }) {
         const res = await fetch("/api/auth/wallet-setup");
         if (!res.ok || !active) return;
         const status: OnboardingStatus = await res.json();
+
+        // 0. Already has verified phone -> redirect away from /sign-up/phone
+        const onPhonePage = pathname?.startsWith("/sign-up/phone");
+        if (onPhonePage && status.hasPhone) {
+          router.replace(status.nextRoute || "/home");
+          return;
+        }
 
         // 1. Already has password -> redirect away from /sign-up/password
         const onPasswordPage = pathname?.startsWith("/sign-up/password");

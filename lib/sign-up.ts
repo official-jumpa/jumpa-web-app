@@ -18,6 +18,7 @@ export const SIGN_UP_FLOW = {
 export const SIGN_UP_KEYS = {
   email: "onboardingEmail",
   phone: "signupPhone",
+  phoneChallengeId: "signupPhoneChallengeId",
   /** Held only between the set and confirm screens; cleared the moment they match. */
   password: "signupPassword",
   tag: "signupTag",

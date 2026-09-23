@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
-const SITE = "https://usejumpa.com";
+/** Canonical origin. `app/robots.ts` and `app/sitemap.ts` read it too. */
+export const SITE = "https://usejumpa.com";
 
 const OG_IMAGE = {
   url: "https://usejumpa.com/icons/icon-512.png",

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import { AuthRedirect } from "@/components/landing/auth-redirect";
+import { JsonLd } from "@/components/seo/json-ld";
 // import { BetaCtaSection } from "@/components/landing/beta-cta-section";
 // import { FaqSection } from "@/components/landing/faq-section";
 // import { FeaturesSection } from "@/components/landing/features-section";
@@ -10,6 +11,7 @@ import { InstallPrompt } from "@/components/landing/install-prompt";
 import { LandingFooter } from "@/components/landing/landing-footer";
 import { LandingNav } from "@/components/landing/landing-nav";
 import { RevealObserver } from "@/components/landing/reveal-observer";
+import { siteGraph } from "@/lib/structured-data";
 // import { SecuritySection } from "@/components/landing/security-section";
 // import { WhyJumpaSection } from "@/components/landing/why-jumpa-section";
 
@@ -45,6 +47,8 @@ export default async function LandingPage() {
 
   return (
     <>
+      {/* Tells Google "Jumpa" is a brand, not just the Malay word. */}
+      <JsonLd data={siteGraph()} />
       {/* Outside the frame: the card is app chrome, so it measures in the app's
           own spacing rather than the landing frame's scaled unit. */}
       <InstallPrompt />

@@ -127,7 +127,7 @@
   /* Layout. The app is one centred column; this is how wide it is allowed to
      get. Everything that pins to the column edge reads `max-w-app` from here —
      never write the literal, or the pieces drift apart. */
-  --container-app: 450px;
+  --container-app: 500px;
 
   /* Letter-spacing. The landing frames track every size at -1% of the size;
      the footer's small print is tighter and the Receive card's "+$274" is a

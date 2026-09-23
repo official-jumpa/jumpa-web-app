@@ -128,7 +128,7 @@ export function AdBanner({ ads = ADS }: { ads?: Ad[] }) {
                 alt={ad.alt}
                 fill
                 priority={position === 0}
-                sizes="(max-width: 450px) 100vw, 450px"
+                sizes="(max-width: 500px) 100vw, 500px"
                 className="object-contain"
               />
             </Link>

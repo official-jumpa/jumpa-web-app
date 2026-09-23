@@ -50,7 +50,7 @@ export default function BiometricsPage() {
           alt=""
           fill
           priority
-          sizes="450px"
+          sizes="500px"
           className="object-cover"
         />
       </div>

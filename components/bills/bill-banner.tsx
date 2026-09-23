@@ -39,7 +39,7 @@ export function BillBanner() {
           priority={position === 0}
           loading="eager"
           fetchPriority={position === 0 ? "high" : "low"}
-          sizes="(max-width: 450px) 100vw, 450px"
+          sizes="(max-width: 500px) 100vw, 500px"
           className={`object-cover transition-[opacity,transform] duration-700 ease-jumpa ${
             position === index ? "scale-100 opacity-100" : "scale-105 opacity-0"
           }`}

@@ -33,7 +33,7 @@ export function CardIntro({
           alt=""
           width={786}
           height={736}
-          sizes="450px"
+          sizes="500px"
           priority
           className="absolute top-0 left-0 h-auto w-full"
         />

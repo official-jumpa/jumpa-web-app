@@ -35,7 +35,7 @@ export function VirtualCardFace({ card }: { card: Card }) {
         src="/images/cards/card-face.webp"
         alt=""
         fill
-        sizes="(max-width: 450px) 100vw, 450px"
+        sizes="(max-width: 500px) 100vw, 500px"
         className="-z-10 object-cover"
         priority
       />

@@ -23,7 +23,7 @@ export interface ITransaction {
     | "DATA";
   status: "PENDING" | "CONFIRMED" | "FAILED" | "CANCELLED" | "SIMULATED";
 
-  chain?: "stellar" | "solana" | "base" | "eth" | "fiat";
+  chain?: "stellar" | "solana" | "base" | "eth" | "ethereum" | "fiat";
   network?: "mainnet" | "testnet";
   carrier?: "mtn" | "airtel" | "glo" | "9mobile" | string;
 
@@ -134,7 +134,7 @@ const TransactionSchema = new Schema<ITransaction>(
 
     chain: {
       type: String,
-      enum: ["stellar", "solana", "base", "eth", "fiat"],
+      enum: ["stellar", "solana", "base", "eth", "ethereum", "fiat"],
       default: null,
     },
     network: {

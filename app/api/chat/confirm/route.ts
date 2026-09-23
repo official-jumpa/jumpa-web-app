@@ -136,7 +136,9 @@ export async function POST(req: NextRequest) {
                 ? "Savings deposit approved"
                 : txParams?.type === "savings_withdraw"
                   ? "Savings withdrawal approved"
-                  : "Transfer approved",
+                  : cardType === "offramp"
+                    ? "Withdrawal approved"
+                    : "Transfer approved",
       timestamp: new Date(),
     };
 
@@ -632,18 +634,25 @@ export async function POST(req: NextRequest) {
         effectiveCardData?.cryptoAmount || txParams?.cryptoAmount || "0";
       const cryptoToken =
         effectiveCardData?.cryptoToken || txParams?.cryptoToken || "USDC";
-      const asset = effectiveCardData?.asset || txParams?.asset || "base:usdc";
-      const depositAddress =
-        effectiveCardData?.depositAddress || txParams?.depositAddress;
-      const reference =
-        effectiveCardData?.reference || txParams?.reference || "";
+      const fiatAmount =
+        effectiveCardData?.fiatAmount || txParams?.fiatAmount || "0";
       const bankName =
-        effectiveCardData?.bankName || txParams?.bankName || "Bank";
+        effectiveCardData?.bankName || txParams?.bankName || "";
+      const accountName =
+        effectiveCardData?.accountName ||
+        txParams?.holderName ||
+        txParams?.accountName ||
+        "";
       const accountNumber =
         effectiveCardData?.accountNumber || txParams?.accountNumber || "";
-      const accountName =
-        effectiveCardData?.accountName || txParams?.holderName || "";
-      const fiatAmount = effectiveCardData?.fiatAmount || "0";
+      const depositAddress =
+        effectiveCardData?.depositAddress || txParams?.depositAddress || "";
+      const reference =
+        effectiveCardData?.reference || txParams?.reference || "";
+      let rawAsset = (effectiveCardData?.asset || txParams?.asset || "").trim();
+      if (rawAsset.toLowerCase().startsWith("eth:")) {
+        rawAsset = `ethereum:${rawAsset.slice(4)}`;
+      }
 
       if (!depositAddress) {
         return NextResponse.json(
@@ -654,6 +663,61 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
+
+      const cleanDeposit = (depositAddress || "").trim();
+      const isEvmDeposit = cleanDeposit.startsWith("0x");
+      const isStellarDeposit =
+        cleanDeposit.startsWith("G") && cleanDeposit.length === 56;
+      const isSolanaDeposit = !isEvmDeposit && !isStellarDeposit;
+
+      // Disambiguate asset and ensure it differentiates Solana vs Ethereum
+      let asset = rawAsset;
+      if (!asset) {
+        if (isEvmDeposit) {
+          asset =
+            cryptoToken.toUpperCase() === "USDT"
+              ? "ethereum:usdt"
+              : "base:usdc";
+        } else if (isStellarDeposit) {
+          asset = "stellar:usdc";
+        } else {
+          asset =
+            cryptoToken.toUpperCase() === "USDT"
+              ? "solana:usdt"
+              : "solana:usdc";
+        }
+      } else {
+        const lowerAsset = asset.toLowerCase();
+        if (isEvmDeposit && lowerAsset.startsWith("solana:")) {
+          const token = lowerAsset.split(":")[1] || "usdc";
+          asset = token === "usdt" ? "ethereum:usdt" : "ethereum:usdc";
+          console.warn(
+            `[Chat Confirm] Deposit address is EVM (0x). Corrected asset to ${asset}.`,
+          );
+        } else if (
+          isSolanaDeposit &&
+          (lowerAsset.startsWith("ethereum:") ||
+            lowerAsset.startsWith("base:") ||
+            lowerAsset.startsWith("eth:"))
+        ) {
+          const token = lowerAsset.split(":")[1] || "usdc";
+          asset = `solana:${token}`;
+          console.warn(
+            `[Chat Confirm] Deposit address is Solana (Base58). Corrected asset to ${asset}.`,
+          );
+        } else if (isStellarDeposit) {
+          asset = "stellar:usdc";
+        }
+      }
+
+      const targetChainName = asset.toLowerCase().includes("solana")
+        ? "Solana"
+        : asset.toLowerCase().includes("ethereum") ||
+            asset.toLowerCase().startsWith("eth")
+          ? "Ethereum"
+          : asset.toLowerCase().includes("stellar")
+            ? "Stellar"
+            : "Base";
 
       if (!wallet?.encryptedMnemonic || !pin) {
         return NextResponse.json(
@@ -678,7 +742,7 @@ export async function POST(req: NextRequest) {
       }
 
       console.log(
-        `[Chat Confirm] Executing live on-chain offramp transfer: ${cryptoAmount} ${cryptoToken} to ${depositAddress} on ${asset}...`,
+        `[Chat Confirm] Executing live on-chain offramp transfer: ${cryptoAmount} ${cryptoToken} to ${depositAddress} on ${asset} (${targetChainName})...`,
       );
 
       const transferResult = await executeOfframpTransfer({
@@ -704,16 +768,40 @@ export async function POST(req: NextRequest) {
       const explorerUrl = transferResult.explorerUrl || "";
 
       console.log(
-        `[Chat Confirm] Offramp SUCCESS! TxHash: ${txHash}. Confirming with Switch...`,
+        `[Chat Confirm] Offramp SUCCESS! TxHash: ${txHash}. Confirming with provider...`,
       );
 
-      // Confirm payment with Switch provider
-      try {
-        await SwitchService.confirmPayment(reference, txHash);
-        console.log(`[Chat Confirm] Switch payment confirmed for ${reference}`);
-      } catch (switchConfirmErr) {
-        console.warn(`[Chat Confirm] Notice: Switch confirmPayment warning: ${switchConfirmErr}`);
+      // Confirm payment with Switch provider (skip for Stellar/Centiiv)
+      const isStellar = asset.toLowerCase().includes("stellar");
+      if (!isStellar) {
+        try {
+          await SwitchService.confirmPayment(reference, txHash);
+          console.log(`[Chat Confirm] Switch payment confirmed for ${reference}`);
+        } catch (switchConfirmErr) {
+          console.warn(
+            `[Chat Confirm] Notice: Switch confirmPayment warning: ${switchConfirmErr}`,
+          );
+        }
       }
+
+      const resolvedTxChain =
+        targetChainName === "Solana"
+          ? "solana"
+          : targetChainName === "Ethereum"
+            ? "eth"
+            : targetChainName === "Stellar"
+              ? "stellar"
+              : "base";
+
+      const userFromAddress =
+        resolvedTxChain === "solana"
+          ? wallet?.addresses?.sol || ""
+          : resolvedTxChain === "stellar"
+            ? wallet?.addresses?.xlm || wallet?.address || ""
+            : wallet?.addresses?.eth ||
+              wallet?.addresses?.base ||
+              wallet?.address ||
+              "";
 
       // Update Transaction in DB
       try {
@@ -721,6 +809,8 @@ export async function POST(req: NextRequest) {
           status: "CONFIRMED",
           txHash,
           explorerUrl,
+          chain: resolvedTxChain,
+          ...(userFromAddress ? { fromAddress: userFromAddress } : {}),
           executedAt: new Date(),
         });
       } catch (dbErr: any) {
@@ -739,6 +829,7 @@ export async function POST(req: NextRequest) {
         },
         stats: [
           { value: `- ${cryptoAmount} ${cryptoToken}` },
+          { lead: "Network ", value: targetChainName },
           { lead: "Bank ", value: bankName },
           { lead: "Account Name ", value: accountName },
           {
@@ -791,7 +882,9 @@ export async function POST(req: NextRequest) {
                 ? `✓ Savings deposit successful`
                 : txParams?.type === "savings_withdraw"
                   ? `✓ Savings withdrawal successful`
-                  : `✓ Transfer successful`,
+                  : cardType === "offramp"
+                    ? `✓ Withdrawal sent to ${effectiveCardData?.bankName || txParams?.bankName || "bank"}`
+                    : `✓ Transfer successful`,
       isTransaction: true,
       cardType: "receipt",
       status: "confirmed",

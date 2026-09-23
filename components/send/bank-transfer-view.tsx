@@ -78,8 +78,10 @@ export function BankTransferView({
 
   const selectedAsset = form.asset || (isFiatWithdrawal ? "NGN" : "USDC");
   const selectedNetwork = form.network || "Nigeria Bank";
-  const selectedChain =
+  const rawSelectedChain =
     OFFRAMP_NETWORK_CONFIGS[selectedNetwork]?.chain || "base";
+  const selectedChain =
+    rawSelectedChain === "eth" ? "ethereum" : rawSelectedChain;
 
   // Fetch live NGN balance for FossaPay fiat withdrawals
   useEffect(() => {
@@ -118,7 +120,10 @@ export function BankTransferView({
             (t: any) =>
               t.symbol?.toUpperCase() === selectedAsset.toUpperCase() &&
               (!t.network ||
-                t.network.toLowerCase().includes(selectedChain.toLowerCase())),
+                t.network.toLowerCase().includes(selectedChain.toLowerCase()) ||
+                (selectedChain === "ethereum" &&
+                  (t.network.toLowerCase().includes("eth") ||
+                    t.network.toLowerCase().includes("mainnet")))),
           );
           if (matchedToken) {
             setCryptoBalance(parseFloat(matchedToken.balance) || 0);

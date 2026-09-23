@@ -72,7 +72,15 @@ export const SUPPORTED_SWITCH_ASSETS = [
   "solana:usdt",
   "ethereum:usdc",
   "ethereum:usdt",
+  "eth:usdc",
+  "eth:usdt",
 ];
+
+export function normalizeSwitchAsset(asset: string): string {
+  const lower = (asset || "").toLowerCase().trim();
+  if (lower.startsWith("eth:")) return `ethereum:${lower.slice(4)}`;
+  return lower;
+}
 
 /** Human-readable labels for each supported Switch asset — use these when presenting assets to users */
 export const SWITCH_ASSET_LABELS: Record<string, string> = {
@@ -82,6 +90,8 @@ export const SWITCH_ASSET_LABELS: Record<string, string> = {
   "solana:usdt": "USDT on Solana",
   "ethereum:usdc": "USDC on Ethereum",
   "ethereum:usdt": "USDT on Ethereum",
+  "eth:usdc": "USDC on Ethereum",
+  "eth:usdt": "USDT on Ethereum",
 };
 
 function parseSwitchError(errorMsg: string): string {
@@ -114,14 +124,13 @@ export class SwitchService {
       "Content-Type": "application/json",
       "X-Service-Key": process.env.SWITCH_LIVE_KEY || "",
     };
-  }
-
-  static async initiateOnRamp(
+  }  static async initiateOnRamp(
     amount: number,
     asset: string,
     walletAddress: string
   ): Promise<OnRampResponse> {
-    if (!SUPPORTED_SWITCH_ASSETS.includes(asset.toLowerCase())) {
+    const normAsset = normalizeSwitchAsset(asset);
+    if (!SUPPORTED_SWITCH_ASSETS.includes(normAsset)) {
       return {
         success: false,
         status: 400,
@@ -135,7 +144,7 @@ export class SwitchService {
         amount: amount,
         country: "NG",
         currency: "NGN",
-        asset: asset,
+        asset: normAsset,
         beneficiary: {
           holder_type: "INDIVIDUAL",
           holder_name: "Jumpa",
@@ -181,7 +190,8 @@ export class SwitchService {
   }
 
   static async getQuote(amount: number, asset: string): Promise<QuoteResponse> {
-    if (!SUPPORTED_SWITCH_ASSETS.includes(asset.toLowerCase())) {
+    const normAsset = normalizeSwitchAsset(asset);
+    if (!SUPPORTED_SWITCH_ASSETS.includes(normAsset)) {
       return {
         success: false,
         message: "The selected asset is not supported by our provider at this time."
@@ -193,7 +203,7 @@ export class SwitchService {
         amount: amount,
         country: "NG",
         currency: "NGN",
-        asset: asset,
+        asset: normAsset,
         rail: "NIBSS",
         exact_output: false, 
         developer_fee: environment.SWITCH_JUMPA_FEE
@@ -227,10 +237,11 @@ export class SwitchService {
 
   static async getOnrampRate(asset: string = "base:usdc"): Promise<{ success: boolean; rate?: number; message?: string }> {
     try {
+      const normAsset = normalizeSwitchAsset(asset);
       const payload = {
         country: "NG",
         currency: "NGN",
-        asset,
+        asset: normAsset,
         channel: "BANK",
       };
 
@@ -260,10 +271,11 @@ export class SwitchService {
 
   static async getOfframpRate(asset: string = "base:usdc"): Promise<{ success: boolean; rate?: number; message?: string }> {
     try {
+      const normAsset = normalizeSwitchAsset(asset);
       const payload = {
         country: "NG",
         currency: "NGN",
-        asset,
+        asset: normAsset,
         channel: "BANK",
       };
 
@@ -292,7 +304,8 @@ export class SwitchService {
   }
 
   static async getOfframpQuote(amount: number, asset: string): Promise<QuoteResponse> {
-    if (!SUPPORTED_SWITCH_ASSETS.includes(asset.toLowerCase())) {
+    const normAsset = normalizeSwitchAsset(asset);
+    if (!SUPPORTED_SWITCH_ASSETS.includes(normAsset)) {
       return {
         success: false,
         message: "The selected asset is not supported by our provider at this time."
@@ -304,9 +317,9 @@ export class SwitchService {
         amount,
         country: "NG",
         currency: "NGN",
-        asset,
+        asset: normAsset,
         rail: "BANK",
-        exact_output: false,
+        exact_output: false, 
         developer_fee: environment.SWITCH_JUMPA_FEE
       };
 
@@ -346,7 +359,8 @@ export class SwitchService {
       bank_code: string;
     }
   ): Promise<OffRampResponse> {
-    if (!SUPPORTED_SWITCH_ASSETS.includes(asset.toLowerCase())) {
+    const normAsset = normalizeSwitchAsset(asset);
+    if (!SUPPORTED_SWITCH_ASSETS.includes(normAsset)) {
       return {
         success: false,
         status: 400,
@@ -360,7 +374,7 @@ export class SwitchService {
         amount,
         country: "NG",
         currency: "NGN",
-        asset,
+        asset: normAsset,
         beneficiary: {
           holder_type: "INDIVIDUAL",
           holder_name: beneficiary.holder_name,

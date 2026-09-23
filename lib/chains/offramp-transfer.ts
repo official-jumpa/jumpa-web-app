@@ -90,6 +90,16 @@ export const OFFRAMP_ASSETS: Record<string, OfframpAssetConfig> = {
     address: CONTRACT_ADDRESSES.ethereum.mainnet.USDT.address,
     decimals: CONTRACT_ADDRESSES.ethereum.mainnet.USDT.decimals,
   },
+  "eth:usdc": {
+    chain: "ethereum",
+    address: CONTRACT_ADDRESSES.ethereum.mainnet.USDC.address,
+    decimals: CONTRACT_ADDRESSES.ethereum.mainnet.USDC.decimals,
+  },
+  "eth:usdt": {
+    chain: "ethereum",
+    address: CONTRACT_ADDRESSES.ethereum.mainnet.USDT.address,
+    decimals: CONTRACT_ADDRESSES.ethereum.mainnet.USDT.decimals,
+  },
 };
 
 export interface OfframpExecutionResult {
@@ -108,7 +118,45 @@ export async function executeOfframpTransfer(options: {
   amount: number | string;
 }): Promise<OfframpExecutionResult> {
   const { mnemonic, asset, depositAddress, amount } = options;
-  const normalizedAsset = asset.toLowerCase().trim();
+  let normalizedAsset = (asset || "").toLowerCase().trim();
+  if (normalizedAsset.startsWith("eth:")) {
+    normalizedAsset = `ethereum:${normalizedAsset.slice(4)}`;
+  }
+
+  // Differentiate between Solana and Ethereum / EVM using the deposit address format
+  const cleanDeposit = (depositAddress || "").trim();
+  const isEvmDeposit = cleanDeposit.startsWith("0x");
+  const isStellarDeposit = cleanDeposit.startsWith("G") && cleanDeposit.length === 56;
+  const isSolanaDeposit = !isEvmDeposit && !isStellarDeposit && cleanDeposit.length > 0;
+
+  if (isEvmDeposit) {
+    if (normalizedAsset.startsWith("solana:")) {
+      const token = normalizedAsset.split(":")[1] || "usdc";
+      normalizedAsset = token === "usdt" ? "ethereum:usdt" : "ethereum:usdc";
+      console.warn(
+        `[OfframpTransfer] Deposit address is EVM (0x). Corrected asset from solana to ${normalizedAsset}.`,
+      );
+    } else if (!normalizedAsset.includes(":")) {
+      normalizedAsset = normalizedAsset === "usdt" ? "ethereum:usdt" : "ethereum:usdc";
+    }
+  } else if (isSolanaDeposit) {
+    if (
+      normalizedAsset.startsWith("ethereum:") ||
+      normalizedAsset.startsWith("base:") ||
+      normalizedAsset.startsWith("eth:")
+    ) {
+      const token = normalizedAsset.split(":")[1] || "usdc";
+      normalizedAsset = `solana:${token}`;
+      console.warn(
+        `[OfframpTransfer] Deposit address is Solana (Base58). Corrected asset to ${normalizedAsset}.`,
+      );
+    } else if (!normalizedAsset.includes(":")) {
+      normalizedAsset = `solana:${normalizedAsset}`;
+    }
+  } else if (isStellarDeposit) {
+    normalizedAsset = "stellar:usdc";
+  }
+
   const config = OFFRAMP_ASSETS[normalizedAsset];
 
   if (!config) {

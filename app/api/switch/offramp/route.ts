@@ -57,12 +57,17 @@ export async function POST(req: NextRequest) {
       cryptoAmount,
       fiatAmount,
       cryptoToken,
-      asset,
+      asset: rawAsset,
       holderName,
       accountNumber,
       bankName,
       pin,
     } = validation.data;
+
+    let asset = (rawAsset || "").trim();
+    if (asset.toLowerCase().startsWith("eth:")) {
+      asset = `ethereum:${asset.slice(4)}`;
+    }
 
     const isStellar = asset.toLowerCase().includes("stellar");
     let bankMatch: { name: string; code: string };
@@ -223,6 +228,15 @@ export async function POST(req: NextRequest) {
       cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC";
 
     // Record in Transaction ledger
+    const rawChain = (asset.split(":")[0] || "base").toLowerCase();
+    const txChain = rawChain === "ethereum" ? "eth" : rawChain;
+    const userFromAddr =
+      txChain === "solana"
+        ? (wallet?.addresses?.sol || "")
+        : txChain === "stellar"
+          ? (wallet?.addresses?.xlm || wallet?.address || "")
+          : (wallet?.addresses?.eth || wallet?.addresses?.base || wallet?.address || "");
+
     let txRecord: any;
     try {
       t = performance.now();
@@ -230,9 +244,9 @@ export async function POST(req: NextRequest) {
         userId,
         type: "OFFRAMP",
         status: "PENDING",
-        chain: (asset.split(":")[0] || "base") as any,
+        chain: txChain as any,
         network: "mainnet",
-        fromAddress: "USER_WALLET",
+        fromAddress: userFromAddr || "USER_WALLET",
         toAddress: `${bankMatch.name} / ${accountNumber}`,
         amount: String(deposit.amount),
         token: tokenName,
@@ -311,7 +325,7 @@ export async function POST(req: NextRequest) {
         depositAddress: deposit.address,
         amount: deposit.amount,
       });
-      console.log(`[Offramp] executeOfframpTransfer (Stellar tx): ${elapsed(t)}`);
+      console.log(`[Offramp] executeOfframpTransfer (${txChain} tx): ${elapsed(t)}`);
 
       if (!transferResult.success || !transferResult.txHash) {
         console.error(

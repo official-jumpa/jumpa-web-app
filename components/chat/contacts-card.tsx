@@ -16,7 +16,7 @@ export function ContactsCard({
   return (
     <ChatCard padded>
       <ContactList
-        contacts={card.contacts}
+        contacts={card?.contacts || []}
         answer={answer}
         onSelect={onReply}
       />

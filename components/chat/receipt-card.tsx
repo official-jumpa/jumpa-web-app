@@ -9,7 +9,8 @@ import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
 import { getExplorerTxUrl } from "@/lib/blockchain";
 import type { ReceiptCard as Receipt } from "@/lib/chat";
 
-function explorerHref(card: Receipt) {
+function explorerHref(card?: Receipt) {
+  if (!card) return null;
   if (card.explorerUrl) return card.explorerUrl;
   if (card.txHash) {
     return getExplorerTxUrl("stellar", card.txHash, true);
@@ -20,20 +21,26 @@ function explorerHref(card: Receipt) {
 /** Settled transaction, on the design's lime slab with a purple currency chip. */
 export function ReceiptCard({ card }: { card: Receipt }) {
   const href = explorerHref(card);
+  const safeBalance = card?.balance || {
+    caption: "STATUS",
+    value: card?.status || "Completed",
+  };
 
   return (
     <ChatCard className="bg-jumpa-alt-400">
-      <CardTitle title={card.title}>
+      <CardTitle title={card?.title || "Transaction Receipt"}>
         <span className="text-[11px] leading-4 text-jumpa-neutral-750">
-          {card.status}
+          {card?.status || "Successful"}
         </span>
       </CardTitle>
 
       <CardRule />
-      <CardAmount row={card.balance} badgeTone="brand" />
+      <CardAmount row={safeBalance} badgeTone="brand" />
       <CardRule />
 
-      {card.stats.length > 0 ? <CardStats stats={card.stats} /> : null}
+      {card?.stats && card.stats.length > 0 ? (
+        <CardStats stats={card.stats} />
+      ) : null}
 
       {href ? (
         <a

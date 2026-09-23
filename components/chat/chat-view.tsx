@@ -10,6 +10,7 @@ import { ChatTopFade } from "@/components/chat/chat-top-fade";
 import { SuggestionCard } from "@/components/chat/suggestion-card";
 import { Transcript } from "@/components/chat/transcript";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
+import { ChatErrorBoundary } from "@/components/chat/chat-error-boundary";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import type { ChatEntry, ChatItem, QuoteCard as Quote } from "@/lib/chat";
@@ -26,6 +27,8 @@ function messagesToChatEntries(
   messages: IChatMessage[],
   revealId?: string | null,
 ): ChatEntry[] {
+  if (!Array.isArray(messages)) return [];
+
   const entries: ChatEntry[] = [];
   const answers = answersByCard(messages);
   let currentGroup: {
@@ -36,6 +39,7 @@ function messagesToChatEntries(
   } | null = null;
 
   for (const msg of messages) {
+    if (!msg) continue;
     const role: "user" | "agent" = msg.role === "assistant" ? "agent" : "user";
     // Set only on a chooser: the reply it got, so its pick survives a reload.
     const answer = msg.id ? answers.get(msg.id) : undefined;
@@ -49,13 +53,14 @@ function messagesToChatEntries(
 
     // Text message
     if (msg.content) {
+      const text = typeof msg.content === "string" ? msg.content : String(msg.content);
       items.push({
         kind: "text",
-        text: msg.content,
+        text,
         paragraph:
-          msg.content.length > 50 ||
-          msg.content.includes("\n") ||
-          msg.content.includes("**"),
+          text.length > 50 ||
+          text.includes("\n") ||
+          text.includes("**"),
         // Only the reply that just came back types itself in; loading a session
         // must not replay every message in it.
         reveal: !!revealId && msg.id === revealId,
@@ -580,13 +585,15 @@ export function ChatView() {
               </div>
             )}
 
-            <Transcript
-              entries={entries}
-              onConfirm={handleOpenPin}
-              onCancel={handleCancelTransaction}
-              onUpdateQuote={setPendingQuoteCard}
-              onReply={handleSendMessage}
-            />
+            <ChatErrorBoundary fallbackTitle="Chat history could not be displayed">
+              <Transcript
+                entries={entries}
+                onConfirm={handleOpenPin}
+                onCancel={handleCancelTransaction}
+                onUpdateQuote={setPendingQuoteCard}
+                onReply={handleSendMessage}
+              />
+            </ChatErrorBoundary>
 
             {isResponding && (
               <div className="mt-5">

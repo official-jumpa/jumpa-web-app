@@ -66,11 +66,11 @@ export const contactKey = (contact: ChatContact, index: number) =>
  * matched exactly, which is what stops two rows lighting at once.
  */
 export function answeredOption(
-  options: ChatOption[],
+  options?: ChatOption[],
   answer?: string,
   claimed?: boolean,
 ): string | null {
-  if (!answer) return null;
+  if (!answer || !Array.isArray(options) || options.length === 0) return null;
 
   const exact = options.findIndex((option) =>
     same(option.reply ?? option.label, answer),
@@ -83,19 +83,19 @@ export function answeredOption(
 }
 
 export function answeredPlan(
-  plans: ChatPlan[],
+  plans?: ChatPlan[],
   answer?: string,
 ): string | null {
-  if (!answer) return null;
+  if (!answer || !Array.isArray(plans) || plans.length === 0) return null;
   const index = plans.findIndex((plan) => same(plan.reply ?? plan.name, answer));
   return index >= 0 ? planKey(plans[index], index) : null;
 }
 
 export function answeredContact(
-  contacts: ChatContact[],
+  contacts?: ChatContact[],
   answer?: string,
 ): string | null {
-  if (!answer) return null;
+  if (!answer || !Array.isArray(contacts) || contacts.length === 0) return null;
   const index = contacts.findIndex((contact) =>
     same(contact.reply ?? contact.name, answer),
   );
@@ -103,8 +103,9 @@ export function answeredContact(
 }
 
 /** A Copy pill never replies, so only a reply action can have been answered. */
-export function answeredAction(details: BankDetails, answer?: string) {
+export function answeredAction(details?: BankDetails, answer?: string) {
+  if (!details || !answer) return false;
   const action = details.action;
-  if (!answer || !action || (action.kind ?? "copy") === "copy") return false;
+  if (!action || (action.kind ?? "copy") === "copy") return false;
   return same(action.reply ?? action.label, answer);
 }

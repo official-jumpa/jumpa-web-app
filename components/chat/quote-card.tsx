@@ -24,17 +24,17 @@ export function QuoteCard({
   isEditable = true,
   onUpdateQuote,
 }: QuoteCardProps) {
-  const [fromToken, setFromToken] = useState(card.pay.badge || "XLM");
-  const [toToken, setToToken] = useState(card.receive.badge || "USDC");
-  const [payAmount, setPayAmount] = useState(card.pay.value || "30");
+  const [fromToken, setFromToken] = useState(card?.pay?.badge || "XLM");
+  const [toToken, setToToken] = useState(card?.receive?.badge || "USDC");
+  const [payAmount, setPayAmount] = useState(card?.pay?.value || "30");
   const [receiveAmount, setReceiveAmount] = useState(
-    card.receive.value || "",
+    card?.receive?.value || "",
   );
   const [rateText, setRateText] = useState(
-    card.stats?.find((s) => s.lead?.includes("Rate"))?.value || "—",
+    card?.stats?.find((s) => s.lead?.includes("Rate"))?.value || "—",
   );
   const [feeText, setFeeText] = useState(
-    card.stats?.find((s) => s.lead?.includes("Fee"))?.value || "—",
+    card?.stats?.find((s) => s.lead?.includes("Fee"))?.value || "—",
   );
   const [loadingQuote, setLoadingQuote] = useState(false);
   const [rotated, setRotated] = useState(false);
@@ -123,8 +123,8 @@ export function QuoteCard({
 
   return (
     <ChatCard>
-      <CardTitle title={card.title}>
-        <StatText stat={card.status} />
+      <CardTitle title={card?.title || "Swap"}>
+        {card?.status ? <StatText stat={card.status} /> : null}
       </CardTitle>
 
       <CardRule />
@@ -133,7 +133,7 @@ export function QuoteCard({
       <div className="relative flex w-full flex-col gap-2">
         <CardAmount
           row={{
-            caption: card.pay.caption || "YOU PAY",
+            caption: card?.pay?.caption || "YOU PAY",
             value: payAmount,
             badge: fromToken,
           }}
@@ -144,7 +144,7 @@ export function QuoteCard({
 
         <CardAmount
           row={{
-            caption: card.receive.caption || "YOU RECEIVE",
+            caption: card?.receive?.caption || "YOU RECEIVE",
             value: loadingQuote ? "Calculating…" : receiveAmount,
             badge: toToken,
           }}

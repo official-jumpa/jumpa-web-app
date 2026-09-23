@@ -94,7 +94,9 @@ export function StatText({
  * them; a longer list becomes a ledger — lead left, value right, one per line —
  * because two columns are too narrow for a network name or a hash.
  */
-export function CardStats({ stats }: { stats: Stat[] }) {
+export function CardStats({ stats = [] }: { stats?: Stat[] }) {
+  if (!stats || stats.length === 0) return null;
+
   if (stats.length <= 2) {
     return (
       <div className="flex items-center justify-between gap-3 px-2.5">
@@ -132,16 +134,19 @@ export function CardStats({ stats }: { stats: Stat[] }) {
  * A bridge names the chain too, so the chip reads "USDC on <mark>".
  */
 export function AssetBadge({
-  symbol,
+  symbol = "",
   chain,
   tone = "default",
 }: {
-  symbol: string;
+  symbol?: string;
   chain?: string;
   tone?: "default" | "brand";
 }) {
-  const isNaira = /^(ngn|naira)$/i.test(symbol.trim());
-  const logo = isNaira ? null : getAssetLogo(symbol);
+  const cleanSymbol = typeof symbol === "string" ? symbol.trim() : "";
+  if (!cleanSymbol) return null;
+
+  const isNaira = /^(ngn|naira)$/i.test(cleanSymbol);
+  const logo = isNaira ? null : getAssetLogo(cleanSymbol);
 
   return (
     <span
@@ -163,7 +168,7 @@ export function AssetBadge({
           className="size-5 shrink-0 rounded-full object-contain"
         />
       ) : null}
-      <span>{symbol}</span>
+      <span>{cleanSymbol}</span>
 
       {chain ? (
         <>
@@ -189,36 +194,38 @@ export function CardAmount({
   inputValue,
   onInputChange,
 }: {
-  row: CardRow;
+  row?: CardRow;
   badgeTone?: "default" | "brand";
   isInput?: boolean;
   inputValue?: string;
   onInputChange?: (val: string) => void;
 }) {
+  const safeRow: CardRow = row || { caption: "", value: "" };
+
   return (
     <div className="flex h-16 w-full items-center gap-2.5 rounded-surface bg-jumpa-white p-3">
       <span className="flex min-w-0 flex-1 flex-col gap-0.5 px-2">
         <span className="text-[10px] leading-3 font-bold tracking-wider text-jumpa-black/50 uppercase">
-          {row.caption}
+          {safeRow.caption}
         </span>
         {isInput ? (
           <input
             type="number"
             step="any"
             min="0"
-            value={inputValue !== undefined ? inputValue : row.value}
+            value={inputValue !== undefined ? inputValue : safeRow.value}
             onChange={(e) => onInputChange?.(e.target.value)}
             className="w-full truncate bg-transparent text-lg leading-5.5 font-medium text-jumpa-black outline-none"
           />
         ) : (
           <span className="truncate text-lg leading-5.5 font-medium text-jumpa-black">
-            {row.value}
+            {safeRow.value}
           </span>
         )}
       </span>
 
-      {row.badge ? (
-        <AssetBadge symbol={row.badge} chain={row.chain} tone={badgeTone} />
+      {safeRow.badge ? (
+        <AssetBadge symbol={safeRow.badge} chain={safeRow.chain} tone={badgeTone} />
       ) : null}
     </div>
   );

@@ -16,16 +16,20 @@ import type { BridgeCard as Bridge } from "@/lib/chat";
 export function BridgeCard({ card }: { card: Bridge }) {
   return (
     <ChatCard>
-      <CardTitle title={card.title}>
-        <StatText stat={card.status} />
+      <CardTitle title={card?.title || "Bridge"}>
+        {card?.status ? <StatText stat={card.status} /> : null}
       </CardTitle>
 
       <CardRule />
 
       {/* The direction disc sits on the seam between the two rows. */}
       <div className="relative flex w-full flex-col gap-2">
-        <CardAmount row={card.pay} />
-        <CardAmount row={card.receive} />
+        <CardAmount
+          row={card?.pay || { caption: "YOU PAY", value: "" }}
+        />
+        <CardAmount
+          row={card?.receive || { caption: "YOU RECEIVE", value: "" }}
+        />
 
         <span
           aria-hidden="true"
@@ -37,7 +41,9 @@ export function BridgeCard({ card }: { card: Bridge }) {
 
       <CardRule />
 
-      <CardStats stats={card.stats} />
+      {card?.stats && card.stats.length > 0 ? (
+        <CardStats stats={card.stats} />
+      ) : null}
     </ChatCard>
   );
 }

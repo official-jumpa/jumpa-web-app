@@ -14,6 +14,7 @@ import { QuoteCard } from "@/components/chat/quote-card";
 import { ReceiptCard } from "@/components/chat/receipt-card";
 import { Sep24Card } from "@/components/chat/sep24-card";
 import { TransferCard } from "@/components/chat/transfer-card";
+import { ChatErrorBoundary } from "@/components/chat/chat-error-boundary";
 import type { ChatEntry, ChatItem, QuoteCard as Quote } from "@/lib/chat";
 import { cn } from "@/lib/cn";
 
@@ -128,40 +129,74 @@ function Item({
       return <AttachmentList items={item.items} align={from} />;
     case "quote":
       return (
-        <QuoteCard
-          card={item.card}
-          isEditable={item.isEditable !== false}
-          onUpdateQuote={onUpdateQuote}
-        />
+        <ChatErrorBoundary fallbackTitle="Swap quote preview unavailable">
+          <QuoteCard
+            card={item.card}
+            isEditable={item.isEditable !== false}
+            onUpdateQuote={onUpdateQuote}
+          />
+        </ChatErrorBoundary>
       );
     case "bridge":
-      return <BridgeCard card={item.card} />;
+      return (
+        <ChatErrorBoundary fallbackTitle="Bridge quote preview unavailable">
+          <BridgeCard card={item.card} />
+        </ChatErrorBoundary>
+      );
     case "receipt":
-      return <ReceiptCard card={item.card} />;
+      return (
+        <ChatErrorBoundary fallbackTitle="Receipt preview unavailable">
+          <ReceiptCard card={item.card} />
+        </ChatErrorBoundary>
+      );
     case "transfer":
-      return <TransferCard card={item.card} />;
+      return (
+        <ChatErrorBoundary fallbackTitle="Transfer card preview unavailable">
+          <TransferCard card={item.card} />
+        </ChatErrorBoundary>
+      );
     case "onramp":
-      return <OnrampCheckoutCard card={item.card} onCancel={onCancel} />;
+      return (
+        <ChatErrorBoundary fallbackTitle="Deposit card preview unavailable">
+          <OnrampCheckoutCard card={item.card} onCancel={onCancel} />
+        </ChatErrorBoundary>
+      );
     case "offramp":
-      return <OfframpCheckoutCard card={item.card} onReply={onReply} />;
+      return (
+        <ChatErrorBoundary fallbackTitle="Withdrawal card preview unavailable">
+          <OfframpCheckoutCard card={item.card} onReply={onReply} />
+        </ChatErrorBoundary>
+      );
     case "options":
       return (
-        <OptionsCard card={item.card} answer={item.answer} onReply={onReply} />
+        <ChatErrorBoundary fallbackTitle="Options card preview unavailable">
+          <OptionsCard card={item.card} answer={item.answer} onReply={onReply} />
+        </ChatErrorBoundary>
       );
     case "plans":
       return (
-        <PlansCard card={item.card} answer={item.answer} onReply={onReply} />
+        <ChatErrorBoundary fallbackTitle="Savings plans preview unavailable">
+          <PlansCard card={item.card} answer={item.answer} onReply={onReply} />
+        </ChatErrorBoundary>
       );
     case "contacts":
       return (
-        <ContactsCard card={item.card} answer={item.answer} onReply={onReply} />
+        <ChatErrorBoundary fallbackTitle="Contacts card preview unavailable">
+          <ContactsCard card={item.card} answer={item.answer} onReply={onReply} />
+        </ChatErrorBoundary>
       );
     case "accounts":
       return (
-        <AccountsCard card={item.card} answer={item.answer} onReply={onReply} />
+        <ChatErrorBoundary fallbackTitle="Account card preview unavailable">
+          <AccountsCard card={item.card} answer={item.answer} onReply={onReply} />
+        </ChatErrorBoundary>
       );
     case "sep24":
-      return <Sep24Card card={item.card} />;
+      return (
+        <ChatErrorBoundary fallbackTitle="Sandbox window preview unavailable">
+          <Sep24Card card={item.card} />
+        </ChatErrorBoundary>
+      );
     case "actions":
       return (
         <ActionRow

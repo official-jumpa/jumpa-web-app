@@ -18,7 +18,7 @@ export function OptionsCard({
 }) {
   return (
     <ChatCard padded>
-      <OptionList options={card.options} answer={answer} onSelect={onReply} />
+      <OptionList options={card?.options || []} answer={answer} onSelect={onReply} />
     </ChatCard>
   );
 }

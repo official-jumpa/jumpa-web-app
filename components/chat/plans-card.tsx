@@ -19,12 +19,12 @@ export function PlansCard({
 }) {
   // The plans and the rows under them share one answer, so a plan takes first
   // claim on it — otherwise a Custom row below would light as well.
-  const claimed = answeredPlan(card.plans, answer) !== null;
+  const claimed = answeredPlan(card?.plans, answer) !== null;
 
   return (
     <ChatCard padded>
-      <PlanList plans={card.plans} answer={answer} onSelect={onReply} />
-      {card.options?.length ? (
+      <PlanList plans={card?.plans || []} answer={answer} onSelect={onReply} />
+      {card?.options?.length ? (
         <OptionList
           options={card.options}
           answer={answer}

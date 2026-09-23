@@ -29,9 +29,15 @@ export function MarkdownText({
   className = "",
   reveal = false,
 }: MarkdownTextProps) {
-  if (!content) return null;
+  const textContent =
+    typeof content === "string"
+      ? content
+      : content != null
+        ? String(content)
+        : "";
+  if (!textContent) return null;
 
-  const lines = content.split("\n");
+  const lines = textContent.split("\n");
 
   // Counts up across the whole message so the stagger reads left to right, not
   // per line. Reset every render, which is what we want — the reveal is a mount

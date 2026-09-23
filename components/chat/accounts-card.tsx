@@ -16,15 +16,17 @@ export function AccountsCard({
 }) {
   // Confirm and the rows under it share one answer, so the pill takes first
   // claim on it — otherwise a Custom row below would light as well.
-  const claimed = answeredAction(card.account, answer);
+  const claimed = answeredAction(card?.account, answer);
 
   return (
     <ChatCard>
-      <CardTitle title={card.title} />
+      <CardTitle title={card?.title || "Account Details"} />
       <CardRule />
-      <DetailPanel details={card.account} answer={answer} onReply={onReply} />
+      {card?.account ? (
+        <DetailPanel details={card.account} answer={answer} onReply={onReply} />
+      ) : null}
 
-      {card.options && card.options.length > 0 ? (
+      {card?.options && card.options.length > 0 ? (
         <>
           <CardRule />
           <OptionList

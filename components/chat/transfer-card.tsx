@@ -19,10 +19,12 @@ export function TransferCard({
   card: Transfer;
   onSelectOption?: (symbol: string) => void;
 }) {
-  const { contact } = card;
+  const contact = card?.contact || { name: "Recipient", handle: "" };
+  const options = Array.isArray(card?.options) ? card.options : [];
   const [selectedSymbol, setSelectedSymbol] = useState(
-    card.options.find((option) => option.selected)?.symbol ||
-      card.options[0]?.symbol,
+    options.find((option) => option.selected)?.symbol ||
+      options[0]?.symbol ||
+      "USDC",
   );
 
   const handleSelect = (symbol: string) => {
@@ -31,7 +33,8 @@ export function TransferCard({
   };
 
   // The backend sends the raw address as both, and repeating it reads as a bug.
-  const meta = contact.handle !== contact.name ? contact.handle : "";
+  const meta =
+    contact.handle && contact.handle !== contact.name ? contact.handle : "";
 
   return (
     <ChatCard>
@@ -44,14 +47,16 @@ export function TransferCard({
       )}
 
       <CardRule />
-      <CardAmount row={card.amount} />
+      <CardAmount row={card?.amount || { caption: "AMOUNT", value: "" }} />
       <CardRule />
 
-      <p className="px-2.5 text-[11px] leading-4 text-jumpa-black/50">
-        {card.prompt}
-      </p>
+      {card?.prompt ? (
+        <p className="px-2.5 text-[11px] leading-4 text-jumpa-black/50">
+          {card.prompt}
+        </p>
+      ) : null}
 
-      {card.options.map((option) => (
+      {options.map((option) => (
         <AssetRow
           key={option.symbol}
           option={option}

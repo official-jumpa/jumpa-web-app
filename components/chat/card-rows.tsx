@@ -166,30 +166,32 @@ function CustomField({
 
 /** A chooser's rows, ruled apart only when the design draws them borderless. */
 export function OptionList({
-  options,
+  options = [],
   answer,
   claimed,
   onSelect,
 }: {
-  options: ChatOption[];
+  options?: ChatOption[];
   /** The reply this chooser already got, so a reload lights the row again. */
   answer?: string;
   /** Another row on the same card matched the answer — see answeredOption. */
   claimed?: boolean;
   onSelect?: (reply: string) => void;
 }) {
+  const safeOptions = Array.isArray(options) ? options : [];
   const [editing, setEditing] = useState<string | null>(null);
   // Covers the tap itself; once the reply lands, `answer` resolves the same row.
   const [tapped, setTapped] = useState<string | null>(null);
-  const picked = tapped ?? answeredOption(options, answer, claimed);
+  const picked = tapped ?? answeredOption(safeOptions, answer, claimed);
   // Keyboard hint only: if the fixed choices are figures, so is the custom one.
-  const numeric = options.some(
-    (option) => !isCustom(option) && /^[^0-9A-Za-z]*\d/.test(option.label),
+  const numeric = safeOptions.some(
+    (option) =>
+      option && !isCustom(option) && /^[^0-9A-Za-z]*\d/.test(option.label || ""),
   );
 
   return (
     <>
-      {options.map((option, index) => {
+      {safeOptions.map((option, index) => {
         const key = optionKey(option, index);
 
         if (isCustom(option) && editing === key) {
@@ -300,21 +302,22 @@ export function PlanRow({
 
 /** The plans a savings flow offers, in the order the agent sent them. */
 export function PlanList({
-  plans,
+  plans = [],
   answer,
   onSelect,
 }: {
-  plans: ChatPlan[];
+  plans?: ChatPlan[];
   /** The reply this chooser already got, so a reload lights the row again. */
   answer?: string;
   onSelect?: (reply: string) => void;
 }) {
+  const safePlans = Array.isArray(plans) ? plans : [];
   const [tapped, setTapped] = useState<string | null>(null);
-  const picked = tapped ?? answeredPlan(plans, answer);
+  const picked = tapped ?? answeredPlan(safePlans, answer);
 
   return (
     <>
-      {plans.map((plan, index) => {
+      {safePlans.map((plan, index) => {
         const key = planKey(plan, index);
 
         return (
@@ -401,21 +404,22 @@ export function ContactRow({
 
 /** The contacts, with the design's hairline between each pair. */
 export function ContactList({
-  contacts,
+  contacts = [],
   answer,
   onSelect,
 }: {
-  contacts: ChatContact[];
+  contacts?: ChatContact[];
   /** The reply this chooser already got, so a reload lights the row again. */
   answer?: string;
   onSelect?: (reply: string) => void;
 }) {
+  const safeContacts = Array.isArray(contacts) ? contacts : [];
   const [tapped, setTapped] = useState<string | null>(null);
-  const picked = tapped ?? answeredContact(contacts, answer);
+  const picked = tapped ?? answeredContact(safeContacts, answer);
 
   return (
     <>
-      {contacts.map((contact, index) => {
+      {safeContacts.map((contact, index) => {
         const key = contactKey(contact, index);
 
         return (
@@ -491,7 +495,7 @@ export function DetailPanel({
   answer,
   onReply,
 }: {
-  details: BankDetails;
+  details?: BankDetails;
   /** The reply this card already got, so a reload lights the pill again. */
   answer?: string;
   onReply?: (reply: string) => void;
@@ -500,6 +504,11 @@ export function DetailPanel({
   const [tapped, setTapped] = useState(false);
   const chosen = tapped || answeredAction(details, answer);
 
+  if (!details) return null;
+
+  const safeLines = Array.isArray(details.lines) ? details.lines : [];
+  const safeField = details.field || { caption: "ACCOUNT", value: "" };
+
   return (
     <div
       className={cn(
@@ -507,7 +516,7 @@ export function DetailPanel({
         chosen ? "border-jumpa-primary-600" : "border-jumpa-secondary-400",
       )}
     >
-      {details.lines.map((line) => (
+      {safeLines.map((line) => (
         <div key={line.label} className="flex items-start gap-1">
           <span className="min-w-0 flex-1 text-[11px] leading-4 text-jumpa-black">
             {line.label}
@@ -523,17 +532,17 @@ export function DetailPanel({
       <div className="flex items-center justify-between gap-2">
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="text-[10px] leading-3 font-bold tracking-wider text-jumpa-black/50 uppercase">
-            {details.field.caption}
+            {safeField.caption}
           </span>
           <span className="truncate text-lg leading-5.5 font-medium text-jumpa-black">
-            {details.field.value}
+            {safeField.value}
           </span>
         </span>
 
         {details.action ? (
           <ActionPill
             action={details.action}
-            value={details.field.value}
+            value={safeField.value}
             chosen={chosen}
             onReply={(reply) => {
               setTapped(true);

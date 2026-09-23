@@ -12,6 +12,7 @@ import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { ResultSheet } from "@/components/ui/result-sheet";
+import { useNgnAccount } from "@/hooks/use-ngn-account";
 import { AIRTIME_AMOUNTS, getNetwork } from "@/lib/bills";
 import { friendlyBillError, readBillResponse } from "@/lib/bills-errors";
 import type { Receipt } from "@/lib/receipt";
@@ -22,6 +23,7 @@ type Sheet = "review" | "pin" | null;
 
 /** Airtime top-up: recipient, amount, review, PIN, receipt. */
 export function AirtimeView() {
+  const { hasNgnAccount } = useNgnAccount();
   const [stage, setStage] = useState<Stage>("form");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
@@ -40,11 +42,30 @@ export function AirtimeView() {
   const network = getNetwork(networkId);
   const total = formatAmount(amount);
 
-  // Everything the route, the provider or `fetch` can throw goes through
-  // one mapper, so a parser or gateway error can never reach the user.
-  const fail = (raw: unknown) => {
+  const fail = (
+    rawOrMessage: unknown,
+    overrideTitle?: string,
+    overrideRetry?: boolean,
+  ) => {
     setSheet(null);
-    setFailure(friendlyBillError(raw, "airtime"));
+    if (
+      typeof rawOrMessage === "string" &&
+      overrideTitle &&
+      overrideRetry !== undefined
+    ) {
+      setFailure({
+        title: overrideTitle,
+        message: rawOrMessage,
+        retry: overrideRetry,
+      });
+      return;
+    }
+    const friendly = friendlyBillError(rawOrMessage, "airtime");
+    setFailure({
+      title: overrideTitle ?? friendly.title,
+      message: friendly.message,
+      retry: overrideRetry ?? friendly.retry,
+    });
   };
 
   const details = (
@@ -59,6 +80,14 @@ export function AirtimeView() {
 
   const handlePinComplete = async (pin: string) => {
     if (!network || isProcessing) return;
+    if (!hasNgnAccount) {
+      fail(
+        "Please create a Naira account first",
+        "Naira Account Required",
+        false,
+      );
+      return;
+    }
     setIsProcessing(true);
     setPinError(false);
     setFailure(null);
@@ -87,7 +116,7 @@ export function AirtimeView() {
         ) {
           setPinError(true);
         } else {
-          fail(data?.error ?? raw);
+          fail(data?.error || raw || "Airtime recharge failed");
         }
         setIsProcessing(false);
         return;
@@ -231,9 +260,20 @@ export function AirtimeView() {
       title="Airtime"
       phone={phone}
       network={networkId}
+      hasAccount={hasNgnAccount}
       onPhoneChange={setPhone}
       onNetworkChange={setNetworkId}
-      onContinue={() => setStage("amount")}
+      onContinue={() => {
+        if (!hasNgnAccount) {
+          fail(
+            "Please create a Naira account first",
+            "Naira Account Required",
+            false,
+          );
+          return;
+        }
+        setStage("amount");
+      }}
     />
   );
 }

@@ -11,6 +11,7 @@ import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { ResultSheet } from "@/components/ui/result-sheet";
+import { useNgnAccount } from "@/hooks/use-ngn-account";
 import { type DataPlan, getNetwork, getPeriodLabel } from "@/lib/bills";
 import { friendlyBillError, readBillResponse } from "@/lib/bills-errors";
 import type { Receipt } from "@/lib/receipt";
@@ -20,6 +21,7 @@ type Sheet = "review" | "pin" | null;
 
 /** Data bundles: recipient, plan, review, PIN, receipt. */
 export function MobileDataView() {
+  const { hasNgnAccount } = useNgnAccount();
   const [stage, setStage] = useState<Stage>("form");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
@@ -38,15 +40,42 @@ export function MobileDataView() {
 
   const network = getNetwork(networkId);
 
-  // Everything the route, the provider or `fetch` can throw goes through
-  // one mapper, so a parser or gateway error can never reach the user.
-  const fail = (raw: unknown) => {
+  const fail = (
+    rawOrMessage: unknown,
+    overrideTitle?: string,
+    overrideRetry?: boolean,
+  ) => {
     setSheet(null);
-    setFailure(friendlyBillError(raw, "data"));
+    if (
+      typeof rawOrMessage === "string" &&
+      overrideTitle &&
+      overrideRetry !== undefined
+    ) {
+      setFailure({
+        title: overrideTitle,
+        message: rawOrMessage,
+        retry: overrideRetry,
+      });
+      return;
+    }
+    const friendly = friendlyBillError(rawOrMessage, "data");
+    setFailure({
+      title: overrideTitle ?? friendly.title,
+      message: friendly.message,
+      retry: overrideRetry ?? friendly.retry,
+    });
   };
 
   const handlePinComplete = async (pin: string) => {
     if (!plan || !network || isProcessing) return;
+    if (!hasNgnAccount) {
+      fail(
+        "Please create a Naira account first",
+        "Naira Account Required",
+        false,
+      );
+      return;
+    }
     setIsProcessing(true);
     setPinError(false);
     setFailure(null);
@@ -81,7 +110,7 @@ export function MobileDataView() {
         ) {
           setPinError(true);
         } else {
-          fail(data?.error ?? raw);
+          fail(data?.error || raw || "Data subscription failed.");
         }
         setIsProcessing(false);
         return;
@@ -226,9 +255,20 @@ export function MobileDataView() {
       title="Data"
       phone={phone}
       network={networkId}
+      hasAccount={hasNgnAccount}
       onPhoneChange={setPhone}
       onNetworkChange={setNetworkId}
-      onContinue={() => setStage("plans")}
+      onContinue={() => {
+        if (!hasNgnAccount) {
+          fail(
+            "Please create a Naira account first",
+            "Naira Account Required",
+            false,
+          );
+          return;
+        }
+        setStage("plans");
+      }}
     />
   );
 }

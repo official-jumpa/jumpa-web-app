@@ -86,6 +86,12 @@ const BUCKETS: {
     message: () => `Please sign in again. ${SAFE}`,
     retry: false,
   },
+  {
+    match: /naira account|create a naira/i,
+    title: () => "Naira account required",
+    message: () => "Please create a Naira account first",
+    retry: false,
+  },
 ];
 
 /**
@@ -94,7 +100,16 @@ const BUCKETS: {
  */
 export function friendlyBillError(raw: unknown, kind: BillKind): Friendly {
   const text =
-    raw instanceof Error ? raw.message : typeof raw === "string" ? raw : "";
+    raw instanceof Error
+      ? raw.message
+      : typeof raw === "string"
+        ? raw
+        : typeof raw === "object" &&
+            raw !== null &&
+            "error" in raw &&
+            typeof (raw as Record<string, unknown>).error === "string"
+          ? String((raw as Record<string, unknown>).error)
+          : "";
   if (text) console.error(`[bills:${kind}]`, text);
 
   for (const b of BUCKETS) {
@@ -108,7 +123,13 @@ export function friendlyBillError(raw: unknown, kind: BillKind): Friendly {
   }
   return {
     title: TITLE[kind],
-    message: `We couldn't complete your ${NOUN[kind]}. ${SAFE} Please try again.`,
+    message:
+      text &&
+      !text.includes("<!DOCTYPE") &&
+      !text.includes("<html") &&
+      text.length < 200
+        ? text
+        : `We couldn't complete your ${NOUN[kind]}. ${SAFE} Please try again.`,
     retry: true,
   };
 }

@@ -16,6 +16,7 @@ import {
   refundFromOfficialJumpaWallet,
   atomicCreditNgnBalance,
 } from "@/lib/functions/fossapayFunctions";
+import { hasActiveNgnAccount } from "@/lib/functions/ngnFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 
 /**
@@ -144,14 +145,20 @@ export async function purchaseAirtime(params: {
     throw new Error("API key not configured");
   }
 
-  // 1. Transfer equivalent funds from user's FossaPay virtual account to official Jumpa account
+  // 1. Verify user has an active Naira account
+  const hasAccount = await hasActiveNgnAccount(params.userId);
+  if (!hasAccount) {
+    throw new Error("Please create a Naira account first");
+  }
+
+  // 2. Transfer equivalent funds from user's FossaPay virtual account to official Jumpa account
   const transfer = await transferToOfficialJumpaWallet({
     userId: params.userId,
     amount: params.amount,
     narration: `Airtime: ${normalizedPhone} (${params.network || "VTU"})`,
   });
 
-  // 2. Create pre-flight record in MongoDB in PENDING status
+  // 3. Create pre-flight record in MongoDB in PENDING status
   const order = await BillPayment.create({
     userId: params.userId,
     walletAddress: params.walletAddress,
@@ -286,14 +293,20 @@ export async function purchaseData(params: {
     throw new Error("API key is not configured");
   }
 
-  // 1. Transfer equivalent funds from user's FossaPay virtual account to official Jumpa account
+  // 1. Verify user has an active Naira account
+  const hasAccount = await hasActiveNgnAccount(params.userId);
+  if (!hasAccount) {
+    throw new Error("Please create a Naira account first");
+  }
+
+  // 2. Transfer equivalent funds from user's FossaPay virtual account to official Jumpa account
   const transfer = await transferToOfficialJumpaWallet({
     userId: params.userId,
     amount: params.amount,
     narration: `Data: ${params.productName} (${normalizedPhone})`,
   });
 
-  // 2. Create pre-flight record in MongoDB in PENDING status
+  // 3. Create pre-flight record in MongoDB in PENDING status
   const order = await BillPayment.create({
     userId: params.userId,
     walletAddress: params.walletAddress,

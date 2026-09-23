@@ -733,7 +733,7 @@ export async function transferToOfficialJumpaWallet(params: {
   }).lean<INgnAccount>();
 
   if (!userAccount || !userAccount.accountNumber) {
-    throw new Error("No active Naira virtual account found");
+    throw new Error("Please create a Naira account first");
   }
 
   // 2. Retrieve official Jumpa account number

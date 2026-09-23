@@ -1,25 +1,27 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { BillBanner } from "@/components/bills/bill-banner";
 import { FieldLabel } from "@/components/transfer/field";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field-error";
 import { ScreenHeader } from "@/components/ui/screen-header";
+import { useNgnAccount } from "@/hooks/use-ngn-account";
 import {
   detectCarrierFromPhone,
   MOBILE_NETWORKS,
   PHONE_NUMBER_MIN,
 } from "@/lib/bills";
-import { isValidNigerianPhone } from "@/lib/validations/bills.validation";
 import {
   checkLength,
   type FormErrors,
   revealFirstError,
 } from "@/lib/validation";
+import { isValidNigerianPhone } from "@/lib/validations/bills.validation";
 
-type Field = "phone" | "network";
+type Field = "phone" | "network" | "account";
 
 /**
  * Who to top up: the offer banner, a phone number and a carrier. Shared by the
@@ -29,6 +31,7 @@ export function RechargeForm({
   title,
   phone,
   network,
+  hasAccount,
   onPhoneChange,
   onNetworkChange,
   onContinue,
@@ -36,10 +39,15 @@ export function RechargeForm({
   title: string;
   phone: string;
   network: string;
+  hasAccount?: boolean;
   onPhoneChange: (next: string) => void;
   onNetworkChange: (next: string) => void;
   onContinue: () => void;
 }) {
+  const { hasNgnAccount: detectedHasAccount } = useNgnAccount(hasAccount);
+  const hasNgnAccount =
+    hasAccount !== undefined ? hasAccount : detectedHasAccount;
+
   const [errors, setErrors] = useState<FormErrors<Field>>({});
   const fields = useRef<HTMLDivElement>(null);
   const lastDetectedRef = useRef<string | null>(detectCarrierFromPhone(phone));
@@ -61,13 +69,16 @@ export function RechargeForm({
     const found: FormErrors<Field> = {
       phone: phoneError,
       network: network ? undefined : "Choose the network for this number.",
+      account: hasNgnAccount
+        ? undefined
+        : "Please create a Naira account first",
     };
 
     const blocked = Object.values(found).some(Boolean);
     setErrors(found);
     if (blocked) revealFirstError(fields.current);
     else onContinue();
-  }
+  };
 
   return (
     <div className="flex min-h-dvh flex-col pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
@@ -159,6 +170,18 @@ export function RechargeForm({
           </ul>
           <FieldError>{errors.network}</FieldError>
         </div>
+
+        {errors.account && (
+          <div className="flex items-center justify-between gap-3 rounded-tile border border-jumpa-danger/30 bg-jumpa-danger/10 px-4 py-3 text-xs leading-4 font-medium text-jumpa-danger">
+            <span>{errors.account}</span>
+            <Link
+              href="/ngn-account"
+              className="shrink-0 font-semibold underline underline-offset-2 hover:opacity-80"
+            >
+              Create Account
+            </Link>
+          </div>
+        )}
 
         <Button
           variant="gradient"

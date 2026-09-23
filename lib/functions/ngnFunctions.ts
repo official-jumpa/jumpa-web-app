@@ -60,3 +60,16 @@ export async function getUserNgnAccountDetails(
 
   return { account, balance };
 }
+
+/**
+ * Checks whether a user has an active NGN virtual account with an assigned account number.
+ */
+export async function hasActiveNgnAccount(userId: string): Promise<boolean> {
+  const account = await getUserNgnAccount(userId);
+  return Boolean(
+    account &&
+      account.accountNumber &&
+      account.status === "active",
+  );
+}
+

@@ -23,20 +23,36 @@ export function WalletHeader({ initialHasUnread = false }: { initialHasUnread?: 
   const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
-    // Only fetch if initial wasn't provided or user is checking again later
-    async function checkUnread() {
+    let live = true;
+    // The server value only seeds the first paint. It has to be re-checked on
+    // every mount, and again whenever the tab comes back: marking the last
+    // notification read happens on another screen, and the dot was seeded
+    // `true` and never asked again, so it stayed lit with nothing to read.
+    const checkUnread = async () => {
       try {
-        const res = await fetch("/api/notifications?limit=1&unreadOnly=true");
-        if (res.ok) {
-          const data = await res.json();
-          setHasUnread(data.unreadCount > 0);
-        }
+        const res = await fetch("/api/notifications?limit=1&unreadOnly=true", {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (live) setHasUnread(data.unreadCount > 0);
       } catch {}
-    }
-    if (!initialHasUnread) {
-      checkUnread();
-    }
-  }, [initialHasUnread]);
+    };
+
+    checkUnread();
+    const onWake = () => {
+      if (document.visibilityState === "visible") checkUnread();
+    };
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("focus", checkUnread);
+    window.addEventListener("pageshow", checkUnread);
+    return () => {
+      live = false;
+      document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("focus", checkUnread);
+      window.removeEventListener("pageshow", checkUnread);
+    };
+  }, []);
 
   let displayName = ACCOUNT.firstName;
   if (profile?.nickname) {

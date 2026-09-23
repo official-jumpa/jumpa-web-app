@@ -13,7 +13,12 @@ import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { useNgnAccount } from "@/hooks/use-ngn-account";
-import { AIRTIME_AMOUNTS, getNetwork } from "@/lib/bills";
+import {
+  AIRTIME_AMOUNTS,
+  AIRTIME_MAX,
+  AIRTIME_MIN,
+  getNetwork,
+} from "@/lib/bills";
 import { friendlyBillError, readBillResponse } from "@/lib/bills-errors";
 import type { Receipt } from "@/lib/receipt";
 import { formatAmount, SEND_BALANCE } from "@/lib/transfer";
@@ -194,6 +199,9 @@ export function AirtimeView() {
           chips={AIRTIME_AMOUNTS}
           chipUnit=""
           checkBalance={false}
+          min={AIRTIME_MIN}
+          max={AIRTIME_MAX}
+          limitUnit="₦"
           caption="Always verify the number is correct. Recharges to wrong numbers cannot be reversed."
           onAmountChange={setAmount}
           onReview={() => setSheet("review")}

@@ -46,7 +46,7 @@ export const buyAirtimeSchema = z.object({
   amount: z
     .number()
     .min(50, "Minimum recharge amount is ₦50")
-    .max(200000, "Maximum recharge amount is ₦200,000"),
+    .max(50000, "Maximum recharge amount is ₦50,000"),
   network: z.enum(["mtn", "airtel", "glo", "9mobile"]).optional(),
   pin: z.string().regex(/^\d{4}$/, "PIN must be exactly 4 digits"),
 });

@@ -129,6 +129,11 @@ export const BILL_ADS = [
 /** Quick-fill amounts on the airtime keypad. */
 export const AIRTIME_AMOUNTS = [200, 300, 500, 1000, 5000] as const;
 
+/** What the Nigerian networks accept in one recharge. Mirrored by
+ *  `buyAirtimeSchema`, so the screen and the route cannot disagree. */
+export const AIRTIME_MIN = 50;
+export const AIRTIME_MAX = 50_000;
+
 export type DataPlanPeriod = "daily" | "weekly" | "monthly";
 
 export const DATA_PERIODS: readonly {

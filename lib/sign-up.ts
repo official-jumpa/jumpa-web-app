@@ -42,6 +42,33 @@ export function clearSignUpValue(key: SignUpKey) {
   sessionStorage.removeItem(key);
 }
 
+/**
+ * The email is the one value that has to survive the tab being restored: on a
+ * phone you leave the browser to read the code, and the browser can discard
+ * and reload the tab, which empties `sessionStorage` and left the verification
+ * screen with nothing to verify. Mirrored into `localStorage` and cleared the
+ * moment the code is accepted.
+ */
+export function writeSignUpEmail(email: string) {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(SIGN_UP_KEYS.email, email);
+  localStorage.setItem(SIGN_UP_KEYS.email, email);
+}
+
+export function readSignUpEmail() {
+  if (typeof window === "undefined") return null;
+  return (
+    sessionStorage.getItem(SIGN_UP_KEYS.email) ||
+    localStorage.getItem(SIGN_UP_KEYS.email)
+  );
+}
+
+export function clearSignUpEmail() {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(SIGN_UP_KEYS.email);
+  localStorage.removeItem(SIGN_UP_KEYS.email);
+}
+
 /** Digits only, so a number typed with spaces or dashes stores the same way. */
 export function normalisePhone(input: string) {
   return input.replace(/[^\d+]/g, "");

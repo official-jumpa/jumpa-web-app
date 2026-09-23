@@ -30,6 +30,9 @@ export function AmountStep({
   chipUnit,
   checkBalance = true,
   maxAmount,
+  min,
+  max,
+  limitUnit = "",
   inputPrefix,
   rate,
   caption,
@@ -55,6 +58,11 @@ export function AmountStep({
   checkBalance?: boolean;
   /** Optional override for the numeric max value when typing in alternate currency. */
   maxAmount?: string | number;
+  /** What the rail itself accepts, where it has bounds (airtime is 50–50,000). */
+  min?: number;
+  max?: number;
+  /** Printed with the bounds, e.g. "₦". */
+  limitUnit?: string;
   /** Optional currency symbol/prefix before amount (e.g. ₦ or $) */
   inputPrefix?: string;
   /** Conversion line opposite the balance, where the flow shows one. */
@@ -78,6 +86,16 @@ export function AmountStep({
       ? Number(String(maxAmount).replace(/[^\d.]/g, ""))
       : Number(balance.replace(/[^\d.]/g, ""));
   const low = checkBalance && Number(amount) > spendable;
+  const entered = Number(amount);
+  const over = max !== undefined && entered > max;
+  const under = min !== undefined && entered > 0 && entered < min;
+  const minLabel =
+    min === undefined ? "" : `${limitUnit}${formatAmount(String(min))}`;
+  const maxLabel =
+    max === undefined ? "" : `${limitUnit}${formatAmount(String(max))}`;
+  // Same treatment as a low balance: the digits tint and the label says why,
+  // so an out-of-range amount cannot be read as accepted.
+  const bad = low || over || under;
 
   const change = (next: string) => {
     setError(undefined);
@@ -95,6 +113,8 @@ export function AmountStep({
 
   const review = () => {
     if (!Number(amount)) return setError("Enter an amount greater than 0");
+    if (under) return setError(`The smallest amount is ${minLabel}`);
+    if (over) return setError(`The largest amount is ${maxLabel}`);
     if (low)
       return setError(`Insufficient balance. You have ${balance} available`);
     onReview();
@@ -104,7 +124,13 @@ export function AmountStep({
     <div className="flex flex-1 flex-col rounded-t-dock bg-jumpa-primary-575 px-4.5 pt-6 pb-2.5">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs leading-2.5 text-jumpa-primary-50">
-          {low ? "Low balance" : "Enter amount"}
+          {over
+            ? `Maximum ${maxLabel}`
+            : under
+              ? `Minimum ${minLabel}`
+              : low
+                ? "Low balance"
+                : "Enter amount"}
         </p>
         {onCurrencyModeChange && currencyOptions ? (
           <div className="inline-flex rounded-pill bg-jumpa-white/15 p-0.5">
@@ -136,7 +162,7 @@ export function AmountStep({
           {inputPrefix ? (
             <span
               className={`mr-1 select-none text-[36px] font-medium leading-none ${
-                low ? "text-jumpa-danger-400" : "text-jumpa-primary-50/70"
+                bad ? "text-jumpa-danger-400" : "text-jumpa-primary-50/70"
               }`}
             >
               {inputPrefix}
@@ -157,9 +183,9 @@ export function AmountStep({
             autoFocus
             placeholder="0.00"
             aria-label="Amount"
-            aria-invalid={low}
+            aria-invalid={bad}
             className={`min-w-0 flex-1 bg-transparent text-[56px] leading-none font-medium caret-jumpa-alt-400 outline-none placeholder:text-jumpa-primary-500 ${
-              low ? "text-jumpa-danger-400" : "text-jumpa-white"
+              bad ? "text-jumpa-danger-400" : "text-jumpa-white"
             }`}
           />
         </div>
@@ -198,7 +224,7 @@ export function AmountStep({
               change(
                 maxAmount !== undefined
                   ? String(maxAmount).replace(/[^\d.]/g, "")
-                  : balance.replace(/[^\d.]/g, "")
+                  : balance.replace(/[^\d.]/g, ""),
               )
             }
             className={`${CHIP} ${size}`}

@@ -7,6 +7,7 @@ import { FieldError } from "@/components/ui/field-error";
 import { MailIcon } from "@/components/ui/icons/mail";
 import { TextField } from "@/components/ui/text-field";
 import { emailOtp } from "@/lib/auth-client";
+import { writeSignUpEmail } from "@/lib/sign-up";
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -34,9 +35,7 @@ export function EmailAuthForm({
     setError(null);
 
     try {
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("onboardingEmail", trimmed);
-      }
+      writeSignUpEmail(trimmed);
 
       const res = await emailOtp.sendVerificationOtp({
         email: trimmed,

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { InfoNote } from "@/components/auth/info-note";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
@@ -8,9 +9,25 @@ import { SuccessSheet } from "@/components/auth/success-sheet";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 import { emailOtp, signIn } from "@/lib/auth-client";
-import { SIGN_UP_FLOW } from "@/lib/sign-up";
+import { clearSignUpEmail, readSignUpEmail, SIGN_UP_FLOW } from "@/lib/sign-up";
 
 const CODE_LENGTH = 6;
+
+/** Whatever the provider throws, the screen says what to do about it. */
+function friendlyCodeError(raw: unknown) {
+  const text = String(
+    raw instanceof Error ? raw.message : (raw ?? ""),
+  ).toLowerCase();
+  if (/expired|no longer valid/.test(text))
+    return "That code has expired. Tap Resend Code for a new one.";
+  if (/too many|attempt|rate limit|throttl/.test(text))
+    return "Too many tries. Wait a moment, then request a new code.";
+  if (/invalid|incorrect|wrong|mismatch|not match/.test(text))
+    return "That code isn't right. Check the 6 digits and try again.";
+  if (/network|fetch|offline|connection/.test(text))
+    return "No connection. Check your internet and try again.";
+  return "We couldn't verify that code. Tap Resend Code and try again.";
+}
 
 /** Verification code entry. Checks existing wallet status to route to /home or setup flow. */
 export function VerifyCodeForm({
@@ -28,6 +45,8 @@ export function VerifyCodeForm({
   );
   const [error, setError] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
+  /** The address we're verifying is gone, so there is nothing to check against. */
+  const [lostEmail, setLostEmail] = useState(false);
   const attemptedCodeRef = useRef<string | null>(null);
 
   useKeypadKeys({ ...code, enabled: !verifying && !verified });
@@ -41,13 +60,9 @@ export function VerifyCodeForm({
 
   const handleVerify = useCallback(
     async (otpValue: string) => {
-      const targetEmail =
-        email ||
-        (typeof window !== "undefined"
-          ? sessionStorage.getItem("onboardingEmail")
-          : null);
+      const targetEmail = email || readSignUpEmail();
       if (!targetEmail) {
-        setError("Email address missing");
+        setLostEmail(true);
         return;
       }
 
@@ -62,10 +77,13 @@ export function VerifyCodeForm({
 
         if (res.error) {
           console.warn("Verification failed:", res.error);
-          setError(res.error.message || "Invalid verification code");
+          setError(friendlyCodeError(res.error.message ?? res.error));
           setVerifying(false);
           return;
         }
+
+        // The address has done its job; don't leave it on the device.
+        clearSignUpEmail();
 
         // Resolve user onboarding / destination route
         try {
@@ -84,8 +102,7 @@ export function VerifyCodeForm({
         setVerified(true);
       } catch (err) {
         console.error("Err during verification:", err);
-        const msg = err instanceof Error ? err.message : "Verification failed";
-        setError(msg);
+        setError(friendlyCodeError(err));
         setVerifying(false);
       }
     },
@@ -122,12 +139,12 @@ export function VerifyCodeForm({
   };
 
   const handleResend = async () => {
-    const targetEmail =
-      email ||
-      (typeof window !== "undefined"
-        ? sessionStorage.getItem("onboardingEmail")
-        : null);
-    if (!targetEmail || resending) return;
+    if (resending) return;
+    const targetEmail = email || readSignUpEmail();
+    if (!targetEmail) {
+      setLostEmail(true);
+      return;
+    }
 
     setResending(true);
     setError(null);
@@ -140,7 +157,7 @@ export function VerifyCodeForm({
       });
 
       if (res.error) {
-        setError(res.error.message || "Could not resend code");
+        setError(friendlyCodeError(res.error.message ?? res.error));
       } else {
         setError("New verification code sent!");
       }
@@ -170,9 +187,21 @@ export function VerifyCodeForm({
           Paste code
         </button>
 
-        {error && (
+        {lostEmail ? (
+          <p className="text-center text-xs text-jumpa-danger">
+            We've lost track of which email to verify — this can happen if the
+            tab reloads.{" "}
+            <Link
+              href={SIGN_UP_FLOW.email}
+              className="font-semibold underline underline-offset-2"
+            >
+              Enter your email again
+            </Link>
+            .
+          </p>
+        ) : error ? (
           <p className="text-center text-xs text-jumpa-danger">{error}</p>
-        )}
+        ) : null}
 
         {verifying && (
           <p className="text-center text-xs text-jumpa-neutral-500 animate-pulse">

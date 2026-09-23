@@ -11,7 +11,19 @@ export function CoinsSlide({ index }: { index: number }) {
       gutter={42}
       backdrop={<GlowBackdrop spread="wide" />}
       stageArt={
-        <DesignLayer lift={12}>
+        <DesignLayer
+          lift={12}
+          // The design runs this coin off the right edge, so it is measured from
+          // the screen rather than the artboard — at 393 that is the Figma
+          // position exactly, and it keeps the same bleed as the column widens.
+          edgeArt={
+            <div className="absolute top-[397px] right-[-24px] flex h-[107px] w-[104px] items-center justify-center">
+              <div className="flex-none rotate-[15.82deg]">
+                <Coin className="h-[88px] w-[83px]" />
+              </div>
+            </div>
+          }
+        >
           <div
             className={`absolute top-[-43px] left-[54px] size-[286px] ${HOLDS_POSITION}`}
           >
@@ -33,12 +45,6 @@ export function CoinsSlide({ index }: { index: number }) {
               className="object-contain"
               sizes="357px"
             />
-          </div>
-
-          <div className="absolute top-[397px] left-[calc(75%+18.25px)] flex h-[107px] w-[104px] items-center justify-center">
-            <div className="flex-none rotate-[15.82deg]">
-              <Coin className="h-[88px] w-[83px]" />
-            </div>
           </div>
 
           <div className="absolute top-[120px] left-[-76px] flex h-[144px] w-[139px] items-center justify-center">

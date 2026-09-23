@@ -1,9 +1,9 @@
 "use client";
 
-import { type CSSProperties, type ReactNode, useContext } from "react";
+import { type ReactNode, useContext } from "react";
 import { Button, type ButtonVariant } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-import { CarouselProgressContext, slideDistance } from "./carousel-progress";
+import { CarouselProgressContext, slideOffset } from "./carousel-progress";
 import { PaginationDots } from "./pagination-dots";
 import { ONBOARDING_SLIDES } from "./slides";
 
@@ -14,15 +14,13 @@ export const IMPORT_WALLET_HREF = "/sign-in";
 const COPY_GUTTER = { 33: "px-[33px]", 42: "px-[42px]" } as const;
 export type CopyGutter = keyof typeof COPY_GUTTER;
 
-/** How far the board dissolves and drifts once a slide is fully off centre. */
-const VEIL = 0.75;
+/** How far a screen drifts and swells as it hands over. Both rest at zero. */
 const DRIFT_PX = 18;
+const SWELL = 0.05;
 
 type SlideFrameProps = {
-  /** Position in the carousel, so the board can dissolve as it leaves centre. */
+  /** Position in the carousel, so the screen can dissolve as it hands over. */
   index: number;
-  /** Trailing copy of the first slide that the loop glides into. Not interactive. */
-  clone?: boolean;
   /** Full-bleed background, stretches to the viewport. */
   backdrop?: ReactNode;
   /** Art positioned against the 393x852 stage, so it tracks the copy. */
@@ -36,7 +34,6 @@ type SlideFrameProps = {
 
 export function SlideFrame({
   index,
-  clone,
   backdrop,
   stageArt,
   children,
@@ -45,23 +42,33 @@ export function SlideFrame({
   secondaryVariant = "ghost",
   className,
 }: SlideFrameProps) {
-  const progress = useContext(CarouselProgressContext);
-  // Smoothstep, so the board holds while it is near centre and only dissolves
-  // through the middle of the move — the backdrop keeps sliding underneath.
-  // The distance wraps, so the first slide is already at full opacity when the
-  // loop hands the scroll position back to it.
-  const away = Math.min(
-    1,
-    slideDistance(progress, index, ONBOARDING_SLIDES.length),
-  );
+  const { position, animated } = useContext(CarouselProgressContext);
+  // The screens are stacked, so a handover is a dissolve rather than a slide and
+  // there is never a seam between two backgrounds. Smoothstep holds each screen
+  // while it is near centre and spends the change through the middle of the move.
+  const offset = slideOffset(position, index, ONBOARDING_SLIDES.length);
+  const away = Math.min(1, Math.abs(offset));
   const eased = away * away * (3 - 2 * away);
+  const current = away < 0.5;
 
   return (
     <article
-      aria-hidden={clone || undefined}
-      inert={clone}
+      // An off-centre screen is still stacked over this one, so it has to be out
+      // of reach as well as invisible or it would swallow taps meant for the CTAs.
+      aria-hidden={!current || undefined}
+      inert={!current}
+      style={{
+        opacity: 1 - eased,
+        // Opacity and transform only, so nothing measured against Figma can move.
+        transform: `translateX(${-Math.sign(offset) * eased * DRIFT_PX}px) scale(${1 + SWELL * eased})`,
+      }}
       className={cn(
-        "relative isolate flex h-dvh w-full shrink-0 snap-center items-center justify-center overflow-hidden",
+        "absolute inset-0 isolate flex items-center justify-center overflow-hidden",
+        // Under the finger the values track the scroll directly; on its own the
+        // browser runs the change, so an auto-advance costs no frames of ours.
+        animated
+          ? "transition-[opacity,transform] duration-700 ease-jumpa"
+          : "transition-none",
         className,
       )}
     >
@@ -71,13 +78,6 @@ export function SlideFrame({
           holds instead of the copy reflowing into the artwork. Only the band between
           the status bar and home indicator has to fit — the browser draws those. */}
       <div
-        // Opacity and translate only, so nothing measured against Figma can move.
-        style={
-          {
-            opacity: 1 - VEIL * eased,
-            "--drift": `${DRIFT_PX * eased}px`,
-          } as CSSProperties
-        }
         className={cn(
           "relative flex shrink-0 origin-top flex-col self-start",
           // --fit, --squeeze and --vh are measured in board-fit.tsx; the fallbacks
@@ -91,7 +91,7 @@ export function SlideFrame({
           "[--slack:calc(var(--vh,100dvh)-var(--board)*var(--fit,1))]",
           // Centre while it fits; past that pull the status-bar band off the top.
           "[--lift:calc(max(0px,var(--slack))/2+max(calc(-1*var(--chrome-top)*var(--fit,1)),min(0px,var(--slack))))]",
-          "[scale:var(--fit,1)] [translate:0_calc(var(--lift)+var(--drift,0px))] [width:calc(100%/var(--fit,1))]",
+          "[scale:var(--fit,1)] [translate:0_var(--lift)] [width:calc(100%/var(--fit,1))]",
         )}
       >
         {stageArt}

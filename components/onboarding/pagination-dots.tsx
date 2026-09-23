@@ -9,7 +9,10 @@ const DOT_MIN = 17;
 const DOT_MAX = 40;
 
 export function PaginationDots({ className }: { className?: string }) {
-  const progress = useContext(CarouselProgressContext);
+  const { position, animated } = useContext(CarouselProgressContext);
+  // Under the finger the widths track the scroll; on an auto-advance the position
+  // steps, so the browser has to tween it or the lime segment would jump.
+  const ease = animated ? "duration-700 ease-jumpa" : "duration-0";
 
   return (
     <div
@@ -22,16 +25,22 @@ export function PaginationDots({ className }: { className?: string }) {
         // Weights sum to 1 across the track, so the pill keeps a constant width.
         const weight = Math.max(
           0,
-          1 - slideDistance(progress, index, ONBOARDING_SLIDES.length),
+          1 - slideDistance(position, index, ONBOARDING_SLIDES.length),
         );
         return (
           <span
             key={slide}
-            className="relative h-2 overflow-hidden rounded-pill bg-white/65"
+            className={cn(
+              "relative h-2 overflow-hidden rounded-pill bg-white/65 transition-[width]",
+              ease,
+            )}
             style={{ width: DOT_MIN + (DOT_MAX - DOT_MIN) * weight }}
           >
             <span
-              className="absolute inset-0 bg-jumpa-alt-400"
+              className={cn(
+                "absolute inset-0 bg-jumpa-alt-400 transition-opacity",
+                ease,
+              )}
               style={{ opacity: weight }}
             />
           </span>

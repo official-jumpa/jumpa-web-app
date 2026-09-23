@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { observeFit } from "./board-fit";
 import { CarouselProgressContext } from "./carousel-progress";
 import { ONBOARDING_SLIDES } from "./slides";
@@ -9,19 +9,32 @@ import { CoinsSlide } from "./slides/coins-slide";
 import { HeroSlide } from "./slides/hero-slide";
 
 const AUTO_ADVANCE_MS = 3600;
-const GLIDE_MS = 900;
 const RESUME_AFTER_INPUT_MS = 8000;
 /** Quiet time after the last scroll event before the position counts as settled. */
 const SETTLE_MS = 140;
 
-const LAST = ONBOARDING_SLIDES.length - 1;
-/** Index of the trailing copy of the first slide. */
-const CLONE = ONBOARDING_SLIDES.length;
+/** How far a gesture has to carry the board before it counts as a step. */
+const COMMIT = 0.08;
 
+const COUNT = ONBOARDING_SLIDES.length;
+/** The track is three empty screens and always rests on the middle one, so a
+ *  swipe always has somewhere to go and the carousel never reaches an end. */
+const TRACK = ["back", "home", "forward"];
+const HOME = 1;
+
+/**
+ * The three screens are stacked and dissolve into one another, so a handover is
+ * never two backgrounds meeting at a seam. The scroller is still the browser's —
+ * it just moves an empty track under them, which is what keeps the swipe, the
+ * momentum and the snap native.
+ */
 export function OnboardingCarousel() {
   const scroller = useRef<HTMLDivElement>(null);
   const heldUntil = useRef(0);
-  const [progress, setProgress] = useState(0);
+  /** Which screen is showing. Only ever whole steps, so the browser tweens it. */
+  const [index, setIndex] = useState(0);
+  /** How far the finger has carried the board off that screen, otherwise null. */
+  const [shift, setShift] = useState<number | null>(null);
 
   // A ref callback rather than an effect: it runs before paint and never on the
   // server, so a soft nav in from the splash lands already scaled.
@@ -29,14 +42,16 @@ export function OnboardingCarousel() {
     scroller.current = el;
     if (!el) return;
 
-    // Onboarding always opens on the first slide. Browsers restore a scroll
-    // container's position across a reload, which would otherwise drop you on
-    // the last slide with the auto-advance already finished. Restoration lands
-    // after this callback, so it repeats for the next two frames.
-    el.scrollLeft = 0;
+    // Onboarding always opens on the first slide, parked on the middle screen of
+    // the track. Browsers restore a scroll container's position across a reload,
+    // and restoration lands after this callback, so it repeats for two frames.
+    const park = () => {
+      el.scrollLeft = el.clientWidth * HOME;
+    };
+    park();
     let left = 2;
     let raf = requestAnimationFrame(function reset() {
-      el.scrollLeft = 0;
+      park();
       left -= 1;
       if (left > 0) raf = requestAnimationFrame(reset);
     });
@@ -48,134 +63,158 @@ export function OnboardingCarousel() {
     };
   }, []);
 
-  // Drives the pagination dots, so they morph with the swipe instead of jumping.
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
 
-    let frame = 0;
-    const read = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const width = el.clientWidth;
-        if (width) setProgress(el.scrollLeft / width);
-      });
+    let settle = 0;
+    /** Which screen the gesture in flight started from, null when none is. */
+    let from: number | null = null;
+    /** The furthest that gesture has carried the board, signed. */
+    let peak = 0;
+    /** A finger is still on the glass. */
+    let down = false;
+
+    const arm = () => {
+      window.clearTimeout(settle);
+      settle = window.setTimeout(end, SETTLE_MS);
     };
 
-    read();
-    el.addEventListener("scroll", read, { passive: true });
-    return () => {
-      el.removeEventListener("scroll", read);
-      cancelAnimationFrame(frame);
-    };
-  }, []);
-
-  useEffect(() => {
-    const el = scroller.current;
-    if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-    let frame = 0;
-
-    const stop = () => {
-      if (!frame) return;
-      cancelAnimationFrame(frame);
-      frame = 0;
-      el.style.scrollSnapType = "";
+    const commit = () => {
+      const width = el.clientWidth;
+      if (!width) return;
+      const travelled = from === null ? 0 : el.scrollLeft / width - from;
+      // Take what snap chose, or — when a short, quick flick springs back —
+      // what the finger plainly meant. Without that a real swipe can land on
+      // nothing and has to be made twice.
+      let step = Math.round(travelled);
+      if (!step && Math.abs(peak) >= COMMIT) step = Math.sign(peak);
+      if (step) setIndex((i) => (((i + step) % COUNT) + COUNT) % COUNT);
+      // Slide the track back under the board. Nothing is pinned to the scroll
+      // position, so the jump cannot be seen, and the next swipe has room in
+      // both directions. A scroll nobody asked for only re-parks.
+      from = null;
+      peak = 0;
+      window.clearTimeout(settle);
+      el.scrollLeft = width * HOME;
+      setShift(null);
     };
 
-    // The native smooth scroll is a short, flat slide. This eases in and out
-    // instead, so a slide leaves and arrives rather than cutting across.
-    // Mandatory snap fights a per-frame scrollLeft, so it comes off for the
-    // glide and goes back on once we land exactly on a slide.
-    const glide = (to: number, width: number, onLand?: () => void) => {
-      const from = el.scrollLeft;
-      const delta = to - from;
-      if (!delta) return;
-
-      const duration = GLIDE_MS * Math.sqrt(Math.abs(delta) / width);
-      const started = performance.now();
-      el.style.scrollSnapType = "none";
-
-      const step = (now: number) => {
-        const t = Math.min(1, (now - started) / duration);
-        const eased = t < 0.5 ? 4 * t ** 3 : 1 - (2 - 2 * t) ** 3 / 2;
-        el.scrollLeft = from + delta * eased;
-        if (t < 1) {
-          frame = requestAnimationFrame(step);
-          return;
-        }
-        frame = 0;
-        onLand?.();
-        el.style.scrollSnapType = "";
-      };
-
-      frame = requestAnimationFrame(step);
-    };
-
-    /** Hands the scroll position from the clone back to the real first slide. */
-    const rewind = () => {
-      el.scrollLeft = 0;
+    // A finger still on the glass is not a finished gesture. Touch tells us
+    // that directly; the pointer events cannot, because the browser fires
+    // `pointercancel` the moment the scroller takes the touch over. Resting
+    // between two whole steps is the fallback for inputs with no release of
+    // their own, since snap always lands on one.
+    const end = () => {
+      const width = el.clientWidth;
+      if (!width) return;
+      const at = el.scrollLeft / width;
+      if (from !== null && (down || Math.abs(at - Math.round(at)) > 0.01)) {
+        arm();
+        return;
+      }
+      commit();
     };
 
     const hold = () => {
       heldUntil.current = Date.now() + RESUME_AFTER_INPUT_MS;
-      stop();
+      const width = el.clientWidth;
+      if (from === null && width) {
+        from = Math.round(el.scrollLeft / width);
+        peak = 0;
+      }
+      arm();
     };
 
-    const timer = window.setInterval(() => {
-      if (frame || Date.now() < heldUntil.current) return;
-      const width = el.clientWidth;
-      if (!width) return;
-      const current = Math.min(LAST, Math.round(el.scrollLeft / width));
-      // Past the last slide it glides on into the clone and lands on the real
-      // first one in the same frame. The two are the same pixels, so the seam
-      // never shows and the loop only ever travels forward — sweeping back
-      // across two slides was the one moment that read as a glitch.
-      const next = current + 1;
-      glide(next * width, width, next === CLONE ? rewind : undefined);
-    }, AUTO_ADVANCE_MS);
+    const press = () => {
+      down = true;
+      hold();
+    };
 
-    // A swipe can also land on the clone; hop back once the scroll settles, so
-    // swiping on from there continues into the second slide.
-    let settle = 0;
+    // Committing on release rather than waiting for the snap animation and
+    // then the settle timer is what makes a swipe answer straight away.
+    const lift = () => {
+      down = false;
+      heldUntil.current = Date.now() + RESUME_AFTER_INPUT_MS;
+      if (from !== null) commit();
+    };
+
+    // Scroll events are already frame-aligned, so this tracks the finger with
+    // no rAF of its own. Everything downstream is opacity and transform.
     const onScroll = () => {
-      window.clearTimeout(settle);
-      settle = window.setTimeout(() => {
-        const width = el.clientWidth;
-        if (frame || !width) return;
-        if (Math.round(el.scrollLeft / width) >= CLONE) rewind();
-      }, SETTLE_MS);
+      const width = el.clientWidth;
+      if (from !== null && width) {
+        const shift = el.scrollLeft / width - from;
+        if (Math.abs(shift) > Math.abs(peak)) peak = shift;
+        setShift(shift);
+      }
+      arm();
     };
 
     el.addEventListener("scroll", onScroll, { passive: true });
     el.addEventListener("pointerdown", hold);
-    el.addEventListener("touchstart", hold, { passive: true });
+    el.addEventListener("pointerup", lift);
+    el.addEventListener("touchstart", press, { passive: true });
+    el.addEventListener("touchend", lift, { passive: true });
+    el.addEventListener("touchcancel", lift, { passive: true });
     el.addEventListener("wheel", hold, { passive: true });
+
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    // The handover is a CSS transition and the track never moves for it, so an
+    // auto-advance is one state change. Nothing of ours runs while a screen
+    // changes, which is what keeps it smooth on a slow phone.
+    const timer = reduced
+      ? 0
+      : window.setInterval(() => {
+          if (from !== null || Date.now() < heldUntil.current) return;
+          setIndex((i) => (i + 1) % COUNT);
+        }, AUTO_ADVANCE_MS);
 
     return () => {
       window.clearInterval(timer);
       window.clearTimeout(settle);
-      stop();
       el.removeEventListener("scroll", onScroll);
       el.removeEventListener("pointerdown", hold);
-      el.removeEventListener("touchstart", hold);
+      el.removeEventListener("pointerup", lift);
+      el.removeEventListener("touchstart", press);
+      el.removeEventListener("touchend", lift);
+      el.removeEventListener("touchcancel", lift);
       el.removeEventListener("wheel", hold);
     };
   }, []);
+
+  const progress = useMemo(
+    () => ({ position: index + (shift ?? 0), animated: shift === null }),
+    [index, shift],
+  );
 
   return (
     <div
       ref={attach}
       className="mx-auto flex h-dvh max-w-app snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
-      <CarouselProgressContext.Provider value={progress}>
-        <ChatSlide index={0} />
-        <CoinsSlide index={1} />
-        <HeroSlide index={2} />
-        {/* The loop glides into this and lands on the first slide behind it. */}
-        <ChatSlide index={CLONE} clone />
-      </CarouselProgressContext.Provider>
+      {/* Pinned over the track. The negative margin means it takes none of the
+          scroller's width, and because it is still a child of the scroller a
+          touch anywhere on it — the CTAs included — drags the carousel. The
+          base colour is what a mid-dissolve blends against, never the page. */}
+      <div className="sticky left-0 z-10 -mr-[100%] h-dvh w-full shrink-0 overflow-hidden bg-jumpa-primary-600">
+        <CarouselProgressContext.Provider value={progress}>
+          <ChatSlide index={0} />
+          <CoinsSlide index={1} />
+          <HeroSlide index={2} />
+        </CarouselProgressContext.Provider>
+      </div>
+
+      {/* Empty snap targets: all the scroller ever moves. */}
+      {TRACK.map((slot) => (
+        <div
+          key={slot}
+          aria-hidden
+          className="h-dvh w-full shrink-0 snap-center"
+        />
+      ))}
     </div>
   );
 }

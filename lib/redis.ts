@@ -7,12 +7,10 @@ declare global {
 
 function createRedisClient(): Redis | null {
   const connectionUrl =
-    process.env.REDIS_API_KEY ||
-    process.env.REDIS_URL ||
-    "";
+    process.env.REDIS_API_KEY;
 
   if (!connectionUrl) {
-    console.warn("[Redis] Warning: No REDIS_API_KEY or REDIS_URL configured");
+    console.warn("[Redis] No REDIS_API_KEY configured");
     return null;
   }
 

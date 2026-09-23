@@ -9,6 +9,7 @@ export interface IUserPreference {
   newLoginDetected: boolean;
   haptics: boolean;
   inAppSounds: boolean;
+  autoLockTimeout?: "15m" | "30m" | "1h" | "4h" | "7d";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -22,6 +23,11 @@ const UserPreferenceSchema = new Schema<IUserPreference>(
     newLoginDetected: { type: Boolean, default: true },
     haptics: { type: Boolean, default: true },
     inAppSounds: { type: Boolean, default: true },
+    autoLockTimeout: {
+      type: String,
+      enum: ["15m", "30m", "1h", "4h", "7d"],
+      default: "15m",
+    },
   },
   {
     timestamps: true,

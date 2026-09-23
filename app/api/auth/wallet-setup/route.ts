@@ -180,11 +180,20 @@ export async function POST(req: NextRequest) {
         req,
       }).catch((e) => console.error("[WalletSetup] ActivityLog error:", e));
 
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         message: "Login password set successfully",
         nextRoute,
       });
+
+      response.cookies.set("jumpa_unlocked", "true", {
+        path: "/",
+        sameSite: "lax",
+        secure: environment.IS_PRODUCTION,
+        maxAge: 15 * 60,
+      });
+
+      return response;
     }
 
     // Step 2: Set Jumpa Tag
@@ -665,6 +674,13 @@ export async function POST(req: NextRequest) {
       secure: environment.IS_PRODUCTION,
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60, // 7 days
+    });
+
+    response.cookies.set("jumpa_unlocked", "true", {
+      path: "/",
+      sameSite: "lax",
+      secure: environment.IS_PRODUCTION,
+      maxAge: 15 * 60,
     });
 
     return response;

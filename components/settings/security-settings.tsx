@@ -1,6 +1,9 @@
+"use client";
+
+import { useState } from "react";
 import { BiometricRows } from "@/components/settings/biometric-rows";
 import { settingsHref } from "@/components/settings/sections";
-import { SettingLink } from "@/components/settings/setting-row";
+import { SettingAction, SettingLink } from "@/components/settings/setting-row";
 import {
   SettingCard,
   SettingRule,
@@ -9,11 +12,24 @@ import {
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { DialpadCircleIcon } from "@/components/ui/icons/dialpad-circle";
 import { KeyIcon } from "@/components/ui/icons/key";
+import { LockIcon } from "@/components/ui/icons/lock";
 import { MobileIcon } from "@/components/ui/icons/mobile";
+import { AutoLockSheet } from "@/components/settings/auto-lock-sheet";
+import {
+  useAutoLock,
+  AUTO_LOCK_OPTIONS,
+} from "@/components/auth/auto-lock-provider";
 import { ACCOUNT } from "@/lib/wallet";
 
 /** `?section=security`. */
 export function SecuritySettings() {
+  const [autoLockOpen, setAutoLockOpen] = useState(false);
+  const { timeoutSetting, updateTimeoutSetting } = useAutoLock();
+
+  const currentOption = AUTO_LOCK_OPTIONS.find(
+    (opt) => opt.id === timeoutSetting,
+  );
+
   return (
     <div className="px-4.5 pt-[calc(env(safe-area-inset-top)+21px)] pb-12">
       <SettingsHeader back={settingsHref()} title="Security" />
@@ -25,7 +41,23 @@ export function SecuritySettings() {
               account={{ id: ACCOUNT.firstName, name: ACCOUNT.firstName }}
             />
           </SettingCard>
+
+          <SettingCard>
+            <SettingAction
+              onClick={() => setAutoLockOpen(true)}
+              icon={LockIcon}
+              label="Auto-Lock"
+              value={currentOption?.label ?? "15 minutes"}
+            />
+          </SettingCard>
         </SettingSection>
+
+        <AutoLockSheet
+          isOpen={autoLockOpen}
+          onClose={() => setAutoLockOpen(false)}
+          currentTimeout={timeoutSetting}
+          onSelect={updateTimeoutSetting}
+        />
 
         {/* Both PIN cards sit under the biometrics label — the design gives
             neither a heading of its own. */}

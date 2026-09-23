@@ -9,6 +9,9 @@ export const updatePreferencesSchema = z.object({
   newLoginDetected: z.boolean().optional(),
   haptics: z.boolean().optional(),
   inAppSounds: z.boolean().optional(),
+  autoLockTimeout: z
+    .enum(["15m", "30m", "1h", "4h", "7d"])
+    .optional(),
 });
 
 export type UpdatePreferencesInput = z.infer<typeof updatePreferencesSchema>;

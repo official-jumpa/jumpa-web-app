@@ -72,6 +72,7 @@ export const AUTH_COOKIE_NAMES = [
   "better-auth.dont_remember",
   "jumpa_session",
   "selected_wallet_address",
+  "jumpa_unlocked",
 ] as const;
 
 /**

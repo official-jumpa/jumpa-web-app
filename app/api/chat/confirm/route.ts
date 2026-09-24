@@ -10,6 +10,7 @@ import {
 import {
   sendEvm,
   sendSolana,
+  sendStellar,
   resolveChainPrivateKey,
 } from "@/lib/chains/transfer-service";
 import { decryptMnemonic } from "@/lib/crypto";
@@ -564,7 +565,7 @@ export async function POST(req: NextRequest) {
             token,
             txHash,
             explorerUrl,
-            feePaid: "0.000005 SOL",
+            feePaid: solRes.feePaid || "0.05$",
             executedAt: new Date(),
           }).catch((e) => console.error("[Chat Confirm] Solana Transaction error:", e));
 
@@ -597,96 +598,20 @@ export async function POST(req: NextRequest) {
 
         try {
           const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
-          const sourceKeypair = StellarSdk.Keypair.fromSecret(
-            stellarKeys.secretKey,
+          const stellarRes = await sendStellar({
+            privateKey: stellarKeys.secretKey,
+            destination: destAddress,
+            amount,
+            asset: token,
+            network,
+            memo: txParams?.memo,
+          });
+
+          txHash = stellarRes.txHash;
+          explorerUrl = stellarRes.explorerUrl;
+          console.log(
+            `[Chat Confirm] SUCCESS! Tx Hash: ${txHash}, network: ${network}, feePaid: ${stellarRes.feePaid}`,
           );
-
-          console.log(`[Chat Confirm] Source keypair: ${sourceKeypair.publicKey()}`);
-
-          const server = getHorizonServer(network);
-
-          let sourceAccount;
-          try {
-            sourceAccount = await server.loadAccount(
-              userStellarAddr || sourceKeypair.publicKey(),
-            );
-          } catch (loadErr: any) {
-            if (
-              loadErr?.response?.status === 404 ||
-              loadErr?.message?.includes("Not Found")
-            ) {
-              const inactiveAdvice =
-                network === "testnet"
-                  ? "Your Stellar testnet account is not activated. Please fund it with at least 1 XLM or ask Jumpa AI to 'claim faucet' for free test tokens."
-                  : "Your Stellar account is not activated. Stellar accounts need a minimum balance of 1 XLM to be active.";
-              return NextResponse.json(
-                { error: inactiveAdvice, details: "Account not found on ledger" },
-                { status: 400 },
-              );
-            }
-            throw loadErr;
-          }
-
-          const passphrase =
-            network === "mainnet"
-              ? StellarSdk.Networks.PUBLIC
-              : StellarSdk.Networks.TESTNET;
-
-          if (token !== "XLM") {
-            return NextResponse.json(
-              {
-                error: `Sending ${token} via native Stellar payment is not yet supported. XLM transfers are supported.`,
-              },
-              { status: 400 },
-            );
-          }
-
-          let destExists = false;
-          try {
-            await server.loadAccount(destAddress);
-            destExists = true;
-          } catch (destErr: any) {
-            if (
-              destErr?.response?.status === 404 ||
-              destErr?.message?.includes("Not Found")
-            ) {
-              destExists = false;
-            } else {
-              throw destErr;
-            }
-          }
-
-          const paymentOp = destExists
-            ? StellarSdk.Operation.payment({
-              destination: destAddress,
-              asset: StellarSdk.Asset.native(),
-              amount: amount,
-            })
-            : StellarSdk.Operation.createAccount({
-              destination: destAddress,
-              startingBalance: amount,
-            });
-
-          const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
-            fee: StellarSdk.BASE_FEE,
-            networkPassphrase: passphrase,
-          })
-            .addOperation(paymentOp)
-            .addMemo(StellarSdk.Memo.text("Jumpa: Transfer"))
-            .setTimeout(60)
-            .build();
-
-          tx.sign(sourceKeypair);
-
-          const horizonRes = await server.submitTransaction(tx);
-
-          txHash = horizonRes.hash;
-          explorerUrl = getExplorerTxUrl(
-            "stellar",
-            txHash,
-            network === "testnet",
-          );
-          console.log(`[Chat Confirm] SUCCESS! Tx Hash: ${txHash}, network: ${network},explorerUrl: ${explorerUrl}`);
 
           createTransactionRecord({
             userId,
@@ -697,13 +622,13 @@ export async function POST(req: NextRequest) {
             status: "CONFIRMED",
             chain: "stellar",
             network,
-            fromAddress: userStellarAddr || sourceKeypair.publicKey(),
+            fromAddress: stellarRes.fromAddress,
             toAddress: destAddress,
             amount,
             token,
             txHash,
             explorerUrl,
-            feePaid: "0.00001 XLM",
+            feePaid: stellarRes.feePaid,
             executedAt: new Date(),
           }).catch((e) =>
             console.error("[Chat Confirm] Transaction error:", e),
@@ -724,33 +649,8 @@ export async function POST(req: NextRequest) {
             req,
           }).catch(() => {});
         } catch (payErr: any) {
-          const resultCodes =
-            payErr?.response?.data?.extras?.result_codes ||
-            payErr?.message ||
-            String(payErr);
-          console.error("[Chat Confirm] Payment ERROR:", resultCodes);
-
-          let userErrorMsg = "Payment failed on Stellar network.";
-          const errStr = JSON.stringify(resultCodes);
-          if (errStr.includes("Not Found") || errStr.includes("404")) {
-            userErrorMsg =
-              network === "testnet"
-                ? "Your Stellar testnet account is not activated. Please fund it with at least 1 XLM or ask Jumpa AI to 'claim faucet' for free test tokens."
-                : "Your Stellar account is not activated. Stellar accounts need a minimum balance of 1 XLM to be active.";
-          } else if (errStr.includes("op_underfunded")) {
-            userErrorMsg = "Payment failed: Insufficient XLM balance.";
-          } else if (
-            errStr.includes("op_no_destination") ||
-            errStr.includes("op_low_reserve")
-          ) {
-            userErrorMsg =
-              "Payment failed: Destination account requires at least 1 XLM minimum reserve to be created.";
-          } else if (errStr.includes("op_no_trust")) {
-            userErrorMsg =
-              "Payment failed: Recipient account does not trust this asset.";
-          } else if (typeof resultCodes === "string") {
-            userErrorMsg = `Payment failed: ${resultCodes}`;
-          }
+          console.error("[Chat Confirm] Stellar Transfer ERROR:", payErr);
+          const userErrorMsg = payErr?.message || "Payment failed on Stellar network.";
 
           createTransactionRecord({
             userId,
@@ -772,7 +672,7 @@ export async function POST(req: NextRequest) {
           );
 
           return NextResponse.json(
-            { error: userErrorMsg, details: resultCodes },
+            { error: userErrorMsg },
             { status: 400 },
           );
         }

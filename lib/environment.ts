@@ -112,11 +112,15 @@ export const environment = {
       ? `https://solana-devnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
       : ""),
 
-  // Stellar
+  // Stellar Gas Sponsorship & Abstraction
   STELLAR_MAINNET: process.env.STELLAR_MAINNET || "https://horizon.stellar.org",
   STELLAR_TESTNET:
     process.env.STELLAR_TESTNET || "https://horizon-testnet.stellar.org",
   SPONSORED_FEE_STELLAR_KEY: process.env.SPONSORED_FEE_STELLAR_KEY || "",
+  FEE_WALLET_STELLAR: process.env.FEE_WALLET_STELLAR || "",
+  FEE_USD_AMOUNT_STELLAR: process.env.FEE_USD_AMOUNT_STELLAR
+    ? Number(process.env.FEE_USD_AMOUNT_STELLAR)
+    : 0.01,
 
   // Solana Gas Sponsorship & Abstraction
   SPONSORED_FEE_SOLANA_KEY: process.env.SPONSORED_FEE_SOLANA_KEY || "",

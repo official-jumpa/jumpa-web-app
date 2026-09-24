@@ -31,7 +31,12 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { base, mainnet as ethMainnet } from "viem/chains";
 import { getHorizonServer } from "./stellar/client";
-import { wrapWithFeeBump } from "./stellar/sponsor";
+import {
+  wrapWithFeeBump,
+  getSponsorKeypair,
+  getStellarFeeCollectorPubkey,
+  getStellarFeeAmount,
+} from "./stellar/sponsor";
 import { environment } from "@/lib/environment";
 import { CONTRACT_ADDRESSES, getExplorerTxUrl, getRpcUrl, getSolanaRpcUrl } from "@/lib/blockchain";
 import * as bip39 from "bip39";
@@ -165,10 +170,36 @@ export async function sendStellar(params: {
   }
 
   const upperAsset = asset.toUpperCase();
-  let paymentOp: StellarSdk.xdr.Operation;
+  const numAmount = parseFloat(amount);
+  if (isNaN(numAmount) || numAmount <= 0) {
+    throw new Error("Invalid transfer amount.");
+  }
+
+  // Calculate available spendable XLM (total XLM minus account reserve)
+  const nativeBal = sourceAccount.balances.find(
+    (b: any) => b.asset_type === "native",
+  );
+  const totalXlm = nativeBal ? parseFloat(nativeBal.balance) : 0;
+  const minReserve = 1.0 + (sourceAccount.subentry_count || 0) * 0.5;
+  const availableXlm = Math.max(0, totalXlm - minReserve);
+
+  const passphrase =
+    network === "mainnet"
+      ? StellarSdk.Networks.PUBLIC
+      : StellarSdk.Networks.TESTNET;
+
+  let txBuilder: StellarSdk.TransactionBuilder;
+  let feePaid = "0.00001 XLM";
+  let useGasAbstraction = false;
 
   if (upperAsset === "XLM" || upperAsset === "NATIVE") {
-    paymentOp = destExists
+    if (availableXlm < numAmount + 0.00001) {
+      throw new Error(
+        `Insufficient XLM balance to complete the transaction.`,
+      );
+    }
+
+    const paymentOp = destExists
       ? StellarSdk.Operation.payment({
         destination,
         asset: StellarSdk.Asset.native(),
@@ -178,31 +209,102 @@ export async function sendStellar(params: {
         destination,
         startingBalance: String(amount),
       });
+
+    txBuilder = new StellarSdk.TransactionBuilder(sourceAccount, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: passphrase,
+    }).addOperation(paymentOp);
   } else if (upperAsset === "USDC") {
     if (!destExists) {
       throw new Error(
         "Destination Stellar account is not activated. Only XLM can be sent to fund a new account.",
       );
     }
+
     const issuer = STELLAR_USDC_ISSUERS[network];
-    paymentOp = StellarSdk.Operation.payment({
-      destination,
-      asset: new StellarSdk.Asset("USDC", issuer),
-      amount: String(amount),
-    });
+    const usdcAsset = new StellarSdk.Asset("USDC", issuer);
+
+    const usdcBal = sourceAccount.balances.find(
+      (b: any) =>
+        b.asset_code === "USDC" &&
+        (!b.asset_issuer || b.asset_issuer === issuer),
+    );
+    const userUsdc = usdcBal ? parseFloat(usdcBal.balance) : 0;
+
+    // Check if user has enough available XLM to pay native transaction fee (0.00001 XLM)
+    const hasEnoughXlmGas = availableXlm >= 0.0001;
+    const sponsorKey = getSponsorKeypair();
+
+    if (!hasEnoughXlmGas && sponsorKey) {
+      useGasAbstraction = true;
+      const feeAmount = getStellarFeeAmount();
+      const feeCollectorPubkey = getStellarFeeCollectorPubkey();
+      if (!feeCollectorPubkey) {
+        throw new Error("Stellar fee collection address is not configured.");
+      }
+
+      const totalRequiredUsdc = numAmount + feeAmount;
+      if (userUsdc < totalRequiredUsdc) {
+        throw new Error(
+          `Insufficient USDC balance to complete the transaction. You need at least ${totalRequiredUsdc.toFixed(4)} USDC.`,
+        );
+      }
+
+      console.log(
+        `[Transfer Service] User available XLM (${availableXlm.toFixed(4)} XLM) < 0.0001 XLM. Activating Stellar gas abstraction (Fee: ${feeAmount} USDC)...`,
+      );
+
+      // Operation 1: User -> Destination
+      const userPaymentOp = StellarSdk.Operation.payment({
+        destination,
+        asset: usdcAsset,
+        amount: String(amount),
+      });
+
+      // Operation 2: User -> Jumpa Fee Collector
+      const feePaymentOp = StellarSdk.Operation.payment({
+        destination: feeCollectorPubkey,
+        asset: usdcAsset,
+        amount: feeAmount.toFixed(7),
+      });
+
+      txBuilder = new StellarSdk.TransactionBuilder(sourceAccount, {
+        fee: (Number(StellarSdk.BASE_FEE) * 2).toString(),
+        networkPassphrase: passphrase,
+      })
+        .addOperation(userPaymentOp)
+        .addOperation(feePaymentOp);
+
+      feePaid = `$${feeAmount.toFixed(2)}`;
+    } else {
+      // User has enough XLM to pay own gas fee (or gas abstraction not configured)
+      if (userUsdc < numAmount) {
+        throw new Error(
+          `Insufficient USDC balance. You need at least ${numAmount.toFixed(4)} USDC.`,
+        );
+      }
+      if (!hasEnoughXlmGas) {
+        throw new Error(
+          `Insufficient XLM balance to pay network transaction fee. Available: ${availableXlm.toFixed(4)} XLM.`,
+        );
+      }
+
+      const paymentOp = StellarSdk.Operation.payment({
+        destination,
+        asset: usdcAsset,
+        amount: String(amount),
+      });
+
+      txBuilder = new StellarSdk.TransactionBuilder(sourceAccount, {
+        fee: StellarSdk.BASE_FEE,
+        networkPassphrase: passphrase,
+      }).addOperation(paymentOp);
+
+      feePaid = "0.00001 XLM";
+    }
   } else {
     throw new Error(`Unsupported Stellar asset: ${asset}`);
   }
-
-  const passphrase =
-    network === "mainnet"
-      ? StellarSdk.Networks.PUBLIC
-      : StellarSdk.Networks.TESTNET;
-
-  const txBuilder = new StellarSdk.TransactionBuilder(sourceAccount, {
-    fee: StellarSdk.BASE_FEE,
-    networkPassphrase: passphrase,
-  }).addOperation(paymentOp);
 
   // Attach memo if provided, otherwise brand with Jumpa on-chain
   if (memo && memo.trim()) {
@@ -224,10 +326,15 @@ export async function sendStellar(params: {
   const tx = txBuilder.setTimeout(60).build();
   tx.sign(sourceKeypair);
 
-  // Wrap in fee bump so the sponsor pays the fee
-  const { tx: finalTx, sponsored } = wrapWithFeeBump(tx, network);
+  let finalTx: StellarSdk.FeeBumpTransaction | StellarSdk.Transaction = tx;
+  if (useGasAbstraction) {
+    const bumpRes = wrapWithFeeBump(tx, network);
+    finalTx = bumpRes.tx;
+  }
 
-  console.log(`[Transfer Service] Submitting Stellar (${network}) transfer...${sponsored ? " (fee sponsored)" : ""}`);
+  console.log(
+    `[Transfer Service] Submitting Stellar (${network}) transfer...${useGasAbstraction ? " (gas abstracted)" : " (user paid XLM gas)"}`,
+  );
   const horizonRes = await server.submitTransaction(finalTx);
 
   const txHash = horizonRes.hash;
@@ -237,7 +344,7 @@ export async function sendStellar(params: {
     success: true,
     txHash,
     explorerUrl,
-    feePaid: sponsored ? "None" : "0.00001 XLM",
+    feePaid,
     fromAddress,
   };
 }
@@ -289,17 +396,21 @@ export async function sendSolana(params: {
       success: true,
       txHash,
       explorerUrl,
-      feePaid: "0.05$",
+      feePaid: "0.000005 SOL",
       fromAddress,
     };
   }
 
   // 2. SPL Token Transfer (USDC, USDT)
   if (SOLANA_MINTS[upperAsset]) {
-    // If Solana Sponsor wallet is configured, use Gas Abstraction (fee collected in token)
-    if (getSolanaSponsorKeypair()) {
+    // Check user's native SOL balance
+    const lamports = await connection.getBalance(keypair.publicKey);
+    const solBalance = lamports / 1e9;
+
+    // Only activate gas abstraction if user has insufficient SOL (< 0.001 SOL) to pay network fee
+    if (solBalance < 0.001 && getSolanaSponsorKeypair()) {
       console.log(
-        `[Transfer Service] Sponsoring ${upperAsset} transfer with in-token fee deduction...`,
+        `[Transfer Service] User SOL balance (${solBalance.toFixed(6)} SOL) < 0.001 SOL — sponsoring ${upperAsset} transfer with in-token fee deduction...`,
       );
       return await executeSponsoredSplTransfer({
         userKeypair: keypair,
@@ -310,7 +421,7 @@ export async function sendSolana(params: {
       });
     }
 
-    // Fallback: User pays own SOL network fee if sponsor is not configured
+    // User pays own SOL network fee if they have enough SOL (>= 0.001 SOL) or sponsor is not configured
     const tx = new SolTransaction();
     const tokenInfo = SOLANA_MINTS[upperAsset];
     const mintPubkey = new PublicKey(tokenInfo.mint);
@@ -362,7 +473,7 @@ export async function sendSolana(params: {
       success: true,
       txHash,
       explorerUrl,
-      feePaid: "0.05$",
+      feePaid: "0.000005 SOL",
       fromAddress,
     };
   }

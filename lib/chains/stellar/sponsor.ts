@@ -27,6 +27,32 @@ export function getSponsorKeypair(): StellarSdk.Keypair | null {
   }
 }
 
+/**
+ * Returns the public key where platform fees should be collected on Stellar.
+ * Defaults to the sponsor keypair's public key if FEE_WALLET_STELLAR is not specified.
+ */
+export function getStellarFeeCollectorPubkey(): string | null {
+  const configured = environment.FEE_WALLET_STELLAR?.trim();
+  if (configured) {
+    try {
+      if (StellarSdk.StrKey.isValidEd25519PublicKey(configured)) {
+        return configured;
+      }
+    } catch (err) {
+      console.error("[Stellar Sponsor] Invalid FEE_WALLET_STELLAR:", err);
+    }
+  }
+  const sponsor = getSponsorKeypair();
+  return sponsor ? sponsor.publicKey() : null;
+}
+
+/**
+ * Returns the configured USD/token fee amount for gas abstraction (default 0.01).
+ */
+export function getStellarFeeAmount(): number {
+  return environment.FEE_USD_AMOUNT_STELLAR || 0.01;
+}
+
 /** Maximum fee (in stroops) we're willing to sponsor per transaction — 1 XLM. */
 const MAX_SPONSOR_FEE_STROOPS = 10_000_000;
 

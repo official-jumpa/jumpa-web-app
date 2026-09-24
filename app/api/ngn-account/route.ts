@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
 import {
   createFossapayCustomer,
   createFossapayNgnWallet,
   createNgnAccountRecord,
-  getFossapayWallet,
   getNgnAccountByUserId,
   mapCountryCodeToName,
+  refreshUserNgnAccountBalance,
+  updateNgnAccountCustomerId,
   updateNgnAccountWallet,
 } from "@/lib/functions/fossapayFunctions";
 import { isUserKycVerified } from "@/lib/functions/kycFunctions";
@@ -14,7 +14,6 @@ import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { generateId } from "@/lib/schema-ids";
 import { createNgnAccountSchema } from "@/lib/validations/fossapay.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
-import { type INgnAccount, NgnAccount } from "@/models/NgnAccount";
 
 /**
  * GET /api/ngn-account
@@ -28,76 +27,16 @@ export async function GET() {
     });
     if (!auth.ok) return auth.response;
 
-    await connectDB();
-    console.log("Fetching account for user:", auth.userId);
+    const result = await refreshUserNgnAccountBalance(auth.userId);
 
-    // Look for active account (prioritizing FossaPay)
-    let account = await NgnAccount.findOne({
-      userId: auth.userId,
-      provider: "fossapay",
-    }).lean<INgnAccount>();
-
-    if (!account) {
-      account = await NgnAccount.findOne({
-        userId: auth.userId,
-      }).lean<INgnAccount>();
-    }
-
-    if (!account) {
-      console.log(
-        "[NGN Account API] No NGN account found for user:",
-        auth.userId,
-      );
+    if (!result.hasAccount) {
       return NextResponse.json(
         { hasAccount: false, message: "No NGN account found" },
         { status: 404 },
       );
     }
 
-    let liveBalance = {
-      availableBalance: account.balance ?? 0,
-      ledgerBalance: account.balance ?? 0,
-      currency: account.currency || "NGN",
-    };
-
-    const walletId = account.providerAccountId;
-    if (walletId) {
-      try {
-        const walletDetails = await getFossapayWallet(walletId);
-        if (walletDetails) {
-          liveBalance = {
-            availableBalance:
-              walletDetails.availableBalance ?? account.balance ?? 0,
-            ledgerBalance: walletDetails.ledgerBalance ?? account.balance ?? 0,
-            currency: walletDetails.currency ?? account.currency ?? "NGN",
-          };
-          // update the db balance to match the live balance
-          if (
-            typeof walletDetails.availableBalance === "number" &&
-            account.balance !== walletDetails.availableBalance
-          ) {
-            await NgnAccount.updateOne(
-              { _id: account._id },
-              { $set: { balance: walletDetails.availableBalance } },
-            );
-          }
-        }
-      } catch (err: any) {
-        console.warn(
-          "[NGN Account API] Could not fetch live balance from FossaPay, using cached/stored balance:",
-          err.message,
-        );
-      }
-    }
-
-    return NextResponse.json(
-      {
-        hasAccount: true,
-        account,
-        balance: liveBalance,
-      },
-      { status: 200 },
-    );
+    return NextResponse.json(result, { status: 200 });
   } catch (error: any) {
     console.error("[NGN Account API] GET Error:", error);
     return NextResponse.json(
@@ -159,13 +98,11 @@ export async function POST(req: Request) {
       city,
     } = parsed.data;
 
-    await connectDB();
-
-    // 2. Check for existing active NgnAccount in DB
-    let existingAccount = await NgnAccount.findOne({
-      userId: auth.userId,
-      provider: "fossapay",
-    });
+    // 2. Check for existing active NgnAccount via helper function
+    let existingAccount: any = await getNgnAccountByUserId(
+      auth.userId,
+      "fossapay",
+    );
 
     if (
       existingAccount &&
@@ -220,25 +157,29 @@ export async function POST(req: Request) {
         console.log("customer created:", customerId);
 
         if (!existingAccount) {
-          existingAccount = await NgnAccount.create({
+          existingAccount = await createNgnAccountRecord({
             userId: auth.userId,
             currency: "NGN",
             provider: "fossapay",
             status: "pending",
             providerCustomerId: customerId,
-            firstName,
-            middleName,
-            lastName,
-            emailAddress: userEmail,
-            mobileNumber,
-            dateOfBirth,
-            address,
-            city,
-            country: countryName,
+            providerMetadata: {
+              firstName,
+              middleName,
+              lastName,
+              emailAddress: userEmail,
+              mobileNumber,
+              dateOfBirth,
+              address,
+              city,
+              country: countryName,
+            },
           });
         } else {
-          existingAccount.providerCustomerId = customerId;
-          await existingAccount.save();
+          existingAccount = await updateNgnAccountCustomerId(
+            existingAccount._id.toString(),
+            customerId,
+          );
         }
       } catch (custError: any) {
         console.error(

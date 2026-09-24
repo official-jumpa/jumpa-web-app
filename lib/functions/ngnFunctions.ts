@@ -38,6 +38,30 @@ export async function getUserNgnAccountDetails(
   account: FormattedNgnAccountDetails | null;
   balance: FormattedNgnBalance | null;
 }> {
+  try {
+    const { refreshUserNgnAccountBalance } = await import(
+      "@/lib/functions/fossapayFunctions"
+    );
+    const refreshed = await refreshUserNgnAccountBalance(userId);
+    if (refreshed.hasAccount && refreshed.account && refreshed.balance) {
+      return {
+        account: {
+          ...refreshed.account,
+          accountName: refreshed.account.accountName || fallbackAccountName,
+        },
+        balance: refreshed.balance,
+      };
+    }
+    if (!refreshed.hasAccount) {
+      return { account: null, balance: null };
+    }
+  } catch (err: any) {
+    console.warn(
+      "[getUserNgnAccountDetails] Live refresh error, falling back to local DB:",
+      err.message,
+    );
+  }
+
   const accountDoc = await getUserNgnAccount(userId);
 
   if (!accountDoc) {

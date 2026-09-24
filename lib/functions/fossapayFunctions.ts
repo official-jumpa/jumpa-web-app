@@ -892,6 +892,21 @@ export async function updateNgnAccountWallet(
 }
 
 /**
+ * Update NGN account with provider customer ID
+ */
+export async function updateNgnAccountCustomerId(
+  ngnAccountId: string,
+  customerId: string
+): Promise<INgnAccount | null> {
+  await connectDB();
+  return NgnAccount.findByIdAndUpdate(
+    ngnAccountId,
+    { $set: { providerCustomerId: customerId } },
+    { new: true }
+  ).lean();
+}
+
+/**
  * 9. Find an NGN account by provider customer UUID (for webhooks or reconciliation)
  */
 export async function getNgnAccountByCustomerId(
@@ -1094,5 +1109,108 @@ export async function getNgnBalance(userId: string): Promise<number> {
   await connectDB();
   const account = await NgnAccount.findOne({ userId, provider: "fossapay" }).lean<INgnAccount>();
   return account?.balance ?? 0;
+}
+
+/**
+ * Synchronizes and refreshes user's live NGN account balance from FossaPay,
+ * updating the local database record.
+ */
+export async function refreshUserNgnAccountBalance(userId: string): Promise<{
+  hasAccount: boolean;
+  account: {
+    bankName: string;
+    accountNumber: string;
+    accountName: string;
+    status: string;
+  } | null;
+  balance: {
+    availableBalance: number;
+    ledgerBalance: number;
+    currency: string;
+  } | null;
+}> {
+  await connectDB();
+
+  let account = await NgnAccount.findOne({
+    userId,
+    provider: "fossapay",
+  }).lean<INgnAccount>();
+
+  if (!account) {
+    account = await NgnAccount.findOne({
+      userId,
+    }).lean<INgnAccount>();
+  }
+
+  if (!account) {
+    return { hasAccount: false, account: null, balance: null };
+  }
+
+  let liveBalance = {
+    availableBalance: account.balance ?? 0,
+    ledgerBalance: account.balance ?? 0,
+    currency: account.currency || "NGN",
+  };
+
+  const walletId = account.providerAccountId;
+  if (walletId) {
+    try {
+      const walletDetails: any = await getFossapayWallet(walletId);
+      if (walletDetails) {
+        console.log(
+          "[FossaPay] Raw wallet details received for balance refresh:",
+          JSON.stringify(walletDetails),
+        );
+
+        const rawAvail =
+          walletDetails.availableBalance ??
+          walletDetails.data?.availableBalance ??
+          walletDetails.balance ??
+          walletDetails.data?.balance;
+        const rawLedger =
+          walletDetails.ledgerBalance ??
+          walletDetails.data?.ledgerBalance ??
+          rawAvail;
+
+        const numAvail = Number(rawAvail ?? account.balance ?? 0);
+        const numLedger = Number(rawLedger ?? account.balance ?? 0);
+
+        const finalAvail = isNaN(numAvail) ? (account.balance ?? 0) : numAvail;
+        const finalLedger = isNaN(numLedger) ? finalAvail : numLedger;
+
+        liveBalance = {
+          availableBalance: finalAvail,
+          ledgerBalance: finalLedger,
+          currency: walletDetails.currency ?? account.currency ?? "NGN",
+        };
+
+        if (!isNaN(numAvail) && account.balance !== finalAvail) {
+          console.log(
+            `[FossaPay] Updating DB balance for account ${account._id} from ₦${account.balance} to ₦${finalAvail}`,
+          );
+          await NgnAccount.updateOne(
+            { _id: account._id },
+            { $set: { balance: finalAvail } },
+          );
+        }
+      }
+    } catch (err: any) {
+      console.warn(
+        "[FossaPay] Could not fetch live balance, using cached balance:",
+        err.message,
+      );
+    }
+  }
+
+  return {
+    hasAccount: true,
+    account: {
+      bankName: account.bankName || "Sterling MFB",
+      accountNumber: account.accountNumber || "",
+      accountName: account.accountName || "Jumpa User",
+      status: account.status || "active",
+    },
+    balance: liveBalance,
+  };
 }
 

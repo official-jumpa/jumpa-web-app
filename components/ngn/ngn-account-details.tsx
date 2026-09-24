@@ -12,6 +12,8 @@ import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
 import { EyeIcon } from "@/components/ui/icons/eye";
 import { EyeOffIcon } from "@/components/ui/icons/eye-off";
 import { NairaSignIcon } from "@/components/ui/icons/naira-sign";
+import { RefreshIcon } from "@/components/ui/icons/refresh";
+import { toast } from "@/components/ui/toast";
 import { CopyButton } from "@/components/auth/copy-button";
 import { SettingRow } from "@/components/settings/setting-row";
 import {
@@ -58,7 +60,27 @@ export function NgnAccountDetails({
 }: NgnAccountDetailsProps = {}) {
   const [loading, setLoading] = useState(() => !initialAccount);
   const [account, setAccount] = useState<NgnAccountData | null>(initialAccount);
-  const [balance, setBalance] = useState<NgnBalanceData | null>(initialBalance);
+  const [balance, setBalance] = useState<NgnBalanceData | null>(() => {
+    if (initialBalance && initialBalance.availableBalance > 0) {
+      return initialBalance;
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem("jumpa_ngn_account_cache");
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (typeof parsed.rawBalance === "number" && parsed.rawBalance > 0) {
+            return {
+              availableBalance: parsed.rawBalance,
+              ledgerBalance: parsed.rawBalance,
+              currency: "NGN",
+            };
+          }
+        }
+      } catch {}
+    }
+    return initialBalance;
+  });
   const [error, setError] = useState<string | null>(null);
 
   const [visible, setVisible] = useState(true);
@@ -66,6 +88,7 @@ export function NgnAccountDetails({
   const [loadingTransactions, setLoadingTransactions] = useState(
     () => initialTransactions.length === 0,
   );
+  const [refreshing, setRefreshing] = useState(false);
 
   // Sync visibility state from localStorage
   useEffect(() => {
@@ -77,20 +100,17 @@ export function NgnAccountDetails({
     } catch {}
   }, []);
 
-  // Fetch account and balance only if not pre-seeded
+  // Fetch and synchronize live account details and balance on mount
   useEffect(() => {
-    if (initialAccount) return;
     let isMounted = true;
     async function fetchAccount() {
       try {
-        console.log("Fetching NGN account details...");
-        const res = await fetch("/api/ngn-account");
+        const res = await fetch("/api/ngn-account", { cache: "no-store" });
         if (!res.ok) {
-          if (res.status === 404) {
+          if (res.status === 404 && !initialAccount) {
             if (isMounted) setAccount(null);
-            return;
           }
-          throw new Error("Failed to load account details");
+          return;
         }
 
         const data = await res.json();
@@ -98,11 +118,28 @@ export function NgnAccountDetails({
           setAccount(data.account);
           if (data.balance) {
             setBalance(data.balance);
+            const rawBal = Number(data.balance.availableBalance ?? 0);
+            const formatted = `₦${rawBal.toLocaleString("en-NG", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}`;
+            try {
+              localStorage.setItem(
+                "jumpa_ngn_account_cache",
+                JSON.stringify({
+                  hasAccount: true,
+                  balance: formatted,
+                  rawBalance: rawBal,
+                }),
+              );
+            } catch {}
           }
         }
       } catch (err: any) {
-        console.error("Error fetching details:", err);
-        if (isMounted) setError(err.message || "Failed to load account");
+        console.warn("[NgnAccountDetails] Mount balance sync error:", err);
+        if (isMounted && !initialAccount) {
+          setError(err.message || "Failed to load account");
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -112,7 +149,7 @@ export function NgnAccountDetails({
     return () => {
       isMounted = false;
     };
-  }, [initialAccount]);
+  }, []);
 
   // Fetch NGN-specific transaction history only if not pre-seeded
   useEffect(() => {
@@ -139,6 +176,60 @@ export function NgnAccountDetails({
       isMounted = false;
     };
   }, [initialTransactions.length]);
+
+  /**
+   * Refreshes the NGN account live balance directly from FossaPay,
+   * updates the local cache for the home screen, and reloads transactions.
+   */
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/ngn-account", { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to refresh balance");
+      const data = await res.json();
+
+      if (data.hasAccount && data.balance) {
+        setBalance(data.balance);
+        if (data.account) setAccount(data.account);
+
+        const rawBal = Number(data.balance.availableBalance ?? 0);
+        const formatted = `₦${rawBal.toLocaleString("en-NG", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`;
+
+        try {
+          localStorage.setItem(
+            "jumpa_ngn_account_cache",
+            JSON.stringify({
+              hasAccount: true,
+              balance: formatted,
+              rawBalance: rawBal,
+            }),
+          );
+        } catch {}
+
+        toast.success("Balance updated", formatted);
+      }
+
+      // Re-fetch transactions so newly deposited funds appear in history
+      const txRes = await fetch("/api/transactions?chain=fiat&limit=10", {
+        cache: "no-store",
+      });
+      if (txRes.ok) {
+        const txData = await txRes.json();
+        if (Array.isArray(txData.transactions)) {
+          setTransactions(txData.transactions);
+        }
+      }
+    } catch (err: any) {
+      console.error("[NgnAccountDetails] Refresh error:", err);
+      toast.error("Could not refresh balance", err.message || "Please try again");
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const ToggleIcon = visible ? EyeOffIcon : EyeIcon;
 
@@ -245,8 +336,22 @@ export function NgnAccountDetails({
           >
             <ToggleIcon className="size-6" />
           </button>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            aria-label="Refresh balance"
+            className="tap ml-1 active:scale-95 disabled:opacity-60"
+          >
+            <RefreshIcon
+              className={`size-5 text-jumpa-white/80 transition-transform ${
+                refreshing ? "animate-spin text-jumpa-white" : "hover:text-jumpa-white"
+              }`}
+            />
+          </button>
         </p>
       </section>
+
 
       {/* Action Buttons: Deposit & Withdraw */}
       <nav className="mt-6 flex items-start justify-center gap-10">

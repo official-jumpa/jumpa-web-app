@@ -1,4 +1,10 @@
 import { connectDB } from "@/lib/db";
+import { createNotification } from "@/lib/functions/notificationFunctions";
+import { recordUserActivity } from "@/lib/functions/userFunctions";
+import {
+  isValidNigerianPhone,
+  normalizeNigerianPhone,
+} from "@/lib/validations/bills.validation";
 import {
   type IKYCSchema,
   type IKycDetails,
@@ -8,12 +14,6 @@ import {
   type KycStatus,
 } from "@/models/KYCSchema";
 import { User } from "@/models/User";
-import {
-  isValidNigerianPhone,
-  normalizeNigerianPhone,
-} from "@/lib/validations/bills.validation";
-import { recordUserActivity } from "@/lib/functions/userFunctions";
-import { createNotification } from "@/lib/functions/notificationFunctions";
 
 /**
  * Retrieves the user's KYC record by user ID.
@@ -241,7 +241,9 @@ export async function sendMyazaPhoneOtp(params: { phone: string }): Promise<{
     throw new Error(" API key is not configured");
   }
 
-  console.log(`[Myaza Phone OTP] Sending to ${canonicalPhone} via ${baseUrl}/contact/send`);
+  console.log(
+    `[Myaza Phone OTP] Sending to ${canonicalPhone} via ${baseUrl}/contact/send`,
+  );
 
   const res = await fetch(`${baseUrl}/contact/send`, {
     method: "POST",
@@ -266,7 +268,9 @@ export async function sendMyazaPhoneOtp(params: { phone: string }): Promise<{
     throw new Error(errorMsg);
   }
 
-  console.log(`[Myaza Phone OTP] Dispatched challenge ${data.challengeId}, deliveryChannel: ${data.deliveryChannel}`);
+  console.log(
+    `[Myaza Phone OTP] Dispatched challenge ${data.challengeId}, deliveryChannel: ${data.deliveryChannel}`,
+  );
 
   return {
     success: true,
@@ -294,7 +298,9 @@ export async function verifyMyazaPhoneOtp(params: {
   const { phone, code, challengeId, userId } = params;
 
   if (!challengeId?.trim()) {
-    throw new Error("Missing verification challenge. Please request a new code.");
+    throw new Error(
+      "Missing verification challenge. Please request a new code.",
+    );
   }
   if (!code?.trim()) {
     throw new Error("Please enter the verification code");
@@ -363,7 +369,9 @@ export async function verifyMyazaPhoneOtp(params: {
     metadata: { phone: canonicalPhone },
   }).catch(() => {});
 
-  console.log(`[Myaza Phone OTP] User ${userId} successfully verified phone ${canonicalPhone}`);
+  console.log(
+    `[Myaza Phone OTP] User ${userId} successfully verified phone ${canonicalPhone}`,
+  );
 
   return {
     success: true,
@@ -408,10 +416,15 @@ export async function skipPhoneVerification(params: {
   await recordUserActivity({
     userId,
     action: "PHONE_NUMBER_SKIPPED",
-    details: { phone: updateFields.phoneNumber ?? null, reason: "skipped_or_international" },
+    details: {
+      phone: updateFields.phoneNumber ?? null,
+      reason: "skipped_or_international",
+    },
   }).catch(() => {});
 
-  console.log(`[Phone Verification] User ${userId} skipped phone verification. Phone: ${updateFields.phoneNumber ?? "none"}`);
+  console.log(
+    `[Phone Verification] User ${userId} skipped phone verification. Phone: ${updateFields.phoneNumber ?? "none"}`,
+  );
 
   return {
     success: true,
@@ -504,3 +517,15 @@ export function getKycExtensionForMime(mime: string): string {
   }
 }
 
+/**
+ * Checks whether a user has completed and approved identity verification (KYC).
+ */
+export async function isUserKycVerified(userId: string): Promise<boolean> {
+  const record = await getKycRecordByUserId(userId);
+  if (!record) return false;
+  return Boolean(
+    record.isCompleted ||
+      record.status === "approved" ||
+      record.stage === "completed",
+  );
+}

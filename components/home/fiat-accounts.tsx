@@ -3,7 +3,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { Button } from "@/components/ui/button";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
+import { UserAlt1Icon } from "@/components/ui/icons/user-alt-1";
+import { useKyc } from "@/hooks/use-kyc";
 import { cn } from "@/lib/cn";
 import { FIAT_ACCOUNTS, type FiatAccount } from "@/lib/wallet";
 import { FiatBalance } from "./fiat-balance";
@@ -26,13 +30,18 @@ let ngnMemoryCache: { hasAccount?: boolean; balance?: string | null } = {};
 interface FiatAccountsProps {
   initialHasNgnAccount?: boolean;
   initialNgnBalance?: string | null;
+  initialKycComplete?: boolean;
 }
 
 /** The NGN and USD balances, side by side under the quick actions. */
 export function FiatAccounts({
   initialHasNgnAccount,
   initialNgnBalance,
+  initialKycComplete,
 }: FiatAccountsProps = {}) {
+  const { isKycComplete } = useKyc(initialKycComplete);
+  const [showKycModal, setShowKycModal] = useState(false);
+
   const [hasNgnAccount, setHasNgnAccount] = useState<boolean>(() => {
     if (initialHasNgnAccount !== undefined) return initialHasNgnAccount;
     return ngnMemoryCache.hasAccount ?? false;
@@ -76,7 +85,7 @@ export function FiatAccounts({
             try {
               localStorage.setItem(
                 "jumpa_ngn_account_cache",
-                JSON.stringify({ hasAccount: false, balance: null })
+                JSON.stringify({ hasAccount: false, balance: null }),
               );
             } catch {}
           }
@@ -96,7 +105,7 @@ export function FiatAccounts({
           try {
             localStorage.setItem(
               "jumpa_ngn_account_cache",
-              JSON.stringify({ hasAccount: true, balance: formatted })
+              JSON.stringify({ hasAccount: true, balance: formatted }),
             );
           } catch {}
         } else if (isMounted) {
@@ -106,7 +115,7 @@ export function FiatAccounts({
           try {
             localStorage.setItem(
               "jumpa_ngn_account_cache",
-              JSON.stringify({ hasAccount: false, balance: null })
+              JSON.stringify({ hasAccount: false, balance: null }),
             );
           } catch {}
         }
@@ -119,7 +128,7 @@ export function FiatAccounts({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [initialHasNgnAccount]);
 
   const accounts: FiatAccount[] = FIAT_ACCOUNTS.map((account) => {
     if (account.id === "ngn") {
@@ -133,13 +142,23 @@ export function FiatAccounts({
   });
 
   return (
-    <ul className="flex items-stretch gap-2">
-      {accounts.map((account) => (
-        <li key={account.id} className="flex flex-1">
-          <AccountCard account={account} />
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="flex items-stretch gap-2">
+        {accounts.map((account) => (
+          <li key={account.id} className="flex flex-1">
+            <AccountCard
+              account={account}
+              isKycComplete={isKycComplete}
+              onOpenKycModal={() => setShowKycModal(true)}
+            />
+          </li>
+        ))}
+      </ul>
+
+      {showKycModal && (
+        <KycRequiredModal onClose={() => setShowKycModal(false)} />
+      )}
+    </>
   );
 }
 
@@ -152,7 +171,15 @@ const NOT_LIVE: FiatAccount["id"][] = ["usd"];
 /** Muted, not recoloured — the same treatment as the Invest quick action. */
 const SOON = "opacity-50 blur-[0.4px]";
 
-function AccountCard({ account }: { account: FiatAccount }) {
+function AccountCard({
+  account,
+  isKycComplete,
+  onOpenKycModal,
+}: {
+  account: FiatAccount;
+  isKycComplete: boolean;
+  onOpenKycModal: () => void;
+}) {
   const soon = NOT_LIVE.includes(account.id);
 
   if (account.balance !== null) {
@@ -216,6 +243,14 @@ function AccountCard({ account }: { account: FiatAccount }) {
         >
           Coming soon
         </span>
+      ) : account.id === "ngn" && !isKycComplete ? (
+        <button
+          type="button"
+          onClick={onOpenKycModal}
+          className="tap flex h-8.25 items-center justify-center rounded-pill bg-jumpa-white text-[10px] font-medium text-jumpa-primary-600 active:scale-95"
+        >
+          Create Account
+        </button>
       ) : (
         <Link
           prefetch
@@ -226,5 +261,42 @@ function AccountCard({ account }: { account: FiatAccount }) {
         </Link>
       )}
     </div>
+  );
+}
+
+function KycRequiredModal({ onClose }: { onClose: () => void }) {
+  return (
+    <BottomSheet onClose={onClose} pb="pb-7.5">
+      <div className="flex flex-col items-center text-center">
+        <span className="flex size-16 items-center justify-center rounded-full bg-jumpa-primary-50 text-jumpa-primary-600">
+          <UserAlt1Icon className="size-8" />
+        </span>
+
+        <h2 className="mt-4 text-xl leading-6 font-bold text-jumpa-black">
+          Identity Verification Required
+        </h2>
+
+        <p className="mt-2 text-sm leading-5 text-jumpa-neutral-700">
+          To comply with banking regulations and issue your dedicated Naira virtual account, please complete your identity verification (KYC) first.
+        </p>
+
+        <Button
+          variant="gradientSheet"
+          size="lg"
+          className="mt-6 font-semibold"
+          href="/kyc"
+        >
+          Complete KYC
+        </Button>
+
+        <Button
+          size="lg"
+          className="mt-2.5 font-semibold text-jumpa-neutral-700"
+          onClick={onClose}
+        >
+          Maybe Later
+        </Button>
+      </div>
+    </BottomSheet>
   );
 }

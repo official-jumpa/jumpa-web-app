@@ -1,19 +1,20 @@
 import { NextResponse } from "next/server";
-import { requireActiveUser } from "@/lib/functions/permissionFunctions";
+import { connectDB } from "@/lib/db";
 import {
-  getFossapayWallet,
   createFossapayCustomer,
   createFossapayNgnWallet,
-  getNgnAccountByUserId,
   createNgnAccountRecord,
-  updateNgnAccountWallet,
+  getFossapayWallet,
+  getNgnAccountByUserId,
   mapCountryCodeToName,
+  updateNgnAccountWallet,
 } from "@/lib/functions/fossapayFunctions";
+import { isUserKycVerified } from "@/lib/functions/kycFunctions";
+import { requireActiveUser } from "@/lib/functions/permissionFunctions";
+import { generateId } from "@/lib/schema-ids";
 import { createNgnAccountSchema } from "@/lib/validations/fossapay.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
-import { generateId } from "@/lib/schema-ids";
-import { connectDB } from "@/lib/db";
-import { NgnAccount, type INgnAccount } from "@/models/NgnAccount";
+import { type INgnAccount, NgnAccount } from "@/models/NgnAccount";
 
 /**
  * GET /api/ngn-account
@@ -43,10 +44,13 @@ export async function GET() {
     }
 
     if (!account) {
-      console.log("[NGN Account API] No NGN account found for user:", auth.userId);
+      console.log(
+        "[NGN Account API] No NGN account found for user:",
+        auth.userId,
+      );
       return NextResponse.json(
         { hasAccount: false, message: "No NGN account found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -62,7 +66,8 @@ export async function GET() {
         const walletDetails = await getFossapayWallet(walletId);
         if (walletDetails) {
           liveBalance = {
-            availableBalance: walletDetails.availableBalance ?? account.balance ?? 0,
+            availableBalance:
+              walletDetails.availableBalance ?? account.balance ?? 0,
             ledgerBalance: walletDetails.ledgerBalance ?? account.balance ?? 0,
             currency: walletDetails.currency ?? account.currency ?? "NGN",
           };
@@ -73,14 +78,14 @@ export async function GET() {
           ) {
             await NgnAccount.updateOne(
               { _id: account._id },
-              { $set: { balance: walletDetails.availableBalance } }
+              { $set: { balance: walletDetails.availableBalance } },
             );
           }
         }
       } catch (err: any) {
         console.warn(
           "[NGN Account API] Could not fetch live balance from FossaPay, using cached/stored balance:",
-          err.message
+          err.message,
         );
       }
     }
@@ -91,13 +96,13 @@ export async function GET() {
         account,
         balance: liveBalance,
       },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error: any) {
     console.error("[NGN Account API] GET Error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -114,13 +119,25 @@ export async function POST(req: Request) {
     });
     if (!auth.ok) return auth.response;
 
+    // Verify user has completed KYC
+    const kycVerified = await isUserKycVerified(auth.userId);
+    if (!kycVerified) {
+      return NextResponse.json(
+        {
+          error:
+            "Please complete identity verification (KYC) before opening a Naira account.",
+        },
+        { status: 403 },
+      );
+    }
+
     let body: any;
     try {
       body = await req.json();
     } catch {
       return NextResponse.json(
         { error: "Invalid JSON in request body" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -157,7 +174,7 @@ export async function POST(req: Request) {
     ) {
       console.log(
         "User already has active NGN account:",
-        existingAccount.accountNumber
+        existingAccount.accountNumber,
       );
       return NextResponse.json(
         {
@@ -165,7 +182,7 @@ export async function POST(req: Request) {
           account: existingAccount,
           message: "You already have an active NGN account",
         },
-        { status: 200 }
+        { status: 200 },
       );
     }
 
@@ -177,7 +194,7 @@ export async function POST(req: Request) {
       console.error("Authenticated user has no email address");
       return NextResponse.json(
         { error: "A verified email address is required on your profile" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -227,7 +244,7 @@ export async function POST(req: Request) {
         console.error(
           "Failed during customer creation:",
           custError.message,
-          custError.data || ""
+          custError.data || "",
         );
         return NextResponse.json(
           {
@@ -237,14 +254,11 @@ export async function POST(req: Request) {
               "Failed to register customer profile",
             details: custError.data || null,
           },
-          { status: custError.status || 500 }
+          { status: custError.status || 500 },
         );
       }
     } else {
-      console.log(
-        "Existing customer found, reusing ID:",
-        customerId
-      );
+      console.log("Existing customer found, reusing ID:", customerId);
     }
 
     // 4. Step 2: Create FossaPay NGN Wallet
@@ -273,7 +287,7 @@ export async function POST(req: Request) {
           accountNumber: wallet.accountNumber,
           accountName: wallet.accountName,
           providerReference: walletReference,
-        }
+        },
       );
 
       console.log("Account successfully activated:", {
@@ -287,13 +301,13 @@ export async function POST(req: Request) {
           account: updatedAccount,
           message: "NGN account activated successfully",
         },
-        { status: 201 }
+        { status: 201 },
       );
     } catch (walletError: any) {
       console.error(
         "Failed during wallet provisioning:",
         walletError.message,
-        walletError.data || ""
+        walletError.data || "",
       );
       return NextResponse.json(
         {
@@ -303,14 +317,14 @@ export async function POST(req: Request) {
             "Customer registered, but failed to provision virtual bank account. Please retry.",
           details: walletError.data || null,
         },
-        { status: walletError.status || 500 }
+        { status: walletError.status || 500 },
       );
     }
   } catch (error: any) {
     console.error("Unexpected unhandled error:", error);
     return NextResponse.json(
       { error: error.message || "An unexpected error occurred" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

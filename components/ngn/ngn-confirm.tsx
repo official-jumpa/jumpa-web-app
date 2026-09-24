@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuthContext } from "@/components/auth/AuthGuard";
 import { SettingRow } from "@/components/settings/setting-row";
@@ -9,16 +10,16 @@ import {
 } from "@/components/settings/setting-section";
 import { Button } from "@/components/ui/button";
 import { DateField } from "@/components/ui/date-field";
+import { FieldError } from "@/components/ui/field-error";
 import { CheckIcon } from "@/components/ui/icons/check";
 import { GlobeIcon } from "@/components/ui/icons/globe";
 import { IdCardIcon } from "@/components/ui/icons/id-card";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
-import { FieldError } from "@/components/ui/field-error";
-import {
-  createNgnAccountSchema,
-  type CreateNgnAccountInput,
-} from "@/lib/validations/fossapay.validation";
 import { mapCountryCodeToName } from "@/lib/ngn-account";
+import {
+  type CreateNgnAccountInput,
+  createNgnAccountSchema,
+} from "@/lib/validations/fossapay.validation";
 
 function VerifiedBadge() {
   return (
@@ -91,7 +92,7 @@ export function NgnConfirm({
           const isDone = Boolean(
             data?.isCompleted ||
               data?.status === "approved" ||
-              data?.stage === "completed"
+              data?.stage === "completed",
           );
           setVerified(isDone);
           try {
@@ -112,6 +113,13 @@ export function NgnConfirm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFieldErrors({});
+
+    if (!verified) {
+      setFieldErrors({
+        kyc: "Please complete identity verification (KYC) before opening a Naira account.",
+      });
+      return;
+    }
 
     const formData = {
       firstName,
@@ -170,16 +178,23 @@ export function NgnConfirm({
             value={user?.email || "Account email"}
           />
           <SettingRule />
-          <SettingRow
-            icon={GlobeIcon}
-            label="Country"
-            value={countryName}
-          />
+          <SettingRow icon={GlobeIcon} label="Country" value={countryName} />
           <SettingRule />
           <SettingRow
             icon={IdCardIcon}
             label="KYC verified"
-            action={verified ? <VerifiedBadge /> : null}
+            action={
+              verified ? (
+                <VerifiedBadge />
+              ) : (
+                <Link
+                  href="/kyc"
+                  className="rounded-pill bg-jumpa-primary-50 px-2.5 py-1 text-xs font-semibold text-jumpa-primary-600 underline underline-offset-2 hover:opacity-80"
+                >
+                  Verify Now
+                </Link>
+              )
+            }
           />
         </SettingCard>
       </div>
@@ -209,7 +224,8 @@ export function NgnConfirm({
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-jumpa-primary-950">
-              Middle Name <span className="text-jumpa-neutral-400">(Optional)</span>
+              Middle Name{" "}
+              <span className="text-jumpa-neutral-400">(Optional)</span>
             </label>
             <input
               type="text"
@@ -318,6 +334,18 @@ export function NgnConfirm({
           <FieldError>{fieldErrors.city}</FieldError>
         </div>
       </div>
+
+      {fieldErrors.kyc && (
+        <div className="flex items-center justify-between gap-3 rounded-tile border border-jumpa-danger/30 bg-jumpa-danger/10 px-4 py-3 text-xs leading-4 font-medium text-jumpa-danger">
+          <span>{fieldErrors.kyc}</span>
+          <Link
+            href="/kyc"
+            className="shrink-0 font-semibold underline underline-offset-2 hover:opacity-80"
+          >
+            Complete KYC
+          </Link>
+        </div>
+      )}
 
       <div className="pt-4 pb-2">
         <Button

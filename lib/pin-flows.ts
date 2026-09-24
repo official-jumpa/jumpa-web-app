@@ -23,10 +23,28 @@ export type PinFlow = {
   success: { title: string; description: string };
 };
 
-const SIGNING_NOTE = {
-  heading: "PIN is different from your password.",
-  body: "A PIN is used to sign transactions on your device. It's never sent to Jumpa servers.",
-};
+/**
+ * One note per flow. They shared a single sentence, which repeated the same
+ * fact on four screens and said nothing about the one you were on.
+ */
+const NOTES = {
+  changeTransaction: {
+    heading: "The new PIN applies straight away.",
+    body: "Every payment after this uses it. It is stored encrypted on your device and never sent to Jumpa servers.",
+  },
+  forgotTransaction: {
+    heading: "Nobody at Jumpa can read your PIN.",
+    body: "That is why resetting it needs your identity verified first. The new PIN replaces the old one on this device.",
+  },
+  changeLogin: {
+    heading: "A login PIN is not your transaction PIN.",
+    body: "This one unlocks the app. Payments are still approved with your transaction PIN, which is unchanged.",
+  },
+  forgotLogin: {
+    heading: "This only changes how you sign in.",
+    body: "Your transaction PIN and your recovery phrase stay exactly as they are.",
+  },
+} as const;
 
 /** Slots these screens draw. Changing a PIN is not wired to a backend yet. */
 const TRANSACTION_SLOTS = 4;
@@ -64,7 +82,7 @@ export const PIN_FLOWS: Record<PinFlowName, PinFlow> = {
       description: TRANSACTION_SUBTITLE,
       label: "Re-enter your pin",
     },
-    note: SIGNING_NOTE,
+    note: NOTES.changeTransaction,
     success: {
       title: "Transaction PIN updated",
       description: "Your new PIN will authorise your next payment.",
@@ -91,6 +109,7 @@ export const PIN_FLOWS: Record<PinFlowName, PinFlow> = {
       description: LOGIN_SUBTITLE,
       label: "Re-enter your pin",
     },
+    note: NOTES.changeLogin,
     success: {
       title: "Login PIN updated",
       description: "Use your new PIN the next time you sign in.",
@@ -116,7 +135,7 @@ export const PIN_FLOWS: Record<PinFlowName, PinFlow> = {
       description: `Please enter a ${TRANSACTION_SLOTS}-digit PIN. Avoid using simple ones like 1234.`,
       label: "Re-enter new transaction PIN",
     },
-    note: SIGNING_NOTE,
+    note: NOTES.forgotTransaction,
     success: {
       title: "Transaction PIN updated",
       description: "Your new PIN will authorise your next payment.",
@@ -142,6 +161,7 @@ export const PIN_FLOWS: Record<PinFlowName, PinFlow> = {
       description: `Please enter a ${LOGIN_SLOTS}-digit PIN. Avoid using simple ones like 123456.`,
       label: "Re-enter your login PIN",
     },
+    note: NOTES.forgotLogin,
     success: {
       title: "Login PIN updated",
       description: "Use your new PIN the next time you sign in.",

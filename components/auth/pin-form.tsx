@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
-import { PinNote } from "@/components/auth/pin-note";
+import { PIN_NOTES, PinNote } from "@/components/auth/pin-note";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 
@@ -42,7 +42,7 @@ export function PinForm({
           autoFocus
           onValueChange={pin.set}
         />
-        <PinNote />
+        <PinNote note={PIN_NOTES.create} />
       </div>
 
       <NumericKeypad

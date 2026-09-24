@@ -81,7 +81,7 @@ export function PinStep({
         ) : null}
 
         {note ? (
-          <InfoNote tone="danger">
+          <InfoNote tone="warning">
             <span className="flex flex-col gap-1">
               <span className="font-semibold">{note.heading}</span>
               <span>{note.body}</span>

@@ -6,7 +6,7 @@ import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
-import { PinNote } from "@/components/auth/pin-note";
+import { PIN_NOTES, PinNote } from "@/components/auth/pin-note";
 import { SuccessSheet } from "@/components/auth/success-sheet";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
@@ -289,7 +289,7 @@ export default function MigratePinPage() {
           </p>
         )}
 
-        <PinNote />
+        <PinNote note={PIN_NOTES.migrate} />
       </div>
 
       <NumericKeypad

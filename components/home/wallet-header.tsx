@@ -15,7 +15,14 @@ import { ACCOUNT } from "@/lib/wallet";
 const CONTROL =
   "relative flex size-10 items-center justify-center rounded-full bg-jumpa-white/43";
 
-export function WalletHeader({ initialHasUnread = false }: { initialHasUnread?: boolean }) {
+export function WalletHeader({
+  initialHasUnread = false,
+  kycVerified = false,
+}: {
+  initialHasUnread?: boolean;
+  /** The tick is a verification mark, so it only appears once KYC is approved. */
+  kycVerified?: boolean;
+}) {
   const auth = useAuthContext();
   const { profile } = useUserProfile();
   const user = auth?.user;
@@ -84,7 +91,7 @@ export function WalletHeader({ initialHasUnread = false }: { initialHasUnread?: 
             priority
             className="size-8 rounded-full object-cover"
           />
-          {ACCOUNT.verified ? (
+          {kycVerified ? (
             <VerifiedBadgeIcon className="absolute top-0 left-7 size-4.5" />
           ) : null}
         </span>

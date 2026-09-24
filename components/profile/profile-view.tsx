@@ -184,7 +184,8 @@ export function ProfileView({
             height={160}
             className="size-20 rounded-full object-cover"
           />
-          {ACCOUNT.verified ? (
+          {/* The tick is a verification mark, so it follows KYC, not a flag. */}
+          {kycVerified ? (
             <VerifiedBadgeIcon className="absolute -top-0.5 -right-0.5 size-5.5" />
           ) : null}
         </span>

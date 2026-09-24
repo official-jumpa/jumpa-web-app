@@ -1,6 +1,6 @@
 import { formatEther, formatUnits, erc20Abi } from "viem";
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { EVM_CHAINS, EVM_CLIENTS, CONTRACT_ADDRESSES } from "@/lib/blockchain";
+import { EVM_CHAINS, EVM_CLIENTS, CONTRACT_ADDRESSES, getSolanaRpcUrl } from "@/lib/blockchain";
 import { environment } from "@/lib/environment";
 import { Wallet } from "@/models/Wallet";
 import { connectDB } from "@/lib/db";
@@ -9,7 +9,7 @@ import { fetchStellarBalances } from "@/lib/chains/stellar";
 
 // Solana Mainnet Connection (Mainnet only)
 const solMainnetConnection = new Connection(
-  environment.SOL_MAINNET,
+  getSolanaRpcUrl(),
   "confirmed",
 );
 

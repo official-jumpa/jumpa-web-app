@@ -7,6 +7,11 @@ import {
   deriveStellarKeypairFromMnemonic,
   getHorizonServer,
 } from "@/lib/chains/stellar";
+import {
+  sendEvm,
+  sendSolana,
+  resolveChainPrivateKey,
+} from "@/lib/chains/transfer-service";
 import { decryptMnemonic } from "@/lib/crypto";
 import { executeSwap } from "@/lib/execution/stellar-swap";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
@@ -403,22 +408,21 @@ export async function POST(req: NextRequest) {
       const token = (txParams?.token || "XLM").toUpperCase();
       const recipient = String(txParams?.recipient || "");
       const network = (txParams?.network || "testnet") as "testnet" | "mainnet";
+      const paramChain = (txParams?.chain || "").toLowerCase();
 
       const userStellarAddr = wallet?.addresses?.xlm || wallet?.address || "";
-
-      console.log(
-        `[Chat Confirm] Processing Transfer: ${amount} ${token} → ${recipient} on Stellar ${network}`,
-      );
-
-      let txHash = "";
-      let explorerUrl = "";
-
       const destAddress = recipient.trim();
-      if (
-        !destAddress ||
-        !destAddress.startsWith("G") ||
-        destAddress.length !== 56
-      ) {
+
+      const isEvmDest = destAddress.startsWith("0x") && destAddress.length === 42;
+      const isStellarDest = destAddress.startsWith("G") && destAddress.length === 56;
+      const isSolanaDest =
+        !isEvmDest &&
+        !isStellarDest &&
+        destAddress.length >= 32 &&
+        destAddress.length <= 44 &&
+        !destAddress.includes(" ");
+
+      if (!isEvmDest && !isStellarDest && !isSolanaDest) {
         if (/^\d{10}$/.test(destAddress)) {
           return NextResponse.json(
             {
@@ -430,7 +434,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             error:
-              "Recipient must be a valid 56-character Stellar public key (starting with 'G').",
+              "Recipient must be a valid Stellar public key ('G...'), EVM address ('0x...'), or Solana address.",
           },
           { status: 400 },
         );
@@ -443,196 +447,334 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      let phrase = "";
       try {
-        const phrase = decryptMnemonic(
+        phrase = decryptMnemonic(
           wallet.encryptedMnemonic,
           wallet.iv,
           wallet.salt,
           pin,
         );
-        const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
-        const sourceKeypair = StellarSdk.Keypair.fromSecret(
-          stellarKeys.secretKey,
+      } catch {
+        return NextResponse.json(
+          { error: "Failed to decrypt wallet credentials with provided PIN." },
+          { status: 401 },
+        );
+      }
+
+      let txHash = "";
+      let explorerUrl = "";
+      let executedNetworkLabel = `Stellar ${network}`;
+
+      if (isEvmDest) {
+        const targetChain: "base" | "eth" =
+          paramChain === "ethereum" || paramChain === "eth" || token === "USDT"
+            ? "eth"
+            : "base";
+        const networkName = targetChain === "eth" ? "Ethereum" : "Base";
+        executedNetworkLabel = networkName;
+
+        console.log(
+          `[Chat Confirm] Processing EVM Transfer: ${amount} ${token} → ${destAddress} on ${networkName}`,
         );
 
-        console.log(`[Chat Confirm] Source keypair: ${sourceKeypair.publicKey()}`);
-
-        const server = getHorizonServer(network);
-
-        let sourceAccount;
         try {
-          sourceAccount = await server.loadAccount(
-            userStellarAddr || sourceKeypair.publicKey(),
-          );
-        } catch (loadErr: any) {
-          if (
-            loadErr?.response?.status === 404 ||
-            loadErr?.message?.includes("Not Found")
-          ) {
-            const inactiveAdvice =
-              network === "testnet"
-                ? "Your Stellar testnet account is not activated. Please fund it with at least 1 XLM or ask Jumpa AI to 'claim faucet' for free test tokens."
-                : "Your Stellar account is not activated. Stellar accounts need a minimum balance of 1 XLM to be active.";
-            return NextResponse.json(
-              { error: inactiveAdvice, details: "Account not found on ledger" },
-              { status: 400 },
-            );
-          }
-          throw loadErr;
-        }
+          const privateKey = resolveChainPrivateKey(phrase, targetChain);
+          const evmRes = await sendEvm({
+            privateKey,
+            destination: destAddress,
+            amount,
+            asset: token,
+            chain: targetChain,
+          });
 
-        const passphrase =
-          network === "mainnet"
-            ? StellarSdk.Networks.PUBLIC
-            : StellarSdk.Networks.TESTNET;
+          txHash = evmRes.txHash;
+          explorerUrl = evmRes.explorerUrl;
 
-        if (token !== "XLM") {
-          // Non-native Stellar classic assets (USDC etc.) require knowing the issuer address,
-          // which is different from the Soroban contract address. Not yet supported for direct payment.
-          return NextResponse.json(
-            {
-              error: `Sending ${token} via native Stellar payment is not yet supported. XLM transfers are supported.`,
+          createTransactionRecord({
+            userId,
+            walletId: wallet._id,
+            sessionId,
+            messageId: targetMsg?.id,
+            type: "TRANSFER",
+            status: "CONFIRMED",
+            chain: targetChain,
+            network: "mainnet",
+            fromAddress: evmRes.fromAddress,
+            toAddress: destAddress,
+            amount,
+            token,
+            txHash,
+            explorerUrl,
+            executedAt: new Date(),
+          }).catch((e) => console.error("[Chat Confirm] EVM Transaction error:", e));
+
+          updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});
+
+          logUserActivity({
+            userId,
+            action: "TRANSFER_SENT",
+            details: {
+              amount,
+              token,
+              recipient: destAddress,
+              network: networkName,
+              txHash,
             },
+            req,
+          }).catch(() => {});
+        } catch (evmErr: any) {
+          console.error("[Chat Confirm] EVM Transfer ERROR:", evmErr);
+          return NextResponse.json(
+            { error: evmErr?.message || "EVM transfer failed." },
             { status: 400 },
           );
         }
+      } else if (isSolanaDest) {
+        executedNetworkLabel = "Solana";
+        console.log(
+          `[Chat Confirm] Processing Solana Transfer: ${amount} ${token} → ${destAddress}`,
+        );
 
-        // Check if destination account exists on ledger
-        let destExists = false;
         try {
-          await server.loadAccount(destAddress);
-          destExists = true;
-        } catch (destErr: any) {
-          if (
-            destErr?.response?.status === 404 ||
-            destErr?.message?.includes("Not Found")
-          ) {
-            destExists = false;
-          } else {
-            throw destErr;
-          }
-        }
-
-        const paymentOp = destExists
-          ? StellarSdk.Operation.payment({
+          const privateKey = resolveChainPrivateKey(phrase, "solana");
+          const solRes = await sendSolana({
+            privateKey,
             destination: destAddress,
-            asset: StellarSdk.Asset.native(),
-            amount: amount,
-          })
-          : StellarSdk.Operation.createAccount({
-            destination: destAddress,
-            startingBalance: amount,
+            amount,
+            asset: token,
           });
 
-        const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
-          fee: StellarSdk.BASE_FEE,
-          networkPassphrase: passphrase,
-        })
-          .addOperation(paymentOp)
-          .addMemo(StellarSdk.Memo.text("Jumpa: Transfer"))
-          .setTimeout(60)
-          .build();
+          txHash = solRes.txHash;
+          explorerUrl = solRes.explorerUrl;
 
-        tx.sign(sourceKeypair);
-
-        const horizonRes = await server.submitTransaction(tx);
-
-        txHash = horizonRes.hash;
-        explorerUrl = getExplorerTxUrl(
-          "stellar",
-          txHash,
-          network === "testnet",
-        );
-        console.log(`[Chat Confirm] SUCCESS! Tx Hash: ${txHash}, network: ${network},explorerUrl: ${explorerUrl}`);
-
-        // Record transaction in ledger
-        createTransactionRecord({
-          userId,
-          walletId: wallet._id,
-          sessionId,
-          messageId: targetMsg?.id,
-          type: "TRANSFER",
-          status: "CONFIRMED",
-          chain: "stellar",
-          network,
-          fromAddress: userStellarAddr || sourceKeypair.publicKey(),
-          toAddress: destAddress,
-          amount,
-          token,
-          txHash,
-          explorerUrl,
-          feePaid: "0.00001 XLM",
-          executedAt: new Date(),
-        }).catch((e) =>
-          console.error("[Chat Confirm] Transaction error:", e),
-        );
-
-        updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});
-
-        logUserActivity({
-          userId,
-          action: "TRANSFER_SENT",
-          details: {
+          createTransactionRecord({
+            userId,
+            walletId: wallet._id,
+            sessionId,
+            messageId: targetMsg?.id,
+            type: "TRANSFER",
+            status: "CONFIRMED",
+            chain: "solana",
+            network: "mainnet",
+            fromAddress: solRes.fromAddress,
+            toAddress: destAddress,
             amount,
             token,
-            recipient: destAddress,
-            network,
             txHash,
-          },
-          req,
-        }).catch(() => {});
-      } catch (payErr: any) {
-        const resultCodes =
-          payErr?.response?.data?.extras?.result_codes ||
-          payErr?.message ||
-          String(payErr);
-        console.error("[Chat Confirm] Payment ERROR:", resultCodes);
+            explorerUrl,
+            feePaid: "0.000005 SOL",
+            executedAt: new Date(),
+          }).catch((e) => console.error("[Chat Confirm] Solana Transaction error:", e));
 
-        let userErrorMsg = "Payment failed on Stellar network.";
-        const errStr = JSON.stringify(resultCodes);
-        if (errStr.includes("Not Found") || errStr.includes("404")) {
-          userErrorMsg =
-            network === "testnet"
-              ? "Your Stellar testnet account is not activated. Please fund it with at least 1 XLM or ask Jumpa AI to 'claim faucet' for free test tokens."
-              : "Your Stellar account is not activated. Stellar accounts need a minimum balance of 1 XLM to be active.";
-        } else if (errStr.includes("op_underfunded")) {
-          userErrorMsg = "Payment failed: Insufficient XLM balance.";
-        } else if (
-          errStr.includes("op_no_destination") ||
-          errStr.includes("op_low_reserve")
-        ) {
-          userErrorMsg =
-            "Payment failed: Destination account requires at least 1 XLM minimum reserve to be created.";
-        } else if (errStr.includes("op_no_trust")) {
-          userErrorMsg =
-            "Payment failed: Recipient account does not trust this asset.";
-        } else if (typeof resultCodes === "string") {
-          userErrorMsg = `Payment failed: ${resultCodes}`;
+          updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});
+
+          logUserActivity({
+            userId,
+            action: "TRANSFER_SENT",
+            details: {
+              amount,
+              token,
+              recipient: destAddress,
+              network: "Solana",
+              txHash,
+            },
+            req,
+          }).catch(() => {});
+        } catch (solErr: any) {
+          console.error("[Chat Confirm] Solana Transfer ERROR:", solErr);
+          return NextResponse.json(
+            { error: solErr?.message || "Solana transfer failed." },
+            { status: 400 },
+          );
         }
-
-        createTransactionRecord({
-          userId,
-          walletId: wallet._id,
-          sessionId,
-          messageId: targetMsg?.id,
-          type: "TRANSFER",
-          status: "FAILED",
-          chain: "stellar",
-          network,
-          fromAddress: userStellarAddr || wallet?.address || "",
-          toAddress: destAddress,
-          amount,
-          token,
-          errorMessage: userErrorMsg,
-          executedAt: new Date(),
-        }).catch((e) =>
-          console.error("[Chat Confirm] Transaction log error:", e),
+      } else {
+        // Stellar Transfer
+        console.log(
+          `[Chat Confirm] Processing Transfer: ${amount} ${token} → ${destAddress} on Stellar ${network}`,
         );
 
-        return NextResponse.json(
-          { error: userErrorMsg, details: resultCodes },
-          { status: 400 },
-        );
+        try {
+          const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
+          const sourceKeypair = StellarSdk.Keypair.fromSecret(
+            stellarKeys.secretKey,
+          );
+
+          console.log(`[Chat Confirm] Source keypair: ${sourceKeypair.publicKey()}`);
+
+          const server = getHorizonServer(network);
+
+          let sourceAccount;
+          try {
+            sourceAccount = await server.loadAccount(
+              userStellarAddr || sourceKeypair.publicKey(),
+            );
+          } catch (loadErr: any) {
+            if (
+              loadErr?.response?.status === 404 ||
+              loadErr?.message?.includes("Not Found")
+            ) {
+              const inactiveAdvice =
+                network === "testnet"
+                  ? "Your Stellar testnet account is not activated. Please fund it with at least 1 XLM or ask Jumpa AI to 'claim faucet' for free test tokens."
+                  : "Your Stellar account is not activated. Stellar accounts need a minimum balance of 1 XLM to be active.";
+              return NextResponse.json(
+                { error: inactiveAdvice, details: "Account not found on ledger" },
+                { status: 400 },
+              );
+            }
+            throw loadErr;
+          }
+
+          const passphrase =
+            network === "mainnet"
+              ? StellarSdk.Networks.PUBLIC
+              : StellarSdk.Networks.TESTNET;
+
+          if (token !== "XLM") {
+            return NextResponse.json(
+              {
+                error: `Sending ${token} via native Stellar payment is not yet supported. XLM transfers are supported.`,
+              },
+              { status: 400 },
+            );
+          }
+
+          let destExists = false;
+          try {
+            await server.loadAccount(destAddress);
+            destExists = true;
+          } catch (destErr: any) {
+            if (
+              destErr?.response?.status === 404 ||
+              destErr?.message?.includes("Not Found")
+            ) {
+              destExists = false;
+            } else {
+              throw destErr;
+            }
+          }
+
+          const paymentOp = destExists
+            ? StellarSdk.Operation.payment({
+              destination: destAddress,
+              asset: StellarSdk.Asset.native(),
+              amount: amount,
+            })
+            : StellarSdk.Operation.createAccount({
+              destination: destAddress,
+              startingBalance: amount,
+            });
+
+          const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
+            fee: StellarSdk.BASE_FEE,
+            networkPassphrase: passphrase,
+          })
+            .addOperation(paymentOp)
+            .addMemo(StellarSdk.Memo.text("Jumpa: Transfer"))
+            .setTimeout(60)
+            .build();
+
+          tx.sign(sourceKeypair);
+
+          const horizonRes = await server.submitTransaction(tx);
+
+          txHash = horizonRes.hash;
+          explorerUrl = getExplorerTxUrl(
+            "stellar",
+            txHash,
+            network === "testnet",
+          );
+          console.log(`[Chat Confirm] SUCCESS! Tx Hash: ${txHash}, network: ${network},explorerUrl: ${explorerUrl}`);
+
+          createTransactionRecord({
+            userId,
+            walletId: wallet._id,
+            sessionId,
+            messageId: targetMsg?.id,
+            type: "TRANSFER",
+            status: "CONFIRMED",
+            chain: "stellar",
+            network,
+            fromAddress: userStellarAddr || sourceKeypair.publicKey(),
+            toAddress: destAddress,
+            amount,
+            token,
+            txHash,
+            explorerUrl,
+            feePaid: "0.00001 XLM",
+            executedAt: new Date(),
+          }).catch((e) =>
+            console.error("[Chat Confirm] Transaction error:", e),
+          );
+
+          updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});
+
+          logUserActivity({
+            userId,
+            action: "TRANSFER_SENT",
+            details: {
+              amount,
+              token,
+              recipient: destAddress,
+              network,
+              txHash,
+            },
+            req,
+          }).catch(() => {});
+        } catch (payErr: any) {
+          const resultCodes =
+            payErr?.response?.data?.extras?.result_codes ||
+            payErr?.message ||
+            String(payErr);
+          console.error("[Chat Confirm] Payment ERROR:", resultCodes);
+
+          let userErrorMsg = "Payment failed on Stellar network.";
+          const errStr = JSON.stringify(resultCodes);
+          if (errStr.includes("Not Found") || errStr.includes("404")) {
+            userErrorMsg =
+              network === "testnet"
+                ? "Your Stellar testnet account is not activated. Please fund it with at least 1 XLM or ask Jumpa AI to 'claim faucet' for free test tokens."
+                : "Your Stellar account is not activated. Stellar accounts need a minimum balance of 1 XLM to be active.";
+          } else if (errStr.includes("op_underfunded")) {
+            userErrorMsg = "Payment failed: Insufficient XLM balance.";
+          } else if (
+            errStr.includes("op_no_destination") ||
+            errStr.includes("op_low_reserve")
+          ) {
+            userErrorMsg =
+              "Payment failed: Destination account requires at least 1 XLM minimum reserve to be created.";
+          } else if (errStr.includes("op_no_trust")) {
+            userErrorMsg =
+              "Payment failed: Recipient account does not trust this asset.";
+          } else if (typeof resultCodes === "string") {
+            userErrorMsg = `Payment failed: ${resultCodes}`;
+          }
+
+          createTransactionRecord({
+            userId,
+            walletId: wallet._id,
+            sessionId,
+            messageId: targetMsg?.id,
+            type: "TRANSFER",
+            status: "FAILED",
+            chain: "stellar",
+            network,
+            fromAddress: userStellarAddr || wallet?.address || "",
+            toAddress: destAddress,
+            amount,
+            token,
+            errorMessage: userErrorMsg,
+            executedAt: new Date(),
+          }).catch((e) =>
+            console.error("[Chat Confirm] Transaction log error:", e),
+          );
+
+          return NextResponse.json(
+            { error: userErrorMsg, details: resultCodes },
+            { status: 400 },
+          );
+        }
       }
 
       receiptCardData = {
@@ -647,10 +789,9 @@ export async function POST(req: NextRequest) {
           { value: `- ${amount} ${token}` },
           {
             lead: "To ",
-            value: `${recipient.slice(0, 6)}...${recipient.slice(-6)}`,
+            value: `${destAddress.slice(0, 6)}...${destAddress.slice(-6)}`,
           },
-          { lead: "Network ", value: `Stellar ${network}` },
-          { lead: "Network Fee ", value: "0.00001 XLM" },
+          { lead: "Network ", value: executedNetworkLabel },
           {
             lead: "Tx Hash ",
             value: txHash ? `${txHash.slice(0, 6)}...${txHash.slice(-6)}` : "—",
@@ -720,7 +861,7 @@ export async function POST(req: NextRequest) {
         const lowerAsset = asset.toLowerCase();
         if (isEvmDeposit && lowerAsset.startsWith("solana:")) {
           const token = lowerAsset.split(":")[1] || "usdc";
-          asset = token === "usdt" ? "ethereum:usdt" : "ethereum:usdc";
+          asset = token === "usdt" ? "ethereum:usdt" : "base:usdc";
           console.warn(
             `[Chat Confirm] Deposit address is EVM (0x). Corrected asset to ${asset}.`,
           );

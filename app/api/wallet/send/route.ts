@@ -20,40 +20,9 @@ import {
   sendStellar,
   sendSolana,
   sendEvm,
+  resolveChainPrivateKey,
   type TransferResult,
 } from "@/lib/chains/transfer-service";
-
-function resolveChainPrivateKey(
-  secret: string,
-  chain: "stellar" | "solana" | "base" | "eth",
-): string {
-  const trimmed = secret.trim();
-  const isMnemonic = trimmed.split(/\s+/).length >= 12;
-
-  if (isMnemonic) {
-    if (chain === "stellar") {
-      return deriveStellarKeypairFromMnemonic(trimmed).secretKey;
-    }
-
-    const seed = bip39.mnemonicToSeedSync(trimmed);
-
-    if (chain === "solana") {
-      const derived = derivePath("m/44'/501'/0'/0'", seed.toString("hex")).key;
-      const keypair = SolanaKeypair.fromSeed(derived);
-      return Buffer.from(keypair.secretKey).toString("hex");
-    }
-
-    if (chain === "base" || chain === "eth") {
-      const hdKey = HDKey.fromMasterSeed(seed);
-      const child = hdKey.derive("m/44'/60'/0'/0/0");
-      if (!child.privateKey) throw new Error("Could not derive EVM private key");
-      return `0x${Buffer.from(child.privateKey).toString("hex")}`;
-    }
-  }
-
-  // Already a raw private key
-  return trimmed;
-}
 
 /**
  * POST /api/wallet/send

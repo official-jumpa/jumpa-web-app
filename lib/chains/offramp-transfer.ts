@@ -23,7 +23,7 @@ import { derivePath } from "ed25519-hd-key";
 
 import { createPublicClient, createWalletClient, http, parseUnits } from "viem";
 import { base, mainnet } from "viem/chains";
-import { mnemonicToAccount } from "viem/accounts";
+import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 import { environment } from "@/lib/environment";
 import { submitCentiivStellarPayment } from "@/lib/functions/centiivFunctions";
 import * as StellarSdk from "@stellar/stellar-sdk";
@@ -46,7 +46,7 @@ const ERC20_ABI = [
   },
 ] as const;
 
-import { CONTRACT_ADDRESSES, getExplorerTxUrl } from "@/lib/blockchain";
+import { CONTRACT_ADDRESSES, getExplorerTxUrl, getRpcUrl, getSolanaRpcUrl } from "@/lib/blockchain";
 
 export interface OfframpAssetConfig {
   chain: "base" | "solana" | "stellar" | "ethereum";
@@ -222,11 +222,11 @@ export async function executeOfframpTransfer(options: {
 
     if (config.chain === "base" || config.chain === "ethereum") {
       const isEthereum = config.chain === "ethereum";
-      const rpc = isEthereum 
-        ? environment.ALCHEMY_MAINNET_RPC 
-        : environment.ALCHEMY_BASE_MAINNET_RPC;
+      const rpc = getRpcUrl(config.chain);
       const viemChain = isEthereum ? mainnet : base;
       const networkName = isEthereum ? "Ethereum" : "Base";
+
+      console.log(`[OfframpTransfer] Using ${networkName} RPC: ${rpc}`);
 
       const publicClient = createPublicClient({
         chain: viemChain,
@@ -237,7 +237,14 @@ export async function executeOfframpTransfer(options: {
         transport: http(rpc),
       });
 
-      const account = mnemonicToAccount(mnemonic as `0x${string}`);
+      const isMnemonic = mnemonic.trim().split(/\s+/).length >= 12;
+      const account = isMnemonic
+        ? mnemonicToAccount(mnemonic.trim())
+        : privateKeyToAccount(
+            (mnemonic.trim().startsWith("0x")
+              ? mnemonic.trim()
+              : `0x${mnemonic.trim()}`) as `0x${string}`,
+          );
       const tokenAddress = config.address as `0x${string}`;
 
       // Pre-flight check: Gas (ETH) balance
@@ -298,18 +305,28 @@ export async function executeOfframpTransfer(options: {
 
     // ── 2. Solana Transfer
     if (config.chain === "solana") {
-      const solRpc =
-        environment.SOL_MAINNET ||
-        environment.NEXT_PUBLIC_SOLANA_RPC ||
-        "https://api.mainnet-beta.solana.com";
+      const solRpc = getSolanaRpcUrl();
+      console.log(`[OfframpTransfer] Using Solana RPC: ${solRpc}`);
       const connection = new Connection(solRpc, "confirmed");
 
-      const seed = bip39.mnemonicToSeedSync(mnemonic);
-      const solDerived = derivePath(
-        "m/44'/501'/0'/0'",
-        seed.toString("hex"),
-      ).key;
-      const solKeypair = SolKeypair.fromSeed(solDerived);
+      const isMnemonic = mnemonic.trim().split(/\s+/).length >= 12;
+      let solKeypair: SolKeypair;
+      if (isMnemonic) {
+        const seed = bip39.mnemonicToSeedSync(mnemonic.trim());
+        const solDerived = derivePath(
+          "m/44'/501'/0'/0'",
+          seed.toString("hex"),
+        ).key;
+        solKeypair = SolKeypair.fromSeed(solDerived);
+      } else {
+        const trimmed = mnemonic.trim();
+        if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+          solKeypair = SolKeypair.fromSecretKey(Uint8Array.from(JSON.parse(trimmed)));
+        } else {
+          const hex = trimmed.startsWith("0x") ? trimmed.slice(2) : trimmed;
+          solKeypair = SolKeypair.fromSeed(Buffer.from(hex, "hex").slice(0, 32));
+        }
+      }
 
       console.log(
         `[OfframpTransfer] Solana sender address: ${solKeypair.publicKey.toBase58()}`,

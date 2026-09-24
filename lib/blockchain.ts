@@ -400,15 +400,40 @@ const ALCHEMY_PREFIXES: Partial<Record<EvmChainId, string>> = {
   base: "base-mainnet",
 };
 
-export function getRpcUrl(chain: EvmChainConfig): string {
-  const alchemyKey = environment.ALCHEMY_API_KEY;
-  if (alchemyKey) {
-    const prefix = ALCHEMY_PREFIXES[chain.id];
-    if (prefix) {
-      return `https://${prefix}.g.alchemy.com/v2/${alchemyKey}`;
+export function getRpcUrl(chainOrId: EvmChainConfig | EvmChainId | string): string {
+  const chainId = (typeof chainOrId === "string" ? chainOrId : chainOrId.id).toLowerCase() as EvmChainId;
+  const config = typeof chainOrId === "string" ? EVM_CHAINS.find((c) => c.id === chainId) : chainOrId;
+
+  if (chainId === "ethereum") {
+    const url = environment.ALCHEMY_ETH_MAINNET_RPC || environment.ALCHEMY_MAINNET_RPC;
+    if (url && !url.includes("solana")) return url;
+    if (environment.ALCHEMY_API_KEY) {
+      return `https://eth-mainnet.g.alchemy.com/v2/${environment.ALCHEMY_API_KEY}`;
     }
+    return environment.EVM_RPC_URL && !environment.EVM_RPC_URL.includes("solana")
+      ? environment.EVM_RPC_URL
+      : config?.rpcUrl || "https://eth.drpc.org";
   }
-  return chain.rpcUrl || "";
+
+  if (chainId === "base") {
+    const url = environment.ALCHEMY_BASE_MAINNET_RPC;
+    if (url && !url.includes("solana")) return url;
+    if (environment.ALCHEMY_API_KEY) {
+      return `https://base-mainnet.g.alchemy.com/v2/${environment.ALCHEMY_API_KEY}`;
+    }
+    return config?.rpcUrl || "https://mainnet.base.org";
+  }
+
+  return config?.rpcUrl || "";
+}
+
+export function getSolanaRpcUrl(): string {
+  const url = environment.SOL_MAINNET || environment.ALCHEMY_SOLANA_MAINNET_RPC;
+  if (url && !url.includes("api.mainnet-beta.solana.com")) return url;
+  if (environment.ALCHEMY_API_KEY) {
+    return `https://solana-mainnet.g.alchemy.com/v2/${environment.ALCHEMY_API_KEY}`;
+  }
+  return environment.NEXT_PUBLIC_SOLANA_RPC || environment.SOL_MAINNET || "https://api.mainnet-beta.solana.com";
 }
 
 export const EVM_CLIENTS: Record<
@@ -423,3 +448,4 @@ export const EVM_CLIENTS: Record<
     }),
   ]),
 ) as Record<EvmChainId, ReturnType<typeof createPublicClient>>;
+

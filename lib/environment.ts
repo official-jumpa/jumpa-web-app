@@ -29,16 +29,88 @@ export const environment = {
 
   // Solana Network RPCs
   NEXT_PUBLIC_SOLANA_RPC:
-    process.env.NEXT_PUBLIC_SOLANA_RPC || "https://api.mainnet-beta.solana.com",
-  SOL_MAINNET: process.env.SOL_MAINNET || "https://api.mainnet-beta.solana.com",
-  SOL_DEVNET: process.env.SOL_DEVNET || "https://api.devnet.solana.com",
+    process.env.NEXT_PUBLIC_SOLANA_RPC ||
+    process.env.ALCHEMY_SOLANA_MAINNET_RPC ||
+    (process.env.ALCHEMY_MAINNET_RPC?.includes("solana")
+      ? process.env.ALCHEMY_MAINNET_RPC
+      : "") ||
+    (process.env.ALCHEMY_API_KEY
+      ? `https://solana-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+      : "https://api.mainnet-beta.solana.com"),
+  SOL_MAINNET:
+    process.env.ALCHEMY_SOLANA_MAINNET_RPC ||
+    (process.env.ALCHEMY_MAINNET_RPC?.includes("solana")
+      ? process.env.ALCHEMY_MAINNET_RPC
+      : "") ||
+    (process.env.SOL_MAINNET &&
+    !process.env.SOL_MAINNET.includes("api.mainnet-beta.solana.com")
+      ? process.env.SOL_MAINNET
+      : "") ||
+    (process.env.ALCHEMY_API_KEY
+      ? `https://solana-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+      : "https://api.mainnet-beta.solana.com"),
+  SOL_DEVNET:
+    process.env.ALCHEMY_SOLANA_DEVNET_RPC ||
+    (process.env.ALCHEMY_DEVNET_RPC?.includes("solana")
+      ? process.env.ALCHEMY_DEVNET_RPC
+      : "") ||
+    process.env.SOL_DEVNET ||
+    "https://api.devnet.solana.com",
 
   // EVM & Alchemy Config
-  EVM_RPC_URL: process.env.EVM_RPC_URL || "https://eth.drpc.org",
+  EVM_RPC_URL:
+    (process.env.EVM_RPC_URL && !process.env.EVM_RPC_URL.includes("solana")
+      ? process.env.EVM_RPC_URL
+      : "") ||
+    (process.env.ALCHEMY_API_KEY
+      ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+      : "https://eth.drpc.org"),
   ALCHEMY_API_KEY: process.env.ALCHEMY_API_KEY || "",
-  ALCHEMY_MAINNET_RPC: process.env.ALCHEMY_MAINNET_RPC || "",
-  ALCHEMY_DEVNET_RPC: process.env.ALCHEMY_DEVNET_RPC || "",
-  ALCHEMY_BASE_MAINNET_RPC: process.env.ALCHEMY_BASE_MAINNET_RPC || "",
+  ALCHEMY_ETH_MAINNET_RPC:
+    (process.env.ALCHEMY_ETH_MAINNET_RPC &&
+    !process.env.ALCHEMY_ETH_MAINNET_RPC.includes("solana")
+      ? process.env.ALCHEMY_ETH_MAINNET_RPC
+      : "") ||
+    (process.env.ALCHEMY_MAINNET_RPC &&
+    !process.env.ALCHEMY_MAINNET_RPC.includes("solana")
+      ? process.env.ALCHEMY_MAINNET_RPC
+      : "") ||
+    (process.env.ALCHEMY_API_KEY
+      ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+      : "https://eth.drpc.org"),
+  ALCHEMY_MAINNET_RPC:
+    (process.env.ALCHEMY_ETH_MAINNET_RPC &&
+    !process.env.ALCHEMY_ETH_MAINNET_RPC.includes("solana")
+      ? process.env.ALCHEMY_ETH_MAINNET_RPC
+      : "") ||
+    (process.env.ALCHEMY_MAINNET_RPC &&
+    !process.env.ALCHEMY_MAINNET_RPC.includes("solana")
+      ? process.env.ALCHEMY_MAINNET_RPC
+      : "") ||
+    (process.env.ALCHEMY_API_KEY
+      ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+      : "https://eth.drpc.org"),
+  ALCHEMY_BASE_MAINNET_RPC:
+    (process.env.ALCHEMY_BASE_MAINNET_RPC &&
+    !process.env.ALCHEMY_BASE_MAINNET_RPC.includes("solana")
+      ? process.env.ALCHEMY_BASE_MAINNET_RPC
+      : "") ||
+    (process.env.ALCHEMY_API_KEY
+      ? `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+      : "https://mainnet.base.org"),
+  ALCHEMY_SOLANA_MAINNET_RPC:
+    process.env.ALCHEMY_SOLANA_MAINNET_RPC ||
+    (process.env.ALCHEMY_MAINNET_RPC?.includes("solana")
+      ? process.env.ALCHEMY_MAINNET_RPC
+      : "") ||
+    (process.env.ALCHEMY_API_KEY
+      ? `https://solana-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+      : ""),
+  ALCHEMY_DEVNET_RPC:
+    process.env.ALCHEMY_DEVNET_RPC ||
+    (process.env.ALCHEMY_API_KEY
+      ? `https://solana-devnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+      : ""),
 
   // Stellar
   STELLAR_MAINNET: process.env.STELLAR_MAINNET || "https://horizon.stellar.org",

@@ -33,7 +33,43 @@ import { base, mainnet as ethMainnet } from "viem/chains";
 import { getHorizonServer } from "./stellar/client";
 import { wrapWithFeeBump } from "./stellar/sponsor";
 import { environment } from "@/lib/environment";
-import { CONTRACT_ADDRESSES, getExplorerTxUrl } from "@/lib/blockchain";
+import { CONTRACT_ADDRESSES, getExplorerTxUrl, getRpcUrl, getSolanaRpcUrl } from "@/lib/blockchain";
+import * as bip39 from "bip39";
+import { derivePath } from "ed25519-hd-key";
+import { HDKey } from "@scure/bip32";
+import { deriveStellarKeypairFromMnemonic } from "@/lib/chains/stellar";
+
+export function resolveChainPrivateKey(
+  secret: string,
+  chain: "stellar" | "solana" | "base" | "eth" | "ethereum",
+): string {
+  const trimmed = secret.trim();
+  const isMnemonic = trimmed.split(/\s+/).length >= 12;
+
+  if (isMnemonic) {
+    if (chain === "stellar") {
+      return deriveStellarKeypairFromMnemonic(trimmed).secretKey;
+    }
+
+    const seed = bip39.mnemonicToSeedSync(trimmed);
+
+    if (chain === "solana") {
+      const derived = derivePath("m/44'/501'/0'/0'", seed.toString("hex")).key;
+      const keypair = SolKeypair.fromSeed(derived);
+      return Buffer.from(keypair.secretKey).toString("hex");
+    }
+
+    if (chain === "base" || chain === "eth" || chain === "ethereum") {
+      const hdKey = HDKey.fromMasterSeed(seed);
+      const child = hdKey.derive("m/44'/60'/0'/0/0");
+      if (!child.privateKey) throw new Error("Could not derive EVM private key");
+      return `0x${Buffer.from(child.privateKey).toString("hex")}`;
+    }
+  }
+
+  // Already a raw private key
+  return trimmed;
+}
 
 // Stellar USDC Issuers
 const STELLAR_USDC_ISSUERS = {
@@ -228,12 +264,7 @@ export async function sendSolana(params: {
 
   const fromAddress = keypair.publicKey.toBase58();
   const destPubkey = new PublicKey(destination);
-  const connection = new Connection(
-    environment.SOL_MAINNET ||
-      environment.NEXT_PUBLIC_SOLANA_RPC ||
-      "https://api.mainnet-beta.solana.com",
-    "confirmed",
-  );
+  const connection = new Connection(getSolanaRpcUrl(), "confirmed");
 
   const upperAsset = asset.toUpperCase();
   const numAmount = parseFloat(amount);
@@ -327,10 +358,7 @@ export async function sendEvm(params: {
   const cleanKey = (privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`) as `0x${string}`;
   const account = privateKeyToAccount(cleanKey);
   const targetChain = chain === "base" ? base : ethMainnet;
-  const rpcUrl =
-    chain === "base"
-      ? environment.ALCHEMY_BASE_MAINNET_RPC || "https://mainnet.base.org"
-      : environment.ALCHEMY_MAINNET_RPC || environment.EVM_RPC_URL || "https://eth.llamarpc.com";
+  const rpcUrl = getRpcUrl(chain === "eth" ? "ethereum" : "base");
 
   const publicClient = createPublicClient({
     chain: targetChain,

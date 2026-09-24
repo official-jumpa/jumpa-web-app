@@ -100,19 +100,25 @@ export function MobileDataView() {
 
       const { data, raw } = await readBillResponse(res);
 
+      const detail = String(data?.error ?? "").toLowerCase();
+      // A lockout also says "PIN", and tinting the box red would hide the wait
+      // the server just told us about — so it goes through the mapper instead.
+      const wrongPin =
+        data?.code === "INVALID_PIN" ||
+        (res.status === 400 &&
+          detail.includes("pin") &&
+          !detail.includes("too many"));
+
       if (!res.ok) {
-        if (
-          res.status === 400 &&
-          (String(data?.error ?? "")
-            .toLowerCase()
-            .includes("pin") ||
-            data?.code === "INVALID_PIN")
-        ) {
-          setPinError(true);
-        } else {
-          fail(data?.error || raw || "Data subscription failed.");
-        }
+        if (wrongPin) setPinError(true);
+        else fail(data?.error || raw || "Data subscription failed.");
         setIsProcessing(false);
+        return;
+      }
+
+      // A 200 the provider still refused must not render a receipt.
+      if (data?.success === false) {
+        fail(data?.error ?? data?.message ?? "Data subscription failed.");
         return;
       }
 

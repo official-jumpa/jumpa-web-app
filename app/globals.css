@@ -619,9 +619,25 @@
     scroll-behavior: smooth;
   }
 
+  /* The canvas behind the page — what a rubber-band overscroll exposes. `body`
+     is black to frame the column on desktop, and without this that black is
+     what you see when you pull. */
+  html {
+    background-color: var(--color-jumpa-white);
+  }
+
+  /* A trackpad only gets the rubber-band, never a refresh, so desktop keeps
+     the page pinned as it was. Touch gets the native pull-to-refresh. */
   html,
   body {
     overscroll-behavior-y: none;
+  }
+
+  @media (pointer: coarse) {
+    html,
+    body {
+      overscroll-behavior-y: auto;
+    }
   }
 
   /* Tailwind v4's preflight leaves buttons on the browser default `cursor: default`.

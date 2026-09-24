@@ -112,6 +112,9 @@ export function WalletHeader({ initialHasUnread = false }: { initialHasUnread?: 
             alt=""
             width={50}
             height={50}
+            // The optimiser returns nothing for this file, so the glyph never
+            // painted. It is a 762-byte 50px mark — there is nothing to gain.
+            unoptimized
             className="mt-[3px] mr-0.5 size-5.5"
           />
           <span className="absolute -top-px -right-0.5 rounded-pill bg-jumpa-danger-100 px-[3px] text-[6px] leading-[10px] font-bold tracking-wide text-jumpa-danger">

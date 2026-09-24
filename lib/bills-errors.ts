@@ -18,7 +18,7 @@ const SAFE = "Nothing has left your wallet.";
 const BUCKETS: {
   match: RegExp;
   title?: (k: BillKind) => string;
-  message: (k: BillKind) => string;
+  message: (k: BillKind, text: string) => string;
   retry: boolean;
 }[] = [
   {
@@ -81,10 +81,28 @@ const BUCKETS: {
     retry: false,
   },
   {
+    // The wallet's PIN lockout and the route's own rate limiter. Both compute
+    // the wait themselves, which is the part worth keeping verbatim.
+    match:
+      /too many (failed )?(attempts|requests)|temporarily locked|locked for/i,
+    title: () => "Too many attempts",
+    message: (_k, text) => `${text.trim()} ${SAFE}`,
+    retry: false,
+  },
+  {
     match: /unauthor|session|sign ?in|not logged/i,
     title: () => "Session expired",
     message: () => `Please sign in again. ${SAFE}`,
     retry: false,
+  },
+  {
+    // The routes' own catch-all. On its own it tells the user nothing, so it
+    // gets the standard reassurance rather than reaching them bare.
+    match:
+      /failed to process|purchase failed|transaction failed|could not complete/i,
+    message: (k) =>
+      `We couldn't complete your ${NOUN[k]}. ${SAFE} Please try again in a moment.`,
+    retry: true,
   },
   {
     match: /naira account|create a naira/i,
@@ -116,7 +134,7 @@ export function friendlyBillError(raw: unknown, kind: BillKind): Friendly {
     if (b.match.test(text)) {
       return {
         title: b.title?.(kind) ?? TITLE[kind],
-        message: b.message(kind),
+        message: b.message(kind, text),
         retry: b.retry,
       };
     }

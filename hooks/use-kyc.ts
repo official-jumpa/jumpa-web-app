@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRefreshSignal } from "@/lib/refresh";
 
 const KYC_CACHE_KEY = "jumpa_kyc_completed";
 
@@ -88,6 +89,9 @@ export function useKyc(initialKycComplete?: boolean): UseKycResult {
   useEffect(() => {
     fetchKycStatus();
   }, [fetchKycStatus]);
+
+  // A pull-to-refresh re-runs the server tree, which this hook never sees.
+  useRefreshSignal(fetchKycStatus);
 
   return {
     isKycComplete,

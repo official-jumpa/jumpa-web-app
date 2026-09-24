@@ -155,7 +155,9 @@ export function MobileDataView() {
         title={`Data purchase of ${network?.label} to ${phone} was successful`}
         titleFirst
         actionsFirst
-        amount={`₦${plan.price}`}
+        // `plan.price` already carries the sign from `billsFunctions`; a second
+        // one here rendered "₦₦1,500".
+        amount={plan.price}
         ctaLabel="Back to home"
         actions={
           <>

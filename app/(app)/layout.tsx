@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toast";
 import { AuthGuard, useAuthContext } from "@/components/auth/AuthGuard";
 import { UserProfileProvider } from "@/components/profile/user-profile-provider";
 import { BottomNav } from "@/components/home/bottom-nav";
+import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 
 import { cookies } from "next/headers";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
@@ -55,6 +56,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </UserProfileProvider>
           {/* One stack for the whole signed-in app; every flow raises into it. */}
           <Toaster />
+          <PullToRefresh />
         </AutoLockProvider>
       </AuthGuard>
     </AppColumn>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRefreshSignal } from "@/lib/refresh";
 
 const CACHE_KEY = "jumpa_last_balance";
 
@@ -23,40 +24,37 @@ export function useWalletBalance() {
   const [usdc, setUsdc] = useState(0);
   const [ready, setReady] = useState(false);
 
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch("/api/wallet/balance");
+      if (!res.ok) return;
+      const data = await res.json();
+      const total = Number.parseFloat(data.totalUsd) || 0;
+      const held = (data.tokens ?? [])
+        .filter((t: { symbol?: string }) => t.symbol?.toUpperCase() === "USDC")
+        .reduce(
+          (sum: number, t: { balance?: string }) =>
+            sum + (Number.parseFloat(t.balance ?? "") || 0),
+          0,
+        );
+      const resolved = Math.max(total, held);
+      setUsdc(resolved);
+      setReady(true);
+      try {
+        localStorage.setItem(CACHE_KEY, resolved.toFixed(2));
+      } catch {}
+    } catch (err) {
+      console.error("[wallet balance]", err);
+    }
+  }, []);
+
   useEffect(() => {
     setUsdc(read());
+    load();
+  }, [load]);
 
-    let live = true;
-    (async () => {
-      try {
-        const res = await fetch("/api/wallet/balance");
-        if (!res.ok || !live) return;
-        const data = await res.json();
-        const total = Number.parseFloat(data.totalUsd) || 0;
-        const held = (data.tokens ?? [])
-          .filter(
-            (t: { symbol?: string }) => t.symbol?.toUpperCase() === "USDC",
-          )
-          .reduce(
-            (sum: number, t: { balance?: string }) =>
-              sum + (Number.parseFloat(t.balance ?? "") || 0),
-            0,
-          );
-        const resolved = Math.max(total, held);
-        setUsdc(resolved);
-        setReady(true);
-        try {
-          localStorage.setItem(CACHE_KEY, resolved.toFixed(2));
-        } catch {}
-      } catch (err) {
-        console.error("[wallet balance]", err);
-      }
-    })();
-
-    return () => {
-      live = false;
-    };
-  }, []);
+  // A pull-to-refresh re-runs the server tree, which this hook never sees.
+  useRefreshSignal(load);
 
   return {
     usdc,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRefreshSignal } from "@/lib/refresh";
 
 const NGN_CACHE_KEY = "jumpa_ngn_account_cache";
 
@@ -124,6 +125,9 @@ export function useNgnAccount(initialHasAccount?: boolean): UseNgnAccountResult 
   useEffect(() => {
     fetchNgnAccount();
   }, [fetchNgnAccount]);
+
+  // A pull-to-refresh re-runs the server tree, which this hook never sees.
+  useRefreshSignal(fetchNgnAccount);
 
   return {
     hasNgnAccount,

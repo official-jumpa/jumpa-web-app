@@ -78,6 +78,22 @@ const RESOLVED_NAMES = [
 ];
 
 /**
+ * Bank rails return the account holder shouting ("FAVOURITE CHIDIMMA GODWIN").
+ * Only rewrite when there is no lowercase at all, so a rail that already cases
+ * its names properly is left alone. Splits on the separators that appear inside
+ * a name, so "ABDUL-AZEEZ" and "O'NEILL" keep their internal capitals.
+ */
+export function titleCaseName(name: string): string {
+  if (/[a-z]/.test(name)) return name;
+  return name
+    .toLowerCase()
+    .replace(
+      /(^|[\s\-'.])([a-z])/g,
+      (_, sep, letter) => sep + letter.toUpperCase(),
+    );
+}
+
+/**
  * Stands in for the bank's name-enquiry call: given an account number and a
  * bank, the rails return the account holder. Deterministic so a given number
  * always resolves to the same name; replace with the real lookup.

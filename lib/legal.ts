@@ -80,6 +80,24 @@ export function legalHref(doc?: LegalDoc): string {
   return doc ? LEGAL_PATHS[doc] : "/legal";
 }
 
+/** Tab order on the document switcher, and the order of the `/legal` index. */
+export const LEGAL_ORDER: readonly LegalDoc[] = ["terms", "privacy"];
+
+export function otherLegalDoc(doc: LegalDoc): LegalDoc {
+  return doc === "terms" ? "privacy" : "terms";
+}
+
+/**
+ * Stable anchor for a section, so a clause can be linked or cited directly.
+ * Headings are unique within a document, which is what keeps these unique.
+ */
+export function sectionSlug(heading: string): string {
+  return heading
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 const TERMS: LegalDocument = {
   title: "Terms and Conditions",
   short: "Terms and Conditions",

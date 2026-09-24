@@ -28,6 +28,7 @@ import {
   type Country,
   ROUTING_NUMBER_LENGTH,
   resolveAccountName,
+  titleCaseName,
 } from "@/lib/transfer";
 import {
   checkLength,
@@ -305,7 +306,7 @@ export function BankTransferForm({
             if (res.ok && data.success && data.accountName) {
               onChange({
                 ...latest.current,
-                name: data.accountName,
+                name: titleCaseName(data.accountName),
                 isInternal: Boolean(data.isInternal),
               });
               setErrors((prev) => {
@@ -324,7 +325,7 @@ export function BankTransferForm({
         } else {
           // Mobile money fallback
           const name = await resolveAccountName(holder, reference);
-          if (live) onChange({ ...latest.current, name });
+          if (live) onChange({ ...latest.current, name: titleCaseName(name) });
         }
       } catch {
         if (live) {

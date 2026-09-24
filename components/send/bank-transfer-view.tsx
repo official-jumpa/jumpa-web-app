@@ -19,7 +19,7 @@ import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { getAssetLogo } from "@/lib/assets";
-import { COUNTRIES } from "@/lib/transfer";
+import { COUNTRIES, titleCaseName } from "@/lib/transfer";
 import { calculateFossaPayWithdrawalFee } from "@/lib/ngn-account";
 import { invalidateClientBalances } from "@/lib/client-events";
 
@@ -423,10 +423,19 @@ export function BankTransferView({
       <TransferSuccess
         back="/home"
         title={isPending ? "Transfer Submitted" : "Payment Successful"}
+        // Lead with the figure the user actually typed; the conversion goes on
+        // its own line, so neither has to share the 54px heading.
         amount={
-          isFiatWithdrawal
+          isFiatWithdrawal || currencyMode === "fiat"
             ? `₦${rawTypedNumber.toLocaleString()}`
-            : `${numCryptoAmount} ${selectedAsset} (≈ ₦${targetFiatAmount.toLocaleString()})`
+            : `${numCryptoAmount} ${selectedAsset}`
+        }
+        subAmount={
+          isFiatWithdrawal
+            ? undefined
+            : currencyMode === "fiat"
+              ? `≈ ${numCryptoAmount} ${selectedAsset}`
+              : `≈ ₦${targetFiatAmount.toLocaleString()}`
         }
         note={
           isPending ? (
@@ -596,7 +605,7 @@ export function BankTransferView({
             country: account.country || "Nigeria",
             account: account.number,
             bank: account.bank,
-            name: account.name,
+            name: titleCaseName(account.name),
           })
         }
         onContinue={() => setStage("amount")}

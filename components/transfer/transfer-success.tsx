@@ -3,12 +3,11 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { Button } from "@/components/ui/button";
 import { ShareArrowIcon } from "@/components/ui/icons/share-arrow";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
-import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 
 const ACTION =
@@ -22,6 +21,7 @@ const ACTION =
 export function TransferSuccess({
   back,
   amount,
+  subAmount,
   title = "Payment Successful",
   note,
   details,
@@ -36,6 +36,8 @@ export function TransferSuccess({
 }: {
   back: string;
   amount: string;
+  /** The other side of a conversion, when a flow has one. */
+  subAmount?: string;
   title?: string;
   note?: ReactNode;
   /** Receipt rows revealed by "More details". */
@@ -53,12 +55,6 @@ export function TransferSuccess({
 }) {
   const router = useRouter();
   const [showDetails, setShowDetails] = useState(false);
-
-  // Every completed transaction in the app ends on this screen, so it is the one
-  // place the success toast has to fire from.
-  useEffect(() => {
-    toast.success(title, amount);
-  }, [title, amount]);
 
   const heading = (
     <p
@@ -82,6 +78,12 @@ export function TransferSuccess({
       {title}
     </p>
   );
+
+  const converted = subAmount ? (
+    <p className="text-base leading-5 font-medium text-jumpa-neutral-425">
+      {subAmount}
+    </p>
+  ) : null;
 
   const slot = showDetails && details ? details : null;
 
@@ -147,6 +149,7 @@ export function TransferSuccess({
         >
           {titleFirst ? caption : heading}
           {titleFirst ? heading : caption}
+          {converted}
           {note ? (
             <div
               className={

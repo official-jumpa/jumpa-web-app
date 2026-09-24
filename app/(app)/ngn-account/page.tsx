@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { NgnAccountDetails } from "@/components/ngn/ngn-account-details";
 import { NgnAccountView } from "@/components/ngn/ngn-account-view";
-
-import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
-import { getUserNgnAccountDetails } from "@/lib/functions/ngnFunctions";
+import { isUserKycVerified } from "@/lib/functions/kycFunctions";
 import {
-  queryUserTransactions,
+  getUserNgnAccountDetails,
+  hasActiveNgnAccount,
+} from "@/lib/functions/ngnFunctions";
+import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
+import {
   formatDbTransaction,
+  queryUserTransactions,
 } from "@/lib/functions/transactionFunctions";
 
 interface NgnAccountPageProps {
@@ -62,6 +65,18 @@ export default async function NgnAccountPage({
   }
 
   if (view) notFound();
+
+  const session = await getCachedAuthSession();
+  if (session?.user?.id) {
+    const hasAccount = await hasActiveNgnAccount(session.user.id);
+    if (hasAccount) {
+      redirect("/ngn-account?view=details");
+    }
+    const isKycDone = await isUserKycVerified(session.user.id);
+    if (!isKycDone) {
+      redirect("/kyc");
+    }
+  }
 
   return <NgnAccountView />;
 }

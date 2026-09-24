@@ -148,7 +148,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const authResult = await requireAuth({
-      rateLimit: { tier: "critical", action: "wallet_setup" },
+      rateLimit: { tier: "high", action: "wallet_setup" },
     });
     if (!authResult.ok) return authResult.response;
     const session = authResult.session;

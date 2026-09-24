@@ -15,7 +15,7 @@ import { unifyTokens } from "@/lib/assets";
 import { ACCOUNT, ASSETS, type Asset, type Transaction } from "@/lib/wallet";
 
 // In-memory cache for instant zero-flicker tab returns
-let homeMemoryCache: {
+const homeMemoryCache: {
   balance?: string;
   assets?: Asset[];
   transactions?: Transaction[];
@@ -85,7 +85,8 @@ export function HomeView({
     if (initialBalance) homeMemoryCache.balance = initialBalance;
     if (initialAssets) homeMemoryCache.assets = initialAssets;
     if (initialTransactions) homeMemoryCache.transactions = initialTransactions;
-    if (initialKycComplete !== undefined) homeMemoryCache.kycComplete = initialKycComplete;
+    if (initialKycComplete !== undefined)
+      homeMemoryCache.kycComplete = initialKycComplete;
   }, [initialBalance, initialAssets, initialTransactions, initialKycComplete]);
 
   // Optional background revalidation if server props were not available
@@ -187,9 +188,7 @@ export function HomeView({
         <RiseIn index={0}>
           <AssetList assets={assets} visible={balanceVisible} />
         </RiseIn>
-        <RiseIn index={1}>
-          {kycComplete ? <AdBanner /> : <KycCard />}
-        </RiseIn>
+        <RiseIn index={1}>{kycComplete ? <AdBanner /> : <KycCard />}</RiseIn>
         <RiseIn index={2}>
           <QuickActions />
         </RiseIn>
@@ -197,6 +196,7 @@ export function HomeView({
           <FiatAccounts
             initialHasNgnAccount={initialHasNgnAccount}
             initialNgnBalance={initialNgnBalance}
+            initialKycComplete={kycComplete}
           />
         </RiseIn>
         <RiseIn index={4}>

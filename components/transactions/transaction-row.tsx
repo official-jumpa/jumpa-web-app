@@ -10,7 +10,7 @@ import { WifiIcon } from "@/components/ui/icons/wifi";
 import { getAssetLogo } from "@/lib/assets";
 import { getCarrierLogo } from "@/lib/bills";
 import { cn } from "@/lib/cn";
-import type { Transaction, TransactionKind } from "@/lib/wallet";
+import { formatTxDate, type Transaction, type TransactionKind } from "@/lib/wallet";
 
 const STATUS_LABEL = {
   completed: "Completed",
@@ -47,13 +47,16 @@ export function TransactionRow({
   /** The chain mark on the tile. Off on a fiat-only screen, where no token is involved. */
   badge?: boolean;
 }) {
-  const { id, kind, chain, title, detail, amount, status, carrier } = transaction;
+  const { id, kind, chain, title, detail, amount, status, carrier, createdAt } =
+    transaction;
   const { Icon, spin } = GLYPH[kind] ?? GLYPH.send;
+
+  const displayDate = createdAt ? formatTxDate(createdAt) : detail || "";
 
   // Resolve carrier network logo for airtime / data
   const isBill = kind === "airtime" || kind === "data";
   const networkLogo = isBill
-    ? getCarrierLogo(carrier || title || detail)
+    ? getCarrierLogo(carrier || title || displayDate)
     : null;
 
   const body = (
@@ -88,8 +91,11 @@ export function TransactionRow({
           <span className="truncate text-sm leading-4 font-semibold text-jumpa-black">
             {title}
           </span>
-          <span className="truncate text-xs leading-3.5 font-medium text-jumpa-neutral-700">
-            {detail}
+          <span
+            suppressHydrationWarning
+            className="truncate text-xs leading-3.5 font-medium text-jumpa-neutral-700"
+          >
+            {displayDate}
           </span>
         </span>
       </div>

@@ -10,7 +10,7 @@ import { FilterLinesIcon } from "@/components/ui/icons/filter-lines";
 import { SearchAltIcon } from "@/components/ui/icons/search-alt";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import type { TransactionFilter } from "@/lib/cards";
-import type { Transaction } from "@/lib/wallet";
+import { formatTxDate, type Transaction } from "@/lib/wallet";
 
 type Sheet = "menu" | "filters" | null;
 
@@ -131,9 +131,12 @@ export function TransactionsView({
   const visible = transactions.filter((transaction) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
+    const dateStr = transaction.createdAt
+      ? formatTxDate(transaction.createdAt).toLowerCase()
+      : (transaction.detail || "").toLowerCase();
     return (
       transaction.title.toLowerCase().includes(q) ||
-      transaction.detail.toLowerCase().includes(q) ||
+      dateStr.includes(q) ||
       transaction.amount.toLowerCase().includes(q) ||
       (transaction.chain && transaction.chain.toLowerCase().includes(q))
     );

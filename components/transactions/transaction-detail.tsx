@@ -10,7 +10,7 @@ import { getAssetLogo } from "@/lib/assets";
 import { getCarrierLogo } from "@/lib/bills";
 import { cn } from "@/lib/cn";
 import type { Receipt } from "@/lib/receipt";
-import type { Transaction } from "@/lib/wallet";
+import { formatTxTimestamp, type Transaction } from "@/lib/wallet";
 
 const STATUS_LABEL = {
   completed: "Completed",
@@ -20,12 +20,15 @@ const STATUS_LABEL = {
 
 /** The detail screen already holds everything the receipt prints. */
 function toReceipt(transaction: Transaction): Receipt {
+  const timestamp = transaction.createdAt
+    ? formatTxTimestamp(transaction.createdAt)
+    : transaction.timestamp || "";
   return {
     reference: transaction.id,
     title: transaction.heading || transaction.title,
     amount: transaction.headline || transaction.amount,
     status: STATUS_LABEL[transaction.status],
-    timestamp: transaction.timestamp || "",
+    timestamp,
     // `copy` holds the full hash or reference where the row shows a short one.
     rows: (transaction.rows ?? []).map((row) => ({
       label: row.label,
@@ -64,6 +67,10 @@ export function TransactionDetail({ id }: { id: string }) {
     ? getCarrierLogo(transaction?.carrier || transaction?.title || transaction?.heading)
     : null;
 
+  const displayTimestamp = transaction?.createdAt
+    ? formatTxTimestamp(transaction.createdAt)
+    : transaction?.timestamp || "";
+
   return (
     <div className="flex flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-10">
       <ScreenHeader back="/transactions" title="Transactions" round />
@@ -96,7 +103,9 @@ export function TransactionDetail({ id }: { id: string }) {
                 <p className="text-base leading-5 font-medium">
                   {transaction.heading}
                 </p>
-                <p className="text-xs leading-4.5">{transaction.timestamp}</p>
+                <p suppressHydrationWarning className="text-xs leading-4.5">
+                  {displayTimestamp}
+                </p>
               </div>
             </div>
 

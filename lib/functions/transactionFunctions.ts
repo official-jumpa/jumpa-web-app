@@ -180,41 +180,6 @@ function formatDecimal(val: string | number, maxDecimals = 4): string {
   });
 }
 
-function formatTxDate(dateVal?: Date | string): string {
-  if (!dateVal) return "";
-  const date = new Date(dateVal);
-  if (isNaN(date.getTime())) return "";
-
-  const now = new Date();
-  const isToday =
-    date.getDate() === now.getDate() &&
-    date.getMonth() === now.getMonth() &&
-    date.getFullYear() === now.getFullYear();
-
-  const timeStr = date.toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-
-  if (isToday) return `Today, ${timeStr}`;
-
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const isYesterday =
-    date.getDate() === yesterday.getDate() &&
-    date.getMonth() === yesterday.getMonth() &&
-    date.getFullYear() === yesterday.getFullYear();
-
-  if (isYesterday) return `Yesterday, ${timeStr}`;
-
-  const monthStr = date.toLocaleDateString([], {
-    month: "short",
-    day: "numeric",
-  });
-  return `${monthStr}, ${timeStr}`;
-}
-
 export function formatDbTransaction(tx: any) {
   const typeUpper = (tx.type || "").toUpperCase();
   const token = (tx.token || "").toUpperCase();
@@ -281,7 +246,9 @@ export function formatDbTransaction(tx: any) {
     }
   }
 
-  const detail = tx.detail || formatTxDate(tx.createdAt || tx.executedAt);
+  const createdAtMs = new Date(
+    tx.createdAt || tx.executedAt || Date.now(),
+  ).getTime();
 
   let rawAmount = String(tx.amount || "").trim();
   let sign = "";
@@ -327,7 +294,7 @@ export function formatDbTransaction(tx: any) {
     id: tx._id,
     kind,
     title,
-    detail,
+    createdAt: createdAtMs,
     amount,
     status,
     chain: tx.chain,
@@ -337,7 +304,6 @@ export function formatDbTransaction(tx: any) {
       tx.swapDetails?.fromToken || tokenPart
     }`.trim(),
     heading: `${SUBJECT[kind] ?? "Transaction"} ${OUTCOME[status]}`,
-    timestamp: formatTxTimestamp(tx.executedAt || tx.createdAt),
     rows: detailRows(tx, status),
   };
 }
@@ -360,23 +326,6 @@ const OUTCOME = {
   failed: "failed",
 } as const;
 
-/** "May 26, 2026 |  02:34pm", the form the detail screen draws. */
-function formatTxTimestamp(dateVal?: Date | string): string {
-  if (!dateVal) return "";
-  const date = new Date(dateVal);
-  if (isNaN(date.getTime())) return "";
-
-  const day = date.toLocaleDateString([], {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-  const time = date
-    .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true })
-    .replace(/\s?([AP])M/i, (_m, half) => `${half.toLowerCase()}m`);
-
-  return `${day} |  ${time}`;
-}
 
 /** Only rows the record can actually answer — an empty value is left out. */
 function detailRows(tx: any, status: string): TransactionDetailRow[] {

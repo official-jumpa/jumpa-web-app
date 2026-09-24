@@ -123,8 +123,10 @@ export type Transaction = {
   id: string;
   kind: TransactionKind;
   title: string;
+  /** Exact epoch milliseconds timestamp. */
+  createdAt: number;
   /** Counterparty and time, pre-joined: "To 0x82...4F2A • Today, 2:34 PM". */
-  detail: string;
+  detail?: string;
   amount: string;
   status: TransactionStatus;
   /** Network badge on the tile; omit for none. */
@@ -143,6 +145,66 @@ export type Transaction = {
   /** The rows under "Transaction details". */
   rows?: TransactionDetailRow[];
 };
+
+/**
+ * Formats a millisecond timestamp into a human relative date string in the local browser timezone:
+ * "Today, 4:05 pm", "Yesterday, 4:05 pm", or "Sep 24, 4:05 pm".
+ */
+export function formatTxDate(msVal?: number | Date | string): string {
+  if (!msVal) return "";
+  const date = new Date(msVal);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const now = new Date();
+  const isToday =
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear();
+
+  const timeStr = date.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  if (isToday) return `Today, ${timeStr}`;
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday =
+    date.getDate() === yesterday.getDate() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getFullYear() === yesterday.getFullYear();
+
+  if (isYesterday) return `Yesterday, ${timeStr}`;
+
+  const monthStr = date.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+  });
+  return `${monthStr}, ${timeStr}`;
+}
+
+/**
+ * Formats a millisecond timestamp into the formal receipt/detail string in the local browser timezone:
+ * "September 24, 2026 |  04:05pm".
+ */
+export function formatTxTimestamp(msVal?: number | Date | string): string {
+  if (!msVal) return "";
+  const date = new Date(msVal);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const day = date.toLocaleDateString([], {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  const time = date
+    .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true })
+    .replace(/\s?([AP])M/i, (_m, half) => `${half.toLowerCase()}m`);
+
+  return `${day} |  ${time}`;
+}
 
 export const TRANSACTIONS: Transaction[] = [];
 

@@ -66,7 +66,7 @@ export function Select({
         aria-label={label}
         aria-invalid={invalid}
         className={cn(
-          invalid && "ring-1 ring-jumpa-danger",
+          invalid && "ring-1 ring-jumpa-warning",
           "tap flex shrink-0 items-center outline-none active:scale-[0.98] data-[state=open]:ring-1 data-[state=open]:ring-jumpa-primary-600",
           TRIGGER[variant],
           className,

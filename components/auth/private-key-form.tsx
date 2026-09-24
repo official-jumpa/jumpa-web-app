@@ -261,7 +261,7 @@ export function PrivateKeyForm({ nextHref }: { nextHref: string }) {
         </label>
 
         {error && (
-          <p className="mt-2 text-xs text-jumpa-danger px-1">{error}</p>
+          <p className="mt-2 text-xs text-jumpa-warning px-1">{error}</p>
         )}
 
         <p className="mt-4.25 flex gap-2 text-jumpa-warning">

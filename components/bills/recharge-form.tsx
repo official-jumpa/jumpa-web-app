@@ -97,7 +97,7 @@ export function RechargeForm({
           <FieldLabel>Phone Number</FieldLabel>
           <span
             className={`flex h-13 items-center rounded-pill border bg-jumpa-primary-50 px-4.5 ${
-              errors.phone ? "border-jumpa-danger" : "border-jumpa-primary-600"
+              errors.phone ? "border-jumpa-warning" : "border-jumpa-primary-600"
             }`}
           >
             <input
@@ -172,7 +172,7 @@ export function RechargeForm({
         </div>
 
         {errors.account && (
-          <div className="flex items-center justify-between gap-3 rounded-tile border border-jumpa-danger/30 bg-jumpa-danger/10 px-4 py-3 text-xs leading-4 font-medium text-jumpa-danger">
+          <div className="flex items-center justify-between gap-3 rounded-tile border border-jumpa-warning/30 bg-jumpa-warning/10 px-4 py-3 text-xs leading-4 font-medium text-jumpa-warning">
             <span>{errors.account}</span>
             <Link
               href="/ngn-account"

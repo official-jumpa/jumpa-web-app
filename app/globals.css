@@ -108,11 +108,15 @@
   --color-jumpa-grey-200: #d9dfe8; /* email field border */
   --color-jumpa-grey-450: #838b9e; /* email field placeholder in the footer */
 
+  /* Red is reserved for the irreversible: deleting an account, revoking a
+     session, exposing a secret, a failed transaction. Anything the user can
+     simply correct and retry is `warning`. */
   --color-jumpa-danger: #ff0004; /* self-custody warnings */
-  --color-jumpa-danger-50: #fff0f0; /* error notice inside a card */
+  --color-jumpa-danger-50: #fff0f0; /* notice ground inside a card */
   --color-jumpa-danger-100: #ffd7d8; /* HELP badge on the home support control */
-  --color-jumpa-danger-400: #ff383c; /* amount above the spendable balance */
-  --color-jumpa-warning: #e69200; /* PIN-vs-password note on the import screens */
+  --color-jumpa-danger-400: #ff383c; /* was the over-balance amount, now unused */
+  --color-jumpa-warning: #e69200; /* validation, retryable errors, warnings */
+  --color-jumpa-warning-50: #fff5e6; /* warning ground: toasts, sheets, notices */
   --color-jumpa-success: #11a929; /* positive 24h change on an asset card */
   --color-jumpa-pin-rule: #193d26; /* slot underline in the chat PIN sheet */
 

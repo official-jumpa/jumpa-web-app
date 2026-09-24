@@ -7,7 +7,7 @@ const SHELL =
 
 /** `cn` is a plain join, so the border colour has to be chosen, not layered. */
 export function savingsShell(invalid?: boolean): string {
-  return `${SHELL} ${invalid ? "border-jumpa-danger" : "border-jumpa-grey-100"}`;
+  return `${SHELL} ${invalid ? "border-jumpa-warning" : "border-jumpa-grey-100"}`;
 }
 
 export const SAVINGS_INPUT =

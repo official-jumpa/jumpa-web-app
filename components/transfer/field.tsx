@@ -21,7 +21,7 @@ const SHELL_BASE =
 
 /** `cn` is a plain join, so the border colour has to be chosen, not layered. */
 export function fieldShell(invalid?: boolean): string {
-  return `${SHELL_BASE} ${invalid ? "border-jumpa-danger" : "border-jumpa-grey-100"}`;
+  return `${SHELL_BASE} ${invalid ? "border-jumpa-warning" : "border-jumpa-grey-100"}`;
 }
 
 const SHELL = fieldShell();

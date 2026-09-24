@@ -161,7 +161,7 @@ export function NgnConfirm({
       </div>
 
       {serverError ? (
-        <div className="rounded-2xl border border-jumpa-danger/20 bg-jumpa-danger/10 p-4 text-xs font-medium text-jumpa-danger">
+        <div className="rounded-2xl border border-jumpa-warning/20 bg-jumpa-warning/10 p-4 text-xs font-medium text-jumpa-warning">
           {serverError}
         </div>
       ) : null}
@@ -336,7 +336,7 @@ export function NgnConfirm({
       </div>
 
       {fieldErrors.kyc && (
-        <div className="flex items-center justify-between gap-3 rounded-tile border border-jumpa-danger/30 bg-jumpa-danger/10 px-4 py-3 text-xs leading-4 font-medium text-jumpa-danger">
+        <div className="flex items-center justify-between gap-3 rounded-tile border border-jumpa-warning/30 bg-jumpa-warning/10 px-4 py-3 text-xs leading-4 font-medium text-jumpa-warning">
           <span>{fieldErrors.kyc}</span>
           <Link
             href="/kyc"

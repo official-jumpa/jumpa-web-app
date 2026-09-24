@@ -147,7 +147,7 @@ export function AutoLockModal({ onUnlock }: AutoLockModalProps) {
         </div>
 
         {error ? (
-          <p className="text-center text-xs font-semibold text-jumpa-danger animate-in shake">
+          <p className="text-center text-xs font-semibold text-jumpa-warning animate-in shake">
             {error}
           </p>
         ) : submitting ? (

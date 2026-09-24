@@ -14,7 +14,7 @@ const TRIGGERS = {
   /** Statement form: borderless grey pill with a leading glyph. */
   statement:
     "h-12 rounded-pill bg-jumpa-neutral-50 pr-5.25 pl-6 text-xs " +
-    "aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-jumpa-danger",
+    "aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-jumpa-warning",
   /** Account forms: the same lavender pill as the text fields beside it. */
   account: "h-12 rounded-pill border bg-jumpa-primary-50 px-4 text-sm",
 } as const;
@@ -146,7 +146,7 @@ export function DateField({
           TRIGGER,
           TRIGGERS[variant],
           !statement &&
-            (invalid ? "border-jumpa-danger" : RESTING_BORDER[variant]),
+            (invalid ? "border-jumpa-warning" : RESTING_BORDER[variant]),
           value ? FILLED[variant] : PLACEHOLDER[variant],
           className,
         )}

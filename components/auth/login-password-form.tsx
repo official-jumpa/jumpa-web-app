@@ -121,7 +121,7 @@ export function LoginPasswordForm({
         />
 
         {error ? (
-          <p className="text-center text-xs text-jumpa-danger">{error}</p>
+          <p className="text-center text-xs text-jumpa-warning">{error}</p>
         ) : null}
       </div>
 

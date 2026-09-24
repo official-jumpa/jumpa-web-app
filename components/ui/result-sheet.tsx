@@ -35,7 +35,7 @@ export function ResultSheet({
 
   return (
     <SheetPortal onClose={onClose} className="px-6 pb-7.5">
-      <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-jumpa-danger-50 text-jumpa-danger">
+      <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-jumpa-warning-50 text-jumpa-warning">
         <TriangleWarningIcon className="size-8" />
       </span>
 

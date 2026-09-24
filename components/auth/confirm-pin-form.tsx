@@ -124,7 +124,7 @@ export function ConfirmPinForm({
         />
 
         {error && (
-          <p className="text-center text-xs text-jumpa-danger">{error}</p>
+          <p className="text-center text-xs text-jumpa-warning">{error}</p>
         )}
 
         {creating && (

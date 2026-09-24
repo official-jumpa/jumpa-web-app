@@ -72,7 +72,7 @@ export function Combobox({
     <div ref={box} className={cn("relative", className)}>
       <span
         className={`flex h-11.5 items-center gap-2 rounded-surface border bg-jumpa-white px-3 ${
-          invalid ? "border-jumpa-danger" : "border-jumpa-grey-100"
+          invalid ? "border-jumpa-warning" : "border-jumpa-grey-100"
         }`}
       >
         <SearchAltIcon

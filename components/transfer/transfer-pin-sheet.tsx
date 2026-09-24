@@ -92,7 +92,7 @@ export function TransferPinSheet({
     >
       <h2
         className={`text-center text-base leading-4.5 font-semibold ${
-          error && !pending ? "text-jumpa-danger" : "text-jumpa-black"
+          error && !pending ? "text-jumpa-warning" : "text-jumpa-black"
         }`}
       >
         {title}

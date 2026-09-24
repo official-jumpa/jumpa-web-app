@@ -125,7 +125,7 @@ export function PhraseImport({ nextHref }: { nextHref: string }) {
         </WordGrid>
 
         {error && (
-          <p className="text-center text-xs text-jumpa-danger px-2">{error}</p>
+          <p className="text-center text-xs text-jumpa-warning px-2">{error}</p>
         )}
 
         <div className="flex w-full gap-2">

@@ -75,7 +75,7 @@ export function PinStep({
         />
 
         {error ? (
-          <p role="alert" className="text-center text-xs text-jumpa-danger">
+          <p role="alert" className="text-center text-xs text-jumpa-warning">
             {error}
           </p>
         ) : null}

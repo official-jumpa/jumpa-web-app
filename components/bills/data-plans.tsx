@@ -186,7 +186,7 @@ export function DataPlans({
           </div>
         ) : fetchError ? (
           <div className="mt-4.5 flex min-h-48 flex-1 flex-col items-center justify-center rounded-surface bg-jumpa-white p-6 text-center">
-            <p className="max-w-xs text-xs font-medium text-jumpa-danger">
+            <p className="max-w-xs text-xs font-medium text-jumpa-warning">
               {fetchError}
             </p>
             <button

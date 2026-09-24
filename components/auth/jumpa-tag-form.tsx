@@ -193,7 +193,7 @@ export function JumpaTagForm({ nextHref }: { nextHref: string }) {
             </p>
 
             {claimError && (
-              <p className="text-center text-xs text-jumpa-danger">
+              <p className="text-center text-xs text-jumpa-warning">
                 {claimError}
               </p>
             )}

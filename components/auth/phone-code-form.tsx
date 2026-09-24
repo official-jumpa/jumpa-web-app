@@ -229,7 +229,7 @@ export function PhoneCodeForm({
             className={`text-center text-xs ${
               error.includes("sent")
                 ? "text-jumpa-primary-600"
-                : "text-jumpa-danger"
+                : "text-jumpa-warning"
             }`}
           >
             {error}

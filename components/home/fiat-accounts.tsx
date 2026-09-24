@@ -3,10 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
 import { UserAlt1Icon } from "@/components/ui/icons/user-alt-1";
+import { SheetPortal } from "@/components/ui/sheet-portal";
 import { useKyc } from "@/hooks/use-kyc";
 import { onNgnRefresh, onBalanceRefresh } from "@/lib/client-events";
 import { cn } from "@/lib/cn";
@@ -297,7 +297,9 @@ function AccountCard({
 
 function KycRequiredModal({ onClose }: { onClose: () => void }) {
   return (
-    <BottomSheet onClose={onClose} pb="pb-7.5">
+    // On `SheetPortal`, not `BottomSheet`: this is raised from inside the home
+    // column, where `RiseIn` is the containing block for anything `fixed`.
+    <SheetPortal onClose={onClose} className="px-6 pb-7.5">
       <div className="flex flex-col items-center text-center">
         <span className="flex size-16 items-center justify-center rounded-full bg-jumpa-primary-50 text-jumpa-primary-600">
           <UserAlt1Icon className="size-8" />
@@ -328,6 +330,6 @@ function KycRequiredModal({ onClose }: { onClose: () => void }) {
           Maybe Later
         </Button>
       </div>
-    </BottomSheet>
+    </SheetPortal>
   );
 }

@@ -138,7 +138,7 @@ export async function createSavingsPlanExecution(
     if (availableUsdc < numDeposit) {
       return {
         ok: false,
-        error: `Insufficient balance — you have $${availableUsdc.toFixed(2)} USDC and this deposit needs $${numDeposit.toFixed(2)}.`,
+        error: `Insufficient balance: you have $${availableUsdc.toFixed(2)} USDC and this deposit needs $${numDeposit.toFixed(2)}.`,
         status: 400,
       };
     }
@@ -350,7 +350,7 @@ export async function depositSavingsExecution(
   if (availableUsdc < amount) {
     return {
       ok: false,
-      error: `Insufficient balance — you have $${availableUsdc.toFixed(2)} USDC and this top-up needs $${amount.toFixed(2)}.`,
+      error: `Insufficient balance: you have $${availableUsdc.toFixed(2)} USDC and this top-up needs $${amount.toFixed(2)}.`,
       status: 400,
     };
   }

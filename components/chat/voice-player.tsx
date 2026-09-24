@@ -1,7 +1,11 @@
 "use client";
 
-import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { VoiceWaveform } from "@/components/chat/voice-waveform";
+import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
+import { PauseIcon } from "@/components/ui/icons/pause";
+import { PlayIcon } from "@/components/ui/icons/play";
+import { useVoiceAudio } from "@/hooks/use-voice-audio";
 
 interface VoicePlayerProps {
   url: string;
@@ -10,207 +14,101 @@ interface VoicePlayerProps {
   transcript?: string;
 }
 
-const SPEED_OPTIONS = [1, 1.5, 2];
-
+/**
+ * A voice note as it sits in the transcript. It takes the same ground and radius
+ * as a prose bubble — a voice note is a message, not a file — and draws the same
+ * waveform the composer showed while it was being recorded.
+ */
 export function VoicePlayer({
   url,
-  name = "Voice Note",
+  name = "voice note",
   align = "user",
   transcript,
 }: VoicePlayerProps) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [speedIndex, setSpeedIndex] = useState(0);
+  const audio = useVoiceAudio();
   const [showTranscript, setShowTranscript] = useState(false);
 
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const handleLoadedMetadata = () => {
-      if (audio.duration && !Number.isNaN(audio.duration) && Number.isFinite(audio.duration)) {
-        setDuration(Math.round(audio.duration));
-      }
-    };
-
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-    };
-
-    const handleEnded = () => {
-      setIsPlaying(false);
-      setCurrentTime(0);
-    };
-
-    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
-    audio.addEventListener("timeupdate", handleTimeUpdate);
-    audio.addEventListener("ended", handleEnded);
-
-    return () => {
-      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
-      audio.removeEventListener("timeupdate", handleTimeUpdate);
-      audio.removeEventListener("ended", handleEnded);
-      audio.pause();
-    };
-  }, [url]);
-
-  const togglePlay = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    if (isPlaying) {
-      audio.pause();
-      setIsPlaying(false);
-    } else {
-      audio.play().then(() => setIsPlaying(true)).catch((err) => {
-        console.warn("[VoicePlayer] Audio playback error:", err);
-      });
-    }
-  };
-
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const target = Number(e.target.value);
-    audio.currentTime = target;
-    setCurrentTime(target);
-  };
-
-  const cycleSpeed = () => {
-    const nextIndex = (speedIndex + 1) % SPEED_OPTIONS.length;
-    setSpeedIndex(nextIndex);
-    if (audioRef.current) {
-      audioRef.current.playbackRate = SPEED_OPTIONS[nextIndex];
-    }
-  };
-
-  const formatTime = (secs: number) => {
-    const safeSecs = Math.max(0, Math.floor(secs));
-    const m = Math.floor(safeSecs / 60);
-    const s = safeSecs % 60;
-    return `${m}:${s < 10 ? "0" : ""}${s}`;
-  };
-
-  const effectiveDuration = duration || 1;
-  const progressPercent = Math.min(100, (currentTime / effectiveDuration) * 100);
-
-  const isUser = align === "user";
-
   return (
-    <div className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}>
-      <div
-        className={`flex max-w-[280px] sm:max-w-[320px] items-center gap-2.5 rounded-2xl p-2.5 shadow-xs transition-all ${
-          isUser
-            ? "bg-jumpa-primary-600 text-jumpa-white"
-            : "bg-jumpa-neutral-100 text-jumpa-black"
-        }`}
-      >
-      <audio ref={audioRef} src={url} preload="metadata" />
+    <div
+      className={`flex w-full flex-col ${align === "user" ? "items-end" : "items-start"}`}
+    >
+      <div className="w-full overflow-hidden rounded-dock bg-jumpa-neutral-95">
+        <div className="flex items-center gap-2.5 p-2.5">
+          {/* biome-ignore lint/a11y/useMediaCaption: a voice note is the caption's own source */}
+          <audio ref={audio.audioRef} src={url} preload="metadata" />
 
-      {/* Play/Pause Button */}
-      <button
-        type="button"
-        onClick={togglePlay}
-        aria-label={isPlaying ? "Pause voice note" : "Play voice note"}
-        className={`tap flex size-9 shrink-0 items-center justify-center rounded-full transition-transform active:scale-95 cursor-pointer ${
-          isUser
-            ? "bg-jumpa-white text-jumpa-primary-600 shadow-xs hover:bg-jumpa-neutral-50"
-            : "bg-jumpa-primary-600 text-jumpa-white shadow-xs hover:bg-jumpa-primary-700"
-        }`}
-      >
-        {isPlaying ? (
-          <svg className="size-4 fill-current" viewBox="0 0 24 24">
-            <rect x="6" y="5" width="4" height="14" rx="1.5" />
-            <rect x="14" y="5" width="4" height="14" rx="1.5" />
-          </svg>
-        ) : (
-          <svg className="size-4 fill-current ml-0.5" viewBox="0 0 24 24">
-            <path d="M8 5.14v13.72a1 1 0 001.5.86l11-6.86a1 1 0 000-1.72l-11-6.86a1 1 0 00-1.5.86z" />
-          </svg>
-        )}
-      </button>
-
-      {/* Scrubber & Duration */}
-      <div className="flex flex-1 flex-col gap-1 min-w-0">
-        <div className="relative flex items-center h-2.5 w-full">
-          <input
-            type="range"
-            min={0}
-            max={effectiveDuration}
-            step={0.1}
-            value={currentTime}
-            onChange={handleSeek}
-            aria-label="Seek voice note playback"
-            className="absolute inset-0 z-10 w-full opacity-0 cursor-pointer"
-          />
-          {/* Track */}
-          <div
-            className={`h-1.5 w-full rounded-full overflow-hidden ${
-              isUser ? "bg-jumpa-white/30" : "bg-jumpa-neutral-250"
-            }`}
+          <button
+            type="button"
+            onClick={audio.toggle}
+            aria-label={audio.isPlaying ? `Pause ${name}` : `Play ${name}`}
+            className="tap flex size-10 shrink-0 items-center justify-center rounded-full bg-jumpa-primary-600 text-jumpa-white active:scale-95"
           >
-            <div
-              className={`h-full transition-all duration-75 ${
-                isUser ? "bg-jumpa-white" : "bg-jumpa-primary-600"
-              }`}
-              style={{ width: `${progressPercent}%` }}
-            />
+            {audio.isPlaying ? (
+              <PauseIcon className="size-4.5" />
+            ) : (
+              <PlayIcon className="ml-0.5 size-4.5" />
+            )}
+          </button>
+
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div className="relative">
+              <VoiceWaveform progress={audio.progress} />
+              {/* A real range input over the bars, so the wave can be scrubbed
+                  with a keyboard and announces itself. */}
+              <input
+                type="range"
+                min={0}
+                max={audio.length}
+                step={0.1}
+                value={audio.currentTime}
+                onChange={audio.seek}
+                aria-label={`Seek ${name}`}
+                className="absolute inset-0 w-full cursor-pointer opacity-0"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] leading-3 font-medium tabular-nums text-jumpa-neutral-425">
+                {audio.elapsed} / {audio.total}
+              </span>
+              <button
+                type="button"
+                onClick={audio.cycleSpeed}
+                aria-label="Change playback speed"
+                className="tap rounded-pill bg-jumpa-white px-2 py-0.5 text-[10px] leading-3 font-semibold text-jumpa-primary-600 active:scale-95"
+              >
+                {audio.speed}x
+              </button>
+            </div>
           </div>
         </div>
 
-        <div
-          className={`flex items-center justify-between text-[11px] font-medium leading-none ${
-            isUser ? "text-jumpa-white/80" : "text-jumpa-grey-600"
-          }`}
-        >
-          <span>{formatTime(currentTime)}</span>
-          <span>{formatTime(effectiveDuration)}</span>
-        </div>
+        {transcript ? (
+          <>
+            <div className="mx-2.5 h-px bg-jumpa-neutral-90" />
+            <button
+              type="button"
+              onClick={() => setShowTranscript((open) => !open)}
+              aria-expanded={showTranscript}
+              className="tap flex w-full items-center justify-between gap-2 px-4 py-2.5 text-[11px] leading-3.5 font-medium text-jumpa-neutral-450"
+            >
+              {showTranscript ? "Hide transcript" : "View transcript"}
+              <ChevronDownIcon
+                className={`size-4 transition-transform ${showTranscript ? "rotate-180" : ""}`}
+              />
+            </button>
+            {/* Always mounted and animated on grid rows, so it opens and closes
+                on the same curve instead of snapping in and out of flow. */}
+            <div
+              className={`grid transition-[grid-template-rows,opacity] duration-300 ease-jumpa ${showTranscript ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
+            >
+              <p className="overflow-hidden px-4 text-[13px] leading-5 break-words text-jumpa-neutral-700 select-text">
+                <span className="block pb-3.5">{transcript}</span>
+              </p>
+            </div>
+          </>
+        ) : null}
       </div>
-
-      {/* Playback Speed Pill */}
-      <button
-        type="button"
-        onClick={cycleSpeed}
-        aria-label="Change playback speed"
-        className={`tap shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold transition-opacity active:scale-95 cursor-pointer ${
-          isUser
-            ? "bg-jumpa-white/20 text-jumpa-white hover:bg-jumpa-white/30"
-            : "bg-jumpa-neutral-200 text-jumpa-grey-700 hover:bg-jumpa-neutral-250"
-        }`}
-      >
-        {SPEED_OPTIONS[speedIndex]}x
-      </button>
     </div>
-
-    {/* Option B: Minimal View Transcript Toggle */}
-    {transcript && (
-      <div className={`mt-1 flex flex-col ${isUser ? "items-end" : "items-start"}`}>
-        <button
-          type="button"
-          onClick={() => setShowTranscript((prev) => !prev)}
-          className={`tap text-[11px] font-medium transition-opacity hover:opacity-100 cursor-pointer ${
-            isUser ? "text-jumpa-grey-500" : "text-jumpa-grey-600"
-          }`}
-        >
-          {showTranscript ? "Hide transcript" : "View transcript"}
-        </button>
-
-        {showTranscript && (
-          <p
-            className={`mt-1 rounded-xl px-2.5 py-1.5 text-xs font-normal leading-relaxed max-w-[280px] sm:max-w-[320px] select-text break-words ${
-              isUser
-                ? "bg-jumpa-neutral-100 text-jumpa-black"
-                : "bg-jumpa-neutral-100 text-jumpa-black"
-            }`}
-          >
-            {transcript}
-          </p>
-        )}
-      </div>
-    )}
-  </div>
   );
 }

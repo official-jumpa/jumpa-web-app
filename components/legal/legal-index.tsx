@@ -13,9 +13,10 @@ import { LEGAL_DOCUMENTS, legalHref } from "@/lib/legal";
 /** Bare `/legal`. The footer links straight to a document; this catches a trimmed URL. */
 export function LegalIndex() {
   return (
-    <div className="px-4.5 pb-12">
+    <div className="mx-auto w-full max-w-app px-4.5 pb-12 md:max-w-[760px] md:px-10">
       <SupportHeader
         back="/"
+        gutter="wide"
         action={
           <Image
             src="/logo/wordmark/purple.png"
@@ -31,7 +32,7 @@ export function LegalIndex() {
         </p>
       </SupportHeader>
 
-      <div className="mt-6">
+      <div className="mt-6 md:mt-10">
         <SettingSection label="Our policies">
           <SettingCard>
             <SettingLink

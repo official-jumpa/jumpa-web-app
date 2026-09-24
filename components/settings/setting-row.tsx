@@ -20,7 +20,7 @@ function Body({
   brand?: boolean;
   danger?: boolean;
 }) {
-  const accent = danger ? "text-jumpa-danger" : "text-jumpa-primary-600";
+  const accent = danger ? "text-jumpa-warning" : "text-jumpa-primary-600";
 
   const renderIcon = () => {
     if (!icon) return null;
@@ -109,7 +109,7 @@ export function SettingAction({
     >
       <Body icon={icon} label={label} value={value} danger={danger} />
       <ChevronRightIcon
-        className={`size-5 shrink-0 ${danger ? "text-jumpa-danger" : "text-jumpa-black"}`}
+        className={`size-5 shrink-0 ${danger ? "text-jumpa-warning" : "text-jumpa-black"}`}
       />
     </button>
   );

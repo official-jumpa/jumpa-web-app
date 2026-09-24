@@ -7,16 +7,18 @@ import {
   type LegalDoc,
 } from "@/lib/legal";
 
-const BODY = "text-sm leading-[22px] text-jumpa-neutral-700";
+const BODY =
+  "text-sm leading-[22px] text-jumpa-neutral-700 md:text-[15px] md:leading-[26px]";
 
-/** `/legal?doc=terms` and `?doc=privacy`. One renderer over `lib/legal.ts`. */
+/** `/terms-of-service` and `/privacy`. One renderer over `lib/legal.ts`. */
 export function LegalScreen({ doc }: { doc: LegalDoc }) {
   const document = LEGAL_DOCUMENTS[doc];
 
   return (
-    <div className="px-4.5 pb-16">
+    <div className="mx-auto w-full max-w-app px-4.5 pb-16 md:max-w-[760px] md:px-10 md:pb-24">
       <SupportHeader
         back="/"
+        gutter="wide"
         action={
           <Image
             src="/logo/wordmark/purple.png"
@@ -32,9 +34,9 @@ export function LegalScreen({ doc }: { doc: LegalDoc }) {
         </p>
       </SupportHeader>
 
-      <article className="mt-4 flex flex-col gap-8">
+      <article className="mt-4 flex flex-col gap-8 md:mt-8 md:gap-10">
         <header className="flex flex-col gap-2">
-          <h1 className="text-[22px] leading-7 font-semibold text-jumpa-black">
+          <h1 className="text-[22px] leading-7 font-semibold text-jumpa-black md:text-[30px] md:leading-9">
             {document.title}
           </h1>
           <p className="text-xs leading-4 text-jumpa-neutral-425">
@@ -45,7 +47,7 @@ export function LegalScreen({ doc }: { doc: LegalDoc }) {
 
         {document.sections.map((section, index) => (
           <section key={section.heading} className="flex flex-col gap-3">
-            <h2 className="text-base leading-5.5 font-semibold text-jumpa-black">
+            <h2 className="text-base leading-5.5 font-semibold text-jumpa-black md:text-lg md:leading-6">
               <span className="text-jumpa-primary-600">{index + 1}.</span>{" "}
               {section.heading}
             </h2>
@@ -67,7 +69,7 @@ function blockKey(block: LegalBlock): string {
 function Block({ block }: { block: LegalBlock }) {
   if (block.kind === "callout") {
     return (
-      <p className="rounded-surface bg-jumpa-primary-50 px-4 py-3.5 text-sm leading-[22px] font-medium text-jumpa-primary-950">
+      <p className="rounded-surface bg-jumpa-primary-50 px-4 py-3.5 text-sm leading-[22px] font-medium text-jumpa-primary-950 md:px-5 md:py-4 md:text-[15px] md:leading-[26px]">
         {block.text}
       </p>
     );

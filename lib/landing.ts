@@ -197,7 +197,7 @@ export const FAQ = {
     {
       question: "What is Jumpa?",
       answer:
-        "Jumpa is a self-custodial wallet that lets you send, receive, swap, and manage money across currencies and blockchains — all from one simple app. Think of it as your all-in-one money hub.",
+        "Jumpa is a self-custodial wallet that lets you send, receive, swap, and manage money across currencies and blockchains, all from one simple app. Think of it as your all-in-one money hub.",
     },
     {
       question: "How does Jumpa keep my funds safe?",
@@ -212,7 +212,7 @@ export const FAQ = {
     {
       question: "Are there any fees?",
       answer:
-        "Jumpa keeps fees transparent and competitive. Crypto-to-crypto swaps and on-chain transfers carry only the network gas fee. Fiat conversions show the rate and any spread before you confirm — no hidden charges.",
+        "Jumpa keeps fees transparent and competitive. Crypto-to-crypto swaps and on-chain transfers carry only the network gas fee. Fiat conversions show the rate and any spread before you confirm, with no hidden charges.",
     },
     {
       question: "How do I open a USD or NGN account?",
@@ -227,7 +227,7 @@ export const FAQ = {
     {
       question: "How do I recover my wallet if I lose my phone?",
       answer:
-        "Install Jumpa on your new device and restore using your 12-word seed phrase. That phrase is the master key to your wallet — keep it written down somewhere safe and offline.",
+        "Install Jumpa on your new device and restore using your 12-word seed phrase. That phrase is the master key to your wallet. Keep it written down somewhere safe and offline.",
     },
   ],
 } as const;
@@ -239,8 +239,8 @@ export const BETA_CTA = {
   note: "We'll only email you about Jumpa access and important updates concerning Jumpa",
   buttonSubmitting: "Joining...",
   buttonSuccess: "You're on the list",
-  successNotice: "You're on the list! Check your email to continue — if you don't see it, check your spam or junk folder.",
-  alreadyJoinedNotice: "You're already on the waitlist! Check your email to continue — if you don't see it, check your spam or junk folder.",
+  successNotice: "You're on the list! Check your email to continue. If you don't see it, check your spam or junk folder.",
+  alreadyJoinedNotice: "You're already on the waitlist! Check your email to continue. If you don't see it, check your spam or junk folder.",
   desktop: {
     heading: "Help shape how money moves.",
     blurb:

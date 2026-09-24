@@ -108,7 +108,7 @@ export function TransactionRow({
           className={cn(
             "text-xs leading-3.5 font-medium lowercase",
             status === "failed"
-              ? "text-jumpa-danger"
+              ? "text-jumpa-warning"
               : "text-jumpa-neutral-775",
           )}
         >

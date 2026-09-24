@@ -24,7 +24,7 @@ const VARIANTS = {
   plain: "text-jumpa-primary-525 font-medium",
   /** Irreversible action — deleting an account. */
   danger:
-    "bg-jumpa-danger text-jumpa-white font-semibold disabled:bg-jumpa-danger/35",
+    "bg-jumpa-warning text-jumpa-black font-semibold disabled:bg-jumpa-warning/35",
 } as const;
 
 const SIZES = {

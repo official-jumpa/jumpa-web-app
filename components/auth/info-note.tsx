@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn";
 const TONES = {
   neutral: { text: "text-jumpa-neutral-900", icon: "text-jumpa-primary-600" },
   brand: { text: "text-jumpa-primary-950", icon: "text-jumpa-primary-600" },
-  danger: { text: "text-jumpa-danger", icon: "text-jumpa-danger" },
+  danger: { text: "text-jumpa-warning", icon: "text-jumpa-warning" },
   warning: { text: "text-jumpa-warning", icon: "text-jumpa-warning" },
 } as const;
 

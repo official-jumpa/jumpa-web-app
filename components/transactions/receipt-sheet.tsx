@@ -187,7 +187,7 @@ export function ReceiptSheet({
       </ul>
 
       <p className="mt-3 text-center text-[10px] leading-3.5 text-jumpa-neutral-350">
-        Nothing leaves your device — the receipt is built here.
+        Nothing leaves your device. The receipt is built here.
       </p>
 
       <div className="mt-2 flex flex-col gap-4">

@@ -217,7 +217,7 @@ export function DevicesSettings() {
                               setConfirming({ id: session.id, name })
                             }
                             aria-label={`Log out ${name}`}
-                            className="tap flex size-9 shrink-0 items-center justify-center rounded-pill bg-jumpa-danger-50 text-jumpa-danger active:scale-95"
+                            className="tap flex size-9 shrink-0 items-center justify-center rounded-pill bg-jumpa-warning-50 text-jumpa-warning active:scale-95"
                           >
                             <LogOutIcon className="size-4.5" />
                           </button>

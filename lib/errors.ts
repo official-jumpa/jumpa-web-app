@@ -27,14 +27,14 @@ export type ErrorSubject =
 const OFFLINE: FriendlyError = {
   title: "You're offline",
   message:
-    "We couldn't reach Jumpa. Check your connection and try again — nothing left your wallet.",
+    "We couldn't reach Jumpa. Check your connection and try again. Nothing left your wallet.",
   retry: true,
 };
 
 const UNAVAILABLE: FriendlyError = {
   title: "Jumpa is busy",
   message:
-    "Our provider didn't respond just now. Nothing left your wallet — please try again in a few minutes.",
+    "Our provider didn't respond just now. Nothing left your wallet. Please try again in a few minutes.",
   retry: true,
 };
 
@@ -170,7 +170,7 @@ export function friendlyError(
     return {
       title: "We couldn't find your wallet",
       message:
-        "This wallet isn't available right now. Sign in again to carry on — nothing left your wallet.",
+        "This wallet isn't available right now. Sign in again to carry on. Nothing left your wallet.",
       retry: false,
     };
   }
@@ -179,7 +179,7 @@ export function friendlyError(
     return {
       title: "We couldn't unlock your wallet",
       message:
-        "Your PIN didn't unlock the wallet. Check it and try again — nothing left your wallet.",
+        "Your PIN didn't unlock the wallet. Check it and try again. Nothing left your wallet.",
       retry: true,
     };
   }
@@ -220,7 +220,7 @@ export function friendlyError(
   if (any(lower, STALE_QUOTE)) {
     return {
       title: "The price moved",
-      message: `Your quote is no longer valid, so the ${subject} was not completed. Nothing left your wallet — get a fresh quote and try again.`,
+      message: `Your quote is no longer valid, so the ${subject} was not completed. Nothing left your wallet. Get a fresh quote and try again.`,
       retry: true,
     };
   }
@@ -229,7 +229,7 @@ export function friendlyError(
     return {
       title: "We couldn't find that",
       message:
-        "It is no longer available. Go back and pick it again — nothing left your wallet.",
+        "It is no longer available. Go back and pick it again. Nothing left your wallet.",
       retry: false,
     };
   }

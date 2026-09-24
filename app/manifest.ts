@@ -10,7 +10,7 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Jumpa — Chat, Don't Tap",
+    name: "Jumpa: Chat, Don't Tap",
     short_name: "Jumpa",
     description:
       "Send, swap, save, and spend across currencies and chains all in one conversation.",

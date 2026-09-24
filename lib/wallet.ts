@@ -221,7 +221,7 @@ export const ADS: Ad[] = [
   {
     id: "savings",
     src: "/images/home/Ads1.png",
-    alt: "Don't just save. Grow — earn while your money sits in savings.",
+    alt: "Don't just save. Grow. Earn while your money sits in savings.",
     href: "/savings",
   },
   {

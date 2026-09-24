@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            `Insufficient balance — you have $${availableUsdc.toFixed(2)} USDC ` +
+            `Insufficient balance: you have $${availableUsdc.toFixed(2)} USDC ` +
             `and this top-up needs $${amount.toFixed(2)}.`,
         },
         { status: 400 },

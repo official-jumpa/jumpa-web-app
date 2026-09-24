@@ -55,8 +55,8 @@ export function CardSettings({ onDelete }: { onDelete: () => void }) {
       <button type="button" onClick={onDelete}>
         <Row
           label="Delete Card"
-          className="text-jumpa-danger"
-          icon={<TrashAltIcon className="size-6 text-jumpa-danger" />}
+          className="text-jumpa-warning"
+          icon={<TrashAltIcon className="size-6 text-jumpa-warning" />}
         />
       </button>
     </div>

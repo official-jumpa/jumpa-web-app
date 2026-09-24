@@ -66,15 +66,25 @@ export function isLegalDoc(value: string): value is LegalDoc {
   return value === "terms" || value === "privacy";
 }
 
+/**
+ * Each document has its own route — the URLs the client asked for, and the
+ * shape a search engine wants. `/legal` stays as the index for a trimmed URL
+ * and permanently redirects the old `?doc=` form, which is already indexed.
+ */
+const LEGAL_PATHS: Record<LegalDoc, string> = {
+  terms: "/terms-of-service",
+  privacy: "/privacy",
+};
+
 export function legalHref(doc?: LegalDoc): string {
-  return doc ? `/legal?doc=${doc}` : "/legal";
+  return doc ? LEGAL_PATHS[doc] : "/legal";
 }
 
 const TERMS: LegalDocument = {
   title: "Terms and Conditions",
   short: "Terms and Conditions",
   summary: "The agreement between you and Jumpa when you use the app.",
-  intro: `These terms are the agreement between you and ${LEGAL_ENTITY.name} ("${LEGAL_ENTITY.short}", "we", "us"), and they cover the Jumpa app, our website and everything you can do with them. Please read all of it — in particular "Your wallet, your keys" and "Transactions are final", which explain two things about Jumpa that cannot be undone once they go wrong.`,
+  intro: `These terms are the agreement between you and ${LEGAL_ENTITY.name} ("${LEGAL_ENTITY.short}", "we", "us"), and they cover the Jumpa app, our website and everything you can do with them. Please read all of it, in particular "Your wallet, your keys" and "Transactions are final", which explain two things about Jumpa that cannot be undone once they go wrong.`,
   sections: [
     {
       heading: "Accepting these terms",
@@ -95,7 +105,7 @@ const TERMS: LegalDocument = {
       ],
     },
     {
-      heading: "What Jumpa is — and what it is not",
+      heading: "What Jumpa is, and what it is not",
       blocks: [
         {
           kind: "text",
@@ -110,7 +120,7 @@ const TERMS: LegalDocument = {
           items: [
             "Jumpa is not a bank. We do not take deposits and we do not lend out your money.",
             "Balances in your wallet are not bank deposits. They are not covered by any deposit insurance or depositor protection scheme.",
-            "Nothing in the app — including anything the assistant says — is financial, investment, tax or legal advice.",
+            "Nothing in the app, including anything the assistant says, is financial, investment, tax or legal advice.",
             "Where we show a rate, a yield or a quote, it is indicative and it can change before your transaction executes.",
           ],
         },
@@ -145,7 +155,7 @@ const TERMS: LegalDocument = {
         {
           kind: "list",
           items: [
-            "Write your recovery phrase down and keep it offline. Do not photograph it, store it in a note or a password manager you sync, email it to yourself, or type it into any website or chat — including ours.",
+            "Write your recovery phrase down and keep it offline. Do not photograph it, store it in a note or a password manager you sync, email it to yourself, or type it into any website or chat, including ours.",
             "Anyone who asks you for your recovery phrase, private key or PIN is trying to steal from you, whoever they claim to be.",
             "Closing your Jumpa account does not close your wallet. Your assets stay on the blockchain and stay reachable with your recovery phrase.",
           ],
@@ -159,7 +169,7 @@ const TERMS: LegalDocument = {
           kind: "list",
           items: [
             "Keep your login password, PINs and any biometric access on your device to yourself, and do not reuse them anywhere else.",
-            "Tell us as soon as you think someone has your credentials or your device. We can end active sessions for you — but we cannot reverse a blockchain transaction, whoever made it.",
+            "Tell us as soon as you think someone has your credentials or your device. We can end active sessions for you, but we cannot reverse a blockchain transaction, whoever made it.",
             "Review the devices signed in to your account in Settings, and remove any you do not recognise.",
             "Keep your device, its operating system and the app up to date.",
             "Except where the law says otherwise, we are not responsible for losses caused by your credentials being shared or guessed, or by malware, phishing or a compromised device.",
@@ -177,11 +187,11 @@ const TERMS: LegalDocument = {
         {
           kind: "list",
           items: [
-            "The conversation does not authorise anything. Your confirmation on the review screen does — and your PIN is what signs it.",
+            "The conversation does not authorise anything. Your confirmation on the review screen does, and your PIN is what signs it.",
             "Check every detail on that screen before you confirm: the amount, the asset, the network, the recipient and the fee. They are yours to get right.",
             "Nothing the assistant says is advice, a recommendation or a promise about what an asset will do.",
             "Quotes are indicative until they execute, and the amount you finally receive can differ because of price movement, slippage, network conditions or fees.",
-            "Never put your recovery phrase, private key, PIN or password into the chat. To answer you, your messages are processed by a third-party AI provider — see our Privacy Policy.",
+            "Never put your recovery phrase, private key, PIN or password into the chat. To answer you, your messages are processed by a third-party AI provider. See our Privacy Policy.",
           ],
         },
       ],
@@ -191,14 +201,14 @@ const TERMS: LegalDocument = {
       blocks: [
         {
           kind: "callout",
-          text: "A blockchain transaction cannot be reversed, cancelled or refunded once it has been broadcast — not by you, and not by us. There is no chargeback.",
+          text: "A blockchain transaction cannot be reversed, cancelled or refunded once it has been broadcast, not by you and not by us. There is no chargeback.",
         },
         {
           kind: "list",
           items: [
             "You are responsible for the recipient address and the network you choose. Assets sent to the wrong address, or on the wrong network, are normally lost for good.",
             "Network fees are set by the blockchain, not by us, and are payable even when a transaction fails.",
-            "Transactions can fail, stall or be dropped for reasons outside our control — network congestion, an outage, a partner or node going down, or not enough balance left to pay fees.",
+            "Transactions can fail, stall or be dropped for reasons outside our control: network congestion, an outage, a partner or node going down, or not enough balance left to pay fees.",
             "We may be unable to complete a transaction where doing so would breach a legal or regulatory obligation, or where a partner declines it.",
           ],
         },
@@ -231,7 +241,7 @@ const TERMS: LegalDocument = {
           items: [
             "Savings plans put your assets to work in third-party protocols. We do not hold those assets and we do not guarantee what they will return.",
             "Any rate shown is variable and indicative. It is not interest, and it is not a promise.",
-            "These are not deposits. Your capital is at risk — from market movement, from a protocol failing or being exploited, and from a partner becoming insolvent.",
+            "These are not deposits. Your capital is at risk: from market movement, from a protocol failing or being exploited, and from a partner becoming insolvent.",
             "A locked plan cannot be ended before maturity except as that product describes, and ending one early may cost you part of what you have earned.",
           ],
         },
@@ -289,10 +299,10 @@ const TERMS: LegalDocument = {
         {
           kind: "list",
           items: [
-            "We may limit, suspend or close your account where we reasonably need to — to meet a legal or regulatory obligation, where we suspect fraud or abuse, where a partner requires it, or where you have broken these terms.",
+            "We may limit, suspend or close your account where we reasonably need to: to meet a legal or regulatory obligation, where we suspect fraud or abuse, where a partner requires it, or where you have broken these terms.",
             "We will tell you when we are allowed to. Sometimes the law prevents us from explaining why.",
             "Because Jumpa is self-custodial, suspending an account restricts your access to the app and to our services. It does not freeze your assets, which remain reachable with your recovery phrase.",
-            "You can close your account at any time in Settings. Do that only once you have your recovery phrase safely stored — we cannot give it back to you afterwards.",
+            "You can close your account at any time in Settings. Do that only once you have your recovery phrase safely stored. We cannot give it back to you afterwards.",
             "Closing your account does not end obligations either of us already owes the other.",
           ],
         },
@@ -331,7 +341,7 @@ const TERMS: LegalDocument = {
             "blockchains can congest, fork, halt or be attacked, and transactions can be delayed or fail;",
             "smart contracts can contain bugs or be exploited, including ones we integrate with;",
             "regulation can change, and may restrict or end our ability to offer a feature where you live;",
-            "a mistake you make — a wrong address, a wrong network, a lost recovery phrase — is usually not recoverable by anyone.",
+            "a mistake you make (a wrong address, a wrong network, a lost recovery phrase) is usually not recoverable by anyone.",
           ],
         },
       ],
@@ -365,7 +375,7 @@ const TERMS: LegalDocument = {
         },
         {
           kind: "text",
-          text: `Nothing in these terms excludes liability we cannot exclude by law — including for fraud, for death or personal injury caused by our negligence, or for rights you have as a consumer. Where our liability is not excluded, it is limited to ${LEGAL_ENTITY.liabilityCap}.`,
+          text: `Nothing in these terms excludes liability we cannot exclude by law, including for fraud, for death or personal injury caused by our negligence, or for rights you have as a consumer. Where our liability is not excluded, it is limited to ${LEGAL_ENTITY.liabilityCap}.`,
         },
       ],
     },
@@ -383,7 +393,7 @@ const TERMS: LegalDocument = {
       blocks: [
         {
           kind: "text",
-          text: `Contact us first — Help and Support in the app, or ${LEGAL_CONTACT.legal}. Tell us what happened, when, and what you would like us to do. We will acknowledge your complaint and come back to you with an answer or an explanation of what we are doing about it. If you are still unhappy, you may be able to refer the matter to a regulator or an ombudsman where you live.`,
+          text: `Contact us first: Help and Support in the app, or ${LEGAL_CONTACT.legal}. Tell us what happened, when, and what you would like us to do. We will acknowledge your complaint and come back to you with an answer or an explanation of what we are doing about it. If you are still unhappy, you may be able to refer the matter to a regulator or an ombudsman where you live.`,
         },
       ],
     },
@@ -455,13 +465,13 @@ const PRIVACY: LegalDocument = {
         {
           kind: "list",
           items: [
-            "Account and profile — your name or nickname, email address, phone number, Jumpa tag, country, referral code, and the hashed form of your password and PINs.",
-            "Identity verification — images of a government ID, a selfie, your date of birth and address, and the result of the checks run on them.",
-            "Wallet and transaction — your public wallet addresses, balances, transaction history, the assets and networks you use, savings plans, and card and bill activity.",
-            "Chat — the messages you send, the assistant's replies, and any file you attach to them.",
-            "Payment details — the bank or mobile money account names and numbers you enter to deposit or withdraw, and the reference and status of each transfer.",
-            "Device and usage — your IP address, device and browser type, approximate location derived from your IP, sign-in times, active sessions, and which parts of the app you use.",
-            "Communications — your support conversations with us, and emails you send us.",
+            "Account and profile: your name or nickname, email address, phone number, Jumpa tag, country, referral code, and the hashed form of your password and PINs.",
+            "Identity verification: images of a government ID, a selfie, your date of birth and address, and the result of the checks run on them.",
+            "Wallet and transaction: your public wallet addresses, balances, transaction history, the assets and networks you use, savings plans, and card and bill activity.",
+            "Chat: the messages you send, the assistant's replies, and any file you attach to them.",
+            "Payment details: the bank or mobile money account names and numbers you enter to deposit or withdraw, and the reference and status of each transfer.",
+            "Device and usage: your IP address, device and browser type, approximate location derived from your IP, sign-in times, active sessions, and which parts of the app you use.",
+            "Communications: your support conversations with us, and emails you send us.",
           ],
         },
       ],
@@ -474,7 +484,7 @@ const PRIVACY: LegalDocument = {
           items: [
             "From you, when you register, verify your identity, transact or contact us.",
             "From your device, automatically, when you use the app.",
-            "From our partners — verification results, payment status, and fraud or sanctions screening outcomes.",
+            "From our partners: verification results, payment status, and fraud or sanctions screening outcomes.",
             "From public blockchains, which we read to show your balances and history.",
           ],
         },
@@ -486,11 +496,11 @@ const PRIVACY: LegalDocument = {
         {
           kind: "list",
           items: [
-            "To run your account and do what you have asked us to do — because we need to, to perform our contract with you.",
-            "To verify your identity and to meet anti-money-laundering, sanctions and other regulatory duties — because the law requires it.",
-            "To detect and prevent fraud, abuse and unauthorised access, and to keep the service secure — because we and our users have a legitimate interest in that.",
+            "To run your account and do what you have asked us to do, because that is what performing our contract with you requires.",
+            "To verify your identity and to meet anti-money-laundering, sanctions and other regulatory duties, because the law requires it.",
+            "To detect and prevent fraud, abuse and unauthorised access, and to keep the service secure, because we and our users have a legitimate interest in that.",
             "To answer your questions and support you.",
-            "To understand how the app is used and to improve it — where analytics rely on cookies, with your consent.",
+            "To understand how the app is used and to improve it, with your consent where analytics rely on cookies.",
             "To send you service messages about your account and your transactions, and marketing only where you have asked for it.",
           ],
         },
@@ -501,7 +511,7 @@ const PRIVACY: LegalDocument = {
       blocks: [
         {
           kind: "callout",
-          text: "When you transact, the details — wallet addresses, amounts and timestamps — are written to a public ledger by the network, not by us. Anyone can read them, they are outside our control, and they cannot be changed or erased, including by a deletion request to us.",
+          text: "When you transact, the details (wallet addresses, amounts and timestamps) are written to a public ledger by the network, not by us. Anyone can read them, they are outside our control, and they cannot be changed or erased, including by a deletion request to us.",
         },
       ],
     },
@@ -525,9 +535,9 @@ const PRIVACY: LegalDocument = {
         {
           kind: "list",
           items: [
-            "Service providers who help us run Jumpa — identity verification, payment and ramp partners, blockchain infrastructure, our AI provider, hosting and database providers, analytics, and email and notification providers. They may only use your data to do the job we have given them.",
+            "Service providers who help us run Jumpa: identity verification, payment and ramp partners, blockchain infrastructure, our AI provider, hosting and database providers, analytics, and email and notification providers. They may only use your data to do the job we have given them.",
             "Regulators, law enforcement, courts and our professional advisers, where we are legally required or where we need to establish or defend a legal claim.",
-            "A buyer or successor, if the business is sold, merged or reorganised — with the same protections carried over.",
+            "A buyer or successor, if the business is sold, merged or reorganised, with the same protections carried over.",
             "We do not sell your personal data, and we do not share it with advertisers.",
           ],
         },
@@ -538,7 +548,7 @@ const PRIVACY: LegalDocument = {
       blocks: [
         {
           kind: "text",
-          text: "Some of our providers are outside the country you live in. When your data is transferred, we rely on appropriate safeguards — such as standard contractual clauses or an adequacy decision — and you can ask us for details.",
+          text: "Some of our providers are outside the country you live in. When your data is transferred, we rely on appropriate safeguards such as standard contractual clauses or an adequacy decision, and you can ask us for details.",
         },
       ],
     },
@@ -592,7 +602,7 @@ const PRIVACY: LegalDocument = {
       blocks: [
         {
           kind: "text",
-          text: "We use cookies and similar technology to keep you signed in and to keep your session secure — those are essential and cannot be turned off — and, with your consent, to measure how the app is used so we can improve it. You can clear or block cookies in your browser, though the app will not work properly without the essential ones.",
+          text: "We use cookies and similar technology to keep you signed in and to keep your session secure (those are essential and cannot be turned off) and, with your consent, to measure how the app is used so we can improve it. You can clear or block cookies in your browser, though the app will not work properly without the essential ones.",
         },
       ],
     },

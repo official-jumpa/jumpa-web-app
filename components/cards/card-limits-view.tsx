@@ -51,7 +51,7 @@ export function CardLimitsView({
             className: "w-20.25",
           }}
           title="Delete Virtual Card?"
-          noteIcon={<SealAlertIcon className="size-5 text-jumpa-danger" />}
+          noteIcon={<SealAlertIcon className="size-5 text-jumpa-warning" />}
           note="This action is permanent. Once deleted, this virtual card can't be restored or used for future transactions."
           confirmLabel="Yes, Delete"
           // No card service yet, so confirming just dismisses.

@@ -30,7 +30,7 @@ export function JoinCircleView() {
       setRef(text.trim());
       setPasteError(null);
     } catch {
-      setPasteError("Paste is blocked here — long-press the field instead.");
+      setPasteError("Paste is blocked here. Long-press the field instead.");
     }
   };
 

@@ -38,7 +38,7 @@ export function AccountSheet({
         className={cn(
           "mx-auto mt-2 flex size-16 items-center justify-center rounded-full",
           danger
-            ? "bg-jumpa-danger-50 text-jumpa-danger"
+            ? "bg-jumpa-warning-50 text-jumpa-warning"
             : "bg-jumpa-primary-50 text-jumpa-primary-600",
         )}
       >
@@ -54,7 +54,7 @@ export function AccountSheet({
       {error ? (
         <p
           role="alert"
-          className="mt-3 rounded-tile bg-jumpa-danger-50 px-3 py-2 text-center text-xs leading-4 font-medium text-jumpa-danger"
+          className="mt-3 rounded-tile bg-jumpa-warning-50 px-3 py-2 text-center text-xs leading-4 font-medium text-jumpa-warning"
         >
           {error}
         </p>

@@ -189,7 +189,7 @@ export function VerifyCodeForm({
 
         {lostEmail ? (
           <p className="text-center text-xs text-jumpa-warning">
-            We've lost track of which email to verify — this can happen if the
+            We've lost track of which email to verify. This can happen if the
             tab reloads.{" "}
             <Link
               href={SIGN_UP_FLOW.email}

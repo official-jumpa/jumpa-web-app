@@ -8,7 +8,7 @@ import { SIGN_UP_FLOW } from "@/lib/sign-up";
 export const metadata: Metadata = pageMetadata({
   title: "Pick your Jumpa Tag",
   description:
-    "Choose your Jumpa Tag — the unique handle people use to find you and pay you.",
+    "Choose your Jumpa Tag, the unique handle people use to find you and pay you.",
   path: "/sign-up/tag",
 });
 

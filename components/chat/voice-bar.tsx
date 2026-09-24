@@ -1,14 +1,9 @@
 "use client";
 
 import { type CSSProperties, useEffect, useRef } from "react";
+import { WAVE_BARS } from "@/components/chat/voice-waveform";
 import { CircleStopIcon } from "@/components/ui/icons/circle-stop";
 import { XmarkIcon } from "@/components/ui/icons/xmark";
-
-/** Bar heights straight from the design, left to right. */
-const BARS = [
-  8, 8, 24, 15, 29, 25, 20, 12, 26, 10, 24, 8, 8, 22, 12, 24, 12, 22, 15, 15,
-  29, 8, 8,
-];
 
 const PILL = "flex min-w-0 flex-1 items-center rounded-surface";
 
@@ -44,7 +39,7 @@ export function VoiceWave({
           </button>
         )}
         <div className="flex items-center gap-1.5">
-          <span className="size-2 rounded-full bg-red-400 animate-pulse" />
+          <span className="size-2 rounded-full bg-jumpa-danger-400 animate-pulse" />
           <span className="text-xs font-semibold tabular-nums tracking-wide">
             {timeStr}
           </span>
@@ -52,7 +47,7 @@ export function VoiceWave({
       </div>
 
       <div className="flex items-center gap-1 overflow-hidden">
-        {BARS.map((height, index) => (
+        {WAVE_BARS.map((height, index) => (
           <span
             // biome-ignore lint/suspicious/noArrayIndexKey: the bars are a fixed decorative pattern
             key={index}

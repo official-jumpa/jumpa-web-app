@@ -1,9 +1,11 @@
 "use client";
 
-import type React from "react";
-import { useEffect, useRef, useState } from "react";
-import { TrashAltIcon } from "@/components/ui/icons/trash-alt";
+import { VoiceWaveform } from "@/components/chat/voice-waveform";
+import { PauseIcon } from "@/components/ui/icons/pause";
+import { PlayIcon } from "@/components/ui/icons/play";
 import { SendAltIcon } from "@/components/ui/icons/send-alt";
+import { XmarkIcon } from "@/components/ui/icons/xmark";
+import { useVoiceAudio } from "@/hooks/use-voice-audio";
 
 interface VoicePreviewPillProps {
   audioUrl: string;
@@ -15,6 +17,11 @@ interface VoicePreviewPillProps {
   onTranscriptChange?: (text: string) => void;
 }
 
+/**
+ * The recording, ready to send. It keeps the recording bar's own shape — discard
+ * on the left, the wave in the middle, the round action button outside the pill
+ * — so stopping a recording changes what the controls do, not where they are.
+ */
 export function VoicePreviewPill({
   audioUrl,
   duration = 0,
@@ -24,183 +31,96 @@ export function VoicePreviewPill({
   onSend,
   onTranscriptChange,
 }: VoicePreviewPillProps) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(duration);
-  const [isDiscarding, setIsDiscarding] = useState(false);
+  const audio = useVoiceAudio(duration);
 
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const handleLoadedMetadata = () => {
-      if (audio.duration && !Number.isNaN(audio.duration) && Number.isFinite(audio.duration)) {
-        setAudioDuration(Math.round(audio.duration));
-      }
-    };
-
-    const handleTimeUpdate = () => {
-      setCurrentTime(audio.currentTime);
-    };
-
-    const handleEnded = () => {
-      setIsPlaying(false);
-      setCurrentTime(0);
-    };
-
-    audio.addEventListener("loadedmetadata", handleLoadedMetadata);
-    audio.addEventListener("timeupdate", handleTimeUpdate);
-    audio.addEventListener("ended", handleEnded);
-
-    return () => {
-      audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
-      audio.removeEventListener("timeupdate", handleTimeUpdate);
-      audio.removeEventListener("ended", handleEnded);
-      audio.pause();
-    };
-  }, [audioUrl]);
-
-  const togglePlay = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    if (isPlaying) {
-      audio.pause();
-      setIsPlaying(false);
-    } else {
-      audio.play().then(() => setIsPlaying(true)).catch((err) => {
-        console.warn("[VoicePreviewPill] Audio play error:", err);
-      });
-    }
+  const discard = () => {
+    audio.pause();
+    onDiscard();
   };
-
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const targetTime = Number(e.target.value);
-    audio.currentTime = targetTime;
-    setCurrentTime(targetTime);
-  };
-
-  const handleDiscard = async () => {
-    if (isDiscarding) return;
-    setIsDiscarding(true);
-    try {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-      await onDiscard();
-    } finally {
-      setIsDiscarding(false);
-    }
-  };
-
-  const formatTime = (secs: number) => {
-    const safeSecs = Math.max(0, Math.floor(secs));
-    const m = Math.floor(safeSecs / 60);
-    const s = safeSecs % 60;
-    return `${m}:${s < 10 ? "0" : ""}${s}`;
-  };
-
-  const effectiveDuration = audioDuration || duration || 1;
-  const progressPercent = Math.min(100, (currentTime / effectiveDuration) * 100);
 
   return (
     <div className="flex w-full flex-col gap-2">
-      {/* Audio player card */}
-      <div className="flex min-h-13 items-center gap-3 rounded-surface bg-jumpa-white px-3 py-2 shadow-xs border border-jumpa-neutral-100">
-        <audio ref={audioRef} src={audioUrl} preload="metadata" />
+      <div className="flex items-end gap-2.5">
+        <div className="flex min-h-13 min-w-0 flex-1 items-center gap-3 rounded-surface bg-jumpa-white py-2 pr-3.5 pl-3.5">
+          {/* biome-ignore lint/a11y/useMediaCaption: a voice note is the caption's own source */}
+          <audio ref={audio.audioRef} src={audioUrl} preload="metadata" />
 
-        {/* Discard / Delete from Vercy Storage Button */}
-        <button
-          type="button"
-          onClick={handleDiscard}
-          disabled={isDiscarding}
-          aria-label="Discard voice note"
-          title="Discard and delete recording"
-          className="tap flex size-8 shrink-0 items-center justify-center rounded-full text-jumpa-grey-500 hover:bg-jumpa-neutral-100 hover:text-red-500 active:scale-95 transition-colors cursor-pointer disabled:opacity-50"
-        >
-          <TrashAltIcon className="size-4" />
-        </button>
+          <button
+            type="button"
+            onClick={discard}
+            aria-label="Discard recording"
+            className="tap shrink-0 text-jumpa-neutral-600 active:scale-90"
+          >
+            <XmarkIcon className="size-5.5" />
+          </button>
 
-        {/* Play / Pause Toggle Button */}
-        <button
-          type="button"
-          onClick={togglePlay}
-          disabled={isProcessing}
-          aria-label={isPlaying ? "Pause" : "Play"}
-          className="tap flex size-9 shrink-0 items-center justify-center rounded-full bg-jumpa-primary-600 text-jumpa-white shadow-xs hover:bg-jumpa-primary-700 active:scale-95 transition-transform cursor-pointer disabled:opacity-50"
-        >
-          {isPlaying ? (
-            <svg className="size-4 fill-current" viewBox="0 0 24 24">
-              <rect x="6" y="5" width="4" height="14" rx="1.5" />
-              <rect x="14" y="5" width="4" height="14" rx="1.5" />
-            </svg>
-          ) : (
-            <svg className="size-4 fill-current ml-0.5" viewBox="0 0 24 24">
-              <path d="M8 5.14v13.72a1 1 0 001.5.86l11-6.86a1 1 0 000-1.72l-11-6.86a1 1 0 00-1.5.86z" />
-            </svg>
-          )}
-        </button>
+          <button
+            type="button"
+            onClick={audio.toggle}
+            disabled={isProcessing}
+            aria-label={audio.isPlaying ? "Pause recording" : "Play recording"}
+            className="tap flex size-9 shrink-0 items-center justify-center rounded-full bg-jumpa-primary-600 text-jumpa-white active:scale-95 disabled:opacity-50"
+          >
+            {audio.isPlaying ? (
+              <PauseIcon className="size-4" />
+            ) : (
+              <PlayIcon className="ml-0.5 size-4" />
+            )}
+          </button>
 
-        {/* Scrubber & Duration */}
-        <div className="flex flex-1 flex-col gap-1 min-w-0">
-          <div className="relative flex items-center h-3 w-full">
-            <input
-              type="range"
-              min={0}
-              max={effectiveDuration}
-              step={0.1}
-              value={currentTime}
-              onChange={handleSeek}
-              disabled={isProcessing}
-              aria-label="Audio playback seek"
-              className="absolute inset-0 z-10 w-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-            />
-            {/* Visual Track */}
-            <div className="h-1.5 w-full rounded-full bg-jumpa-neutral-200 overflow-hidden">
-              <div
-                className="h-full bg-jumpa-primary-600 transition-all duration-75"
-                style={{ width: `${progressPercent}%` }}
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div className="relative">
+              <VoiceWaveform progress={audio.progress} className="h-5.5" />
+              <input
+                type="range"
+                min={0}
+                max={audio.length}
+                step={0.1}
+                value={audio.currentTime}
+                onChange={audio.seek}
+                disabled={isProcessing}
+                aria-label="Seek recording"
+                className="absolute inset-0 w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
               />
             </div>
-          </div>
 
-          <div className="flex items-center justify-between text-[11px] font-medium text-jumpa-grey-500">
-            <span>{formatTime(currentTime)}</span>
-            <span>{formatTime(effectiveDuration)}</span>
+            <p className="flex items-center justify-between gap-2 text-[10px] leading-3 font-medium text-jumpa-neutral-425">
+              <span className="tabular-nums">
+                {audio.elapsed} / {audio.total}
+              </span>
+              {isProcessing ? (
+                <span className="text-jumpa-primary-600">Transcribing…</span>
+              ) : null}
+            </p>
           </div>
         </div>
 
-        {/* Send Button */}
         <button
           type="button"
           onClick={onSend}
-          disabled={isProcessing || isDiscarding}
-          aria-label="Send voice message"
-          className="tap flex size-10 shrink-0 items-center justify-center rounded-pill bg-jumpa-primary-600 text-jumpa-white shadow-xs hover:bg-jumpa-primary-700 active:scale-95 transition-transform cursor-pointer disabled:opacity-50"
+          disabled={isProcessing}
+          aria-label="Send voice note"
+          className="tap mb-0.75 flex size-11.5 shrink-0 items-center justify-center rounded-pill bg-jumpa-primary-600 text-jumpa-white active:scale-95 disabled:opacity-50"
         >
           {isProcessing ? (
-            <span className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            <span className="size-4.5 animate-spin rounded-full border-2 border-jumpa-white/40 border-t-jumpa-white" />
           ) : (
-            <SendAltIcon className="size-5" />
+            <SendAltIcon className="size-5.5" />
           )}
         </button>
       </div>
 
-      {/* Editable Transcript Bar */}
-      {transcript && !isProcessing && (
-        <div className="flex items-center gap-2 rounded-xl bg-jumpa-neutral-50 px-3 py-1.5 text-xs text-jumpa-black border border-jumpa-neutral-100">
-          <input
-            type="text"
-            value={transcript}
-            onChange={(e) => onTranscriptChange?.(e.target.value)}
-            placeholder="Edit text if needed..."
-            className="min-w-0 flex-1 bg-transparent text-xs font-medium text-jumpa-black outline-none placeholder:text-jumpa-grey-400"
-          />
-        </div>
-      )}
+      {/* What was heard, editable before it goes — the model reads this, not the audio. */}
+      {transcript && !isProcessing ? (
+        <input
+          type="text"
+          value={transcript}
+          onChange={(event) => onTranscriptChange?.(event.target.value)}
+          aria-label="Edit the transcript"
+          placeholder="Edit the text if we misheard..."
+          className="min-h-10 w-full rounded-surface bg-jumpa-white px-3.5 text-[13px] leading-5 font-medium text-jumpa-black outline-none placeholder:text-jumpa-black/30"
+        />
+      ) : null}
     </div>
   );
 }

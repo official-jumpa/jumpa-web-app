@@ -270,7 +270,7 @@ export function PrivateKeyForm({ nextHref }: { nextHref: string }) {
             <span className="font-medium">Keep your private key private.</span>
             <span>
               It is the only thing that controls this wallet. Never share it
-              with anyone — Jumpa will never ask you for it.
+              with anyone. Jumpa will never ask you for it.
             </span>
           </span>
         </p>

@@ -75,7 +75,7 @@ export function OnrampCheckoutCard({
         setStatusError(data.message || "Deposit received. Processing payout…");
       } else if (data.success && data.isAwaitingDeposit) {
         setStatusError(
-          "We haven't seen your transfer yet. It can take a minute to show up — if you've already sent it, check again shortly.",
+          "We haven't seen your transfer yet. It can take a minute to show up. If you've already sent it, check again shortly.",
         );
       } else {
         setStatusError(

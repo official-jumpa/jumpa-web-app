@@ -21,7 +21,7 @@ export function CardPinSheet({
       </p>
 
       <p className="mt-8 flex items-center gap-2 text-xs leading-3.5 text-jumpa-black">
-        <SealAlertIcon className="size-6 shrink-0 text-jumpa-danger" />
+        <SealAlertIcon className="size-6 shrink-0 text-jumpa-warning" />
         Never share your PIN with anyone or save it somewhere others can access.
         Keep your PIN private, even if someone claims to be from support.
       </p>

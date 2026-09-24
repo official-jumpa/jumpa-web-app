@@ -11,7 +11,7 @@ export const PIN_NOTES = {
   /** Sign-up: the transaction PIN is being chosen for the first time. */
   create: {
     heading: "Your PIN is not your password.",
-    body: "It signs payments on this device and never leaves it. Pick one you will remember — avoid 1234 or a birth year.",
+    body: "It signs payments on this device and never leaves it. Pick one you will remember. Avoid 1234 or a birth year.",
   },
   /** Sign-up: the same PIN typed a second time. */
   confirm: {

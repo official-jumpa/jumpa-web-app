@@ -5,7 +5,7 @@ import { pageMetadata } from "@/lib/seo";
 export const metadata: Metadata = pageMetadata({
   title: "Welcome to Jumpa",
   description:
-    "Get started with Jumpa — the wallet that lets you move money the way you chat. Create an account or import an existing wallet.",
+    "Get started with Jumpa, the wallet that lets you move money the way you chat. Create an account or import an existing wallet.",
   path: "/onboarding",
 });
 

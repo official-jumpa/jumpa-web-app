@@ -15,7 +15,7 @@ const profiles = FOOTER.socials
   .filter((href) => new URL(href).pathname.length > 1);
 
 const DESCRIPTION =
-  "Jumpa is a self-custodial wallet you operate by chatting. Send and receive money, move between cash and crypto, swap and bridge tokens across chains, and save toward goals — by text or voice, in one conversation.";
+  "Jumpa is a self-custodial wallet you operate by chatting. Send and receive money, move between cash and crypto, swap and bridge tokens across chains, and save toward goals, by text or voice, in one conversation.";
 
 /**
  * Site-level schema.org graph. "Jumpa" is also an everyday Malay word, so the

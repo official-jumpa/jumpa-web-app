@@ -12,7 +12,7 @@ import { pageMetadata } from "@/lib/seo";
 export const metadata: Metadata = pageMetadata({
   title: "Sign in",
   description:
-    "Sign in to your Jumpa wallet. Access your balances, send money, and manage your crypto — all in one place.",
+    "Sign in to your Jumpa wallet. Access your balances, send money, and manage your crypto, all in one place.",
   path: "/sign-in",
 });
 

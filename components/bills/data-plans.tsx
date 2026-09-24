@@ -86,7 +86,7 @@ export function DataPlans({
         if (data.detectedNetwork && data.detectedNetwork !== networkIdRef.current) {
           const detectedNet = getNetwork(data.detectedNetwork);
           const targetName = detectedNet?.label || data.detectedNetwork.toUpperCase();
-          setCarrierNotice(`Detected ${targetName} number — updated to ${targetName} bundles.`);
+          setCarrierNotice(`Detected ${targetName} number. Updated to ${targetName} bundles.`);
           onNetworkChange?.(data.detectedNetwork);
         } else {
           setCarrierNotice(null);

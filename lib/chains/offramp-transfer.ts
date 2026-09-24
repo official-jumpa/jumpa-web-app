@@ -9,8 +9,8 @@ import {
   PublicKey,
   Keypair as SolKeypair,
   Transaction as SolTransaction,
-  sendAndConfirmTransaction,
 } from "@solana/web3.js";
+import { sendAndConfirmTransactionPolling } from "@/lib/chains/solana/send-and-confirm";
 import {
   getOrCreateAssociatedTokenAccount,
   createTransferInstruction,
@@ -27,6 +27,11 @@ import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 import { environment } from "@/lib/environment";
 import { submitCentiivStellarPayment } from "@/lib/functions/centiivFunctions";
 import * as StellarSdk from "@stellar/stellar-sdk";
+import {
+  getSolanaSponsorKeypair,
+  executeSponsoredSplTransfer,
+  parseSolanaKeypair,
+} from "./solana/sponsor";
 
 const ERC20_ABI = [
   {
@@ -319,13 +324,7 @@ export async function executeOfframpTransfer(options: {
         ).key;
         solKeypair = SolKeypair.fromSeed(solDerived);
       } else {
-        const trimmed = mnemonic.trim();
-        if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-          solKeypair = SolKeypair.fromSecretKey(Uint8Array.from(JSON.parse(trimmed)));
-        } else {
-          const hex = trimmed.startsWith("0x") ? trimmed.slice(2) : trimmed;
-          solKeypair = SolKeypair.fromSeed(Buffer.from(hex, "hex").slice(0, 32));
-        }
+        solKeypair = parseSolanaKeypair(mnemonic);
       }
 
       console.log(
@@ -335,8 +334,34 @@ export async function executeOfframpTransfer(options: {
       // Pre-flight check: SOL gas balance
       const lamports = await connection.getBalance(solKeypair.publicKey);
       const solBalance = lamports / 1e9;
-      console.log(`[OfframpTransfer] Solana SOL balance: ${solBalance} SOL`);
+      console.log(`[OfframpTransfer] balance: ${solBalance} SOL`);
       if (solBalance < 0.002) {
+        if (getSolanaSponsorKeypair()) {
+          console.log(
+            `[OfframpTransfer] balance (${solBalance} SOL) < 0.002 SOL — routing through Solana sponsor engine...`,
+          );
+          try {
+            const rawToken = asset.split(":")[1]?.toUpperCase() || "USDC";
+            const sponsoredRes = await executeSponsoredSplTransfer({
+              userKeypair: solKeypair,
+              destination: depositAddress,
+              amount: numAmount,
+              asset: rawToken,
+              connection,
+            });
+            return {
+              success: true,
+              txHash: sponsoredRes.txHash,
+              explorerUrl: sponsoredRes.explorerUrl,
+            };
+          } catch (sponsorErr: any) {
+            console.error("[OfframpTransfer] Sponsored transfer error:", sponsorErr);
+            return {
+              success: false,
+              error: sponsorErr?.message || "Sponsored Solana offramp transfer failed",
+            };
+          }
+        }
         return {
           success: false,
           error: "Insufficient SOL balance for transaction fees (minimum 0.002 SOL required).",
@@ -395,6 +420,32 @@ export async function executeOfframpTransfer(options: {
           const rentLamports = await connection.getMinimumBalanceForRentExemption(165);
           const requiredLamports = rentLamports + 10000; // Rent + transaction fees
           if (lamports < requiredLamports) {
+            if (getSolanaSponsorKeypair()) {
+              console.log(
+                `[OfframpTransfer] Insufficient SOL for destination ATA creation — routing through Solana sponsor engine...`,
+              );
+              try {
+                const rawToken = asset.split(":")[1]?.toUpperCase() || "USDC";
+                const sponsoredRes = await executeSponsoredSplTransfer({
+                  userKeypair: solKeypair,
+                  destination: depositAddress,
+                  amount: numAmount,
+                  asset: rawToken,
+                  connection,
+                });
+                return {
+                  success: true,
+                  txHash: sponsoredRes.txHash,
+                  explorerUrl: sponsoredRes.explorerUrl,
+                };
+              } catch (sponsorErr: any) {
+                console.error("[OfframpTransfer] Sponsored transfer error:", sponsorErr);
+                return {
+                  success: false,
+                  error: sponsorErr?.message || "Sponsored Solana offramp transfer failed",
+                };
+              }
+            }
             return {
               success: false,
               error: `Insufficient SOL balance. You have ${solBalance.toFixed(5)} SOL, but at least ${(requiredLamports / 1e9).toFixed(5)} SOL is required`,
@@ -430,7 +481,7 @@ export async function executeOfframpTransfer(options: {
         ),
       );
 
-      const txHash = await sendAndConfirmTransaction(connection, transaction, [
+      const txHash = await sendAndConfirmTransactionPolling(connection, transaction, [
         solKeypair,
       ]);
 

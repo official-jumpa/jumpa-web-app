@@ -118,6 +118,13 @@ export const environment = {
     process.env.STELLAR_TESTNET || "https://horizon-testnet.stellar.org",
   SPONSORED_FEE_STELLAR_KEY: process.env.SPONSORED_FEE_STELLAR_KEY || "",
 
+  // Solana Gas Sponsorship & Abstraction
+  SPONSORED_FEE_SOLANA_KEY: process.env.SPONSORED_FEE_SOLANA_KEY || "",
+  FEE_WALLET_SOLANA: process.env.FEE_WALLET_SOLANA || "",
+  FEE_USD_AMOUNT_SOLANA: process.env.FEE_USD_AMOUNT_SOLANA
+    ? Number(process.env.FEE_USD_AMOUNT_SOLANA)
+    : 0.05,
+
   // Switch
   SWITCH_LIVE_KEY: process.env.SWITCH_LIVE_KEY || "",
   SWITCH_SANDBOX_KEY: process.env.SWITCH_SANDBOX_KEY || "",

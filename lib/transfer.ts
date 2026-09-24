@@ -222,7 +222,7 @@ export const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
     network: "mainnet",
     assets: ["SOL", "USDC", "USDT"],
     supportsMemo: false,
-    feeLabel: "0.000005 SOL (~$0.001)",
+    feeLabel: "$0.05", //0.05 USDC / USDT (Gas Abstracted)
     settlementTime: "1-2 seconds",
   },
   Base: {

@@ -13,9 +13,9 @@ import {
   Keypair as SolKeypair,
   Transaction as SolTransaction,
   SystemProgram,
-  sendAndConfirmTransaction,
   LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
+import { sendAndConfirmTransactionPolling } from "@/lib/chains/solana/send-and-confirm";
 import {
   getOrCreateAssociatedTokenAccount,
   createTransferInstruction,
@@ -38,6 +38,11 @@ import * as bip39 from "bip39";
 import { derivePath } from "ed25519-hd-key";
 import { HDKey } from "@scure/bip32";
 import { deriveStellarKeypairFromMnemonic } from "@/lib/chains/stellar";
+import {
+  parseSolanaKeypair,
+  getSolanaSponsorKeypair,
+  executeSponsoredSplTransfer,
+} from "./solana/sponsor";
 
 export function resolveChainPrivateKey(
   secret: string,
@@ -165,14 +170,14 @@ export async function sendStellar(params: {
   if (upperAsset === "XLM" || upperAsset === "NATIVE") {
     paymentOp = destExists
       ? StellarSdk.Operation.payment({
-          destination,
-          asset: StellarSdk.Asset.native(),
-          amount: String(amount),
-        })
+        destination,
+        asset: StellarSdk.Asset.native(),
+        amount: String(amount),
+      })
       : StellarSdk.Operation.createAccount({
-          destination,
-          startingBalance: String(amount),
-        });
+        destination,
+        startingBalance: String(amount),
+      });
   } else if (upperAsset === "USDC") {
     if (!destExists) {
       throw new Error(
@@ -250,14 +255,7 @@ export async function sendSolana(params: {
 
   let keypair: SolKeypair;
   try {
-    const cleanHex = privateKey.replace(/^0x/, "");
-    if (cleanHex.length === 128) {
-      keypair = SolKeypair.fromSecretKey(Buffer.from(cleanHex, "hex"));
-    } else {
-      // @ts-expect-error bs58 untyped module
-      const bs58 = (await import("bs58")).default;
-      keypair = SolKeypair.fromSecretKey(bs58.decode(privateKey.trim()));
-    }
+    keypair = parseSolanaKeypair(privateKey);
   } catch (err) {
     throw new Error(`Invalid Solana private key: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -272,9 +270,9 @@ export async function sendSolana(params: {
     throw new Error("Invalid transfer amount");
   }
 
-  const tx = new SolTransaction();
-
+  // 1. Native SOL Transfer (User pays own SOL gas)
   if (upperAsset === "SOL") {
+    const tx = new SolTransaction();
     const lamports = BigInt(Math.round(numAmount * LAMPORTS_PER_SOL));
     tx.add(
       SystemProgram.transfer({
@@ -283,7 +281,37 @@ export async function sendSolana(params: {
         lamports,
       }),
     );
-  } else if (SOLANA_MINTS[upperAsset]) {
+
+    const txHash = await sendAndConfirmTransactionPolling(connection, tx, [keypair]);
+    const explorerUrl = getExplorerTxUrl("solana", txHash);
+
+    return {
+      success: true,
+      txHash,
+      explorerUrl,
+      feePaid: "0.05$",
+      fromAddress,
+    };
+  }
+
+  // 2. SPL Token Transfer (USDC, USDT)
+  if (SOLANA_MINTS[upperAsset]) {
+    // If Solana Sponsor wallet is configured, use Gas Abstraction (fee collected in token)
+    if (getSolanaSponsorKeypair()) {
+      console.log(
+        `[Transfer Service] Sponsoring ${upperAsset} transfer with in-token fee deduction...`,
+      );
+      return await executeSponsoredSplTransfer({
+        userKeypair: keypair,
+        destination,
+        amount,
+        asset: upperAsset,
+        connection,
+      });
+    }
+
+    // Fallback: User pays own SOL network fee if sponsor is not configured
+    const tx = new SolTransaction();
     const tokenInfo = SOLANA_MINTS[upperAsset];
     const mintPubkey = new PublicKey(tokenInfo.mint);
 
@@ -326,21 +354,20 @@ export async function sendSolana(params: {
         rawAmount,
       ),
     );
-  } else {
-    throw new Error(`Unsupported Solana asset: ${asset}`);
+
+    const txHash = await sendAndConfirmTransactionPolling(connection, tx, [keypair]);
+    const explorerUrl = getExplorerTxUrl("solana", txHash);
+
+    return {
+      success: true,
+      txHash,
+      explorerUrl,
+      feePaid: "0.05$",
+      fromAddress,
+    };
   }
 
-  console.log(`[Transfer Service] Submitting Solana transfer...`);
-  const txHash = await sendAndConfirmTransaction(connection, tx, [keypair]);
-  const explorerUrl = getExplorerTxUrl("solana", txHash);
-
-  return {
-    success: true,
-    txHash,
-    explorerUrl,
-    feePaid: "0.000005 SOL",
-    fromAddress,
-  };
+  throw new Error(`Unsupported Solana asset: ${asset}`);
 }
 
 /**

@@ -189,7 +189,7 @@ export function friendlyError(
   // nothing the user can act on.
   if (any(lower, UNDERFUNDED)) {
     return {
-      title: "Not enough balance",
+      title: "Insufficient balance",
       message: readsAsCopy(text)
         ? text
         : `Your wallet doesn't hold enough for this ${subject}. Add funds or lower the amount, then try again.`,

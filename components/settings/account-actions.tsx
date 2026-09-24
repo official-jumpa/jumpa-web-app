@@ -124,7 +124,7 @@ export function AccountActions() {
             Jumpa. It cannot be undone.
           </p>
 
-          <p className="flex items-start gap-3 rounded-tile bg-jumpa-warning-50 px-3 py-2.5 text-xs leading-4 text-jumpa-warning">
+          <p className="flex items-start gap-3 rounded-tile bg-jumpa-danger-50 px-3 py-2.5 text-xs leading-4 text-jumpa-danger">
             <SealAlertIcon className="size-5 shrink-0" />
             Your wallet is self-custodial, so your funds are not deleted, but
             only your recovery phrase can reach them afterwards.
@@ -140,7 +140,7 @@ export function AccountActions() {
             />
             <span
               aria-hidden="true"
-              className="flex size-5 shrink-0 items-center justify-center rounded-md border-2 border-jumpa-neutral-250 text-transparent transition-colors peer-checked:border-jumpa-warning peer-checked:bg-jumpa-warning peer-checked:text-jumpa-black"
+              className="flex size-5 shrink-0 items-center justify-center rounded-md border-2 border-jumpa-neutral-250 text-transparent transition-colors peer-checked:border-jumpa-danger peer-checked:bg-jumpa-danger peer-checked:text-jumpa-white"
             >
               <CheckIcon className="size-3.5" />
             </span>

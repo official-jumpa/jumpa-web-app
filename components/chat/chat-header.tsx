@@ -208,7 +208,7 @@ export function ChatHeader({
                           onDeleteSession?.(session.sessionId);
                         }}
                         aria-label={`Delete chat: ${session.title}`}
-                        className="flex size-8 shrink-0 items-center justify-center rounded-pill text-jumpa-neutral-350 tap hover:bg-jumpa-warning/10 hover:text-jumpa-warning active:scale-90"
+                        className="flex size-8 shrink-0 items-center justify-center rounded-pill text-jumpa-neutral-350 tap hover:bg-jumpa-danger/10 hover:text-jumpa-danger active:scale-90"
                       >
                         <TrashAltIcon className="size-4" />
                       </button>

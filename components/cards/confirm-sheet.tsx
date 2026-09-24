@@ -63,8 +63,8 @@ export function ConfirmSheet({
         <Note icon={noteIcon}>{note}</Note>
         {warning ? (
           <Note
-            icon={<SealAlertIcon className="size-5 text-jumpa-warning" />}
-            className="text-jumpa-warning"
+            icon={<SealAlertIcon className="size-5 text-jumpa-danger" />}
+            className="text-jumpa-danger"
           >
             {warning}
           </Note>

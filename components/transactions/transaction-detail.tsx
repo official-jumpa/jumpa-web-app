@@ -114,7 +114,7 @@ export function TransactionDetail({ id }: { id: string }) {
                 className={cn(
                   "rounded-pill bg-jumpa-neutral-100 px-4 py-2 text-[10px] leading-4 font-medium",
                   transaction.status === "failed"
-                    ? "text-jumpa-warning"
+                    ? "text-jumpa-danger"
                     : "text-jumpa-neutral-750",
                 )}
               >

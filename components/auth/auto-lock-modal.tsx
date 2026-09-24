@@ -159,7 +159,7 @@ export function AutoLockModal({ onUnlock }: AutoLockModalProps) {
         <button
           type="button"
           onClick={handleSignOut}
-          className="cursor-pointer text-xs font-semibold text-jumpa-neutral-400 hover:text-jumpa-warning transition-colors mt-2"
+          className="cursor-pointer text-xs font-semibold text-jumpa-neutral-400 hover:text-jumpa-danger transition-colors mt-2"
         >
           Forgot password? Sign out
         </button>

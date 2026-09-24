@@ -135,7 +135,7 @@ export function CardsView({
             className: "",
           }}
           title="Delete Virtual Card?"
-          noteIcon={<SealAlertIcon className="size-5 text-jumpa-warning" />}
+          noteIcon={<SealAlertIcon className="size-5 text-jumpa-danger" />}
           note="This action is permanent. Once deleted, this virtual card can't be restored or used for future transactions."
           confirmLabel="Yes, Delete"
           onConfirm={close}

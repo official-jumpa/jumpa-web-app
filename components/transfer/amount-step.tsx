@@ -168,7 +168,7 @@ export function AmountStep({
           {inputPrefix ? (
             <span
               className={`mr-1 select-none text-[36px] font-medium leading-none ${
-                bad ? "text-jumpa-warning" : "text-jumpa-primary-50/70"
+                bad ? "text-jumpa-danger-400" : "text-jumpa-primary-50/70"
               }`}
             >
               {inputPrefix}
@@ -191,7 +191,7 @@ export function AmountStep({
             aria-label="Amount"
             aria-invalid={bad}
             className={`min-w-0 flex-1 bg-transparent text-[56px] leading-none font-medium caret-jumpa-alt-400 outline-none placeholder:text-jumpa-primary-500 ${
-              bad ? "text-jumpa-warning" : "text-jumpa-white"
+              bad ? "text-jumpa-danger-400" : "text-jumpa-white"
             }`}
           />
         </div>

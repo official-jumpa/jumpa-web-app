@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { onBalanceRefresh } from "@/lib/client-events";
 import { useRefreshSignal } from "@/lib/refresh";
 
 const CACHE_KEY = "jumpa_last_balance";
@@ -24,14 +25,19 @@ export function useWalletBalance() {
   const [usdc, setUsdc] = useState(0);
   const [ready, setReady] = useState(false);
 
-  const load = useCallback(async () => {
+  const fetchLive = useCallback(async (forceRefresh = false) => {
     try {
-      const res = await fetch("/api/wallet/balance");
+      const res = await fetch(
+        forceRefresh ? "/api/wallet/balance?refresh=true" : "/api/wallet/balance",
+        { cache: "no-store" }
+      );
       if (!res.ok) return;
       const data = await res.json();
       const total = Number.parseFloat(data.totalUsd) || 0;
       const held = (data.tokens ?? [])
-        .filter((t: { symbol?: string }) => t.symbol?.toUpperCase() === "USDC")
+        .filter(
+          (t: { symbol?: string }) => t.symbol?.toUpperCase() === "USDC",
+        )
         .reduce(
           (sum: number, t: { balance?: string }) =>
             sum + (Number.parseFloat(t.balance ?? "") || 0),
@@ -50,11 +56,16 @@ export function useWalletBalance() {
 
   useEffect(() => {
     setUsdc(read());
-    load();
-  }, [load]);
+    fetchLive(false);
 
-  // A pull-to-refresh re-runs the server tree, which this hook never sees.
-  useRefreshSignal(load);
+    const unsub = onBalanceRefresh(() => {
+      fetchLive(true);
+    });
+
+    return () => {
+      unsub();
+    };
+  }, [fetchLive]);
 
   return {
     usdc,

@@ -21,6 +21,7 @@ import { ResultSheet } from "@/components/ui/result-sheet";
 import { getAssetLogo } from "@/lib/assets";
 import { COUNTRIES } from "@/lib/transfer";
 import { calculateFossaPayWithdrawalFee } from "@/lib/ngn-account";
+import { invalidateClientBalances } from "@/lib/client-events";
 
 type Stage = "form" | "amount" | "done";
 type Sheet = "review" | "pin" | null;
@@ -357,6 +358,8 @@ export function BankTransferView({
         }
 
         setSheet(null);
+        // Instantly notify components and clear cached balances
+        invalidateClientBalances();
         setStage("done");
       } catch (err: any) {
         setErrorMessage(
@@ -401,6 +404,8 @@ export function BankTransferView({
       }
 
       setSheet(null);
+      // Instantly notify components and clear cached balances
+      invalidateClientBalances();
       // Preserve PENDING status so the success screen can show the right message
       setOfframpStatus(data.status === "PENDING" ? "PENDING" : "CONFIRMED");
       setStage("done");

@@ -395,8 +395,19 @@ export async function sendEvm(params: {
     });
   }
 
-  console.log(`[Transfer Service] Waiting for EVM receipt on ${chain}...`);
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  // EVM transaction is already signed and broadcast to the mempool.
+  // Wait briefly (up to 3s on Base, 1.5s on Ethereum). If block inclusion takes longer,
+  // return the valid broadcast txHash immediately so user gets instant confirmation without 90s delays.
+  const waitTimeout = chain === "base" ? 3000 : 1500;
+  console.log(`[Transfer Service] EVM tx broadcast (${txHash}) on ${chain}. Quick receipt check (${waitTimeout / 1000}s cap)...`);
+  try {
+    await Promise.race([
+      publicClient.waitForTransactionReceipt({ hash: txHash }),
+      new Promise((resolve) => setTimeout(resolve, waitTimeout)),
+    ]);
+  } catch (receiptErr) {
+    console.warn(`[Transfer Service] Receipt check note on ${chain}:`, receiptErr);
+  }
 
   const explorerUrl = getExplorerTxUrl(chain, txHash);
 

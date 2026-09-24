@@ -35,6 +35,7 @@ import {
   withdrawSavingsExecution,
 } from "@/lib/services/savings-execution";
 import { logUserActivity } from "@/lib/functions/userFunctions";
+import { invalidateBalanceCache } from "@/lib/wallet-balances";
 
 
 /**
@@ -1086,6 +1087,12 @@ export async function POST(req: NextRequest) {
     console.log(
       `[Chat Confirm] Saved confirmed messages to ChatLog. Elapsed time: ${elapsedSeconds} s`,
     );
+
+    // Invalidate server balance cache so client immediately fetches fresh balances
+    invalidateBalanceCache(userId);
+    if (wallet?.address) {
+      invalidateBalanceCache(wallet.address);
+    }
 
     logUserActivity({
       userId,

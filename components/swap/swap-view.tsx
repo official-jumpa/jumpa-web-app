@@ -22,6 +22,7 @@ import { GearIcon } from "@/components/ui/icons/gear";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { useSwapQuote } from "@/hooks/use-swap-quote";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
+import { invalidateClientBalances } from "@/lib/client-events";
 import { SWAP_QUOTE } from "@/lib/transfer";
 
 /** Assets available for swap. Extend when new chains are integrated. */
@@ -143,6 +144,10 @@ export function SwapView({
           received: quote.amountOut,
           receivedToken: toToken,
         });
+
+        // Instantly notify components and clear cached balances
+        invalidateClientBalances();
+
         setStage("done");
         setPinOpen(false);
       }

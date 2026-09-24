@@ -273,6 +273,12 @@ export async function POST(req: NextRequest) {
       console.warn("[Wallet Send] Internal recipient notification notice:", recipientErr);
     }
 
+    // Invalidate sender balance cache so sender sees updated balances immediately
+    invalidateBalanceCache(session.user.id);
+    if (wallet.address) {
+      invalidateBalanceCache(wallet.address);
+    }
+
     return NextResponse.json({
       success: true,
       txHash: result.txHash,

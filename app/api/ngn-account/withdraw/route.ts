@@ -6,6 +6,7 @@ import { withdrawNgnSchema } from "@/lib/validations/fossapay.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { withdrawNgnFiat } from "@/lib/functions/fossapayFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
+import { invalidateBalanceCache } from "@/lib/wallet-balances";
 
 /**
  * POST /api/ngn-account/withdraw
@@ -80,6 +81,12 @@ export async function POST(req: NextRequest) {
       accountName,
       narration,
     });
+
+    // Invalidate server balance cache so client immediately fetches fresh balances
+    invalidateBalanceCache(userId);
+    if (wallet?.address) {
+      invalidateBalanceCache(wallet.address);
+    }
 
     return NextResponse.json({
       success: true,

@@ -30,7 +30,7 @@ export interface INgnAccount {
 
 const NgnAccountSchema = new Schema<INgnAccount>(
   {
-    _id: { type: String, default: () => generateId("ngn") },
+    _id: { type: Schema.Types.Mixed, default: () => generateId("ngn") },
     userId: { type: String, required: true, index: true },
     currency: { type: String, required: true, default: "NGN" },
     provider: { type: String, required: true, default: "fossapay" },

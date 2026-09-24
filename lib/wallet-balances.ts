@@ -486,15 +486,51 @@ export async function fetchWalletBalances(
 
 /**
  * Invalidates the in-memory balance cache for a given userId or address.
+ * Thoroughly purges all associated wallet addresses and user IDs to ensure zero stale cache.
  */
-export function invalidateBalanceCache(userIdOrAddress?: string) {
+export async function invalidateBalanceCache(userIdOrAddress?: string) {
   if (!userIdOrAddress) return;
   const key = userIdOrAddress.toLowerCase();
   delete balanceCache[key];
   if (globalThis._balanceCache) {
     delete globalThis._balanceCache[key];
   }
-  console.log(`[Balance Service] Cache invalidated for "${userIdOrAddress}"`);
+
+  try {
+    await connectDB();
+    const wallet = await Wallet.findOne({
+      $or: [
+        { userId: userIdOrAddress },
+        { address: key },
+        { "addresses.eth": key },
+        { "addresses.sol": key },
+        { "addresses.xlm": key },
+        { "addresses.base": key },
+      ],
+    }).lean();
+
+    if (wallet) {
+      const keysToClear = [
+        wallet.userId?.toLowerCase(),
+        wallet.address?.toLowerCase(),
+        wallet.addresses?.eth?.toLowerCase(),
+        wallet.addresses?.sol?.toLowerCase(),
+        wallet.addresses?.xlm?.toLowerCase(),
+        wallet.addresses?.base?.toLowerCase(),
+      ].filter(Boolean) as string[];
+
+      for (const k of keysToClear) {
+        delete balanceCache[k];
+        if (globalThis._balanceCache) {
+          delete globalThis._balanceCache[k];
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[Balance Service] Deep purge note:", err);
+  }
+
+  console.log(`[Balance Service] Cache thoroughly invalidated for "${userIdOrAddress}"`);
 }
 
 /**

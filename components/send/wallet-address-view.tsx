@@ -18,6 +18,7 @@ import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { getAssetLogo } from "@/lib/assets";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
+import { invalidateClientBalances } from "@/lib/client-events";
 import { NETWORK_CONFIGS, shortenAddress } from "@/lib/transfer";
 
 type Stage = "form" | "amount" | "done";
@@ -145,6 +146,10 @@ export function WalletAddressView({
         txHash: data.txHash,
         explorerUrl: data.explorerUrl,
       });
+
+      // Instantly notify and clear cached balances
+      invalidateClientBalances();
+
       setSheet(null);
       setStage("done");
     } catch (err) {

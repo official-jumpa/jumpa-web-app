@@ -12,6 +12,7 @@ import { TransactionHistory } from "@/components/home/transaction-history";
 import { WalletHeader } from "@/components/home/wallet-header";
 import { RiseIn } from "@/components/ui/rise-in";
 import { unifyTokens } from "@/lib/assets";
+import { onBalanceRefresh } from "@/lib/client-events";
 import { ACCOUNT, ASSETS, type Asset, type Transaction } from "@/lib/wallet";
 
 // In-memory cache for instant zero-flicker tab returns
@@ -89,20 +90,14 @@ export function HomeView({
       homeMemoryCache.kycComplete = initialKycComplete;
   }, [initialBalance, initialAssets, initialTransactions, initialKycComplete]);
 
-  // Optional background revalidation if server props were not available
+  // Background revalidation and live refresh listener
   useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      if (initialBalance && initialTransactions && initialAssets) {
-        return; // Skip redundant network fetch on first mount
-      }
-    }
-
     let isMounted = true;
+    let lastFetchRef = Date.now();
 
     async function fetchTransactions() {
       try {
-        const res = await fetch("/api/transactions?limit=5");
+        const res = await fetch("/api/transactions?limit=5", { cache: "no-store" });
         if (res.ok && isMounted) {
           const data = await res.json();
           if (Array.isArray(data.transactions)) {
@@ -120,14 +115,20 @@ export function HomeView({
       }
     }
 
-    async function fetchBalances() {
+    async function fetchBalances(forceRefresh = false) {
       try {
-        const res = await fetch("/api/wallet/balance");
+        const res = await fetch(
+          forceRefresh ? "/api/wallet/balance?refresh=true" : "/api/wallet/balance",
+          { cache: "no-store" }
+        );
         if (res.ok && isMounted) {
           const balanceData = await res.json();
           if (balanceData.totalUsd) {
             setTotalBalance(balanceData.totalUsd);
             homeMemoryCache.balance = balanceData.totalUsd;
+            try {
+              localStorage.setItem("jumpa_last_balance", balanceData.totalUsd);
+            } catch {}
           }
           if (
             balanceData.tokens &&
@@ -137,6 +138,9 @@ export function HomeView({
             const unified = unifyTokens(balanceData.tokens);
             setAssets(unified);
             homeMemoryCache.assets = unified;
+            try {
+              localStorage.setItem("jumpa_last_assets", JSON.stringify(unified));
+            } catch {}
           }
         }
       } catch (err) {
@@ -162,12 +166,45 @@ export function HomeView({
       }
     }
 
-    if (!initialTransactions) fetchTransactions();
-    if (!initialBalance) fetchBalances();
-    if (initialKycComplete === undefined) fetchKycStatus();
+    // Only skip network fetch on the very first render if full server props are present
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      if (!initialTransactions) fetchTransactions();
+      if (!initialBalance) fetchBalances(false);
+      if (initialKycComplete === undefined) fetchKycStatus();
+    } else {
+      fetchTransactions();
+      fetchBalances(false);
+    }
+
+    // Subscribe to balance refresh events triggered upon transaction completion
+    const unsub = onBalanceRefresh(() => {
+      homeMemoryCache.balance = undefined;
+      homeMemoryCache.assets = undefined;
+      fetchBalances(true);
+      fetchTransactions();
+    });
+
+    // Revalidate on tab focus or visibility change (e.g. user returns to app)
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const now = Date.now();
+        if (now - lastFetchRef > 8000) {
+          lastFetchRef = now;
+          fetchBalances(false);
+          fetchTransactions();
+        }
+      }
+    };
+
+    window.addEventListener("focus", handleVisibility);
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       isMounted = false;
+      unsub();
+      window.removeEventListener("focus", handleVisibility);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [initialBalance, initialTransactions, initialAssets, initialKycComplete]);
 

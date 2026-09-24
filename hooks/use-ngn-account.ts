@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { onNgnRefresh, onBalanceRefresh } from "@/lib/client-events";
 import { useRefreshSignal } from "@/lib/refresh";
 
 const NGN_CACHE_KEY = "jumpa_ngn_account_cache";
@@ -12,6 +13,10 @@ interface NgnMemoryCache {
 }
 
 let ngnMemoryCache: NgnMemoryCache = {};
+
+export function clearNgnMemoryCache() {
+  ngnMemoryCache = {};
+}
 
 function readNgnCache(): NgnMemoryCache {
   if (typeof window === "undefined") return {};
@@ -122,8 +127,40 @@ export function useNgnAccount(initialHasAccount?: boolean): UseNgnAccountResult 
     }
   }, []);
 
+  const lastFetchRef = useRef<number>(0);
+
   useEffect(() => {
+    lastFetchRef.current = Date.now();
     fetchNgnAccount();
+
+    // Listen for custom events across components & tabs
+    const unsubNgn = onNgnRefresh(() => {
+      fetchNgnAccount();
+    });
+    const unsubBalance = onBalanceRefresh(() => {
+      fetchNgnAccount();
+    });
+
+    // Revalidate on tab focus or visibility change (e.g. user returns from banking app)
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const now = Date.now();
+        if (now - lastFetchRef.current > 3000) {
+          lastFetchRef.current = now;
+          fetchNgnAccount();
+        }
+      }
+    };
+
+    window.addEventListener("focus", handleVisibility);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      unsubNgn();
+      unsubBalance();
+      window.removeEventListener("focus", handleVisibility);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [fetchNgnAccount]);
 
   // A pull-to-refresh re-runs the server tree, which this hook never sees.

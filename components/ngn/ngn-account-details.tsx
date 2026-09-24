@@ -1,8 +1,9 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { onNgnRefresh, onBalanceRefresh } from "@/lib/client-events";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { Button } from "@/components/ui/button";
 import { JumpaLoader } from "@/components/ui/jumpa-loader";
@@ -100,9 +101,11 @@ export function NgnAccountDetails({
     } catch {}
   }, []);
 
-  // Fetch and synchronize live account details and balance on mount
+  // Fetch and synchronize live account details and balance on mount, on event, and on focus
   useEffect(() => {
     let isMounted = true;
+    let lastFetchTime = Date.now();
+
     async function fetchAccount() {
       try {
         const res = await fetch("/api/ngn-account", { cache: "no-store" });
@@ -145,19 +148,9 @@ export function NgnAccountDetails({
       }
     }
 
-    fetchAccount();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  // Fetch NGN-specific transaction history only if not pre-seeded
-  useEffect(() => {
-    if (initialTransactions.length > 0) return;
-    let isMounted = true;
     async function fetchNgnTransactions() {
       try {
-        const res = await fetch("/api/transactions?chain=fiat&limit=10");
+        const res = await fetch("/api/transactions?chain=fiat&limit=10", { cache: "no-store" });
         if (res.ok && isMounted) {
           const data = await res.json();
           if (Array.isArray(data.transactions)) {
@@ -171,11 +164,44 @@ export function NgnAccountDetails({
       }
     }
 
-    fetchNgnTransactions();
+    fetchAccount();
+    if (initialTransactions.length === 0) {
+      fetchNgnTransactions();
+    }
+
+    // Subscribe to balance/ngn refresh events
+    const unsubNgn = onNgnRefresh(() => {
+      fetchAccount();
+      fetchNgnTransactions();
+    });
+    const unsubBal = onBalanceRefresh(() => {
+      fetchAccount();
+      fetchNgnTransactions();
+    });
+
+    // Revalidate on tab focus or visibility change (e.g. user returns from banking app)
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const now = Date.now();
+        if (now - lastFetchTime > 3000) {
+          lastFetchTime = now;
+          fetchAccount();
+          fetchNgnTransactions();
+        }
+      }
+    };
+
+    window.addEventListener("focus", handleVisibility);
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       isMounted = false;
+      unsubNgn();
+      unsubBal();
+      window.removeEventListener("focus", handleVisibility);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [initialTransactions.length]);
+  }, [initialAccount, initialTransactions.length]);
 
   /**
    * Refreshes the NGN account live balance directly from FossaPay,

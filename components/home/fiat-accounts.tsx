@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
 import { UserAlt1Icon } from "@/components/ui/icons/user-alt-1";
 import { useKyc } from "@/hooks/use-kyc";
+import { onNgnRefresh, onBalanceRefresh } from "@/lib/client-events";
 import { cn } from "@/lib/cn";
 import { FIAT_ACCOUNTS, type FiatAccount } from "@/lib/wallet";
 import { FiatBalance } from "./fiat-balance";
@@ -67,10 +68,11 @@ export function FiatAccounts({
     } catch {}
   }, [initialHasNgnAccount]);
 
-  // Fetch live NGN account status and balance from API only if not pre-provided
+  // Fetch live NGN account status and balance from API in background (stale-while-revalidate)
   useEffect(() => {
-    if (initialHasNgnAccount !== undefined) return;
     let isMounted = true;
+    let lastFetchTime = 0;
+
     async function loadNgnAccount() {
       try {
         const res = await fetch("/api/ngn-account", {
@@ -124,11 +126,40 @@ export function FiatAccounts({
       }
     }
 
+    // Initial background revalidation on mount
     loadNgnAccount();
+    lastFetchTime = Date.now();
+
+    // Revalidate on global balance/ngn events
+    const unsubNgn = onNgnRefresh(() => {
+      loadNgnAccount();
+    });
+    const unsubBal = onBalanceRefresh(() => {
+      loadNgnAccount();
+    });
+
+    // Revalidate on tab focus or visibility change (e.g. user returns from banking app)
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const now = Date.now();
+        if (now - lastFetchTime > 3000) {
+          lastFetchTime = now;
+          loadNgnAccount();
+        }
+      }
+    };
+
+    window.addEventListener("focus", handleVisibility);
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       isMounted = false;
+      unsubNgn();
+      unsubBal();
+      window.removeEventListener("focus", handleVisibility);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [initialHasNgnAccount]);
+  }, []);
 
   const accounts: FiatAccount[] = FIAT_ACCOUNTS.map((account) => {
     if (account.id === "ngn") {

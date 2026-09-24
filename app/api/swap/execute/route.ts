@@ -8,6 +8,7 @@ import { swapExecuteSchema } from "@/lib/validations/swap.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
+import { invalidateBalanceCache } from "@/lib/wallet-balances";
 
 /**
  * POST /api/swap/execute
@@ -101,6 +102,12 @@ export async function POST(req: NextRequest) {
       },
       link: "/transactions",
     }).catch((e) => console.error("[Swap Execute] Notification error:", e));
+
+    // Invalidate server balance cache so client immediately fetches fresh balances
+    invalidateBalanceCache(userId);
+    if (wallet.address) {
+      invalidateBalanceCache(wallet.address);
+    }
 
     return NextResponse.json({
       success: true,

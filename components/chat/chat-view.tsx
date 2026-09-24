@@ -17,6 +17,7 @@ import type { ChatEntry, ChatItem, QuoteCard as Quote } from "@/lib/chat";
 import { answersByCard } from "@/lib/chat-answer";
 import type { ChatAttachment } from "@/lib/chat-attachments";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
+import { invalidateClientBalances } from "@/lib/client-events";
 import type { IChatMessage } from "@/models/ChatLog";
 
 /**
@@ -486,6 +487,9 @@ export function ChatView({
         if (data.messages) {
           setMessages(data.messages);
         }
+
+        // Invalidate client balances across memory and localStorage to notify other views immediately
+        invalidateClientBalances();
 
         setPendingQuoteCard(null);
         setPinProcessing(false);

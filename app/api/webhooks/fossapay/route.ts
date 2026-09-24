@@ -3,7 +3,10 @@ import crypto from "crypto";
 import { connectDB } from "@/lib/db";
 import { NgnAccount } from "@/models/NgnAccount";
 import { Transaction } from "@/models/Transaction";
-import { atomicCreditNgnBalance } from "@/lib/functions/fossapayFunctions";
+import {
+  atomicCreditNgnBalance,
+  refreshUserNgnAccountBalance,
+} from "@/lib/functions/fossapayFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
@@ -70,60 +73,21 @@ export async function POST(req: Request) {
         return NextResponse.json({ received: true });
       }
 
-      // Record transaction
-      const transaction = await Transaction.create({
-        userId,
-        type: "DEPOSIT",
-        status: "CONFIRMED",
-        chain: "fiat",
-        network: "mainnet",
-        toAddress: account.accountNumber,
-        amount: amount.toString(),
-        feePaid: "0",
-        token: "NGN",
-        txHash: reference,
-        memo: `Bank Transfer Deposit`,
-        executedAt: new Date(),
-      });
-
-      console.log(`FossaPay: Transaction ${reference} recorded successfully`);
-
-      // Credit local ledger
-      await atomicCreditNgnBalance({
+      // Credit local ledger & record confirmed transaction atomically
+      const creditResult = await atomicCreditNgnBalance({
         userId,
         amount: Number(amount),
         reference,
         memo: `Bank Transfer Deposit (${reference})`,
       });
 
-      // Invalidate cache
+      console.log(`FossaPay: Deposit of ₦${amount} credited. New balance: ₦${creditResult.newBalance} for user ${userId}`);
+
+      // Invalidate balance cache across server and trigger live wallet sync
       invalidateBalanceCache(userId);
-
-      // Log activity and notify
-      await logUserActivity({
-        userId,
-        action: "DEPOSIT_COMPLETED",
-        details: {
-          amount,
-          reference,
-          provider: "fossapay"
-        },
+      refreshUserNgnAccountBalance(userId).catch((err) => {
+        console.warn("[FossaPay Webhook] Background live sync notice:", err);
       });
-
-      await createNotification({
-        userId,
-        tab: "transactions",
-        type: "DEPOSIT_COMPLETED",
-        title: "Deposit Received",
-        body: `You received a deposit of ₦${Number(amount).toLocaleString()} into your Naira account`,
-        metadata: {
-          amount,
-          txHash: reference,
-        },
-        link: "/ngn-account",
-      });
-
-      console.log(`FossaPay: Deposit of ₦${amount} processed for user ${userId}`);
     } else {
       console.log(`FossaPay: Unhandled event type: ${event}`);
     }

@@ -18,6 +18,7 @@ import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { depositHref, walletHref } from "@/hooks/use-asset-network";
 import { getAssetLogo } from "@/lib/assets";
+import { onBalanceRefresh } from "@/lib/client-events";
 import type { Chain } from "@/lib/blockchain";
 import type { Asset, Transaction } from "@/lib/wallet";
 
@@ -77,9 +78,14 @@ export function TokenDetailView({
       }
     } catch {}
 
-    async function fetchLiveBalance() {
+    let lastFetchTime = Date.now();
+
+    async function fetchLiveBalance(forceRefresh = false) {
       try {
-        const res = await fetch("/api/wallet/balance");
+        const res = await fetch(
+          forceRefresh ? "/api/wallet/balance?refresh=true" : "/api/wallet/balance",
+          { cache: "no-store" }
+        );
         if (!res.ok) return;
         const data = await res.json();
         if (!isMounted || !Array.isArray(data.tokens)) return;
@@ -130,10 +136,32 @@ export function TokenDetailView({
       }
     }
 
-    fetchLiveBalance();
+    fetchLiveBalance(false);
+
+    // Subscribe to balance refresh events
+    const unsub = onBalanceRefresh(() => {
+      fetchLiveBalance(true);
+    });
+
+    // Revalidate on tab focus or visibility change
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        const now = Date.now();
+        if (now - lastFetchTime > 6000) {
+          lastFetchTime = now;
+          fetchLiveBalance(false);
+        }
+      }
+    };
+
+    window.addEventListener("focus", handleVisibility);
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       isMounted = false;
+      unsub();
+      window.removeEventListener("focus", handleVisibility);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [asset.symbol, chain?.id, chain?.name]);
 

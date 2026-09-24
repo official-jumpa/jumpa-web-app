@@ -530,7 +530,12 @@ export async function withdrawNgnFiat(params: WithdrawNgnFiatParams): Promise<{
         // Sync local DB balance to match live FossaPay balance
         if (userAccount.balance !== currentBalance) {
           await NgnAccount.updateOne(
-            { _id: userAccount._id },
+            {
+              $or: [
+                { _id: userAccount._id },
+                { userId: userAccount.userId },
+              ],
+            },
             { $set: { balance: currentBalance } }
           );
         }
@@ -1040,14 +1045,25 @@ export async function atomicCreditNgnBalance(params: {
   }
 
   // 2. Atomic Balance Increment
-  const updatedAccount = await NgnAccount.findOneAndUpdate(
+  let updatedAccount = await NgnAccount.findOneAndUpdate(
     { userId: params.userId, provider: "fossapay" },
     {
       $inc: { balance: params.amount },
       $set: { status: "active" },
     },
-    { returnDocument: "after", upsert: true }
+    { returnDocument: "after" }
   );
+
+  if (!updatedAccount) {
+    updatedAccount = await NgnAccount.findOneAndUpdate(
+      { userId: params.userId },
+      {
+        $inc: { balance: params.amount },
+        $set: { status: "active", provider: "fossapay" },
+      },
+      { returnDocument: "after", upsert: true }
+    );
+  }
 
   const newBalance = updatedAccount?.balance ?? params.amount;
 
@@ -1188,9 +1204,17 @@ export async function refreshUserNgnAccountBalance(userId: string): Promise<{
           console.log(
             `[FossaPay] Updating DB balance for account ${account._id} from ₦${account.balance} to ₦${finalAvail}`,
           );
-          await NgnAccount.updateOne(
-            { _id: account._id },
+          const updateResult = await NgnAccount.updateOne(
+            {
+              $or: [
+                { _id: account._id },
+                { userId: account.userId },
+              ],
+            },
             { $set: { balance: finalAvail } },
+          );
+          console.log(
+            `[FossaPay] DB balance updated: matched ${updateResult.matchedCount}, modified ${updateResult.modifiedCount}`,
           );
         }
       }

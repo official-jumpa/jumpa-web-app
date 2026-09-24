@@ -26,6 +26,7 @@ export function AmountStep({
   amount,
   symbol,
   balance,
+  logo,
   chips = QUICK_AMOUNTS,
   chipUnit,
   checkBalance = true,
@@ -47,6 +48,11 @@ export function AmountStep({
   symbol: string;
   /** Spendable balance, already formatted. MAX fills the field with it. */
   balance: string;
+  /**
+   * Overrides the mark beside the balance. The bill rails spend naira, not a
+   * token, so they pass a flag — `getAssetLogo` has no entry for a currency.
+   */
+  logo?: string;
   /** Quick-fill values; the flows differ on whether 5 is offered. */
   chips?: readonly number[];
   /** Unit printed on the chips. The bill flows show bare amounts. */
@@ -238,7 +244,7 @@ export function AmountStep({
         <p className="flex min-w-0 items-center gap-2">
           {/* Resolved from the symbol so the glyph can never disagree with it. */}
           <Image
-            src={getAssetLogo(symbol)}
+            src={logo ?? getAssetLogo(symbol)}
             alt=""
             width={20}
             height={20}

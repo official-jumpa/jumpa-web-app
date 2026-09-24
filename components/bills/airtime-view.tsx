@@ -20,15 +20,16 @@ import {
   getNetwork,
 } from "@/lib/bills";
 import { friendlyBillError, readBillResponse } from "@/lib/bills-errors";
+import { FLAGS } from "@/lib/flags";
 import type { Receipt } from "@/lib/receipt";
-import { formatAmount, SEND_BALANCE } from "@/lib/transfer";
+import { formatAmount } from "@/lib/transfer";
 
 type Stage = "form" | "amount" | "done";
 type Sheet = "review" | "pin" | null;
 
 /** Airtime top-up: recipient, amount, review, PIN, receipt. */
 export function AirtimeView() {
-  const { hasNgnAccount } = useNgnAccount();
+  const { hasNgnAccount, ngnBalance } = useNgnAccount();
   const [stage, setStage] = useState<Stage>("form");
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pinError, setPinError] = useState(false);
@@ -46,6 +47,8 @@ export function AirtimeView() {
 
   const network = getNetwork(networkId);
   const total = formatAmount(amount);
+  /** Every printed amount in this flow is naira — one string so none can drift. */
+  const naira = `₦${total}`;
 
   const fail = (
     rawOrMessage: unknown,
@@ -79,7 +82,7 @@ export function AirtimeView() {
       <DetailRow label="Type" value="Airtime" />
       <DetailRow label="Network" value={network?.label ?? ""} />
       <DetailRow label="Phone number" value={phone} />
-      <DetailRow label="Amount" value={total} rule={false} />
+      <DetailRow label="Amount" value={naira} rule={false} />
     </DetailList>
   );
 
@@ -137,7 +140,7 @@ export function AirtimeView() {
         reference: String(data?.reference ?? ""),
         title: "Airtime recharge",
 
-        amount: total,
+        amount: naira,
         status: "Successful",
         timestamp: new Date().toLocaleString(),
         rows: [
@@ -145,7 +148,7 @@ export function AirtimeView() {
           { label: "Type", value: "Airtime" },
           { label: "Network", value: network.label },
           { label: "Phone number", value: phone },
-          { label: "Amount", value: total },
+          { label: "Amount", value: naira },
         ],
       });
 
@@ -165,7 +168,7 @@ export function AirtimeView() {
         title={`Airtime recharge of ${network?.label} to ${phone} was successful`}
         titleFirst
         actionsFirst
-        amount={`₦${total}`}
+        amount={naira}
         details={details}
         ctaLabel="Back to home"
         actions={
@@ -200,8 +203,12 @@ export function AirtimeView() {
           }
           onClose={() => setStage("form")}
           amount={amount}
-          symbol={SEND_BALANCE.symbol}
-          balance={SEND_BALANCE.balance}
+          // Airtime is bought with naira from the NGN wallet, so the balance
+          // shown is that wallet's — not a token's.
+          symbol="Naira"
+          balance={ngnBalance ?? "₦0.00"}
+          logo={FLAGS.NG}
+          inputPrefix="₦"
           chips={AIRTIME_AMOUNTS}
           chipUnit=""
           checkBalance={false}
@@ -222,7 +229,7 @@ export function AirtimeView() {
                 network={network}
               />
             }
-            headline={total}
+            headline={naira}
             onConfirm={() => setSheet("pin")}
             onClose={() => setSheet(null)}
           >

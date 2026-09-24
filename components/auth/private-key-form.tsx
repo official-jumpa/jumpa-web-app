@@ -267,12 +267,10 @@ export function PrivateKeyForm({ nextHref }: { nextHref: string }) {
         <p className="mt-4.25 flex gap-2 text-jumpa-warning">
           <SealAlertIcon className="size-6 shrink-0" />
           <span className="flex flex-col gap-1 text-xs leading-3.5">
-            <span className="font-medium">
-              Passcode for your self-custodial wallet.
-            </span>
+            <span className="font-medium">Keep your private key private.</span>
             <span>
-              A 4-digit PIN is used to sign transactions and unlock your wallet
-              on your device. It's never sent unencrypted to Jumpa servers.
+              It is the only thing that controls this wallet. Never share it
+              with anyone — Jumpa will never ask you for it.
             </span>
           </span>
         </p>

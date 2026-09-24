@@ -11,12 +11,14 @@ import {
   AttachmentStrip,
   type PendingAttachment,
 } from "@/components/chat/attachment-strip";
-import { VoiceTranscript, VoiceWave } from "@/components/chat/voice-bar";
+import { VoiceWave } from "@/components/chat/voice-bar";
+import { VoicePreviewPill } from "@/components/chat/voice-preview-pill";
 import { CirclePlusIcon } from "@/components/ui/icons/circle-plus";
+import { CircleStopIcon } from "@/components/ui/icons/circle-stop";
 import { MicrophoneIcon } from "@/components/ui/icons/microphone";
 import { SendAltIcon } from "@/components/ui/icons/send-alt";
 import { ResultSheet } from "@/components/ui/result-sheet";
-import { useSpeechToText } from "@/hooks/use-speech-to-text";
+import { useAudioRecorder } from "@/hooks/use-audio-recorder";
 import {
   type ChatAttachment,
   formatFileSize,
@@ -34,10 +36,18 @@ const TONES = {
   plain: "bg-jumpa-neutral-50",
 } as const;
 
+interface VoiceReviewState {
+  previewUrl: string;
+  duration: number;
+  uploaded?: ChatAttachment;
+  isProcessing: boolean;
+  transcript: string;
+}
+
 interface ChatComposerProps {
   value?: string;
   onChange?: (val: string) => void;
-  onSend?: (attachments?: ChatAttachment[]) => void;
+  onSend?: (attachments?: ChatAttachment[], customText?: string) => void;
   disabled?: boolean;
   placeholder?: string;
   /** `cn` is a plain join, so the surface is a prop rather than a className. */
@@ -46,7 +56,7 @@ interface ChatComposerProps {
   autoFocus?: boolean;
 }
 
-/** Message entry with live Speech-to-Text dictation support. */
+/** Message entry with MediaRecorder audio capture, Vercy Storage, and Gemini 2.5 transcription. */
 export function ChatComposer({
   value = "",
   onChange,
@@ -67,12 +77,17 @@ export function ChatComposer({
   const [menuOpen, setMenuOpen] = useState(false);
   const [pending, setPending] = useState<PendingAttachment[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [voiceReview, setVoiceReview] = useState<VoiceReviewState | null>(null);
 
-  const { isListening, isSupported, toggleListening } = useSpeechToText(
-    (transcript) => {
-      onChange?.(transcript);
-    },
-  );
+  const {
+    isRecording,
+    duration: recordingDuration,
+    isSupported,
+    error: recorderError,
+    startRecording,
+    stopRecording,
+    cancelRecording,
+  } = useAudioRecorder();
 
   // Grow to fit, then scroll. The cap comes off computed style so it follows
   // the field's own line height; the gutter is margin, not padding, which keeps
@@ -216,44 +231,131 @@ export function ChatComposer({
     }
   };
 
-  const handleMicClick = () => {
+  const handleMicClick = async () => {
     if (!isSupported) {
       setUnsupported(true);
       return;
     }
-    toggleListening();
+    const started = await startRecording();
+    if (!started && recorderError) {
+      setNotice(recorderError);
+    }
   };
 
-  // The recording pill replaces the field: bare waveform until the first words
-  // come back, then the transcript with its own discard and stop controls.
-  if (isListening) {
+  const handleStopRecording = async () => {
+    const res = await stopRecording();
+    if (!res) return;
+
+    setVoiceReview({
+      previewUrl: res.previewUrl,
+      duration: res.duration,
+      isProcessing: true,
+      transcript: "",
+    });
+
+    try {
+      const isMp4 = res.mimeType.includes("mp4");
+      const ext = isMp4 ? "mp4" : "webm";
+      const file = new File([res.blob], `voice-note-${Date.now()}.${ext}`, {
+        type: res.mimeType || "audio/webm",
+      });
+
+      const form = new FormData();
+      form.append("file", file);
+
+      const uploadRes = await fetch("/api/chat/voice", {
+        method: "POST",
+        body: form,
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error(`HTTP ${uploadRes.status}`);
+      }
+
+      const data = await uploadRes.json();
+      setVoiceReview((prev) =>
+        prev
+          ? {
+              ...prev,
+              uploaded: data.attachment,
+              isProcessing: false,
+              transcript: data.transcript || "",
+            }
+          : null,
+      );
+
+      if (data.transcript && !value.trim()) {
+        onChange?.(data.transcript);
+      }
+    } catch (err) {
+      console.error("[ChatComposer] Voice upload failed:", err);
+      setNotice(
+        "Could not process voice note. Check your connection and try again.",
+      );
+      setVoiceReview(null);
+    }
+  };
+
+  // If user is actively recording, show animated wave with duration counter & stop button
+  if (isRecording) {
     return (
       <div className="flex items-end gap-2.5">
-        {hasText ? (
-          <VoiceTranscript
-            text={value}
-            onDiscard={() => {
-              toggleListening();
-              onChange?.("");
-            }}
-            onStop={toggleListening}
-          />
-        ) : (
-          <VoiceWave />
-        )}
+        <VoiceWave
+          duration={recordingDuration}
+          onCancel={cancelRecording}
+        />
 
         <button
           type="button"
-          onClick={() => {
-            toggleListening();
-            if (hasText && !disabled) send();
-          }}
-          aria-label={hasText ? "Send message" : "Stop recording"}
-          className="tap flex size-11.5 shrink-0 items-center justify-center rounded-pill bg-jumpa-alt-400 text-jumpa-primary-600 active:scale-95"
+          onClick={handleStopRecording}
+          aria-label="Stop recording and review"
+          title="Stop recording"
+          className="tap flex size-11.5 shrink-0 items-center justify-center rounded-pill bg-jumpa-alt-400 text-jumpa-primary-600 active:scale-95 cursor-pointer"
         >
-          <SendAltIcon className="size-6" />
+          <CircleStopIcon className="size-6" />
         </button>
       </div>
+    );
+  }
+
+  // If recording is done and ready for review/playback
+  if (voiceReview) {
+    return (
+      <VoicePreviewPill
+        audioUrl={voiceReview.previewUrl}
+        duration={voiceReview.duration}
+        isProcessing={voiceReview.isProcessing}
+        transcript={voiceReview.transcript}
+        onTranscriptChange={(t) => {
+          setVoiceReview((prev) =>
+            prev ? { ...prev, transcript: t } : null,
+          );
+          onChange?.(t);
+        }}
+        onDiscard={async () => {
+          const uploadedUrl = voiceReview.uploaded?.url;
+          URL.revokeObjectURL(voiceReview.previewUrl);
+          setVoiceReview(null);
+          if (uploadedUrl) {
+            try {
+              await fetch(
+                `/api/chat/voice?url=${encodeURIComponent(uploadedUrl)}`,
+                { method: "DELETE" },
+              );
+            } catch (delErr) {
+              console.warn("[ChatComposer] Discard delete error:", delErr);
+            }
+          }
+        }}
+        onSend={() => {
+          if (!voiceReview.uploaded) return;
+          const att = voiceReview.uploaded;
+          const customText = voiceReview.transcript || value;
+          URL.revokeObjectURL(voiceReview.previewUrl);
+          setVoiceReview(null);
+          onSend?.([att], customText);
+        }}
+      />
     );
   }
 
@@ -372,8 +474,8 @@ export function ChatComposer({
 
       {unsupported ? (
         <ResultSheet
-          title="Voice typing isn't available"
-          message="This browser doesn't support speech recognition. Type your message instead — everything else works the same."
+          title="Voice recording isn't available"
+          message="Your browser doesn't have permission to record audio or doesn't support audio capture. Please enable microphone permissions in your browser settings."
           onClose={() => setUnsupported(false)}
         />
       ) : null}

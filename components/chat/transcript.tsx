@@ -126,7 +126,7 @@ function Item({
         </MessageBubble>
       );
     case "attachments":
-      return <AttachmentList items={item.items} align={from} />;
+      return <AttachmentList items={item.items} align={from} transcript={item.transcript} />;
     case "quote":
       return (
         <ChatErrorBoundary fallbackTitle="Swap quote preview unavailable">

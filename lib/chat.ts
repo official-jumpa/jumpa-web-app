@@ -175,8 +175,8 @@ export type ChatItem =
    * `reveal` is set only on a reply that just arrived, so it types itself in.
    */
   | { kind: "text"; text: string; paragraph?: boolean; reveal?: boolean }
-  /** Files sent with a message — thumbnails for images, a row for anything else. */
-  | { kind: "attachments"; items: ChatAttachment[] }
+  /** Files sent with a message — thumbnails for images, voice notes, a row for anything else. */
+  | { kind: "attachments"; items: ChatAttachment[]; transcript?: string }
   | { kind: "quote"; card: QuoteCard; isEditable?: boolean }
   | { kind: "bridge"; card: BridgeCard }
   | { kind: "receipt"; card: ReceiptCard }

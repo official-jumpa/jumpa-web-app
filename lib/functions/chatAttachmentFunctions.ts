@@ -1,4 +1,4 @@
-import { put, createFolder } from "@vercy/storage";
+import { put, createFolder, del } from "@vercy/storage";
 import type { ChatAttachment } from "@/lib/chat-attachments";
 import { MAX_ATTACHMENT_BYTES } from "@/lib/chat-attachments";
 import { connectDB } from "@/lib/db";
@@ -108,5 +108,20 @@ export async function readChatAttachment(userId: string, id: string) {
     name: matchedAtt.name,
     mime: matchedAtt.mime,
   };
+}
+
+/**
+ * Deletes a file from Vercy Storage by URL or storage pathname.
+ */
+export async function deleteChatAttachment(urlOrPathname: string): Promise<boolean> {
+  if (!urlOrPathname) return false;
+  try {
+    const res = await del(urlOrPathname);
+    console.log(`[ChatAttachment] Deleted ${urlOrPathname} from Vercy Storage:`, res);
+    return (res.deletedCount ?? 0) > 0;
+  } catch (err) {
+    console.error("[ChatAttachment] Failed to delete from Vercy Storage:", err);
+    return false;
+  }
 }
 

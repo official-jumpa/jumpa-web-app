@@ -15,18 +15,52 @@ const PILL = "flex min-w-0 flex-1 items-center rounded-surface";
 /** How many lines of transcript to show before it starts scrolling. */
 const MAX_LINES = 3;
 
-/** Recording, before any words come back. */
-export function VoiceWave() {
+/** Recording, with animated wave bars, duration timer, and cancel button. */
+export function VoiceWave({
+  duration = 0,
+  onCancel,
+}: {
+  duration?: number;
+  onCancel?: () => void;
+}) {
+  const m = Math.floor(duration / 60);
+  const s = duration % 60;
+  const timeStr = `${m}:${s < 10 ? "0" : ""}${s}`;
+
   return (
-    <div className={`${PILL} h-11.5 justify-center gap-1 bg-jumpa-primary-600`}>
-      {BARS.map((height, index) => (
-        <span
-          // biome-ignore lint/suspicious/noArrayIndexKey: the bars are a fixed decorative pattern
-          key={index}
-          style={{ height, "--i": index } as CSSProperties}
-          className="w-1.5 shrink-0 animate-wave stagger-bar rounded-full bg-jumpa-alt-400"
-        />
-      ))}
+    <div
+      className={`${PILL} h-11.5 justify-between gap-2 bg-jumpa-primary-600 px-3.5 text-jumpa-white`}
+    >
+      <div className="flex items-center gap-2">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Cancel recording"
+            title="Cancel recording"
+            className="tap shrink-0 text-white/80 hover:text-white active:scale-90 transition-transform cursor-pointer"
+          >
+            <XmarkIcon className="size-5" />
+          </button>
+        )}
+        <div className="flex items-center gap-1.5">
+          <span className="size-2 rounded-full bg-red-400 animate-pulse" />
+          <span className="text-xs font-semibold tabular-nums tracking-wide">
+            {timeStr}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1 overflow-hidden">
+        {BARS.map((height, index) => (
+          <span
+            // biome-ignore lint/suspicious/noArrayIndexKey: the bars are a fixed decorative pattern
+            key={index}
+            style={{ height: Math.min(24, Math.max(6, height * 0.75)), "--i": index } as CSSProperties}
+            className="w-1 shrink-0 animate-wave stagger-bar rounded-full bg-jumpa-alt-400"
+          />
+        ))}
+      </div>
     </div>
   );
 }

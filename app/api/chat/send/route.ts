@@ -7,7 +7,7 @@ import {
 import { executeTool } from "@/lib/ai/tool-executor";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { detectTargetChains } from "@/lib/blockchain";
-import { describeAttachments } from "@/lib/chat-attachments";
+import { describeAttachments, isAudioAttachment } from "@/lib/chat-attachments";
 import { analyzeImageWithGemini } from "@/lib/ai/vision";
 import { getChatAttachments } from "@/lib/functions/chatAttachmentFunctions";
 import { generateId } from "@/lib/schema-ids";
@@ -76,8 +76,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // The model receives rich visual analysis directly in its context
-    const attachmentNote = describeAttachments(attachments, visionAnalysis);
+    // The model receives rich visual analysis for images; voice notes are already in message text
+    const nonAudioAttachments = attachments.filter(
+      (att) => !isAudioAttachment(att.mime, att.name),
+    );
+    const attachmentNote = describeAttachments(nonAudioAttachments, visionAnalysis);
 
     // Fetch wallet via walletFunctions
     const wallet = await findWalletForUser(userId);

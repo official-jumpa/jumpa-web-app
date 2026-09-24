@@ -15,7 +15,7 @@ import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import type { ChatEntry, ChatItem, QuoteCard as Quote } from "@/lib/chat";
 import { answersByCard } from "@/lib/chat-answer";
-import type { ChatAttachment } from "@/lib/chat-attachments";
+import { type ChatAttachment, isAudioAttachment } from "@/lib/chat-attachments";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import { invalidateClientBalances } from "@/lib/client-events";
 import type { IChatMessage } from "@/models/ChatLog";
@@ -47,14 +47,26 @@ function messagesToChatEntries(
 
     const items: ChatItem[] = [];
 
+    const hasAudio = msg.attachments?.some((a) =>
+      isAudioAttachment(a.mime, a.name),
+    );
+    const text = msg.content
+      ? typeof msg.content === "string"
+        ? msg.content
+        : String(msg.content)
+      : "";
+
     // Files the user sent, above whatever they said about them.
     if (msg.attachments?.length) {
-      items.push({ kind: "attachments", items: msg.attachments });
+      items.push({
+        kind: "attachments",
+        items: msg.attachments,
+        transcript: hasAudio ? text : undefined,
+      });
     }
 
-    // Text message
-    if (msg.content) {
-      const text = typeof msg.content === "string" ? msg.content : String(msg.content);
+    // Text message - only render separate text bubble if it's not a voice note
+    if (text && !hasAudio) {
       items.push({
         kind: "text",
         text,
@@ -642,7 +654,9 @@ export function ChatView({
           <ChatComposer
             value={inputValue}
             onChange={setInputValue}
-            onSend={(attachments) => handleSendMessage(undefined, attachments)}
+            onSend={(attachments, customText) =>
+              handleSendMessage(customText, attachments)
+            }
             disabled={isResponding}
           />
         </ChatDock>

@@ -18,6 +18,17 @@ export function isImageAttachment(mime: string) {
   return mime.startsWith("image/");
 }
 
+export function isAudioAttachment(mime: string, name?: string) {
+  if (mime?.startsWith("audio/")) return true;
+  if (name) {
+    const ext = name.split(".").pop()?.toLowerCase();
+    if (ext && ["webm", "mp3", "m4a", "wav", "ogg", "aac"].includes(ext)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** The size that reads under a file name. */
 export function formatFileSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;

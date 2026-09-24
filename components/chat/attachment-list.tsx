@@ -5,22 +5,29 @@ import { FileIcon } from "@/components/ui/icons/file";
 import {
   type ChatAttachment,
   formatFileSize,
+  isAudioAttachment,
   isImageAttachment,
 } from "@/lib/chat-attachments";
+import { VoicePlayer } from "@/components/chat/voice-player";
 
-/** What came with a message: images as thumbnails with inline zoom, anything else as a row. */
+/** What came with a message: images as thumbnails with inline zoom, audio as playable voice notes, anything else as a file row. */
 export function AttachmentList({
   items,
   align,
+  transcript,
 }: {
   items: ChatAttachment[];
   align: "user" | "agent";
+  transcript?: string;
 }) {
   const [zoomedImage, setZoomedImage] = useState<ChatAttachment | null>(null);
   const [scale, setScale] = useState(1);
 
   const images = items.filter((item) => isImageAttachment(item.mime));
-  const files = items.filter((item) => !isImageAttachment(item.mime));
+  const audioNotes = items.filter((item) => isAudioAttachment(item.mime, item.name));
+  const files = items.filter(
+    (item) => !isImageAttachment(item.mime) && !isAudioAttachment(item.mime, item.name),
+  );
 
   // Dismiss on Escape key
   useEffect(() => {
@@ -62,6 +69,22 @@ export function AttachmentList({
                   className="size-full object-cover transition-transform duration-200 group-hover:scale-105"
                 />
               </button>
+            ))}
+          </div>
+        ) : null}
+
+        {audioNotes.length ? (
+          <div
+            className={`flex flex-col gap-2 ${align === "user" ? "items-end" : "items-start"}`}
+          >
+            {audioNotes.map((item) => (
+              <VoicePlayer
+                key={item.id}
+                url={item.url}
+                name={item.name}
+                align={align}
+                transcript={transcript}
+              />
             ))}
           </div>
         ) : null}

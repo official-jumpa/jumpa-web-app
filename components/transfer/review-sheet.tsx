@@ -14,6 +14,7 @@ export function ReviewSheet({
   title = "Review",
   summary,
   headline,
+  headlineNote,
   headlineLabel = "RECIPIENT GETS",
   confirmLabel = "Proceed",
   onConfirm,
@@ -23,6 +24,8 @@ export function ReviewSheet({
   title?: string;
   summary?: ReactNode;
   headline: string;
+  /** Second line under the figure, e.g. its dollar equivalent. */
+  headlineNote?: string;
   headlineLabel?: string;
   /** Every flow confirms with the same word; override only for a real reason. */
   confirmLabel?: string;
@@ -51,6 +54,11 @@ export function ReviewSheet({
           <p className="text-[32px] leading-none font-medium text-jumpa-black">
             {headline}
           </p>
+          {headlineNote ? (
+            <p className="text-xs leading-4 font-medium text-jumpa-neutral-425">
+              {headlineNote}
+            </p>
+          ) : null}
         </div>
 
         <span className="-mb-px block h-px w-full bg-jumpa-neutral-100" />

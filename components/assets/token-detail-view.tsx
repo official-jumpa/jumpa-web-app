@@ -18,6 +18,7 @@ import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { depositHref, walletHref } from "@/hooks/use-asset-network";
 import { getAssetLogo } from "@/lib/assets";
+import { usdEquivalent } from "@/lib/token-amount";
 import { onBalanceRefresh } from "@/lib/client-events";
 import type { Chain } from "@/lib/blockchain";
 import type { Asset, Transaction } from "@/lib/wallet";
@@ -46,6 +47,10 @@ export function TokenDetailView({
   const [visible, setVisible] = useState(true);
   const [asking, setAsking] = useState<"wallet" | "deposit">();
   const [liveBalance, setLiveBalance] = useState<string>(() => asset.balance);
+  /** Units and price kept apart from the formatted string, so the dollar value
+      is derived rather than re-parsed out of display text. */
+  const [holding, setHolding] = useState<{ units: number; priceUsd?: string }>();
+  const holdingUsd = usdEquivalent(holding?.units ?? 0, holding?.priceUsd);
 
   useEffect(() => {
     setLiveBalance(asset.balance);
@@ -130,6 +135,7 @@ export function TokenDetailView({
             maximumFractionDigits: 4,
           });
           setLiveBalance(`${formatted} ${asset.symbol}`);
+          setHolding({ units: balNum, priceUsd: chosen.priceUsd });
         }
       } catch (err) {
         console.warn("[TokenDetailView] Failed to fetch live balance:", err);
@@ -249,6 +255,13 @@ export function TokenDetailView({
             <ToggleIcon className="size-6" />
           </button>
         </p>
+
+        {/* Hidden with the balance it values, or the mask leaks the holding. */}
+        {visible && holdingUsd ? (
+          <p className="text-xs leading-4 font-medium text-jumpa-primary-50">
+            {holdingUsd}
+          </p>
+        ) : null}
       </section>
 
       <nav className="mt-6 flex items-start justify-center gap-8">

@@ -17,6 +17,7 @@ import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { getAssetLogo } from "@/lib/assets";
+import { usdEquivalent } from "@/lib/token-amount";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import { invalidateClientBalances } from "@/lib/client-events";
 import { NETWORK_CONFIGS, shortenAddress } from "@/lib/transfer";
@@ -50,11 +51,15 @@ export function WalletAddressView({
   );
   const [amount, setAmount] = useState("");
   const [liveBalance, setLiveBalance] = useState("$0.00");
+  /** Live price for the selected asset, straight off `/api/wallet/balance`. */
+  const [priceUsd, setPriceUsd] = useState<string>();
 
   const currentConfig =
     NETWORK_CONFIGS[form.network] || NETWORK_CONFIGS["Stellar Mainnet"];
   const network = form.network.replace(" ", " - ");
   const short = shortenAddress(form.address, 18, 0);
+  /** What the entered amount is worth, shown on the amount, review and receipt. */
+  const equivalent = usdEquivalent(amount, priceUsd);
 
   // Fetch live balance for current selected asset & chain
   useEffect(() => {
@@ -67,6 +72,9 @@ export function WalletAddressView({
         if (!isMounted) return;
 
         const isTestnet = currentConfig.network === "testnet";
+        // Cleared up front: a price left over from the previous asset would be
+        // quoted against this one for as long as the lookup misses.
+        setPriceUsd(undefined);
 
         if (Array.isArray(data.tokens)) {
           const matched = data.tokens.find(
@@ -81,6 +89,7 @@ export function WalletAddressView({
           if (matched) {
             const tokenAmount = parseFloat(matched.balance) || 0;
             setLiveBalance(`${tokenAmount} ${form.asset}`);
+            setPriceUsd(matched.priceUsd);
             return;
           }
         }
@@ -176,6 +185,7 @@ export function WalletAddressView({
       <TransferSuccess
         back="/home"
         amount={`${amount} ${form.asset}`}
+        subAmount={equivalent}
         note={
           <div className="flex flex-col items-center gap-2 pb-4">
             <span>
@@ -210,7 +220,7 @@ export function WalletAddressView({
           symbol={form.asset}
           balance={liveBalance}
           chips={CHIPS}
-          rate=""
+          rate={equivalent ?? ""}
           caption="Always verify the address is correct. Payments to wrong addresses cannot be reversed."
           onAmountChange={setAmount}
           onReview={() => setSheet("review")}
@@ -246,6 +256,7 @@ export function WalletAddressView({
               </div>
             }
             headline={`${amount} ${form.asset}`}
+            headlineNote={equivalent}
             onConfirm={() => setSheet("pin")}
             onClose={() => setSheet(null)}
           >

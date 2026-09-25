@@ -6,6 +6,7 @@ import { NumericKeypad } from "@/components/auth/numeric-keypad";
 import { CanvasError } from "@/components/ui/field-error";
 import { CloseIcon } from "@/components/ui/icons/close";
 import { getAssetLogo } from "@/lib/assets";
+import { decimalsFor } from "@/lib/token-amount";
 import { formatAmount, QUICK_AMOUNTS, sanitiseAmount } from "@/lib/transfer";
 
 const CHIP =
@@ -29,6 +30,7 @@ export function AmountStep({
   logo,
   chips = QUICK_AMOUNTS,
   chipUnit,
+  decimals,
   checkBalance = true,
   maxAmount,
   min,
@@ -58,6 +60,11 @@ export function AmountStep({
   /** Unit printed on the chips. The bill flows show bare amounts. */
   chipUnit?: string;
   /**
+   * Decimals the field accepts. Derived from the asset by default, which is
+   * what keeps a small token amount (0.0837 SOL) from truncating to 0.08.
+   */
+  decimals?: number;
+  /**
    * Off for the bill flows: they quote in local currency, so the wallet
    * balance neither gates the amount nor makes a MAX chip meaningful.
    */
@@ -85,6 +92,7 @@ export function AmountStep({
 }) {
   const [error, setError] = useState<string>();
 
+  const places = decimals ?? decimalsFor(symbol);
   const size = CHIP_SIZE[chips.length > 3 ? "dense" : "roomy"];
   const unit = chipUnit ?? symbol;
   const spendable =
@@ -114,7 +122,7 @@ export function AmountStep({
       change(amount ? `${amount}.` : "0.");
       return;
     }
-    change(sanitiseAmount(amount === "0" ? digit : amount + digit));
+    change(sanitiseAmount(amount === "0" ? digit : amount + digit, places));
   };
 
   const review = () => {
@@ -182,7 +190,7 @@ export function AmountStep({
                 change("0.");
                 return;
               }
-              change(sanitiseAmount(raw));
+              change(sanitiseAmount(raw, places));
             }}
             inputMode="none"
             // biome-ignore lint/a11y/noAutofocus: the screen exists to take this entry

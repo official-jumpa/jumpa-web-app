@@ -19,6 +19,7 @@ import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { getAssetLogo } from "@/lib/assets";
+import { FIAT_DECIMALS } from "@/lib/token-amount";
 import { COUNTRIES, titleCaseName } from "@/lib/transfer";
 import { calculateFossaPayWithdrawalFee } from "@/lib/ngn-account";
 import { invalidateClientBalances } from "@/lib/client-events";
@@ -511,6 +512,13 @@ export function BankTransferView({
           inputPrefix={
             isFiatWithdrawal || currencyMode === "fiat" ? "₦" : undefined
           }
+          // Naira is what is being typed in fiat mode, so the field's precision
+          // follows the currency on screen rather than the token being sent.
+          decimals={
+            isFiatWithdrawal || currencyMode === "fiat"
+              ? FIAT_DECIMALS
+              : undefined
+          }
           rate={rateSubtitle}
           chips={isFiatWithdrawal ? FIAT_CHIPS : currencyMode === "crypto" ? CRYPTO_CHIPS : FIAT_CHIPS}
           chipUnit={
@@ -555,12 +563,19 @@ export function BankTransferView({
                 />
               </div>
             }
+            // The figure the user typed leads; the conversion is its own line
+            // rather than a parenthetical crammed into the 32px headline.
             headline={
-              isFiatWithdrawal
+              isFiatWithdrawal || currencyMode === "fiat"
                 ? `₦${rawTypedNumber.toLocaleString()}`
+                : `${numCryptoAmount} ${selectedAsset}`
+            }
+            headlineNote={
+              isFiatWithdrawal
+                ? undefined
                 : currencyMode === "fiat"
-                  ? `₦${targetFiatAmount.toLocaleString()} (${numCryptoAmount} ${selectedAsset})`
-                  : `${numCryptoAmount} ${selectedAsset}`
+                  ? `≈ ${numCryptoAmount} ${selectedAsset}`
+                  : `≈ ₦${targetFiatAmount.toLocaleString()}`
             }
             onConfirm={() => setSheet("pin")}
             onClose={() => setSheet(null)}

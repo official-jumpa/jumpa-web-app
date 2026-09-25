@@ -23,7 +23,8 @@ import { ResultSheet } from "@/components/ui/result-sheet";
 import { useSwapQuote } from "@/hooks/use-swap-quote";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import { invalidateClientBalances } from "@/lib/client-events";
-import { SWAP_QUOTE } from "@/lib/transfer";
+import { decimalsFor } from "@/lib/token-amount";
+import { sanitiseAmount, SWAP_QUOTE } from "@/lib/transfer";
 
 /** Assets available for swap. Extend when new chains are integrated. */
 const SWAP_ASSETS = ["XLM", "USDC"] as const;
@@ -241,7 +242,9 @@ export function SwapView({
                   value={amount}
                   onChange={(e) => {
                     setError(undefined);
-                    setAmount(e.target.value.replace(/[^\d.]/g, ""));
+                    setAmount(
+                      sanitiseAmount(e.target.value, decimalsFor(fromToken)),
+                    );
                   }}
                   inputMode="decimal"
                   aria-label="Amount to swap"

@@ -3,6 +3,8 @@
  * touches a network yet — the screens are wired end to end against these.
  */
 
+import { FIAT_DECIMALS } from "@/lib/token-amount";
+
 export type Country = {
   code: string;
   label: string;
@@ -173,13 +175,21 @@ export const SWAP_QUOTE = {
   lockSeconds: 30,
 };
 
-/** The PIN the placeholder flows accept. Replace with a real verification call. */
-/** Digits with one dot and up to two decimals */
-export function sanitiseAmount(value: string): string {
+/**
+ * Digits with one dot, clamped to the asset's own precision. Defaults to fiat,
+ * so a caller that does not know its asset behaves exactly as it always has;
+ * token fields pass `decimalsFor(symbol)`.
+ */
+export function sanitiseAmount(
+  value: string,
+  decimals: number = FIAT_DECIMALS,
+): string {
   const clean = value.replace(/[^\d.]/g, "");
   if (clean === ".") return "0.";
   const [whole = "", ...rest] = clean.split(".");
-  return rest.length ? `${whole || "0"}.${rest.join("").slice(0, 2)}` : whole;
+  return rest.length
+    ? `${whole || "0"}.${rest.join("").slice(0, decimals)}`
+    : whole;
 }
 
 /** Thousands separators, as the design prints every entered amount. */

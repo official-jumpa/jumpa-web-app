@@ -1,17 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import {
-  FiCheckCircle,
-  FiEye,
-  FiRefreshCw,
-  FiUploadCloud,
-  FiUser,
-  FiSmile,
-  FiCamera,
-} from "react-icons/fi";
+  type ComponentType,
+  type SVGProps,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { CameraIcon } from "@/components/ui/icons/camera";
+import { CheckIcon } from "@/components/ui/icons/check";
+import { CloudIcon } from "@/components/ui/icons/cloud";
+import { EyeIcon } from "@/components/ui/icons/eye";
+import { ImageIcon } from "@/components/ui/icons/image";
+import { RefreshIcon } from "@/components/ui/icons/refresh";
+import { ScanIcon } from "@/components/ui/icons/scan";
+import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
 
 // Suppress internal MediaPipe / TFLite C++ Emscripten stdout diagnostic logs in dev mode
 if (typeof window !== "undefined") {
@@ -36,10 +40,111 @@ if (typeof window !== "undefined") {
 }
 
 /** Rectangle for a document, portrait oval for a face. */
+/**
+ * The capture frame, per shape. The oval takes the column's leftover height
+ * rather than a fixed one — capped, so it eases down on a short screen instead
+ * of growing the document, and floored so it never collapses.
+ */
 const FRAME = {
-  box: "w-full h-48 shrink-0 rounded-surface bg-jumpa-neutral-50 border border-jumpa-neutral-200",
-  oval: "mx-auto aspect-[4/5] h-[min(46dvh,340px)] rounded-[50%] border-2 bg-jumpa-neutral-50 overflow-hidden relative transition-all duration-300",
+  box: {
+    wrap: "relative mt-5",
+    frame:
+      "w-full h-48 shrink-0 rounded-surface bg-jumpa-neutral-50 border border-jumpa-neutral-100",
+  },
+  oval: {
+    wrap: "relative mt-5 flex min-h-0 flex-1 items-center justify-center",
+    frame:
+      "aspect-[4/5] h-full min-h-50 max-h-[min(48dvh,446px)] rounded-[50%] border-2 bg-jumpa-neutral-95 overflow-hidden relative transition-[border-color,box-shadow] duration-300",
+  },
 } as const;
+
+type LivenessStage =
+  | "align"
+  | "cooldown"
+  | "blink"
+  | "turn"
+  | "hold"
+  | "verified";
+
+type Tone = keyof typeof TONE;
+
+/**
+ * How a frame state is painted. Every surface that reacts to the liveness check
+ * — the oval's border, its halo, the status pill — reads one entry, so they
+ * cannot end up describing different states.
+ */
+const TONE = {
+  rest: {
+    ring: "border-dashed border-jumpa-neutral-200",
+    halo: "",
+    pill: "bg-jumpa-neutral-50 text-jumpa-neutral-500",
+  },
+  idle: {
+    ring: "border-jumpa-primary-200",
+    halo: "shadow-jumpa-halo-idle",
+    pill: "bg-jumpa-primary-50 text-jumpa-primary-600",
+  },
+  active: {
+    ring: "border-jumpa-warning",
+    halo: "shadow-jumpa-halo-active",
+    pill: "bg-jumpa-warning-50 text-jumpa-warning",
+  },
+  good: {
+    ring: "border-jumpa-success",
+    halo: "shadow-jumpa-halo-good",
+    pill: "bg-jumpa-success/10 text-jumpa-success",
+  },
+  danger: {
+    ring: "border-jumpa-danger",
+    halo: "",
+    pill: "bg-jumpa-danger-50 text-jumpa-danger",
+  },
+} as const;
+
+/** The rail under the oval. `verified` sits past the end, so all four fill. */
+const LIVENESS_STEPS = ["Align", "Blink", "Turn", "Hold"] as const;
+
+/**
+ * One entry per step of the check. Adding a step is an entry here plus a rail
+ * label — not an edit in three places that can drift apart.
+ */
+const STAGE: Record<
+  LivenessStage,
+  {
+    tone: Tone;
+    Icon: ComponentType<SVGProps<SVGSVGElement>>;
+    /** Omitted where the detector writes its own line as the face moves. */
+    label?: string;
+    cta: string;
+    /** Index on the rail; cooldown holds the step it has just left. */
+    step: number;
+  }
+> = {
+  align: { tone: "idle", Icon: ScanIcon, cta: "Center your face", step: 0 },
+  cooldown: { tone: "good", Icon: CheckIcon, cta: "Nice — hold on", step: 0 },
+  blink: {
+    tone: "active",
+    Icon: EyeIcon,
+    label: "Blink your eyes",
+    cta: "Blink to continue",
+    step: 1,
+  },
+  turn: {
+    tone: "active",
+    Icon: RefreshIcon,
+    label: "Turn your head slightly right",
+    cta: "Turn your head",
+    step: 2,
+  },
+  hold: { tone: "good", Icon: CameraIcon, cta: "Hold still\u2026", step: 3 },
+  verified: {
+    tone: "good",
+    Icon: CheckIcon,
+    label: "Liveness confirmed",
+    cta: "Taking photo\u2026",
+    step: LIVENESS_STEPS.length,
+  },
+};
 
 function formatIdInput(val: string, docType?: string) {
   if (docType === "nin") {
@@ -124,9 +229,7 @@ export function KycCaptureScreen({
 
   // Client-Side Active Liveness State Machine
   // "align" -> "blink" -> "turn" -> "hold" -> "verified" (with 1s cooldown between transitions)
-  const [livenessStage, setLivenessStage] = useState<
-    "align" | "cooldown" | "blink" | "turn" | "hold" | "verified"
-  >("align");
+  const [livenessStage, setLivenessStage] = useState<LivenessStage>("align");
 
   const [alignmentFeedback, setAlignmentFeedback] = useState<string>(
     "Center your face in the oval",
@@ -146,9 +249,10 @@ export function KycCaptureScreen({
 
   // 1-second cooldown tracking refs
   const cooldownUntilRef = useRef<number>(0);
-  const nextStageAfterCooldownRef = useRef<
-    "align" | "blink" | "turn" | "hold" | "verified" | null
-  >(null);
+  const nextStageAfterCooldownRef = useRef<Exclude<
+    LivenessStage,
+    "cooldown"
+  > | null>(null);
 
   // Upload state
   const [uploading, setUploading] = useState(false);
@@ -238,7 +342,7 @@ export function KycCaptureScreen({
 
     let isCancelled = false;
     let landmarker: any = null;
-    let currentStage: "align" | "cooldown" | "blink" | "turn" | "hold" | "verified" = "align";
+    let currentStage: LivenessStage = "align";
 
     async function initAndRunLiveness() {
       landmarker = await getFaceLandmarker();
@@ -801,36 +905,38 @@ export function KycCaptureScreen({
     });
   };
 
-  // Dynamic oval frame border based on liveness stage
-  const ovalBorderClass =
-    isSelfie && !preview
-      ? livenessStage === "verified" || holdProgress === 100
-        ? "border-emerald-500 shadow-[0_0_24px_#10b981]"
-        : livenessStage === "hold"
-          ? "border-emerald-400 shadow-[0_0_16px_#34d399]"
-          : livenessStage === "turn" || livenessStage === "blink"
-            ? "border-amber-400 shadow-[0_0_16px_#f59e0b]"
-            : isFaceCentered
-              ? "border-emerald-400 shadow-[0_0_14px_#10b981]"
-              : "border-dashed border-jumpa-neutral-200"
-      : "border-dashed border-jumpa-neutral-200";
+  // The frame answers to the capture state first, then to the liveness step.
+  const stage = STAGE[livenessStage];
+  const live = isSelfie && !preview && cameraState === "ready";
+  const blocked = cameraState === "denied" || cameraState === "unsupported";
+  const tone =
+    TONE[
+      preview
+        ? "good"
+        : isSelfie && blocked
+          ? "danger"
+          : !live
+            ? "rest"
+            : livenessStage === "align"
+              ? isFaceCentered
+                ? "good"
+                : "idle"
+              : stage.tone
+    ];
+
+  // A cooldown is the detector confirming the step just passed, so it speaks
+  // for itself; otherwise the stage's own copy, or the detector's live line.
+  const StatusIcon = cooldownMessage ? CheckIcon : stage.Icon;
+  const statusLabel = cooldownMessage ?? stage.label ?? alignmentFeedback;
 
   return (
     <>
-      <style>{`
-        @keyframes kycFlash {
-          0% { opacity: 0.95; }
-          100% { opacity: 0; }
-        }
-        .animate-kyc-flash {
-          animation: kycFlash 0.35s ease-out forwards;
-        }
-      `}</style>
-
       <h1 className="mt-6 text-[26px] leading-8 font-bold text-jumpa-black">
         {title}
       </h1>
-      <p className="mt-2 text-sm leading-5 text-jumpa-black">{description}</p>
+      <p className="mt-2 text-sm leading-5 text-jumpa-neutral-500">
+        {description}
+      </p>
 
       {/* Hidden File Input for Documents */}
       {!isSelfie && (
@@ -845,26 +951,28 @@ export function KycCaptureScreen({
 
       {/* Mandatory ID Number Input for Document Step */}
       {!isSelfie && (
-        <div className="mt-5 p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between">
+        <div className="mt-5 flex flex-col gap-2 rounded-card border border-jumpa-neutral-100 bg-jumpa-white p-4 shadow-jumpa-sm">
+          <div className="flex items-center justify-between gap-2">
             <label
               htmlFor="idNumberInput"
-              className="text-xs font-bold text-slate-800">
+              className="text-xs leading-4 font-semibold text-jumpa-black"
+            >
               {isNin
                 ? "National Identification Number (NIN)"
                 : "Document / ID Number"}
             </label>
             {isNin && (
               <span
-                className={`text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                  rawId.length === 11
-                    ? "bg-emerald-100 text-emerald-800"
-                    : "bg-slate-100 text-slate-500"
-                }`}>
-                {rawId.length === 11 && (
-                  <FiCheckCircle className="size-3 text-emerald-600" />
+                className={`flex shrink-0 items-center gap-1 rounded-pill px-2 py-0.5 text-[11px] leading-4 font-semibold transition-colors ${
+                  isIdValid
+                    ? "bg-jumpa-success/10 text-jumpa-success"
+                    : "bg-jumpa-neutral-95 text-jumpa-neutral-400"
+                }`}
+              >
+                {isIdValid && (
+                  <CheckIcon aria-hidden="true" className="size-3 shrink-0" />
                 )}
-                {rawId.length}/11 digits
+                {rawId.length}/11
               </span>
             )}
           </div>
@@ -876,16 +984,14 @@ export function KycCaptureScreen({
             onChange={(e) =>
               setIdNumber(formatIdInput(e.target.value, documentType))
             }
-            placeholder={
-              isNin ? "e.g. 123 456 78901" : "Enter document number"
-            }
-            className={`w-full rounded-xl px-3 py-2.5 text-sm font-mono font-bold tracking-wide focus:outline-none transition-all ${
+            placeholder={isNin ? "e.g. 123 456 78901" : "Enter document number"}
+            className={`h-11.5 w-full rounded-panel border px-3 text-sm leading-5 font-semibold tracking-wide text-jumpa-black outline-none transition-colors placeholder:font-normal placeholder:text-jumpa-secondary-200 ${
               isIdValid
-                ? "bg-emerald-50/30 border border-emerald-400 text-slate-900"
-                : "bg-slate-50 border border-slate-200 text-slate-900 focus:border-jumpa-primary-500 focus:bg-white"
+                ? "border-jumpa-success bg-jumpa-success/5"
+                : "border-jumpa-neutral-100 bg-jumpa-neutral-50 focus:border-jumpa-primary-600 focus:bg-jumpa-white"
             }`}
           />
-          <p className="text-[11px] text-slate-500">
+          <p className="text-[11px] leading-4 text-jumpa-neutral-400">
             {isNin
               ? "Enter your 11-digit NIN exactly as issued by NIMC."
               : "Enter your official document number."}
@@ -894,13 +1000,13 @@ export function KycCaptureScreen({
       )}
 
       {/* Capture Frame (Live Webcam for Selfie, Upload Card for Document) */}
-      <div className="relative mt-4">
+      <div className={FRAME[shape].wrap}>
         <div
-          className={`flex items-center justify-center overflow-hidden relative ${
-            isSelfie ? `mb-2 ${ovalBorderClass}` : ""
-          } ${FRAME[shape]}`}>
+          className={`relative flex items-center justify-center overflow-hidden ${
+            isSelfie ? `${tone.ring} ${tone.halo}` : ""
+          } ${FRAME[shape].frame}`}
+        >
           {isSelfie ? (
-            // Selfie Mode: Clean camera stream with no overlays covering the face
             preview ? (
               // biome-ignore lint/performance/noImgElement: dynamic blob URL preview
               <img
@@ -908,98 +1014,100 @@ export function KycCaptureScreen({
                 alt="Captured selfie preview"
                 className="size-full object-cover"
               />
-            ) : cameraState === "denied" || cameraState === "unsupported" ? (
-              <div className="flex flex-col items-center justify-center p-5 text-center h-full gap-2 text-slate-700">
-                <CameraIcon className="size-10 text-rose-500" />
-                <span className="text-xs font-bold text-rose-700">
-                  Camera Access Required
+            ) : blocked ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+                <span className="flex size-12 items-center justify-center rounded-full bg-jumpa-danger-50 text-jumpa-danger">
+                  <SealAlertIcon aria-hidden="true" className="size-6" />
                 </span>
-                <span className="text-[11.5px] text-slate-500 leading-relaxed">
-                  Camera access is required to perform live biometric verification.
-                  Please enable camera permissions in your browser.
+                <span className="text-sm leading-5 font-semibold text-jumpa-black">
+                  Camera access needed
                 </span>
-                <button
-                  type="button"
-                  onClick={startCamera}
-                  className="mt-2 px-4 py-1.5 rounded-full bg-slate-900 text-white text-xs font-semibold cursor-pointer active:scale-95 transition-transform">
-                  Enable Camera
-                </button>
+                <span className="text-[11px] leading-4 text-jumpa-neutral-400">
+                  We need your camera to check you are really here. Allow it in
+                  your browser, then try again.
+                </span>
               </div>
             ) : cameraState === "requesting" ? (
-              <div className="flex flex-col items-center justify-center p-4 text-center h-full gap-2 text-slate-400">
-                <FiRefreshCw className="size-8 text-jumpa-primary-600 animate-spin" />
-                <span className="text-xs font-medium">Starting camera...</span>
+              <div className="flex h-full flex-col items-center justify-center gap-2.5 text-center">
+                <RefreshIcon
+                  aria-hidden="true"
+                  className="size-7 animate-spin text-jumpa-primary-600"
+                />
+                <span className="text-xs leading-4 font-medium text-jumpa-neutral-400">
+                  Starting camera
+                </span>
               </div>
             ) : (
-              <div className="size-full relative">
+              <div className="relative size-full">
                 <video
                   ref={videoRef}
                   autoPlay
                   playsInline
                   muted
-                  className="size-full object-cover -scale-x-100"
+                  className="size-full -scale-x-100 object-cover"
                 />
 
-                {/* Precise Center Target Reticle Guide */}
-                <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
+                {/* Softens the hard cut where the video meets the oval. */}
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 z-10 rounded-[50%] shadow-jumpa-vignette"
+                />
+
+                {/* Only while the detector is still looking for a face, so a
+                    camera that is working never reads as frozen. */}
+                {livenessStage === "align" && !isFaceCentered ? (
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 animate-kyc-scan bg-gradient-to-b from-transparent via-jumpa-alt-400/25 to-transparent"
+                  />
+                ) : null}
+
+                {/* Face guide. The oval's own border carries the status colour,
+                    so this stays white and quiet or the frame reads as two. */}
+                <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
                   <svg
                     viewBox="0 0 200 250"
-                    className={`w-[68%] h-[76%] transition-all duration-300 ${
+                    className={`h-[76%] w-[68%] transition-opacity duration-300 ${
                       isFaceCentered
-                        ? "text-emerald-500 drop-shadow-[0_0_10px_rgba(16,185,129,0.7)]"
-                        : "text-white/45"
+                        ? "text-jumpa-white opacity-80"
+                        : "text-jumpa-white opacity-40"
                     }`}
                     fill="none"
-                    xmlns="http://www.w3.org/2000/svg">
-                    {/* Elliptical Head Target Zone */}
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <title>Face alignment guide</title>
                     <ellipse
                       cx="100"
                       cy="115"
                       rx="56"
                       ry="76"
                       stroke="currentColor"
-                      strokeWidth={isFaceCentered ? "2.5" : "1.5"}
-                      strokeDasharray={isFaceCentered ? "none" : "5 5"}
+                      strokeWidth={isFaceCentered ? "2" : "1.25"}
+                      strokeDasharray={isFaceCentered ? "none" : "6 7"}
+                      strokeLinecap="round"
                     />
-                    {/* Center Crosshair ticks */}
-                    <line
-                      x1="100"
-                      y1="28"
-                      x2="100"
-                      y2="38"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    />
-                    <line
-                      x1="100"
-                      y1="192"
-                      x2="100"
-                      y2="202"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    />
-                    <line
-                      x1="34"
-                      y1="115"
-                      x2="44"
-                      y2="115"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    />
-                    <line
-                      x1="156"
-                      y1="115"
-                      x2="166"
-                      y2="115"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    />
+                    {[
+                      "M100 28V38",
+                      "M100 192V202",
+                      "M34 115H44",
+                      "M156 115H166",
+                    ].map((d) => (
+                      <path
+                        key={d}
+                        d={d}
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                    ))}
                   </svg>
                 </div>
 
-                {/* White Flash Effect on Snap */}
                 {showFlash && (
-                  <div className="absolute inset-0 bg-white z-30 animate-kyc-flash pointer-events-none" />
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 z-30 animate-kyc-flash bg-jumpa-white"
+                  />
                 )}
               </div>
             )
@@ -1008,14 +1116,13 @@ export function KycCaptureScreen({
             <button
               type="button"
               onClick={() => {
-                if (!preview) {
-                  fileInputRef.current?.click();
-                }
+                if (!preview) fileInputRef.current?.click();
               }}
               aria-label={preview ? "Document photo preview" : "Choose a photo"}
-              className={`size-full flex items-center justify-center ${
-                preview ? "cursor-default" : "cursor-pointer tap"
-              }`}>
+              className={`flex size-full items-center justify-center ${
+                preview ? "cursor-default" : "tap cursor-pointer"
+              }`}
+            >
               {preview ? (
                 // biome-ignore lint/performance/noImgElement: dynamic blob URL preview
                 <img
@@ -1024,31 +1131,32 @@ export function KycCaptureScreen({
                   className="size-full object-cover"
                 />
               ) : (
-                <div className="flex flex-col items-center gap-2 text-jumpa-neutral-400 p-4 text-center">
-                  <FiUploadCloud className="size-9 text-jumpa-neutral-350" />
-                  <span className="text-xs font-semibold text-jumpa-black">
-                    Tap to upload document photo or take picture
+                <span className="flex flex-col items-center gap-2 px-6 text-center">
+                  <span className="flex size-12 items-center justify-center rounded-full bg-jumpa-primary-50 text-jumpa-primary-600">
+                    <ImageIcon aria-hidden="true" className="size-6" />
                   </span>
-                  <span className="text-[11px] text-jumpa-neutral-400">
-                    Supports JPEG, PNG, or PDF up to 3MB
+                  <span className="text-sm leading-5 font-semibold text-jumpa-black">
+                    Upload or take a photo
                   </span>
-                </div>
+                  <span className="text-[11px] leading-4 text-jumpa-neutral-400">
+                    JPEG, PNG or PDF, up to 3MB
+                  </span>
+                </span>
               )}
             </button>
           )}
 
-          {/* Upload Status Overlay Pill */}
           {uploadedMediaId && !uploading && (
-            <div className="absolute top-2.5 right-2.5 bg-emerald-600 text-white rounded-full px-2.5 py-1 text-[11px] font-semibold flex items-center gap-1.5 shadow-md z-10">
-              <FiCheckCircle className="size-3.5" />
-              <span>Uploaded</span>
-            </div>
+            <span className="absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded-pill bg-jumpa-success px-2.5 py-1 text-[11px] leading-4 font-semibold text-jumpa-white shadow-jumpa-sm">
+              <CheckIcon aria-hidden="true" className="size-3.5 shrink-0" />
+              Uploaded
+            </span>
           )}
         </div>
 
-        {/* Retake / Replace Actions */}
+        {/* Retake / Replace */}
         {preview && (
-          <div className="mt-2 flex items-center justify-end">
+          <div className="mt-3 flex justify-end">
             <button
               type="button"
               onClick={
@@ -1056,239 +1164,161 @@ export function KycCaptureScreen({
                   ? handleRetakeSelfie
                   : () => fileInputRef.current?.click()
               }
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-pill bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold border border-slate-200 transition-colors cursor-pointer">
-              <FiRefreshCw className="size-3 text-slate-600" />
-              <span>{isSelfie ? "Retake Selfie" : "Replace Photo"}</span>
+              className="tap flex items-center gap-1.5 rounded-pill bg-jumpa-neutral-50 px-3.5 py-2 text-xs leading-4 font-semibold text-jumpa-neutral-700 active:scale-95"
+            >
+              <RefreshIcon aria-hidden="true" className="size-3.5 shrink-0" />
+              {isSelfie ? "Retake selfie" : "Replace photo"}
             </button>
           </div>
         )}
       </div>
 
-      {/* Real-Time Command Instructions (Rendered Outside Camera Area) */}
-      {isSelfie && !preview && cameraState === "ready" && (
-        <div className="mt-3 p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col items-center justify-center text-center transition-all min-h-[58px]">
-          {cooldownMessage ? (
-            <div className="flex items-center gap-2 text-sm font-bold text-emerald-600 animate-pulse">
-              <FiCheckCircle className="size-4 text-emerald-600 shrink-0" />
-              <span>{cooldownMessage}</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
-              {livenessStage === "align" && (
-                <>
-                  <FiUser
-                    className={`size-4 shrink-0 ${
-                      isFaceCentered ? "text-emerald-600" : "text-sky-500"
+      {/* Liveness rail and status. The rail is the only progress display —
+          the hold step fills its own segment rather than adding a second bar. */}
+      {live && (
+        <>
+          <div aria-hidden="true" className="mt-4 flex items-center gap-1.5">
+            {LIVENESS_STEPS.map((label, index) => {
+              const done = index < stage.step;
+              const current = index === stage.step;
+              const fill = done
+                ? 100
+                : !current
+                  ? 0
+                  : livenessStage === "hold"
+                    ? holdProgress
+                    : 100;
+              return (
+                <span
+                  key={label}
+                  className="h-1 flex-1 overflow-hidden rounded-pill bg-jumpa-neutral-100"
+                >
+                  <span
+                    className={`block h-full rounded-pill transition-[width] duration-200 ${
+                      done || livenessStage === "hold"
+                        ? "bg-jumpa-success"
+                        : "bg-jumpa-primary-600"
                     }`}
+                    style={{ width: `${fill}%` }}
                   />
-                  <span>{alignmentFeedback}</span>
-                </>
-              )}
-
-              {livenessStage === "blink" && (
-                <>
-                  <FiEye className="size-4 text-amber-500 animate-pulse shrink-0" />
-                  <span>Blink your eyes</span>
-                </>
-              )}
-
-              {livenessStage === "turn" && (
-                <>
-                  <FiSmile className="size-4 text-amber-500 animate-bounce shrink-0" />
-                  <span>Turn head slightly right</span>
-                </>
-              )}
-
-              {livenessStage === "hold" && (
-                <>
-                  <FiCamera className="size-4 text-emerald-600 animate-pulse shrink-0" />
-                  <span>
-                    {isFaceCentered
-                      ? "Hold still and look at the camera"
-                      : alignmentFeedback}
-                  </span>
-                </>
-              )}
-
-              {livenessStage === "verified" && (
-                <>
-                  <FiCheckCircle className="size-4 text-emerald-600 shrink-0" />
-                  <span>Taking photo...</span>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Smooth 1-second progress bar during Hold Still */}
-          {livenessStage === "hold" && !cooldownMessage && (
-            <div className="mt-2.5 w-full max-w-[220px]">
-              <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                <div
-                  className="bg-emerald-500 h-full rounded-full transition-all duration-100"
-                  style={{ width: `${holdProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Upload Notification Badge */}
-      {uploadedMediaId && (
-        <div className="mt-3 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11.5px] flex items-center justify-between">
-          <div className="flex items-center gap-1.5 font-medium">
-            <FiCheckCircle className="size-4 text-emerald-600 shrink-0" />
-            <span>
-              {isSelfie
-                ? "Selfie captured and verified successfully"
-                : "Document photo uploaded successfully"}
-            </span>
+                </span>
+              );
+            })}
           </div>
-        </div>
+
+          <p
+            aria-live="polite"
+            className={`mt-3 flex min-h-11 items-center justify-center gap-2 rounded-pill px-4 text-sm leading-5 font-semibold transition-colors ${tone.pill}`}
+          >
+            <StatusIcon aria-hidden="true" className="size-4.5 shrink-0" />
+            {statusLabel}
+          </p>
+        </>
       )}
 
-      {/* Upload Error Banner */}
+      {uploadedMediaId && (
+        <p className="mt-3 flex items-center gap-2 rounded-panel bg-jumpa-success/10 px-3 py-2.5 text-[11.5px] leading-4 font-medium text-jumpa-success">
+          <CheckIcon aria-hidden="true" className="size-4 shrink-0" />
+          {isSelfie
+            ? "Selfie captured and verified"
+            : "Document uploaded successfully"}
+        </p>
+      )}
+
       {uploadError && (
-        <div className="mt-2 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium">
+        <p className="mt-2 flex items-center gap-2 rounded-panel bg-jumpa-danger-50 px-3 py-2.5 text-xs leading-4 font-medium text-jumpa-danger">
+          <SealAlertIcon aria-hidden="true" className="size-4 shrink-0" />
           {uploadError}
-        </div>
+        </p>
       )}
 
       {/* Main Dynamic Action Button */}
-      <div className="mt-auto pt-5">
+      <div className="mt-auto pt-6">
         {uploading ? (
-          <Button
-            variant="gradient"
-            size="lg"
-            className="cursor-pointer font-bold"
-            disabled={true}>
+          <Button variant="gradient" size="lg" disabled>
             <span className="flex items-center gap-2">
-              <FiRefreshCw className="size-5 animate-spin" />
-              <span>
-                {isSelfie ? "Uploading Selfie..." : "Uploading Document..."}
-              </span>
+              <RefreshIcon aria-hidden="true" className="size-5 animate-spin" />
+              {isSelfie ? "Uploading selfie" : "Uploading document"}
             </span>
           </Button>
         ) : isSelfie ? (
-          // Selfie Mode Actions
           !preview ? (
-            cameraState === "denied" || cameraState === "unsupported" ? (
-              <Button
-                variant="gradient"
-                size="lg"
-                className="cursor-pointer font-bold"
-                onClick={startCamera}>
-                <span>Allow Camera to Continue</span>
+            blocked ? (
+              <Button variant="gradient" size="lg" onClick={startCamera}>
+                <span className="flex items-center gap-2">
+                  <CameraIcon aria-hidden="true" className="size-5" />
+                  Allow camera
+                </span>
               </Button>
             ) : (
               <Button
                 variant="gradient"
                 size="lg"
-                className="cursor-pointer font-bold"
-                onClick={handleSnapSelfie}>
+                onClick={handleSnapSelfie}
+                disabled={cameraState !== "ready"}
+              >
                 <span className="flex items-center gap-2">
-                  <CameraIcon className="size-5" />
-                  <span>
-                    {livenessStage === "align"
-                      ? "Center Face in Oval"
-                      : livenessStage === "blink"
-                        ? "Blink Eyes to Progress"
-                        : livenessStage === "turn"
-                          ? "Turn Head to Progress"
-                          : livenessStage === "hold"
-                            ? "Holding Still..."
-                            : "Take Live Selfie"}
-                  </span>
+                  <CameraIcon aria-hidden="true" className="size-5" />
+                  {cameraState === "ready" ? stage.cta : "Take live selfie"}
                 </span>
               </Button>
             )
           ) : !uploadedMediaId ? (
-            <Button
-              variant="gradient"
-              size="lg"
-              className="cursor-pointer font-bold"
-              onClick={handleUpload}>
+            <Button variant="gradient" size="lg" onClick={handleUpload}>
               <span className="flex items-center gap-2">
-                <FiUploadCloud className="size-5" />
-                <span>Upload Selfie</span>
+                <CloudIcon aria-hidden="true" className="size-5" />
+                Upload selfie
               </span>
             </Button>
           ) : (
-            <Button
-              variant="gradient"
-              size="lg"
-              className="cursor-pointer font-bold"
-              onClick={handleContinue}>
-              <span className="flex items-center gap-2">
-                <span>Continue</span>
-                <FiCheckCircle className="size-5" />
-              </span>
+            <Button variant="gradient" size="lg" onClick={handleContinue}>
+              Continue
             </Button>
           )
+        ) : preview && !uploadedMediaId ? (
+          <Button
+            variant="gradient"
+            size="lg"
+            onClick={handleUpload}
+            disabled={!isIdValid}
+          >
+            <span className="flex items-center gap-2">
+              {isIdValid ? (
+                <>
+                  <CloudIcon aria-hidden="true" className="size-5" />
+                  Upload document
+                </>
+              ) : isNin ? (
+                "Enter your 11-digit NIN"
+              ) : (
+                "Enter your ID number"
+              )}
+            </span>
+          </Button>
+        ) : uploadedMediaId ? (
+          <Button
+            variant="gradient"
+            size="lg"
+            onClick={handleContinue}
+            disabled={!isIdValid}
+          >
+            {isIdValid
+              ? "Continue to live selfie"
+              : isNin
+                ? "Enter your 11-digit NIN"
+                : "Enter your ID number"}
+          </Button>
         ) : (
-          // Document Mode Actions
-          preview && !uploadedMediaId ? (
-            !isIdValid ? (
-              <Button
-                variant="gradient"
-                size="lg"
-                className="cursor-not-allowed opacity-60 font-bold"
-                disabled={true}>
-                <span>
-                  {isNin
-                    ? "Enter 11-Digit NIN to Upload"
-                    : "Enter Valid ID Number to Upload"}
-                </span>
-              </Button>
-            ) : (
-              <Button
-                variant="gradient"
-                size="lg"
-                className="cursor-pointer font-bold"
-                onClick={handleUpload}>
-                <span className="flex items-center gap-2">
-                  <FiUploadCloud className="size-5" />
-                  <span>Upload Document</span>
-                </span>
-              </Button>
-            )
-          ) : uploadedMediaId ? (
-            !isIdValid ? (
-              <Button
-                variant="gradient"
-                size="lg"
-                className="cursor-not-allowed opacity-60 font-bold"
-                disabled={true}>
-                <span>
-                  {isNin
-                    ? "Enter 11-Digit NIN to Continue"
-                    : "Enter Valid ID Number to Continue"}
-                </span>
-              </Button>
-            ) : (
-              <Button
-                variant="gradient"
-                size="lg"
-                className="cursor-pointer font-bold"
-                onClick={handleContinue}>
-                <span className="flex items-center gap-2">
-                  <span>Continue to Live Selfie</span>
-                  <FiCheckCircle className="size-5" />
-                </span>
-              </Button>
-            )
-          ) : (
-            <Button
-              variant="gradient"
-              size="lg"
-              className="cursor-pointer font-bold"
-              onClick={() => fileInputRef.current?.click()}>
-              <span className="flex items-center gap-2">
-                <FiUploadCloud className="size-5" />
-                <span>Choose or Take Photo</span>
-              </span>
-            </Button>
-          )
+          <Button
+            variant="gradient"
+            size="lg"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <span className="flex items-center gap-2">
+              <ImageIcon aria-hidden="true" className="size-5" />
+              Choose or take photo
+            </span>
+          </Button>
         )}
       </div>
     </>

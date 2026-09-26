@@ -161,6 +161,21 @@
   --shadow-jumpa-card:
     0 6px 7px rgb(0 0 0 / 0.1), 2px 25px 12.5px rgb(0 0 0 / 0.09),
     4px 57px 17px rgb(0 0 0 / 0.05), 7px 101px 20px rgb(0 0 0 / 0.01);
+
+  /* KYC liveness frame. The selfie oval tints with the stage it is in — a soft
+     halo rather than a neon ring, so it reads as brand chrome and not an alert.
+     Mixed from the status tokens, so a palette change carries to the halo. */
+  --shadow-jumpa-vignette: inset 0 0 40px 12px rgb(0 0 0 / 0.28);
+  --shadow-jumpa-halo-idle: 0 0 0 5px
+    color-mix(in srgb, var(--color-jumpa-primary-600) 7%, transparent);
+  --shadow-jumpa-halo-active:
+    0 0 0 5px color-mix(in srgb, var(--color-jumpa-warning) 14%, transparent),
+    0 12px 36px -12px
+    color-mix(in srgb, var(--color-jumpa-warning) 55%, transparent);
+  --shadow-jumpa-halo-good:
+    0 0 0 5px color-mix(in srgb, var(--color-jumpa-success) 14%, transparent),
+    0 12px 36px -12px
+    color-mix(in srgb, var(--color-jumpa-success) 55%, transparent);
 }
 
 /*
@@ -217,6 +232,11 @@
   --animate-land: land 760ms var(--ease-jumpa-pop) both;
   --animate-sheen: sheen 900ms ease-out both;
   --animate-type-caret: type-caret 1300ms steps(1, end) both;
+
+  /* KYC live selfie: the shutter flash, and the sweep that runs while the
+     liveness check is watching, so a working camera never looks frozen. */
+  --animate-kyc-flash: kyc-flash 360ms var(--ease-jumpa) forwards;
+  --animate-kyc-scan: kyc-scan 2600ms var(--ease-jumpa) infinite;
 
   @keyframes rise {
     from {
@@ -391,6 +411,30 @@
     }
     to {
       transform: translateY(calc(var(--drift, 40) * var(--spacing) * -1));
+    }
+  }
+
+  @keyframes kyc-flash {
+    from {
+      opacity: 0.9;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes kyc-scan {
+    0% {
+      transform: translateY(-110%);
+      opacity: 0;
+    }
+    15%,
+    85% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(110%);
+      opacity: 0;
     }
   }
 }

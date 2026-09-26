@@ -7,6 +7,9 @@ import { RingedButton } from "@/components/ui/ringed-button";
 import { KYC_BENEFITS } from "@/lib/kyc";
 
 const ICONS: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
+  limits: GlobeIcon,
+  accounts: SwitchHorizontalIcon,
+  compliance: CircleUserIcon,
   quick: GlobeIcon,
   secure: CircleUserIcon,
   protected: SwitchHorizontalIcon,
@@ -62,7 +65,7 @@ export function KycIntro({ onStart }: { onStart: () => void }) {
       </ul>
 
       <div className="mt-auto flex justify-center pt-10">
-        <RingedButton onClick={onStart}>Complete verification</RingedButton>
+        <RingedButton onClick={onStart}>Start Verification</RingedButton>
       </div>
     </>
   );

@@ -550,8 +550,7 @@ export async function withdrawNgnFiat(params: WithdrawNgnFiatParams): Promise<{
 
   if (currentBalance < totalDebited) {
     throw new Error(
-      `Insufficient funds. Transfer of ₦${params.amount.toLocaleString()}${
-        fee > 0 ? ` + ₦${fee} withdrawal fee` : ""
+      `Insufficient funds. Transfer of ₦${params.amount.toLocaleString()}${fee > 0 ? ` + ₦${fee} withdrawal fee` : ""
       } requires ₦${totalDebited.toLocaleString()} (Available: ₦${currentBalance.toLocaleString()})`
     );
   }
@@ -675,7 +674,7 @@ export async function withdrawNgnFiat(params: WithdrawNgnFiatParams): Promise<{
       bankCode: resolvedBankCode,
       country: "Nigeria",
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   // 8. Invalidate balance cache
   invalidateBalanceCache(params.userId);
@@ -692,7 +691,7 @@ export async function withdrawNgnFiat(params: WithdrawNgnFiatParams): Promise<{
       accountNumber: params.accountNumber,
       reference,
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   createNotification({
     userId: params.userId,
@@ -706,7 +705,7 @@ export async function withdrawNgnFiat(params: WithdrawNgnFiatParams): Promise<{
       txHash: reference,
     },
     link: "/ngn-account",
-  }).catch(() => {});
+  }).catch(() => { });
 
   return {
     success: true,

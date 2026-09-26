@@ -21,6 +21,7 @@ export default async function KycPage() {
               record.status === "approved" ||
               record.stage === "completed",
           ),
+          status: record.status || null,
           verificationId: record.verificationId || null,
           docMediaId: record.docMediaId || null,
           selfieMediaId: record.selfieMediaId || null,

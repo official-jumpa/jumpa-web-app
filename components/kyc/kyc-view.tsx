@@ -11,12 +11,6 @@ import { KYC_DOCUMENTS, type KycDocument, type KycTask } from "@/lib/kyc";
 
 type Stage = "intro" | "tasks" | "document" | "selfie";
 
-const DEFAULT_TEST_IDS: Record<string, string> = {
-  nin: "00000000001",
-  licence: "TST00000001",
-  passport: "A00000001",
-};
-
 /**
  * Native Identity Verification using Myaza Direct API.
  * Preserves the 4-stage UI flow while executing authenticated server calls
@@ -24,6 +18,7 @@ const DEFAULT_TEST_IDS: Record<string, string> = {
  */
 export interface InitialKycData {
   isCompleted?: boolean;
+  status?: string | null;
   verificationId?: string | null;
   docMediaId?: string | null;
   selfieMediaId?: string | null;
@@ -36,7 +31,8 @@ export function KycView({
 }: {
   initialKycData?: InitialKycData | null;
 }) {
-  const [stage, setStage] = useState<Stage>("intro");
+  const isDev = process.env.NODE_ENV !== "production";
+
   const initialTasks: KycTask[] = [];
   if (initialKycData?.docMediaId || initialKycData?.stepsCompleted?.document) {
     initialTasks.push("document");
@@ -44,14 +40,30 @@ export function KycView({
   if (initialKycData?.selfieMediaId || initialKycData?.stepsCompleted?.selfie) {
     initialTasks.push("selfie");
   }
+
+  // If user already has draft progress or pending verification, jump directly to tasks
+  const hasDraftOrPending =
+    initialTasks.length > 0 ||
+    initialKycData?.status === "pending" ||
+    (initialKycData?.status === "in_progress" && Boolean(initialKycData?.verificationId));
+
+  const [stage, setStage] = useState<Stage>(hasDraftOrPending ? "tasks" : "intro");
   const [done, setDone] = useState<KycTask[]>(initialTasks);
   const [document, setDocument] = useState<KycDocument>(KYC_DOCUMENTS[0]);
   const [pickingDocument, setPickingDocument] = useState(false);
   const [verified, setVerified] = useState(Boolean(initialKycData?.isCompleted));
 
+  // Pending / processing state
+  const [isPendingVerification, setIsPendingVerification] = useState<boolean>(
+    Boolean(
+      initialKycData?.status === "pending" ||
+        (initialKycData?.status === "in_progress" && Boolean(initialKycData?.verificationId)),
+    ),
+  );
+
   // Captured data for KYC API
   const [docIdNumber, setDocIdNumber] = useState<string>(
-    initialKycData?.idNumber || DEFAULT_TEST_IDS.nin,
+    initialKycData?.idNumber || "",
   );
   const [docMediaId, setDocMediaId] = useState<string | null>(
     initialKycData?.docMediaId ?? null,
@@ -79,10 +91,16 @@ export function KycView({
         const data = await res.json();
         if (!isMounted) return;
 
-        if (data.isCompleted) {
+        if (data.isCompleted || data.status === "approved") {
           setVerified(true);
           if (data.verificationId) setLastVerificationId(data.verificationId);
           return;
+        }
+
+        if (data.status === "pending") {
+          setIsPendingVerification(true);
+          if (data.verificationId) setLastVerificationId(data.verificationId);
+          setStage("tasks");
         }
 
         const restoredTasks: KycTask[] = [];
@@ -99,6 +117,7 @@ export function KycView({
         }
         if (restoredTasks.length > 0) {
           setDone(restoredTasks);
+          setStage("tasks");
         }
       } catch (err) {
         console.warn("[KycView] Could not load initial KYC status:", err);
@@ -109,7 +128,64 @@ export function KycView({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [initialKycData]);
+
+  // Polling for async verification completion
+  useEffect(() => {
+    if (!isPendingVerification) return;
+
+    let isMounted = true;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/kyc");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!isMounted) return;
+
+        if (data.isCompleted || data.status === "approved") {
+          setIsPendingVerification(false);
+          setVerified(true);
+          if (data.verificationId) setLastVerificationId(data.verificationId);
+          clearInterval(interval);
+        } else if (data.status === "failed" || data.status === "rejected") {
+          setIsPendingVerification(false);
+          setApiError(
+            data.rejectionReason ||
+              "Identity verification could not be approved. Please try again.",
+          );
+          clearInterval(interval);
+        }
+      } catch (err) {
+        console.warn("[KycView] Polling check failed:", err);
+      }
+    }, 5000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [isPendingVerification]);
+
+  const handleManualCheckStatus = async () => {
+    try {
+      const res = await fetch("/api/kyc");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.isCompleted || data.status === "approved") {
+        setIsPendingVerification(false);
+        setVerified(true);
+        if (data.verificationId) setLastVerificationId(data.verificationId);
+      } else if (data.status === "failed" || data.status === "rejected") {
+        setIsPendingVerification(false);
+        setApiError(
+          data.rejectionReason ||
+            "Identity verification was rejected. Please review your documents and retry.",
+        );
+      }
+    } catch (err) {
+      console.warn("[KycView] Manual check failed:", err);
+    }
+  };
 
   const completeDocumentTask = (data: {
     file?: File;
@@ -139,11 +215,23 @@ export function KycView({
   };
 
   const handleExecuteVerification = async () => {
+    if (!docMediaId) {
+      setApiError("Please upload your ID document before continuing.");
+      return;
+    }
+    if (!selfieMediaId) {
+      setApiError("Please capture your live selfie before continuing.");
+      return;
+    }
+
+    const finalIdNumber = docIdNumber.trim();
+    if (!finalIdNumber) {
+      setApiError("Please provide your ID document number.");
+      return;
+    }
+
     setIsSubmitting(true);
     setApiError(null);
-
-    const finalIdNumber =
-      docIdNumber.trim() || DEFAULT_TEST_IDS[document.id] || "00000000001";
 
     const payload = {
       idType: document.id,
@@ -166,14 +254,18 @@ export function KycView({
         if (data.verificationId) {
           setLastVerificationId(String(data.verificationId));
         }
-        setVerified(true);
+        if (data.status === "pending") {
+          setIsPendingVerification(true);
+        } else {
+          setVerified(true);
+        }
       } else if (res.status === 401) {
         setApiError("Authentication required. Please log in to complete KYC.");
       } else if (res.status === 422) {
         const errorMsg =
           typeof data.error === "string"
             ? data.error
-            : "Verification failed. Please verify that your document number matches test IDs.";
+            : "Verification failed. Please ensure your document number is correct.";
         setApiError(errorMsg);
       } else {
         const errorMsg =
@@ -221,11 +313,13 @@ export function KycView({
           idNumber={docIdNumber}
           hasSelfie={Boolean(selfieMediaId || done.includes("selfie"))}
           isSubmitting={isSubmitting}
+          isPendingVerification={isPendingVerification}
           apiError={apiError}
           onPick={(task) =>
             task === "document" ? setPickingDocument(true) : setStage("selfie")
           }
           onContinue={handleExecuteVerification}
+          onCheckStatus={handleManualCheckStatus}
         />
       ) : null}
 
@@ -235,7 +329,7 @@ export function KycView({
           title={`Upload a Picture of your ${document.name}`}
           description={`Take a clear photo of your ${document.label}. Every corner should be visible and the text readable`}
           documentType={document.id}
-          defaultIdNumber={docIdNumber || DEFAULT_TEST_IDS[document.id]}
+          defaultIdNumber={docIdNumber || ""}
           initialMediaId={docMediaId || undefined}
           onDone={completeDocumentTask}
         />
@@ -244,8 +338,8 @@ export function KycView({
       {/* Stage 4: Selfie Capture */}
       {stage === "selfie" ? (
         <KycCaptureScreen
-          title="Take a Picture"
-          description="A quick verification helps us keep your account secure and meet regulatory requirements"
+          title="Take a Live Selfie"
+          description="A quick selfie verification helps us confirm your identity and meet regulatory requirements"
           shape="oval"
           mode="camera"
           initialMediaId={selfieMediaId || undefined}
@@ -259,7 +353,6 @@ export function KycView({
           onClose={() => setPickingDocument(false)}
           onContinue={(picked) => {
             setDocument(picked);
-            setDocIdNumber(DEFAULT_TEST_IDS[picked.id] || "00000000001");
             setPickingDocument(false);
             setStage("document");
           }}
@@ -282,3 +375,4 @@ export function KycView({
     </div>
   );
 }
+

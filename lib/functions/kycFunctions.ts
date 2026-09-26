@@ -529,3 +529,71 @@ export async function isUserKycVerified(userId: string): Promise<boolean> {
       record.stage === "completed",
   );
 }
+
+/**
+ * Queries the latest verification result from Myaza Trust API for an ongoing verification.
+ */
+export async function checkMyazaVerificationStatus(
+  verificationId: string,
+): Promise<any> {
+  const apiKey =
+    process.env.MYAZA_TRUST_SECRET_KEY || process.env.MYAZA_TRUST_SANDBOX_KEY;
+  const baseUrl =
+    process.env.MYAZA_TRUST_BASE_URL || "https://trust.myaza.app/api/kyc";
+
+  if (!apiKey || !verificationId) return null;
+
+  try {
+    const res = await fetch(`${baseUrl}/verifications/${verificationId}`, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+      },
+    });
+
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err: any) {
+    console.warn("[checkMyazaVerificationStatus] Error:", err.message);
+    return null;
+  }
+}
+
+/**
+ * Normalizes biodata returned from Myaza verification results.
+ */
+export function parseMyazaBiodata(data: any): IKycDetails {
+  const resultObj = data?.result || data?.data || data || {};
+  return {
+    firstName: resultObj.firstName || null,
+    middleName: resultObj.middleName || null,
+    lastName: resultObj.lastName || null,
+    fullName:
+      resultObj.fullName ||
+      [resultObj.firstName, resultObj.middleName, resultObj.lastName]
+        .filter(Boolean)
+        .join(" ") ||
+      null,
+    dateOfBirth: resultObj.dateOfBirth || resultObj.dob || null,
+    gender: resultObj.gender || null,
+    phone: resultObj.phone || resultObj.phoneNumber || null,
+    address: resultObj.address
+      ? {
+          street: resultObj.address.street || null,
+          city: resultObj.address.city || null,
+          state: resultObj.address.state || null,
+          postalCode: resultObj.address.postalCode || null,
+          country: resultObj.address.country || null,
+        }
+      : undefined,
+    nationality: resultObj.nationality || resultObj.country || null,
+    photoUrl: resultObj.photo || resultObj.photoUrl || null,
+    dataMatch: Boolean(resultObj.dataMatch ?? true),
+    facialMatchConfidence:
+      typeof resultObj.facialMatch?.confidence === "number"
+        ? resultObj.facialMatch.confidence
+        : typeof resultObj.confidence === "number"
+          ? resultObj.confidence
+          : null,
+  };
+}

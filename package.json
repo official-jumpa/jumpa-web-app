@@ -11,6 +11,7 @@
     "resolve-pending-txs": "node --import tsx script/resolve-transactions.ts"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.1",
     "@noble/hashes": "^2.3.0",
     "@radix-ui/react-select": "^2.3.7",
     "@scure/bip32": "^2.3.0",

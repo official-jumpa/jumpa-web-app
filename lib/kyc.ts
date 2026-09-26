@@ -8,21 +8,22 @@ export type KycBenefit = {
 
 export const KYC_BENEFITS: KycBenefit[] = [
   {
-    id: "quick",
-    title: "Quick & Easy",
+    id: "limits",
+    title: "Higher Transaction Limits",
     description:
-      "Use your USD balance for international payments and everyday purchases.",
+      "Unlock unlimited daily crypto and fiat transaction volumes for deposits and payouts.",
   },
   {
-    id: "secure",
-    title: "Keep Account Secure",
+    id: "accounts",
+    title: "Dedicated Naira & Dollar Accounts",
     description:
-      "Get dedicated USD account details for receiving payments from abroad.",
+      "Open dedicated Nigerian virtual accounts (NGN) and US Dollar receiving accounts to manage your money.",
   },
   {
-    id: "protected",
-    title: "Protected information",
-    description: "Exchange USD to NGN whenever you want, right inside Jumpa.",
+    id: "compliance",
+    title: "Bank-Grade Compliance & Security",
+    description:
+      "Keep your account safe and compliant with CBN and international regulatory standards.",
   },
 ];
 
@@ -35,15 +36,15 @@ export const KYC_TASKS: readonly {
 }[] = [
   {
     id: "document",
-    title: "Take a Picture of your Valid ID",
+    title: "Provide a Valid ID Document",
     description:
-      "Use your USD balance for international payments and everyday purchases.",
+      "Upload or take a clear photo of your NIN slip, Driver's License, or Passport.",
   },
   {
     id: "selfie",
-    title: "Take a Selfie of Yourself",
+    title: "Take a Live Selfie",
     description:
-      "Get dedicated USD account details for receiving payments from abroad.",
+      "Snap a quick live photo using your camera to verify biometric identity.",
   },
 ];
 

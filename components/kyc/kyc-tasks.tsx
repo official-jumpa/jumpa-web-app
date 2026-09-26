@@ -21,31 +21,51 @@ export function KycTasks({
   idNumber,
   hasSelfie,
   isSubmitting,
+  isPendingVerification,
   apiError,
   onPick,
   onContinue,
+  onCheckStatus,
 }: {
   done: readonly KycTask[];
   document: KycDocument;
   idNumber?: string;
   hasSelfie?: boolean;
   isSubmitting?: boolean;
+  isPendingVerification?: boolean;
   apiError?: string | null;
   onPick: (task: KycTask) => void;
   onContinue: () => void;
+  onCheckStatus?: () => void;
 }) {
   const [error, setError] = useState<string>();
-  const complete = done.length === KYC_TASKS.length;
+  const hasDoc = done.includes("document");
+  const hasSelfieTask = done.includes("selfie");
 
-  const submit = () => {
-    if (complete) return onContinue();
-    const left = KYC_TASKS.filter((task) => !done.includes(task.id));
-    setError(
-      left.length === KYC_TASKS.length
-        ? "Complete both steps above to continue"
-        : `One step left: ${left[0].title.toLowerCase()}.`,
-    );
+  const handleCtaClick = () => {
+    setError(undefined);
+    if (isPendingVerification) {
+      onCheckStatus?.();
+      return;
+    }
+    if (!hasDoc) {
+      onPick("document");
+    } else if (!hasSelfieTask) {
+      onPick("selfie");
+    } else {
+      onContinue();
+    }
   };
+
+  const ctaLabel = isSubmitting
+    ? "Verifying..."
+    : isPendingVerification
+      ? "Verification in Progress..."
+      : !hasDoc
+        ? "Upload ID Document"
+        : !hasSelfieTask
+          ? "Take Live Selfie"
+          : "Submit for Verification";
 
   return (
     <>
@@ -57,6 +77,42 @@ export function KycTasks({
         regulatory requirements.
       </p>
 
+      {/* Verification In Progress Card */}
+      {isPendingVerification && (
+        <div className="mt-5 rounded-2xl bg-amber-50/90 border border-amber-200 p-4 space-y-2.5">
+          <div className="flex items-center gap-3">
+            <div className="size-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+              <FiRefreshCw className="size-4.5 text-amber-700 animate-spin" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-amber-900">
+                Verification in Progress
+              </h3>
+              <p className="text-xs text-amber-700 leading-relaxed">
+                Your documents are being verified. We will update you when the verification is complete
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between pt-1 border-t border-amber-200/60 text-[11px] text-amber-800">
+            <span className="flex items-center gap-1.5">
+              <span className="relative flex size-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full size-2 bg-amber-500"></span>
+              </span>
+              <span>Checking status...</span>
+            </span>
+            {onCheckStatus && (
+              <button
+                type="button"
+                onClick={onCheckStatus}
+                className="font-bold underline text-amber-900 hover:text-amber-950 cursor-pointer">
+                Refresh now
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Checklist of Tasks */}
       <ul className="mt-6 flex flex-col gap-4 rounded-surface bg-jumpa-primary-50 px-4 py-4 border border-jumpa-primary-100">
         {KYC_TASKS.map((task, index) => {
@@ -66,7 +122,7 @@ export function KycTasks({
             task.id === "document" && ticked
               ? `${document.label}${idNumber ? ` (${idNumber})` : ""}`
               : task.id === "selfie" && hasSelfie
-                ? "Selfie captured"
+                ? "Live selfie captured"
                 : task.description;
 
           return (
@@ -127,14 +183,14 @@ export function KycTasks({
 
       <div className="mt-auto flex flex-col items-center gap-3 pt-10">
         <FieldError>{error}</FieldError>
-        <RingedButton onClick={submit} disabled={isSubmitting}>
+        <RingedButton onClick={handleCtaClick} disabled={isSubmitting}>
           {isSubmitting ? (
             <span className="flex items-center gap-2">
               <FiRefreshCw className="size-4 animate-spin" />
               Verifying...
             </span>
           ) : (
-            "Complete verification"
+            ctaLabel
           )}
         </RingedButton>
       </div>

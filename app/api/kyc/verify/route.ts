@@ -110,13 +110,13 @@ export async function POST(req: NextRequest) {
     if (!apiKey || !baseUrl) {
       console.error("[Myaza Verify] Error: Missing API Key or Base URL");
       return NextResponse.json(
-        { error: "Key mismatch error" },
-        { status: 500 },
+        { error: "Identity verification service is temporarily unavailable." },
+        { status: 503 },
       );
     }
     const myazaIdType = MYAZA_TYPE_MAP[idType] || idType;
 
-    // Build verification payload for Myaza REST API NIGERIA ONLY for now
+    // Build verification payload for Myaza REST API
     const verifyPayload = {
       country: "NG",
       idType: myazaIdType,
@@ -136,54 +136,107 @@ export async function POST(req: NextRequest) {
       JSON.stringify(verifyPayload, null, 2),
     );
 
-    let response = await fetch(`${baseUrl}/verify`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(verifyPayload),
-    });
-
-    let data = await response.json();
-    console.log("[Myaza Verify] Response from provider:", data);
-
-    // If provider failed with internal_error in DEV mode (e.g. stale/corrupted media ID from earlier test),
-    // self-heal by retrying without stale media IDs so sandbox testing proceeds seamlessly
-    if (!response.ok && isDev && (data.error === "internal_error" || response.status >= 500)) {
-      console.warn(
-        "[Myaza Verify DEV] Provider returned internal_error on mediaIds. Retrying without stale media IDs...",
-      );
-      const retryPayload = {
-        country: "NG",
-        idType: myazaIdType,
-        idNumber: effectiveIdNumber,
-        externalUserId: userId,
-        metadata: {
-          source: "jumpa_web_kyc",
-          requestId: `req_retry_${Date.now()}`,
-        },
-      };
-      response = await fetch(`${baseUrl}/verify`, {
+    const callMyazaVerify = async (payload: any) => {
+      const res = await fetch(`${baseUrl}/verify`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(retryPayload),
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(25000),
       });
-      data = await response.json();
-      console.log("[Myaza Verify DEV Retry] Response from provider:", data);
+      let parsed: any = null;
+      try {
+        parsed = await res.json();
+      } catch {
+        parsed = {
+          error: "gateway_error",
+          message: `Provider returned status ${res.status}`,
+        };
+      }
+      return { res, parsed };
+    };
+
+    let response: Response;
+    let data: any = null;
+
+    try {
+      const initial = await callMyazaVerify(verifyPayload);
+      response = initial.res;
+      data = initial.parsed;
+    } catch (err) {
+      console.warn(
+        "[Myaza Verify] Initial call timed out or network error. Retrying once...",
+        err,
+      );
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        const retry = await callMyazaVerify(verifyPayload);
+        response = retry.res;
+        data = retry.parsed;
+      } catch (retryErr) {
+        console.error("[Myaza Verify] Retry also failed:", retryErr);
+        return NextResponse.json(
+          {
+            error:
+              "Unable to connect to the verification provider. Please try submitting again in a moment.",
+          },
+          { status: 504 },
+        );
+      }
     }
 
-    const statusStr = String(data.status || "").toLowerCase();
-    const verificationId = data.id || data.verificationId || null;
+    // Provider 5xx error handling:
+    if (!response.ok && (data?.error === "internal_error" || response.status >= 500)) {
+      if (isDev) {
+        // Dev fallback for stale/mismatched test media
+        console.warn(
+          "[Myaza Verify DEV] Provider returned internal_error on mediaIds. Retrying without stale media IDs...",
+        );
+        const retryPayload = {
+          country: "NG",
+          idType: myazaIdType,
+          idNumber: effectiveIdNumber,
+          externalUserId: userId,
+          metadata: {
+            source: "jumpa_web_kyc",
+            requestId: `req_retry_${Date.now()}`,
+          },
+        };
+        try {
+          const devRetry = await callMyazaVerify(retryPayload);
+          response = devRetry.res;
+          data = devRetry.parsed;
+          console.log("[Myaza Verify DEV Retry] Response from provider:", data);
+        } catch (e) {
+          console.error("[Myaza Verify DEV Retry] Failed:", e);
+        }
+      } else {
+        // In Production: if Myaza has a transient 5xx glitch, retry once with exponential backoff
+        console.warn("[Myaza Verify PROD] Provider returned 5xx. Retrying once after 1.5s...");
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          const prodRetry = await callMyazaVerify(verifyPayload);
+          if (prodRetry.res.ok) {
+            response = prodRetry.res;
+            data = prodRetry.parsed;
+            console.log("[Myaza Verify PROD Retry] Succeeded:", data);
+          }
+        } catch (e) {
+          console.error("[Myaza Verify PROD Retry] Failed:", e);
+        }
+      }
+    }
+
+    const statusStr = String(data?.status || "").toLowerCase();
+    const verificationId = data?.id || data?.verificationId || null;
 
     const isApproved =
       response.ok &&
       (statusStr === "approved" ||
         statusStr === "success" ||
-        data.success === true);
+        data?.success === true);
 
     const isProcessing =
       response.ok &&
@@ -245,21 +298,37 @@ export async function POST(req: NextRequest) {
           success: true,
           status: "pending",
           verificationId,
-          message:
-            "Your verification is processing.",
+          message: "Your verification is processing.",
         },
         { status: 200 },
       );
     }
 
-    // Failed verification
-    const errorMsg =
-      data.message || data.error || "Identity verification failed";
+    // Failed verification: Map provider technical error messages into clear, actionable user messages
+    const rawMsg = String(data?.message || data?.error || "");
+    let userFacingError =
+      "Identity verification could not be completed. Please review your details and try again.";
+
+    if (response.status >= 500 || data?.error === "internal_error") {
+      userFacingError =
+        "The verification service is momentarily busy. Please try submitting again in a moment.";
+    } else if (/media|mismatch|not found|expired/i.test(rawMsg)) {
+      userFacingError =
+        "Your verification photos could not be verified or have expired. Please re-take your document photo and selfie.";
+    } else if (response.status === 422 || /invalid|id number|does not match/i.test(rawMsg)) {
+      userFacingError =
+        rawMsg.length > 5 && rawMsg.length < 120 && !rawMsg.includes("{")
+          ? rawMsg
+          : "The document ID provided could not be matched with official government records. Please check the number and try again.";
+    } else if (rawMsg && rawMsg.length < 120 && !rawMsg.includes("{")) {
+      userFacingError = rawMsg;
+    }
+
     await completeKycVerification(userId, {
       verificationId,
       status: "failed",
       isCompleted: false,
-      rejectionReason: errorMsg,
+      rejectionReason: userFacingError,
       rawResponse: data,
     });
 
@@ -270,19 +339,22 @@ export async function POST(req: NextRequest) {
         verificationId,
         idType,
         status: "failed",
-        rejectionReason: errorMsg,
+        rejectionReason: userFacingError,
       },
       req,
     }).catch(() => {});
 
     return NextResponse.json(
-      { error: errorMsg, details: data },
+      { error: userFacingError, details: data },
       { status: response.status >= 400 ? response.status : 422 },
     );
   } catch (error) {
     console.error("[Myaza Verify] Exception:", error);
     return NextResponse.json(
-      { error: "Internal server error during verification" },
+      {
+        error:
+          "An unexpected error occurred during verification. Please try again.",
+      },
       { status: 500 },
     );
   }

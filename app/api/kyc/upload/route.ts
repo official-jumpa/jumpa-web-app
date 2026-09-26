@@ -24,8 +24,8 @@ export async function POST(req: NextRequest) {
     if (!apiKey || !baseUrl) {
       console.error("[Myaza Upload] Error: Missing API Key or Base URL");
       return NextResponse.json(
-        { error: "API key not configured" },
-        { status: 500 },
+        { error: "Verification upload service is temporarily unavailable." },
+        { status: 503 },
       );
     }
     const formData = await req.formData();
@@ -106,25 +106,46 @@ export async function POST(req: NextRequest) {
       `[Myaza Upload] Uploading file for user: ${userId} Type: ${type} Mime: ${uploadMimeType} Size: ${uploadBlob.size}`,
     );
 
-    const response = await fetch(`${baseUrl}/upload`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: myazaFormData,
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${baseUrl}/upload`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: myazaFormData,
+        signal: AbortSignal.timeout(30000),
+      });
+    } catch (fetchErr) {
+      console.error("[Myaza Upload] Network/timeout exception:", fetchErr);
+      return NextResponse.json(
+        {
+          error:
+            "Upload connection timed out. Please check your internet connection and try again.",
+        },
+        { status: 504 },
+      );
+    }
 
-    const data = await response.json();
+    let data: any = null;
+    try {
+      data = await response.json();
+    } catch {
+      data = { error: "Failed to parse provider response" };
+    }
 
-    if (!response.ok || !data.mediaId) {
+    if (!response.ok || !data?.mediaId) {
       console.error("[Myaza Upload] Error from provider:", data);
       let errorMsg =
-        data.message || data.error || "Failed to upload file to Myaza";
+        data?.message || data?.error || "Failed to upload file. Please try again.";
       if (typeof errorMsg === "string" && errorMsg.includes("mimeType")) {
         errorMsg =
           "Unsupported image format. Please upload a clear photo in JPEG, PNG, or PDF format.";
+      } else if (response.status >= 500) {
+        errorMsg =
+          "The verification upload service is momentarily busy. Please try uploading again.";
       }
       return NextResponse.json(
         { error: errorMsg },
-        { status: response.status || 500 },
+        { status: response.status >= 400 ? response.status : 500 },
       );
     }
 

@@ -23,6 +23,7 @@ export interface InitialKycData {
   docMediaId?: string | null;
   selfieMediaId?: string | null;
   idNumber?: string | null;
+  rejectionReason?: string | null;
   stepsCompleted?: { document?: boolean; selfie?: boolean; verification?: boolean };
 }
 
@@ -33,12 +34,17 @@ export function KycView({
 }) {
   const isDev = process.env.NODE_ENV !== "production";
 
+  const isFailedInitial =
+    initialKycData?.status === "failed" || initialKycData?.status === "rejected";
+
   const initialTasks: KycTask[] = [];
-  if (initialKycData?.docMediaId || initialKycData?.stepsCompleted?.document) {
-    initialTasks.push("document");
-  }
-  if (initialKycData?.selfieMediaId || initialKycData?.stepsCompleted?.selfie) {
-    initialTasks.push("selfie");
+  if (!isFailedInitial) {
+    if (initialKycData?.docMediaId || initialKycData?.stepsCompleted?.document) {
+      initialTasks.push("document");
+    }
+    if (initialKycData?.selfieMediaId || initialKycData?.stepsCompleted?.selfie) {
+      initialTasks.push("selfie");
+    }
   }
 
   // If user already has draft progress or pending verification, jump directly to tasks
@@ -66,15 +72,19 @@ export function KycView({
     initialKycData?.idNumber || "",
   );
   const [docMediaId, setDocMediaId] = useState<string | null>(
-    initialKycData?.docMediaId ?? null,
+    isFailedInitial ? null : (initialKycData?.docMediaId ?? null),
   );
   const [selfieMediaId, setSelfieMediaId] = useState<string | null>(
-    initialKycData?.selfieMediaId ?? null,
+    isFailedInitial ? null : (initialKycData?.selfieMediaId ?? null),
   );
 
   // API Submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [apiError, setApiError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(
+    isFailedInitial && initialKycData?.rejectionReason
+      ? initialKycData.rejectionReason
+      : null,
+  );
   const [lastVerificationId, setLastVerificationId] = useState<string | null>(
     initialKycData?.verificationId ?? null,
   );
@@ -94,6 +104,18 @@ export function KycView({
         if (data.isCompleted || data.status === "approved") {
           setVerified(true);
           if (data.verificationId) setLastVerificationId(data.verificationId);
+          return;
+        }
+
+        if (data.status === "failed" || data.status === "rejected") {
+          setApiError(
+            data.rejectionReason ||
+              "Your previous verification could not be approved. Please upload your documents again to retry.",
+          );
+          setDone([]);
+          setDocMediaId(null);
+          setSelfieMediaId(null);
+          setStage("tasks");
           return;
         }
 
@@ -265,7 +287,15 @@ export function KycView({
         const errorMsg =
           typeof data.error === "string"
             ? data.error
-            : "Verification failed. Please ensure your document number is correct.";
+            : typeof data.message === "string"
+              ? data.message
+              : "Verification failed. Please ensure your document number matches your ID exactly.";
+        setApiError(errorMsg);
+      } else if (res.status >= 500) {
+        const errorMsg =
+          typeof data.error === "string" && !data.error.includes("Internal")
+            ? data.error
+            : "The verification service is momentarily busy. Please try submitting again in a moment.";
         setApiError(errorMsg);
       } else {
         const errorMsg =
@@ -273,12 +303,12 @@ export function KycView({
             ? data.message
             : typeof data.error === "string"
               ? data.error
-              : `Verification failed with HTTP ${res.status}`;
+              : "Verification could not be completed. Please try again.";
         setApiError(errorMsg);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setApiError(`Network failure: ${msg}`);
+      console.error("[KYC View] Submission network error:", err);
+      setApiError("Unable to reach the verification service. Please check your internet connection and try again.");
     } finally {
       setIsSubmitting(false);
     }

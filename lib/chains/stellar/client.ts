@@ -1,6 +1,52 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { environment } from "@/lib/environment";
 
+// Patch server-side DNS lookup for Stellar testnet when local router fails on AWS ELB CNAMEs
+if (typeof window === "undefined") {
+  try {
+    const dns = require("dns");
+    const origLookup = dns.lookup;
+    const resolver = new dns.Resolver();
+    resolver.setServers(["8.8.8.8", "1.1.1.1"]);
+
+    if (!(dns as any).__stellarDnsPatched) {
+      (dns as any).__stellarDnsPatched = true;
+      dns.lookup = function (
+        hostname: string,
+        options: any,
+        callback: (err: any, address: any, family?: number) => void,
+      ) {
+        if (typeof options === "function") {
+          callback = options;
+          options = {};
+        }
+        origLookup(hostname, options, (err: any, address: any, family: any) => {
+          if (
+            err &&
+            (hostname === "horizon-testnet.stellar.org" ||
+              hostname.includes("stellar.org"))
+          ) {
+            resolver.resolve4(hostname, (resErr: any, addresses: string[]) => {
+              if (!resErr && addresses && addresses.length > 0) {
+                const ip = addresses[0];
+                if (options && options.all) {
+                  return callback(null, [{ address: ip, family: 4 }]);
+                }
+                return callback(null, ip, 4);
+              }
+              callback(err, address, family);
+            });
+            return;
+          }
+          callback(err, address, family);
+        });
+      };
+    }
+  } catch {
+    // Non-fatal
+  }
+}
+
 export const STELLAR_TESTNET_HORIZON = environment.STELLAR_TESTNET;
 export const STELLAR_MAINNET_HORIZON = environment.STELLAR_MAINNET;
 export const STELLAR_FRIENDBOT_URL = "https://friendbot.stellar.org";

@@ -414,6 +414,7 @@ export async function fetchWalletBalances(
 
   if (fetchEvm) {
     evmResults.forEach((res) => {
+      const isTest = Boolean(res.chain.isTestnet);
       const nativeInfo = coinGeckoCache[res.chain.nativeSymbol] || {
         priceUsd: "0.00",
         icon: "/images/home/coin-generic.svg",
@@ -423,14 +424,18 @@ export async function fetchWalletBalances(
         name: res.chain.label,
         icon: nativeInfo.icon,
         balance: res.nativeBal,
-        priceUsd: nativeInfo.priceUsd,
+        priceUsd: isTest ? "0.00" : nativeInfo.priceUsd,
         network: res.chain.label,
-        isTestnet: false,
+        isTestnet: isTest,
       });
 
-      // Add mainnet EVM native to summary
-      summary[`${res.chain.label} (${res.chain.nativeSymbol})`] =
-        `${res.nativeBal} ${res.chain.nativeSymbol}`;
+      if (isTest) {
+        testnetSummary[`${res.chain.label} (${res.chain.nativeSymbol})`] =
+          `${res.nativeBal} ${res.chain.nativeSymbol}`;
+      } else {
+        summary[`${res.chain.label} (${res.chain.nativeSymbol})`] =
+          `${res.nativeBal} ${res.chain.nativeSymbol}`;
+      }
 
       res.tokens.forEach((t: any) => {
         const tokenInfo = coinGeckoCache[t.symbol] || {
@@ -442,14 +447,18 @@ export async function fetchWalletBalances(
           name: `${t.name} (${res.chain.label})`,
           icon: tokenInfo.icon,
           balance: t.balance,
-          priceUsd: tokenInfo.priceUsd,
+          priceUsd: isTest ? "0.00" : tokenInfo.priceUsd,
           network: res.chain.label,
-          isTestnet: false,
+          isTestnet: isTest,
         });
 
-        // Add tracked token to summary
-        summary[`${res.chain.label} (${t.symbol})`] =
-          `${t.balance} ${t.symbol}`;
+        if (isTest) {
+          testnetSummary[`${res.chain.label} (${t.symbol})`] =
+            `${t.balance} ${t.symbol}`;
+        } else {
+          summary[`${res.chain.label} (${t.symbol})`] =
+            `${t.balance} ${t.symbol}`;
+        }
       });
     });
   }

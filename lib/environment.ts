@@ -98,6 +98,17 @@ export const environment = {
     (process.env.ALCHEMY_API_KEY
       ? `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
       : "https://mainnet.base.org"),
+  ALCHEMY_BASE_SEPOLIA_RPC:
+    process.env.ALCHEMY_BASE_SEPOLIA_RPC ||
+    (process.env.ALCHEMY_API_KEY
+      ? `https://base-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+      : "https://sepolia.base.org"),
+  ALCHEMY_SEPOLIA_RPC:
+    process.env.ALCHEMY_SEPOLIA_RPC ||
+    process.env.ALCHEMY_ETH_SEPOLIA_RPC ||
+    (process.env.ALCHEMY_API_KEY
+      ? `https://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+      : "https://ethereum-sepolia-rpc.publicnode.com"),
   ALCHEMY_SOLANA_MAINNET_RPC:
     process.env.ALCHEMY_SOLANA_MAINNET_RPC ||
     (process.env.ALCHEMY_MAINNET_RPC?.includes("solana")

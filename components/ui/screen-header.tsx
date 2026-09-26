@@ -7,6 +7,7 @@ export function ScreenHeader({
   onBack,
   title,
   titleWeight = "semibold",
+  center,
   action,
   round,
 }: {
@@ -18,6 +19,7 @@ export function ScreenHeader({
   /** The card frames draw a medium title; everywhere else it is semibold.
    *  A prop rather than a className — `cn` is a plain join. */
   titleWeight?: "semibold" | "medium";
+  center?: ReactNode;
   action?: ReactNode;
   /** Circled corner-up-left arrow, as the card screens draw it. */
   round?: boolean;
@@ -32,7 +34,11 @@ export function ScreenHeader({
         <BackLink href={back} variant={variant} />
       )}
 
-      {title ? (
+      {center ? (
+        <div className="absolute inset-x-12 flex justify-center items-center pointer-events-auto">
+          {center}
+        </div>
+      ) : title ? (
         <h1
           className={`pointer-events-none absolute inset-x-11 text-center text-base leading-4.5 text-jumpa-black ${
             titleWeight === "medium" ? "font-medium" : "font-semibold"

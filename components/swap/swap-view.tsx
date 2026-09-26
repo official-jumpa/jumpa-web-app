@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { SwapSettingsSheet } from "@/components/swap/swap-settings-sheet";
-import { CloseButton } from "@/components/transfer/close-button";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { PairPill } from "@/components/transfer/pair-pill";
 import {
@@ -12,7 +11,6 @@ import {
 } from "@/components/transfer/quote-leg";
 import { QuoteLockNote } from "@/components/transfer/quote-lock-note";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
-import { TransferHeader } from "@/components/transfer/transfer-header";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { Button } from "@/components/ui/button";
@@ -20,11 +18,18 @@ import { FieldError } from "@/components/ui/field-error";
 import { ArrowDownArrowUpIcon } from "@/components/ui/icons/arrow-down-arrow-up";
 import { GearIcon } from "@/components/ui/icons/gear";
 import { ResultSheet } from "@/components/ui/result-sheet";
+import { ScreenHeader } from "@/components/ui/screen-header";
 import { useSwapQuote } from "@/hooks/use-swap-quote";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import { invalidateClientBalances } from "@/lib/client-events";
 import { decimalsFor } from "@/lib/token-amount";
 import { sanitiseAmount, SWAP_QUOTE } from "@/lib/transfer";
+
+import {
+  BridgeView,
+  type BridgeBalances,
+  type WalletAddresses,
+} from "@/components/swap/bridge-view";
 
 /** Assets available for swap. Extend when new chains are integrated. */
 const SWAP_ASSETS = ["XLM", "USDC"] as const;
@@ -45,9 +50,16 @@ export interface StellarBalances {
 
 export function SwapView({
   stellarBalances,
+  bridgeBalances,
+  walletAddresses,
 }: {
   stellarBalances: StellarBalances;
+  bridgeBalances?: BridgeBalances;
+  walletAddresses?: WalletAddresses;
 }) {
+  // ── Header mode (Swap vs Bridge) ──
+  const [mode, setMode] = useState<"swap" | "bridge">("swap");
+
   // ── Settings ──
   const [slippage, setSlippage] = useState(0.5);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -187,209 +199,249 @@ export function SwapView({
   }
 
   return (
-    <div className="flex min-h-dvh flex-col px-4 pt-[calc(env(safe-area-inset-top)+13px)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+    <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)] max-w-app mx-auto w-full">
       {/* ── Header ── */}
-      {stage === "review" ? (
-        // Review is a stage at the same URL, so plain history would leave the
-        // flow instead of returning to the quote the user just built.
-        <TransferHeader
-          back="/swap"
-          onBack={() => setStage("quote")}
-          title="Review swap"
+      <ScreenHeader
+        back="/home"
+        onBack={
+          mode === "swap" && stage === "review"
+            ? () => setStage("quote")
+            : undefined
+        }
+        center={
+          <div className="flex items-center rounded-full bg-jumpa-neutral-90 p-1 border border-black/5">
+            <button
+              type="button"
+              onClick={() => setMode("swap")}
+              className={`rounded-full px-4 py-1 text-xs font-semibold transition-all ${
+                mode === "swap"
+                  ? "bg-white text-jumpa-black shadow-sm"
+                  : "text-jumpa-black/60 hover:text-jumpa-black"
+              }`}
+            >
+              Swap
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("bridge")}
+              className={`rounded-full px-4 py-1 text-xs font-semibold transition-all ${
+                mode === "bridge"
+                  ? "bg-white text-jumpa-black shadow-sm"
+                  : "text-jumpa-black/60 hover:text-jumpa-black"
+              }`}
+            >
+              Bridge
+            </button>
+          </div>
+        }
+        round
+      />
+
+      {mode === "bridge" ? (
+        <BridgeView
+          bridgeBalances={
+            bridgeBalances || {
+              stellarUsdc: "0.00",
+              baseUsdc: "0.00",
+              ethereumUsdc: "0.00",
+            }
+          }
+          walletAddresses={
+            walletAddresses || { stellar: "", base: "", ethereum: "" }
+          }
         />
       ) : (
-        <header className="relative flex h-9.5 items-center justify-between">
-          <CloseButton onClick={() => history.back()} label="Close swap" />
-          <h1 className="pointer-events-none absolute inset-x-24 text-center text-lg leading-4 font-medium text-jumpa-black">
-            Swap
-          </h1>
-          <button
-            type="button"
-            aria-label="Swap settings"
-            onClick={() => setSettingsOpen(true)}
-            className="tap flex size-9.5 items-center justify-center rounded-full border border-jumpa-primary-600 bg-jumpa-secondary-150 text-jumpa-primary-600 active:scale-90"
-          >
-            <GearIcon className="size-5.25" />
-          </button>
-        </header>
-      )}
-
-      {/* ── Settings sheet (slippage) ── */}
-      {settingsOpen && (
-        <SwapSettingsSheet
-          slippage={slippage}
-          onSlippageChange={setSlippage}
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
-
-      {/* ── Quote stage ── */}
-      {stage === "quote" ? (
-        <div className="mt-6 flex flex-col gap-6">
-          <div className="flex flex-col gap-4 rounded-surface bg-jumpa-neutral-95 px-2.5 pt-3 pb-2.5">
-            <div className="relative flex flex-col gap-1">
-              <QuoteLeg
-                label="You send"
-                symbol={fromToken}
-                balance={balanceFor(fromToken)}
-                options={tokenOptions}
-                onSymbolChange={(s) => {
-                  if (s === toToken) flipPair();
-                  else setFromToken(s);
-                }}
-              >
-                <input
-                  value={amount}
-                  onChange={(e) => {
-                    setError(undefined);
-                    setAmount(
-                      sanitiseAmount(e.target.value, decimalsFor(fromToken)),
-                    );
-                  }}
-                  inputMode="decimal"
-                  aria-label="Amount to swap"
-                  className="w-full min-w-0 bg-transparent text-xl leading-6 font-medium text-jumpa-black caret-jumpa-primary-600 outline-none"
-                  placeholder="0"
-                />
-              </QuoteLeg>
-
-              <button
-                type="button"
-                onClick={flipPair}
-                aria-label="Swap direction"
-                className="tap absolute top-1/2 left-1/2 flex size-8.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[0.66px] border-jumpa-black/10 bg-jumpa-primary-525 text-jumpa-alt-400 shadow-jumpa-disc active:scale-90"
-              >
-                <ArrowDownArrowUpIcon className="size-4" />
-              </button>
-
-              <QuoteLeg
-                label="You receive"
-                symbol={toToken}
-                balance={balanceFor(toToken)}
-                options={tokenOptions}
-                onSymbolChange={(s) => {
-                  if (s === fromToken) flipPair();
-                  else setToToken(s);
-                }}
-              >
-                <span className="text-xl leading-6 font-medium text-jumpa-black">
-                  {quoteLoading ? (
-                    <span className="animate-pulse text-jumpa-black/40">…</span>
-                  ) : (
-                    received
-                  )}
-                </span>
-              </QuoteLeg>
-            </div>
-
-            <span className="-mb-px block h-px w-full bg-jumpa-neutral-200" />
-
-            <p className="flex items-center justify-between gap-3 px-2.5 text-xs leading-4 text-jumpa-black/50">
-              <span>
-                Rate{" "}
-                <b className="font-bold text-jumpa-black">
-                  {quoteLoading ? "…" : rate}
-                </b>
-              </span>
-              <span>
-                Fee <b className="font-bold text-jumpa-black">{estimatedFee}</b>
-              </span>
-            </p>
-          </div>
-
-          <DetailList tone="secondary">
-            <DetailRow label="Network fee" value={estimatedFee} />
-            <DetailRow label="Slippage" value={quoteSlippage} rule={false} />
-          </DetailList>
-
-          {quoteError && <FieldError>{quoteError}</FieldError>}
-
-          <div className="flex flex-col items-center gap-3">
-            <FieldError>{error}</FieldError>
-            <Button
-              variant="gradient"
-              size="lg"
-              onClick={() => {
-                if (!Number(amount)) {
-                  setError("Enter an amount to swap");
-                } else if (!quote) {
-                  setError(
-                    "Waiting for a quote. Please try again in a moment.",
-                  );
-                } else {
-                  setStage("review");
-                }
-              }}
-            >
-              Review swap
-            </Button>
-          </div>
-
-          <QuoteLockNote seconds={SWAP_QUOTE.lockSeconds} />
-        </div>
-      ) : null}
-
-      {/* ── Review sheet ── */}
-      {stage === "review" && !pinOpen ? (
-        <ReviewSheet
-          summary={
-            <div className="flex items-center justify-between gap-3">
-              <PairPill
-                left={fromToken}
-                right={toToken}
-                media={<ArrowDownArrowUpIcon className="size-4 -rotate-90" />}
-              />
-              <span className="shrink-0 text-[10px] leading-4 text-jumpa-black/50">
-                Rate <b className="font-bold text-jumpa-black">{rate}</b>
-              </span>
-            </div>
-          }
-          headlineLabel="YOU RECEIVE"
-          headline={`${received} ${toToken}`}
-          onConfirm={() => setPinOpen(true)}
-          onClose={() => setStage("quote")}
-        >
-          <DetailList tone="secondary">
-            <DetailRow label="Network fee" value={estimatedFee} />
-            <DetailRow label="Slippage" value={quoteSlippage} />
-            <DetailRow
-              label="Network"
-              value="Stellar Mainnet"
-              rule={false}
+        <>
+          {/* ── Settings sheet (slippage) ── */}
+          {settingsOpen && (
+            <SwapSettingsSheet
+              slippage={slippage}
+              onSlippageChange={setSlippage}
+              onClose={() => setSettingsOpen(false)}
             />
-          </DetailList>
-        </ReviewSheet>
-      ) : null}
+          )}
 
-      {/* ── PIN sheet ── */}
-      {pinOpen ? (
-        <TransferPinSheet
-          error={pinError}
-          pending={submitting}
-          onRetry={() => setPinError(false)}
-          onClose={() => {
-            setPinOpen(false);
-            setPinError(false);
-          }}
-          onComplete={handlePinSubmit}
-        />
-      ) : null}
+          {/* ── Quote stage ── */}
+          <div className="mt-6 flex flex-col gap-6">
+            <div className="flex flex-col gap-4 rounded-surface bg-jumpa-neutral-95 px-2.5 pt-3 pb-2.5">
+              <div className="relative flex flex-col gap-1">
+                <QuoteLeg
+                  label="You send"
+                  symbol={fromToken}
+                  balance={balanceFor(fromToken)}
+                  options={tokenOptions}
+                  onSymbolChange={(s) => {
+                    if (s === toToken) flipPair();
+                    else setFromToken(s);
+                  }}
+                >
+                  <input
+                    value={amount}
+                    onChange={(e) => {
+                      setError(undefined);
+                      setAmount(
+                        sanitiseAmount(e.target.value, decimalsFor(fromToken)),
+                      );
+                    }}
+                    inputMode="decimal"
+                    aria-label="Amount to swap"
+                    className="w-full min-w-0 bg-transparent text-xl leading-6 font-medium text-jumpa-black caret-jumpa-primary-600 outline-none"
+                    placeholder="0"
+                  />
+                </QuoteLeg>
 
-      {failure ? (
-        <ResultSheet
-          title={failure.title}
-          message={failure.message}
-          onRetry={
-            failure.retry
-              ? () => {
-                  setFailure(undefined);
-                  setStage("quote");
+                <button
+                  type="button"
+                  onClick={flipPair}
+                  aria-label="Swap direction"
+                  className="tap absolute top-1/2 left-1/2 flex size-8.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[0.66px] border-jumpa-black/10 bg-jumpa-primary-525 text-jumpa-alt-400 shadow-jumpa-disc active:scale-90"
+                >
+                  <ArrowDownArrowUpIcon className="size-4" />
+                </button>
+
+                <QuoteLeg
+                  label="You receive"
+                  symbol={toToken}
+                  balance={balanceFor(toToken)}
+                  options={tokenOptions}
+                  onSymbolChange={(s) => {
+                    if (s === fromToken) flipPair();
+                    else setToToken(s);
+                  }}
+                >
+                  <span className="text-xl leading-6 font-medium text-jumpa-black">
+                    {quoteLoading ? (
+                      <span className="animate-pulse text-jumpa-black/40">…</span>
+                    ) : (
+                      received
+                    )}
+                  </span>
+                </QuoteLeg>
+              </div>
+
+              <span className="-mb-px block h-px w-full bg-jumpa-neutral-200" />
+
+              <p className="flex items-center justify-between gap-3 px-2.5 text-xs leading-4 text-jumpa-black/50">
+                <span>
+                  Rate{" "}
+                  <b className="font-bold text-jumpa-black">
+                    {quoteLoading ? "…" : rate}
+                  </b>
+                </span>
+                <span>
+                  Fee <b className="font-bold text-jumpa-black">{estimatedFee}</b>
+                </span>
+              </p>
+            </div>
+
+            <DetailList tone="secondary">
+              <DetailRow label="Network fee" value={estimatedFee} />
+              <DetailRow
+                label="Slippage tolerance"
+                value={
+                  <button
+                    type="button"
+                    onClick={() => setSettingsOpen(true)}
+                    aria-label="Adjust slippage tolerance"
+                    className="tap -my-0.5 inline-flex items-center gap-1.5 rounded-full border border-jumpa-primary-600/25 bg-jumpa-neutral-100 px-2.5 py-0.5 text-xs font-semibold text-jumpa-primary-600 transition-colors hover:bg-jumpa-neutral-200 active:scale-95"
+                  >
+                    <span>{quoteSlippage}</span>
+                    <GearIcon className="size-3 text-jumpa-primary-600" />
+                  </button>
                 }
-              : undefined
-          }
-          onClose={() => setFailure(undefined)}
-        />
-      ) : null}
+                rule={false}
+              />
+            </DetailList>
+
+            {quoteError && <FieldError>{quoteError}</FieldError>}
+
+            <div className="flex flex-col items-center gap-3">
+              <FieldError>{error}</FieldError>
+              <Button
+                variant="gradient"
+                size="lg"
+                onClick={() => {
+                  if (!Number(amount)) {
+                    setError("Enter an amount to swap");
+                  } else if (!quote) {
+                    setError(
+                      "Waiting for a quote. Please try again in a moment.",
+                    );
+                  } else {
+                    setStage("review");
+                  }
+                }}
+              >
+                Review swap
+              </Button>
+            </div>
+
+            <QuoteLockNote seconds={SWAP_QUOTE.lockSeconds} />
+          </div>
+
+          {/* ── Review sheet ── */}
+          {stage === "review" && !pinOpen ? (
+            <ReviewSheet
+              summary={
+                <div className="flex items-center justify-between gap-3">
+                  <PairPill
+                    left={fromToken}
+                    right={toToken}
+                    media={<ArrowDownArrowUpIcon className="size-4 -rotate-90" />}
+                  />
+                  <span className="shrink-0 text-[10px] leading-4 text-jumpa-black/50">
+                    Rate <b className="font-bold text-jumpa-black">{rate}</b>
+                  </span>
+                </div>
+              }
+              headlineLabel="YOU RECEIVE"
+              headline={`${received} ${toToken}`}
+              onConfirm={() => setPinOpen(true)}
+              onClose={() => setStage("quote")}
+            >
+              <DetailList tone="secondary">
+                <DetailRow label="Network fee" value={estimatedFee} />
+                <DetailRow label="Slippage" value={quoteSlippage} />
+                <DetailRow
+                  label="Network"
+                  value="Stellar Mainnet"
+                  rule={false}
+                />
+              </DetailList>
+            </ReviewSheet>
+          ) : null}
+
+          {/* ── PIN sheet ── */}
+          {pinOpen ? (
+            <TransferPinSheet
+              error={pinError}
+              pending={submitting}
+              onRetry={() => setPinError(false)}
+              onClose={() => {
+                setPinOpen(false);
+                setPinError(false);
+              }}
+              onComplete={handlePinSubmit}
+            />
+          ) : null}
+
+          {failure ? (
+            <ResultSheet
+              title={failure.title}
+              message={failure.message}
+              onRetry={
+                failure.retry
+                  ? () => {
+                      setFailure(undefined);
+                      setStage("quote");
+                    }
+                  : undefined
+              }
+              onClose={() => setFailure(undefined)}
+            />
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

@@ -45,6 +45,30 @@ export async function getOrCreateKycRecord(
       stepsCompleted: { document: false, selfie: false, verification: false },
       provider: "myaza",
     });
+  } else if (
+    !record.isCompleted &&
+    record.status !== "approved" &&
+    record.status !== "pending"
+  ) {
+    // If the record was rejected or is older than 24h, auto-evict stale media IDs
+    const isExpired =
+      record.updatedAt &&
+      Date.now() - new Date(record.updatedAt).getTime() > 24 * 60 * 60 * 1000;
+    const isFailed = record.status === "failed" || record.status === "rejected";
+
+    if ((isExpired || isFailed) && (record.docMediaId || record.selfieMediaId)) {
+      console.log(
+        `[KYC] Auto-clearing ${isExpired ? "expired (>24h)" : "failed"} media IDs for user: ${userId}`,
+      );
+      record.docMediaId = undefined as any;
+      record.selfieMediaId = undefined as any;
+      record.stepsCompleted = {
+        document: false,
+        selfie: false,
+        verification: false,
+      };
+      await record.save();
+    }
   }
 
   return record.toObject();
@@ -147,6 +171,13 @@ export async function completeKycVerification(
 
   if (params.isCompleted) {
     update.completedAt = new Date();
+  } else if (params.status === "failed" || params.status === "rejected") {
+    // Verification failed or was rejected. Clear transient media IDs so subsequent attempts
+    // require fresh uploads rather than resubmitting broken/expired media.
+    update.docMediaId = null;
+    update.selfieMediaId = null;
+    update["stepsCompleted.document"] = false;
+    update["stepsCompleted.selfie"] = false;
   }
 
   const updated = await KYCSchema.findOneAndUpdate(

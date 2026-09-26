@@ -7,6 +7,7 @@ import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
+import { Toggle } from "@/components/settings/toggle";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field-error";
 import { ArrowDownArrowUpIcon } from "@/components/ui/icons/arrow-down-arrow-up";
@@ -85,7 +86,8 @@ export function BridgeView({
   const [quoteLoading, setQuoteLoading] = useState(false);
 
   const isStellarSource = direction === "stellar-to-evm";
-  const evmChainName = evmChain === "ethereum" ? "Ethereum Sepolia" : "Base Sepolia";
+  const evmLabel = evmChain === "ethereum" ? "Ethereum" : "Base";
+  const evmChainName = `${evmLabel} Sepolia`;
   const sourceChainName = isStellarSource ? "Stellar Testnet" : evmChainName;
   const destChainName = isStellarSource ? evmChainName : "Stellar Testnet";
 
@@ -286,148 +288,136 @@ export function BridgeView({
     );
   }
 
-  const renderEvmBadge = () => (
-    <Primitive.Root
-      value={evmChain}
-      onValueChange={(val) => {
-        setEvmChain(val as EvmChain);
-        setQuote(null);
-      }}
-    >
-      <Primitive.Trigger
-        aria-label="Select EVM network"
-        className="tap flex h-8 shrink-0 items-center gap-1.5 rounded-pill bg-jumpa-secondary-100 hover:bg-jumpa-secondary-200/80 px-2.5 text-xs font-semibold text-jumpa-primary-950 transition-colors outline-none active:scale-[0.98] data-[state=open]:ring-1 data-[state=open]:ring-jumpa-primary-600 cursor-pointer shadow-xs"
-      >
-        <div className="flex items-center -space-x-1.5 shrink-0">
-          <Image
-            src={evmChain === "ethereum" ? "/coins/eth.webp" : "/coins/base.webp"}
-            alt=""
-            width={18}
-            height={18}
-            className="size-4.5 rounded-full ring-1 ring-white object-cover"
-          />
-          <Image
-            src="/coins/usdc.webp"
-            alt=""
-            width={18}
-            height={18}
-            className="size-4.5 rounded-full ring-1 ring-white object-cover"
-          />
-        </div>
-        <span className="text-xs font-medium text-jumpa-primary-950">USDC</span>
-        <Primitive.Icon className="ml-0.5 flex shrink-0">
-          <CaretDownIcon aria-hidden="true" className="size-3 text-jumpa-black/60" />
-        </Primitive.Icon>
-      </Primitive.Trigger>
 
-      <Primitive.Portal>
-        <Primitive.Content
-          position="popper"
-          sideOffset={6}
-          className="z-70 min-w-44 animate-drop-in overflow-hidden rounded-surface border border-jumpa-neutral-100 bg-jumpa-white p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.12)]"
-        >
-          <Primitive.Viewport className="flex flex-col gap-1">
-            <Primitive.Item
-              value="ethereum"
-              className="flex cursor-pointer items-center gap-2.5 rounded-tile px-3 py-2 text-xs font-medium text-jumpa-black outline-none select-none data-[highlighted]:bg-jumpa-primary-50 data-[state=checked]:bg-jumpa-primary-50"
-            >
-              <div className="flex items-center -space-x-1.5 shrink-0">
-                <Image
-                  src="/coins/eth.webp"
-                  alt="Ethereum"
-                  width={18}
-                  height={18}
-                  className="size-4.5 rounded-full ring-1 ring-white object-cover"
-                />
-                <Image
-                  src="/coins/usdc.webp"
-                  alt="USDC"
-                  width={18}
-                  height={18}
-                  className="size-4.5 rounded-full ring-1 ring-white object-cover"
-                />
-              </div>
-              <div className="flex flex-col">
-                <Primitive.ItemText>USDC</Primitive.ItemText>
-                <span className="text-[10px] text-jumpa-neutral-400">
-                  Ethereum Sepolia
-                </span>
-              </div>
-              <Primitive.ItemIndicator className="ml-auto flex text-jumpa-primary-600">
-                <CheckIcon className="size-3.5" />
-              </Primitive.ItemIndicator>
-            </Primitive.Item>
+  const EVM_NETWORKS = [
+    { value: "ethereum", logo: "/coins/eth.webp", name: "Ethereum Sepolia" },
+    { value: "base", logo: "/coins/base.webp", name: "Base Sepolia" },
+  ] as const;
 
-            <Primitive.Item
-              value="base"
-              className="flex cursor-pointer items-center gap-2.5 rounded-tile px-3 py-2 text-xs font-medium text-jumpa-black outline-none select-none data-[highlighted]:bg-jumpa-primary-50 data-[state=checked]:bg-jumpa-primary-50"
-            >
-              <div className="flex items-center -space-x-1.5 shrink-0">
-                <Image
-                  src="/coins/base.webp"
-                  alt="Base"
-                  width={18}
-                  height={18}
-                  className="size-4.5 rounded-full ring-1 ring-white object-cover"
-                />
-                <Image
-                  src="/coins/usdc.webp"
-                  alt="USDC"
-                  width={18}
-                  height={18}
-                  className="size-4.5 rounded-full ring-1 ring-white object-cover"
-                />
-              </div>
-              <div className="flex flex-col">
-                <Primitive.ItemText>USDC</Primitive.ItemText>
-                <span className="text-[10px] text-jumpa-neutral-400">
-                  Base Sepolia
-                </span>
-              </div>
-              <Primitive.ItemIndicator className="ml-auto flex text-jumpa-primary-600">
-                <CheckIcon className="size-3.5" />
-              </Primitive.ItemIndicator>
-            </Primitive.Item>
-          </Primitive.Viewport>
-        </Primitive.Content>
-      </Primitive.Portal>
-    </Primitive.Root>
+  /** Chain mark overlapping the token mark — the pair a bridge leg moves. */
+  const assetPair = (chainLogo: string, chainName: string) => (
+    <span className="flex shrink-0 items-center -space-x-1.5">
+      <Image
+        src={chainLogo}
+        alt={chainName}
+        width={18}
+        height={18}
+        className="size-4.5 rounded-full object-cover ring-1 ring-jumpa-white"
+      />
+      <Image
+        src="/coins/usdc.webp"
+        alt="USDC"
+        width={18}
+        height={18}
+        className="size-4.5 rounded-full object-cover ring-1 ring-jumpa-white"
+      />
+    </span>
   );
+
+  const BADGE =
+    "flex h-8 shrink-0 items-center gap-1.5 rounded-pill bg-jumpa-secondary-100 px-2.5 text-xs font-medium text-jumpa-primary-950 shadow-jumpa-sm";
+
+  /** The EVM side picks its chain; the Stellar side has nothing to choose. */
+  const renderEvmBadge = () => {
+    const active =
+      EVM_NETWORKS.find((n) => n.value === evmChain) ?? EVM_NETWORKS[0];
+
+    return (
+      <Primitive.Root
+        value={evmChain}
+        onValueChange={(val) => {
+          setEvmChain(val as EvmChain);
+          setQuote(null);
+        }}
+      >
+        <Primitive.Trigger
+          aria-label="Select EVM network"
+          className={`${BADGE} tap cursor-pointer outline-none transition-colors hover:bg-jumpa-secondary-200/80 active:scale-[0.98] data-[state=open]:ring-1 data-[state=open]:ring-jumpa-primary-600`}
+        >
+          {assetPair(active.logo, active.name)}
+          <span>USDC</span>
+          <Primitive.Icon className="ml-0.5 flex shrink-0 transition-transform duration-200 ease-jumpa data-[state=open]:rotate-180">
+            <CaretDownIcon
+              aria-hidden="true"
+              className="size-3 text-jumpa-neutral-425"
+            />
+          </Primitive.Icon>
+        </Primitive.Trigger>
+
+        <Primitive.Portal>
+          <Primitive.Content
+            position="popper"
+            sideOffset={6}
+            className="z-70 min-w-44 animate-drop-in overflow-hidden rounded-surface border border-jumpa-neutral-100 bg-jumpa-white p-1.5 shadow-jumpa-toast"
+          >
+            <Primitive.Viewport className="flex flex-col gap-1">
+              {EVM_NETWORKS.map((network) => (
+                <Primitive.Item
+                  key={network.value}
+                  value={network.value}
+                  className="flex cursor-pointer items-center gap-2.5 rounded-tile px-3 py-2 text-xs font-medium text-jumpa-black outline-none transition-colors select-none data-[highlighted]:bg-jumpa-primary-50 data-[state=checked]:bg-jumpa-primary-50"
+                >
+                  {assetPair(network.logo, network.name)}
+                  <span className="flex flex-col">
+                    <Primitive.ItemText>USDC</Primitive.ItemText>
+                    <span className="text-[10px] text-jumpa-neutral-400">
+                      {network.name}
+                    </span>
+                  </span>
+                  <Primitive.ItemIndicator className="ml-auto flex text-jumpa-primary-600">
+                    <CheckIcon className="size-3.5" />
+                  </Primitive.ItemIndicator>
+                </Primitive.Item>
+              ))}
+            </Primitive.Viewport>
+          </Primitive.Content>
+        </Primitive.Portal>
+      </Primitive.Root>
+    );
+  };
 
   const renderStellarBadge = () => (
-    <div className="flex h-8 shrink-0 items-center gap-1.5 rounded-pill bg-jumpa-secondary-100 px-2.5 text-xs font-semibold text-jumpa-primary-950 shadow-xs">
-      <div className="flex items-center -space-x-1.5 shrink-0">
-        <Image
-          src="/coins/xlm.webp"
-          alt="Stellar"
-          width={18}
-          height={18}
-          className="size-4.5 rounded-full ring-1 ring-white object-cover"
-        />
-        <Image
-          src="/coins/usdc.webp"
-          alt="USDC"
-          width={18}
-          height={18}
-          className="size-4.5 rounded-full ring-1 ring-white object-cover"
-        />
-      </div>
-      <span className="text-xs font-medium text-jumpa-primary-950">USDC</span>
-    </div>
+    <span className={BADGE}>
+      {assetPair("/coins/xlm.webp", "Stellar")}
+      <span>USDC</span>
+    </span>
   );
 
+  const balanceLine = (value: string, max?: boolean) => (
+    <span className="flex items-center gap-1 text-[10px] leading-3 font-bold text-jumpa-primary-400">
+      <WalletIcon aria-hidden="true" className="size-3.5 text-jumpa-primary-600" />
+      Balance: {formatBalance(value)}
+      {max ? (
+        <button
+          type="button"
+          onClick={() => setAmount(value)}
+          className="tap ml-0.5 cursor-pointer rounded-pill bg-jumpa-primary-50 px-1.5 py-0.5 text-[10px] font-bold text-jumpa-primary-600 uppercase hover:bg-jumpa-primary-100"
+        >
+          Max
+        </button>
+      ) : null}
+    </span>
+  );
+
+  const feeLabel = quote
+    ? parseFloat(quote.fee) === 0
+      ? "Free (Sponsored)"
+      : `${quote.fee} USDC`
+    : "Free (Sponsored)";
+
+  const arrivalLabel =
+    quote?.estimatedTime ?? (transferMode === "fast" ? "~20 secs" : "~18 mins");
+
   return (
-    <div className="mt-4 flex flex-col gap-4">
+    <div className="mt-4 flex animate-fade flex-col gap-4">
       {/* ── Transfer Cards ── */}
-      <div className="flex flex-col gap-4 rounded-surface bg-jumpa-neutral-95 px-2.5 pt-3 pb-2.5 border border-black/5">
+      <div className="flex flex-col gap-4 rounded-surface border border-jumpa-neutral-100 bg-jumpa-neutral-95 px-2.5 pt-3 pb-2.5">
         <div className="relative flex flex-col gap-1">
           {/* Send Leg */}
           <div className="flex items-center gap-2.5 rounded-xl bg-jumpa-white p-2.5">
             <span className="flex min-w-0 flex-1 flex-col gap-1 px-2.5">
               <span className="text-[10px] leading-3 text-jumpa-black/50 uppercase">
-                {isStellarSource
-                  ? "You send (Stellar)"
-                  : `You send (${evmChain === "ethereum" ? "Ethereum" : "Base"})`}
+                You send ({isStellarSource ? "Stellar" : evmLabel})
               </span>
               <input
                 value={amount}
@@ -444,21 +434,7 @@ export function BridgeView({
 
             <span className="flex shrink-0 flex-col items-end justify-center gap-2.5">
               {isStellarSource ? renderStellarBadge() : renderEvmBadge()}
-
-              <span className="flex items-center gap-1 text-[10px] leading-3 font-bold text-jumpa-primary-400">
-                <WalletIcon
-                  aria-hidden="true"
-                  className="size-3.5 text-jumpa-primary-600"
-                />
-                Balance: {formatBalance(sourceBalance)}
-                <button
-                  type="button"
-                  onClick={() => setAmount(sourceBalance)}
-                  className="ml-1 text-[10px] font-bold text-jumpa-primary-600 uppercase hover:underline cursor-pointer"
-                >
-                  Max
-                </button>
-              </span>
+              {balanceLine(sourceBalance, true)}
             </span>
           </div>
 
@@ -467,40 +443,35 @@ export function BridgeView({
             type="button"
             onClick={flipDirection}
             aria-label="Switch bridge direction"
-            className="tap absolute top-1/2 left-1/2 flex size-8.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[0.66px] border-jumpa-black/10 bg-jumpa-primary-525 text-jumpa-alt-400 shadow-jumpa-disc active:scale-90 z-10"
+            className="tap absolute top-1/2 left-1/2 z-10 flex size-8.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[0.66px] border-jumpa-black/10 bg-jumpa-primary-525 text-jumpa-alt-400 shadow-jumpa-disc active:scale-90"
           >
-            <ArrowDownArrowUpIcon className="size-4" />
+            {/* Spins with the direction it just set, so the flip reads as one motion. */}
+            <ArrowDownArrowUpIcon
+              className={`size-4 transition-transform duration-500 ease-jumpa ${
+                isStellarSource ? "" : "rotate-180"
+              }`}
+            />
           </button>
 
           {/* Receive Leg */}
           <div className="flex items-center gap-2.5 rounded-xl bg-jumpa-white p-2.5">
             <span className="flex min-w-0 flex-1 flex-col gap-1 px-2.5">
               <span className="text-[10px] leading-3 text-jumpa-black/50 uppercase">
-                {isStellarSource
-                  ? `You receive (${evmChain === "ethereum" ? "Ethereum" : "Base"})`
-                  : "You receive (Stellar)"}
+                You receive ({isStellarSource ? evmLabel : "Stellar"})
               </span>
-              <span className="text-xl leading-6 font-medium text-jumpa-black">
-                {quoteLoading ? (
-                  <span className="animate-pulse text-jumpa-black/40">…</span>
-                ) : quote ? (
-                  quote.toAmount
-                ) : (
-                  "0.00"
-                )}
+              {/* Opacity and blur only — the row never resizes as a quote lands. */}
+              <span
+                className={`text-xl leading-6 font-medium text-jumpa-black transition-[opacity,filter] duration-300 ease-jumpa ${
+                  quoteLoading ? "opacity-40 blur-[2px]" : "opacity-100 blur-0"
+                }`}
+              >
+                {quote?.toAmount ?? "0.00"}
               </span>
             </span>
 
             <span className="flex shrink-0 flex-col items-end justify-center gap-2.5">
               {isStellarSource ? renderEvmBadge() : renderStellarBadge()}
-
-              <span className="flex items-center gap-1 text-[10px] leading-3 font-bold text-jumpa-primary-400">
-                <WalletIcon
-                  aria-hidden="true"
-                  className="size-3.5 text-jumpa-primary-600"
-                />
-                Balance: {formatBalance(destBalance)}
-              </span>
+              {balanceLine(destBalance)}
             </span>
           </div>
         </div>
@@ -510,34 +481,24 @@ export function BridgeView({
         {/* Speed & Bridge Fee Summary */}
         <p className="flex items-center justify-between gap-3 px-2.5 text-xs leading-4 text-jumpa-black/50">
           <span>
-            Arrival:{" "}
-            <b className="font-bold text-jumpa-black">
-              {quote?.estimatedTime || (transferMode === "fast" ? "~20 secs" : "~18 mins")}
-            </b>
+            Arrival: <b className="font-bold text-jumpa-black">{arrivalLabel}</b>
           </span>
           <span>
-            Bridge Fee:{" "}
-            <b className="font-bold text-jumpa-black">
-              {quote
-                ? parseFloat(quote.fee) === 0
-                  ? "Free (Sponsored)"
-                  : `${quote.fee} USDC`
-                : "Free (Sponsored)"}
-            </b>
+            Bridge Fee: <b className="font-bold text-jumpa-black">{feeLabel}</b>
           </span>
         </p>
       </div>
 
       {/* ── Recipient Address Section ── */}
-      <div className="rounded-2xl bg-jumpa-neutral-95 p-3.5 flex flex-col gap-2 border border-black/5">
+      <div className="flex flex-col gap-2 rounded-card border border-jumpa-neutral-100 bg-jumpa-neutral-95 p-3.5">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-jumpa-black/60">
+          <span className="text-xs font-medium text-jumpa-neutral-425">
             Recipient ({destChainName})
           </span>
           <button
             type="button"
             onClick={() => setCustomRecipient(!customRecipient)}
-            className="text-xs font-semibold text-jumpa-primary-600 hover:underline cursor-pointer"
+            className="tap cursor-pointer text-xs font-semibold text-jumpa-primary-600 hover:underline"
           >
             {customRecipient ? "Use my wallet" : "Change"}
           </button>
@@ -548,16 +509,16 @@ export function BridgeView({
             value={recipientInput}
             onChange={(e) => setRecipientInput(e.target.value)}
             placeholder={`Enter ${destChainName} address`}
-            className="w-full rounded-xl bg-white px-3 py-2 text-xs font-mono border border-black/10 outline-none focus:border-jumpa-primary-600 transition-colors"
+            className="w-full animate-fade rounded-xl border border-jumpa-neutral-100 bg-jumpa-white px-3 py-2 font-mono text-xs transition-colors outline-none focus:border-jumpa-primary-600"
           />
         ) : (
-          <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-xs font-mono text-jumpa-black/80 border border-black/5">
+          <div className="flex animate-fade items-center justify-between rounded-xl border border-jumpa-neutral-100 bg-jumpa-white px-3 py-2 font-mono text-xs text-jumpa-neutral-700">
             <span className="truncate pr-2">
               {defaultRecipient
                 ? `${defaultRecipient.slice(0, 10)}…${defaultRecipient.slice(-8)}`
                 : "No derived address available"}
             </span>
-            <span className="shrink-0 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+            <span className="shrink-0 rounded-pill bg-jumpa-success/10 px-2 py-0.5 text-[10px] font-semibold text-jumpa-success">
               Your Wallet
             </span>
           </div>
@@ -565,41 +526,26 @@ export function BridgeView({
       </div>
 
       {/* ── Fast Transfer Toggle ── */}
-      <div className="flex items-center justify-between rounded-2xl bg-jumpa-neutral-95 px-4 py-3 border border-black/5">
-        <div className="flex items-center gap-3">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-jumpa-black">
-                Fast Transfer
-              </span>
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[9px] font-bold text-emerald-700">
-                Auto
-              </span>
-            </div>
-            <span className="text-[11px] text-jumpa-black/50">
-              {transferMode === "fast"
-                ? "Faster (~15–30s)"
-                : "Standard (~18 mins)"}
+      <div className="flex items-center justify-between rounded-card border border-jumpa-neutral-100 bg-jumpa-neutral-95 px-4 py-3">
+        <span className="flex flex-col gap-0.5">
+          <span className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-jumpa-black">
+              Fast Transfer
             </span>
-          </div>
-        </div>
+            <span className="rounded-pill bg-jumpa-success/10 px-2 py-0.5 text-[9px] font-bold text-jumpa-success">
+              Auto
+            </span>
+          </span>
+          <span className="text-[11px] text-jumpa-neutral-425">
+            {transferMode === "fast" ? "Faster (~15–30s)" : "Standard (~18 mins)"}
+          </span>
+        </span>
 
-        <button
-          type="button"
-          role="switch"
-          aria-checked={transferMode === "fast"}
-          onClick={() =>
-            setTransferMode((prev) => (prev === "fast" ? "standard" : "fast"))
-          }
-          className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${transferMode === "fast" ? "bg-jumpa-primary-600" : "bg-jumpa-neutral-200"
-            }`}
-        >
-          <span
-            aria-hidden="true"
-            className={`pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${transferMode === "fast" ? "translate-x-5" : "translate-x-0"
-              }`}
-          />
-        </button>
+        <Toggle
+          label="Fast transfer"
+          checked={transferMode === "fast"}
+          onChange={(on) => setTransferMode(on ? "fast" : "standard")}
+        />
       </div>
 
       {/* ── Review & PIN Execution ── */}
@@ -632,7 +578,7 @@ export function BridgeView({
               <span className="text-xs font-semibold text-jumpa-black">
                 {sourceChainName} → {destChainName}
               </span>
-              <span className="shrink-0 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+              <span className="shrink-0 rounded-pill bg-jumpa-success/10 px-2 py-0.5 text-[10px] font-bold text-jumpa-success">
                 {transferMode === "fast" ? "Fast Transfer" : "Standard"}
               </span>
             </div>
@@ -645,20 +591,8 @@ export function BridgeView({
           <DetailList tone="secondary">
             <DetailRow label="Source network" value={sourceChainName} />
             <DetailRow label="Destination network" value={destChainName} />
-            <DetailRow
-              label="Bridge Fee"
-              value={
-                quote?.fee
-                  ? parseFloat(quote.fee) === 0
-                    ? "Free (Sponsored)"
-                    : `${quote.fee} USDC`
-                  : "Free (Sponsored)"
-              }
-            />
-            <DetailRow
-              label="Estimated arrival"
-              value={quote?.estimatedTime || (transferMode === "fast" ? "~15–30s" : "~18m")}
-            />
+            <DetailRow label="Bridge Fee" value={feeLabel} />
+            <DetailRow label="Estimated arrival" value={arrivalLabel} />
             <DetailRow
               label="Recipient"
               value={
@@ -693,9 +627,9 @@ export function BridgeView({
           onRetry={
             failure.retry
               ? () => {
-                setFailure(undefined);
-                setStage("quote");
-              }
+                  setFailure(undefined);
+                  setStage("quote");
+                }
               : undefined
           }
           onClose={() => setFailure(undefined)}

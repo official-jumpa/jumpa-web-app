@@ -48,6 +48,10 @@ export interface StellarBalances {
   usdc: string;
 }
 
+type SwapMode = "swap" | "bridge";
+
+const MODES: readonly SwapMode[] = ["swap", "bridge"];
+
 export function SwapView({
   stellarBalances,
   bridgeBalances,
@@ -58,7 +62,7 @@ export function SwapView({
   walletAddresses?: WalletAddresses;
 }) {
   // ── Header mode (Swap vs Bridge) ──
-  const [mode, setMode] = useState<"swap" | "bridge">("swap");
+  const [mode, setMode] = useState<SwapMode>("swap");
 
   // ── Settings ──
   const [slippage, setSlippage] = useState(0.5);
@@ -208,30 +212,30 @@ export function SwapView({
             ? () => setStage("quote")
             : undefined
         }
+        /* The thumb slides between the two tabs, so the switch reads as one control. */
         center={
-          <div className="flex items-center rounded-full bg-jumpa-neutral-90 p-1 border border-black/5">
-            <button
-              type="button"
-              onClick={() => setMode("swap")}
-              className={`rounded-full px-4 py-1 text-xs font-semibold transition-all ${
-                mode === "swap"
-                  ? "bg-white text-jumpa-black shadow-sm"
-                  : "text-jumpa-black/60 hover:text-jumpa-black"
+          <div className="relative flex items-center rounded-pill border border-jumpa-neutral-100 bg-jumpa-neutral-90 p-1">
+            <span
+              aria-hidden="true"
+              className={`absolute top-1 bottom-1 left-1 w-[calc(50%-0.25rem)] rounded-pill bg-jumpa-white shadow-jumpa-sm transition-transform duration-300 ease-jumpa ${
+                mode === "bridge" ? "translate-x-full" : "translate-x-0"
               }`}
-            >
-              Swap
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("bridge")}
-              className={`rounded-full px-4 py-1 text-xs font-semibold transition-all ${
-                mode === "bridge"
-                  ? "bg-white text-jumpa-black shadow-sm"
-                  : "text-jumpa-black/60 hover:text-jumpa-black"
-              }`}
-            >
-              Bridge
-            </button>
+            />
+            {MODES.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setMode(tab)}
+                aria-pressed={mode === tab}
+                className={`tap relative z-10 w-20 rounded-pill py-1 text-xs font-semibold capitalize transition-colors ${
+                  mode === tab
+                    ? "text-jumpa-black"
+                    : "text-jumpa-neutral-425 hover:text-jumpa-black"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
           </div>
         }
         round

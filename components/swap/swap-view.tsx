@@ -63,6 +63,8 @@ export function SwapView({
 }) {
   // ── Header mode (Swap vs Bridge) ──
   const [mode, setMode] = useState<SwapMode>("swap");
+  /** The bridge receipt draws its own header; this hides the screen's. */
+  const [bridgeDone, setBridgeDone] = useState(false);
 
   // ── Settings ──
   const [slippage, setSlippage] = useState(0.5);
@@ -203,8 +205,17 @@ export function SwapView({
   }
 
   return (
-    <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)] max-w-app mx-auto w-full">
+    // The wrapper element never changes, so BridgeView is not remounted when
+    // its receipt takes over the screen.
+    <div
+      className={
+        bridgeDone
+          ? "flex min-h-dvh flex-col max-w-app mx-auto w-full"
+          : "flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)] max-w-app mx-auto w-full"
+      }
+    >
       {/* ── Header ── */}
+      {bridgeDone ? null : (
       <ScreenHeader
         back="/home"
         onBack={
@@ -240,9 +251,11 @@ export function SwapView({
         }
         round
       />
+      )}
 
       {mode === "bridge" ? (
         <BridgeView
+          onDone={setBridgeDone}
           bridgeBalances={
             bridgeBalances || {
               stellarUsdc: "0.00",

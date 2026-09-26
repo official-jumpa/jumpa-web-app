@@ -60,9 +60,12 @@ interface BridgeTxResult {
 export function BridgeView({
   bridgeBalances,
   walletAddresses,
+  onDone,
 }: {
   bridgeBalances: BridgeBalances;
   walletAddresses: WalletAddresses;
+  /** The receipt draws its own header, so the screen's chrome steps aside. */
+  onDone?: (done: boolean) => void;
 }) {
   // ── Bridge Config ──
   const [direction, setDirection] = useState<Direction>("stellar-to-evm");
@@ -231,6 +234,7 @@ export function BridgeView({
 
         invalidateClientBalances();
         setStage("done");
+        onDone?.(true);
         setPinOpen(false);
       }
     } catch (e) {

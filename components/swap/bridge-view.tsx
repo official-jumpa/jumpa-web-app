@@ -55,6 +55,9 @@ interface BridgeTxResult {
   sentAmount: string;
   receivedAmount: string;
   recipientAddress: string;
+  fee: string;
+  arrival: string;
+  mode: TransferMode;
 }
 
 export function BridgeView({
@@ -116,6 +119,15 @@ export function BridgeView({
   const destBalance = isStellarSource
     ? evmBalance
     : bridgeBalances.stellarUsdc;
+
+  const feeLabel = quote
+    ? parseFloat(quote.fee) === 0
+      ? "Free (Sponsored)"
+      : `${quote.fee} USDC`
+    : "Free (Sponsored)";
+
+  const arrivalLabel =
+    quote?.estimatedTime ?? (transferMode === "fast" ? "~20 secs" : "~18 mins");
 
   const fromChainParam = isStellarSource ? "stellar" : evmChain;
   const toChainParam = isStellarSource ? evmChain : "stellar";
@@ -230,6 +242,9 @@ export function BridgeView({
           sentAmount: amount,
           receivedAmount: quote.toAmount,
           recipientAddress: targetRecipient,
+          fee: feeLabel,
+          arrival: arrivalLabel,
+          mode: transferMode,
         });
 
         invalidateClientBalances();
@@ -246,30 +261,48 @@ export function BridgeView({
 
   // ── Success screen ──
   if (stage === "done" && txResult) {
+    const recipient = txResult.recipientAddress
+      ? `${txResult.recipientAddress.slice(0, 6)}…${txResult.recipientAddress.slice(-6)}`
+      : "—";
+
     return (
       <TransferSuccess
         back="/home"
         title="Bridge initiated"
-        amount={`+${txResult.receivedAmount} USDC`}
+        amount={`+${formatBalance(txResult.receivedAmount)} USDC`}
+        /* The route and the wait are the two things a pending bridge has to
+           say, so they sit on the receipt rather than behind "More details". */
+        subAmount={`${txResult.fromChain} → ${txResult.toChain}`}
+        note={
+          <span>
+            Arriving at{" "}
+            <b className="font-semibold">{recipient}</b> in about{" "}
+            <b className="font-semibold">{txResult.arrival}</b>. You can close
+            this screen, the transfer keeps going.
+          </span>
+        }
         titleFirst
         actionsFirst
         ctaLabel="Back to home"
         details={
           <DetailList tone="secondary">
-            <DetailRow label="Source" value={txResult.fromChain} />
-            <DetailRow label="Destination" value={txResult.toChain} />
             <DetailRow
-              label="Estimated arrival"
-              value={quote?.estimatedTime || "Sub-minute"}
+              label="Amount sent"
+              value={`${formatBalance(txResult.sentAmount)} USDC`}
             />
             <DetailRow
-              label="Recipient"
-              value={
-                txResult.recipientAddress
-                  ? `${txResult.recipientAddress.slice(0, 6)}…${txResult.recipientAddress.slice(-6)}`
-                  : "—"
-              }
+              label="Amount received"
+              value={`${formatBalance(txResult.receivedAmount)} USDC`}
             />
+            <DetailRow label="Bridge fee" value={txResult.fee} />
+            <DetailRow label="From" value={txResult.fromChain} />
+            <DetailRow label="To" value={txResult.toChain} />
+            <DetailRow
+              label="Transfer speed"
+              value={txResult.mode === "fast" ? "Fast transfer" : "Standard"}
+            />
+            <DetailRow label="Estimated arrival" value={txResult.arrival} />
+            <DetailRow label="Recipient" value={recipient} />
             {txResult.txHash && (
               <DetailRow
                 label="Tx Hash"
@@ -402,15 +435,6 @@ export function BridgeView({
       ) : null}
     </span>
   );
-
-  const feeLabel = quote
-    ? parseFloat(quote.fee) === 0
-      ? "Free (Sponsored)"
-      : `${quote.fee} USDC`
-    : "Free (Sponsored)";
-
-  const arrivalLabel =
-    quote?.estimatedTime ?? (transferMode === "fast" ? "~20 secs" : "~18 mins");
 
   return (
     <div className="mt-4 flex animate-fade flex-col gap-4">

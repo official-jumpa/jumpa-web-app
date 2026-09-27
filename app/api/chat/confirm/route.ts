@@ -37,6 +37,8 @@ import {
 } from "@/lib/services/savings-execution";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
+import { executeBridge } from "@/lib/execution/bridge-execute";
+import { createNotification } from "@/lib/functions/notificationFunctions";
 
 
 /**
@@ -246,89 +248,130 @@ export async function POST(req: NextRequest) {
         effectiveCardData?.pay?.value || txParams?.fromAmount || "0";
       const fromToken =
         effectiveCardData?.pay?.badge || txParams?.fromToken || "USDC";
-      const fromChain =
-        effectiveCardData?.pay?.chain || txParams?.fromChain || "base";
+      const rawFromChain = String(
+        txParams?.fromChain ||
+        effectiveCardData?.pay?.chain ||
+        "stellar"
+      ).toLowerCase();
 
       const toAmount =
-        effectiveCardData?.receive?.value || txParams?.toAmount || "0";
+        effectiveCardData?.receive?.value || txParams?.toAmount || fromAmount;
       const toToken =
         effectiveCardData?.receive?.badge || txParams?.toToken || "USDC";
-      const toChain =
-        effectiveCardData?.receive?.chain || txParams?.toChain || "stellar";
+      const rawToChain = String(
+        txParams?.toChain ||
+        effectiveCardData?.receive?.chain ||
+        "base"
+      ).toLowerCase();
 
-      const provider = txParams?.provider || "Allbridge Core";
+      const normalizeChain = (c: string): "stellar" | "base" | "ethereum" => {
+        if (c.includes("eth")) return "ethereum";
+        if (c.includes("base")) return "base";
+        return "stellar";
+      };
+
+      const fromChain = normalizeChain(rawFromChain);
+      const toChain = normalizeChain(rawToChain);
+
       const fee =
         txParams?.fee ||
         effectiveCardData?.stats?.find((s: any) =>
           s.lead?.toLowerCase().includes("fee"),
         )?.value ||
-        "0.3%";
+        (fromChain === "stellar" ? "Free (Sponsored)" : "0.00");
 
-      const userStellarAddr =
-        wallet.addresses?.xlm ||
-        wallet.address ||
-        "";
-      const userBaseAddr =
-        wallet.addresses?.base ||
-        wallet.address ||
-        "";
+      const transferType =
+        (txParams?.transferType as "standard" | "fast") || "fast";
 
-      // Log for bridge transaction (Simulated Staging)
-      try {
-        await createTransactionRecord({
-          userId,
-          walletId: wallet._id,
-          sessionId,
-          messageId: targetMsg?.id,
-          type: "BRIDGE",
-          status: "SIMULATED",
-          chain: "base",
-          network: "testnet",
-          fromAddress: userBaseAddr,
-          toAddress: userStellarAddr,
-          amount: fromAmount,
-          token: fromToken,
-          feePaid: fee,
-          bridgeDetails: {
-            provider: provider || "Allbridge Core (Simulation)",
-            fromChain,
-            toChain,
-            fromToken,
-            toToken,
-            fromAmount,
-            toAmount,
-            fee,
-          },
-          executedAt: new Date(),
-        });
-      } catch (dbErr: any) {
-        console.warn(`[Chat Confirm] Bridge Transaction log notice: ${dbErr.message}`);
+      const defaultRecipient =
+        toChain === "stellar"
+          ? wallet.addresses?.xlm || wallet.address
+          : wallet.addresses?.base || wallet.addresses?.eth || wallet.address;
+
+      const recipientAddress = txParams?.recipientAddress || defaultRecipient;
+
+      if (!recipientAddress) {
+        return NextResponse.json(
+          { error: "Recipient address is required" },
+          { status: 400 },
+        );
       }
+
+      // Execute real cross-chain bridge transfer via Circle CCTP v2
+      const bridgeResult = await executeBridge({
+        wallet,
+        pin,
+        fromChain,
+        toChain,
+        amount: fromAmount,
+        toAmount,
+        recipientAddress,
+        transferType,
+        fee,
+        userId,
+      });
+
+      if (!bridgeResult.ok) {
+        return NextResponse.json(
+          { error: bridgeResult.error },
+          { status: bridgeResult.status || 400 },
+        );
+      }
+
+      const { txHash, explorerUrl } = bridgeResult;
 
       updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});
 
+      logUserActivity({
+        userId,
+        action: "BRIDGE_EXECUTED",
+        details: {
+          fromChain: bridgeResult.fromChain,
+          toChain: bridgeResult.toChain,
+          amount: fromAmount,
+          toAmount,
+          txHash,
+          recipientAddress,
+        },
+        req,
+      }).catch(() => {});
+
+      createNotification({
+        userId,
+        tab: "transactions",
+        title: "Bridge Initiated",
+        body: `Bridging ${fromAmount} USDC from ${bridgeResult.fromChain} to ${bridgeResult.toChain}.`,
+        type: "BRIDGE_INITIATED",
+      }).catch(() => null);
+
       receiptCardData = {
-        title: "Bridge (Simulation)",
-        status: "Simulated",
+        title: "Bridge Initiated",
+        status: "Initiated",
         balance: {
-          caption: "SIMULATED",
+          caption: "BRIDGED",
           value: toAmount,
           badge: toToken,
         },
         stats: [
-          { value: `- ${fromAmount} ${fromToken} (${fromChain.toUpperCase()})` },
-          { value: `+ ${toAmount} ${toToken} (${toChain.toUpperCase()})` },
-          { lead: "Provider ", value: provider || "Allbridge Core (Simulation)" },
-          { lead: "Mode ", value: "Simulated" },
+          { value: `- ${fromAmount} ${fromToken} (${bridgeResult.fromChain})` },
+          { value: `+ ${toAmount} ${toToken} (${bridgeResult.toChain})` },
+          { lead: "Provider ", value: "Circle CCTP v2" },
           { lead: "Bridge Fee ", value: fee },
           {
             lead: "Recipient ",
-            value: userStellarAddr
-              ? `${userStellarAddr.slice(0, 6)}...${userStellarAddr.slice(-6)}`
-              : "Stellar Wallet",
+            value: recipientAddress
+              ? `${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-6)}`
+              : "Wallet",
+          },
+          {
+            lead: "Tx Hash ",
+            value: txHash
+              ? `${txHash.slice(0, 6)}...${txHash.slice(-6)}`
+              : "On-chain",
           },
         ],
-        explorerUrl: undefined, // no explorer URL
+        txHash: txHash || undefined,
+        explorerUrl: explorerUrl || undefined,
       };
     } else if (txParams?.type === "savings_create") {
       const {
@@ -963,7 +1006,7 @@ export async function POST(req: NextRequest) {
         cardType === "quote"
           ? `✓ Swap confirmed`
           : cardType === "bridge"
-            ? `✓ Bridge transfer simulated in ${elapsedSeconds} seconds (Testnet)`
+            ? `✓ Bridge transfer initiated in ${elapsedSeconds} seconds (Testnet)`
             : txParams?.type === "savings_create"
               ? `✓ Savings goal created`
               : txParams?.type === "savings_deposit"

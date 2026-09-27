@@ -6,6 +6,8 @@ export type NotificationTab = "transactions" | "activities";
 export type NotificationType =
   | "FUNDS_RECEIVED"
   | "TRANSFER_SENT"
+  | "BRIDGE_INITIATED"
+  | "BRIDGE_COMPLETED"
   | "ONRAMP_INITIATED"
   | "ONRAMP_COMPLETED"
   | "OFFRAMP_INITIATED"

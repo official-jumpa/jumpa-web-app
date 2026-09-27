@@ -114,6 +114,8 @@ export type ChatOption = {
   amount?: string;
   /** Named glyph from the icon set — see OPTION_ICONS. */
   icon?: string;
+  /** Image URL for asset / chain logo, e.g. /coins/xlm.webp */
+  logo?: string;
   reply?: string;
   selected?: boolean;
   /**

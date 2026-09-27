@@ -309,6 +309,173 @@ const swapAmountOptions = (token: string): ChatOption[] => [
   { label: "Custom Amount", custom: true, placeholder: `Amount in ${token}` },
 ];
 
+/** Supported chains for cross-chain USDC bridging via Circle CCTP v2. */
+async function getBridgeSourceChainOptions(
+  userId?: string,
+  stellarAddress?: string,
+  toChain?: "stellar" | "base" | "ethereum" | null,
+): Promise<ChatOption[]> {
+  let stellarUsdc = "0.00";
+  let baseUsdc = "0.00";
+  let ethUsdc = "0.00";
+
+  try {
+    if (userId && userId !== "UNKNOWN") {
+      const balances = await getCachedWalletBalances(userId);
+      if (balances?.tokens) {
+        for (const t of balances.tokens) {
+          if (t.symbol?.toUpperCase() === "USDC") {
+            const net = (t.network || "").toLowerCase();
+            if (net.includes("stellar") && t.isTestnet) {
+              stellarUsdc = formatBalance(t.balance);
+            } else if (net.includes("base") && t.isTestnet) {
+              baseUsdc = formatBalance(t.balance);
+            } else if (net.includes("eth") && t.isTestnet) {
+              ethUsdc = formatBalance(t.balance);
+            }
+          }
+        }
+      }
+    }
+
+    if (
+      stellarAddress &&
+      stellarAddress.startsWith("G") &&
+      stellarUsdc === "0.00"
+    ) {
+      const stellar = await fetchStellarBalances(stellarAddress);
+      if (stellar.testnet?.usdc) {
+        stellarUsdc = formatBalance(stellar.testnet.usdc);
+      }
+    }
+  } catch (err) {
+    console.warn(
+      "[Bridge] Error loading testnet balances for chain options:",
+      err,
+    );
+  }
+
+  const all: {
+    id: "stellar" | "base" | "ethereum";
+    label: string;
+    description: string;
+    amount: string;
+    logo: string;
+    reply: string;
+  }[] = [
+    {
+      id: "stellar",
+      label: "Stellar Testnet",
+      description: "Circle CCTP v2",
+      amount: `${stellarUsdc} USDC`,
+      logo: "/coins/xlm.webp",
+      reply: "Bridge from Stellar Testnet",
+    },
+    {
+      id: "base",
+      label: "Base Sepolia",
+      description: "Circle CCTP v2",
+      amount: `${baseUsdc} USDC`,
+      logo: "/coins/base.webp",
+      reply: "Bridge from Base Sepolia",
+    },
+    {
+      id: "ethereum",
+      label: "Ethereum Sepolia",
+      description: "Circle CCTP v2",
+      amount: `${ethUsdc} USDC`,
+      logo: "/coins/eth.webp",
+      reply: "Bridge from Ethereum Sepolia",
+    },
+  ];
+
+  return all
+    .filter((c) => !toChain || c.id !== toChain)
+    .map((c) => ({
+      label: c.label,
+      description: c.description,
+      amount: c.amount,
+      logo: c.logo,
+      reply: c.reply,
+    }));
+}
+
+function bridgeDestChains(
+  fromChain: "stellar" | "base" | "ethereum",
+): ChatOption[] {
+  const all: {
+    id: "stellar" | "base" | "ethereum";
+    label: string;
+    description: string;
+    logo: string;
+    reply: string;
+  }[] = [
+    {
+      id: "stellar",
+      label: "Stellar Testnet",
+      description: "Circle CCTP v2",
+      logo: "/coins/xlm.webp",
+      reply: "Bridge to Stellar Testnet",
+    },
+    {
+      id: "base",
+      label: "Base Sepolia",
+      description: "Circle CCTP v2",
+      logo: "/coins/base.webp",
+      reply: "Bridge to Base Sepolia",
+    },
+    {
+      id: "ethereum",
+      label: "Ethereum Sepolia",
+      description: "Circle CCTP v2",
+      logo: "/coins/eth.webp",
+      reply: "Bridge to Ethereum Sepolia",
+    },
+  ];
+  return all
+    .filter((c) => c.id !== fromChain)
+    .map((c) => ({
+      label: c.label,
+      description: c.description,
+      logo: c.logo,
+      reply: c.reply,
+    }));
+}
+
+const BRIDGE_AMOUNTS: ChatOption[] = [
+  { label: "1 USDC", amount: "$1.00", logo: "/coins/usdc.webp", reply: "1 USDC" },
+  { label: "5 USDC", amount: "$5.00", logo: "/coins/usdc.webp", reply: "5 USDC" },
+  { label: "10 USDC", amount: "$10.00", logo: "/coins/usdc.webp", reply: "10 USDC" },
+  { label: "25 USDC", amount: "$25.00", logo: "/coins/usdc.webp", reply: "25 USDC" },
+  { label: "Custom Amount", custom: true, placeholder: "Enter amount in USDC" },
+];
+
+function parseBridgeChain(
+  val?: string,
+): "stellar" | "base" | "ethereum" | null {
+  if (!val) return null;
+  const s = val.toLowerCase().trim();
+  if (s.includes("stellar") || s.includes("xlm") || s.includes("soroban"))
+    return "stellar";
+  if (s.includes("base")) return "base";
+  if (s.includes("eth") || s.includes("sepolia") || s.includes("ethereum"))
+    return "ethereum";
+  return null;
+}
+
+function getBridgeChainDisplayName(
+  chain: "stellar" | "base" | "ethereum",
+): string {
+  switch (chain) {
+    case "stellar":
+      return "Stellar Testnet";
+    case "base":
+      return "Base Sepolia";
+    case "ethereum":
+      return "Ethereum Sepolia";
+  }
+}
+
 /**
  * Loads the user's actual wallet balance for proposal cards.
  * Returns formatted string like "$150.00" or specific token balance if available.
@@ -410,23 +577,96 @@ export async function executeTool(
     }
 
     // ── Stellar Testnet Swap Quote
+    // ── Cross-chain Bridge Quote (Circle CCTP v2) — multi-step interactive flow
     case "bridge_tokens": {
       const { fromToken, toToken, amount, fromChain, toChain } = toolArgs as {
-        fromToken: string;
-        toToken: string;
-        amount: string;
+        fromToken?: string;
+        toToken?: string;
+        amount?: string;
         fromChain?: string;
         toChain?: string;
       };
 
+      const parsedFromChain = parseBridgeChain(fromChain);
+      const parsedToChain = parseBridgeChain(toChain);
+
+      let cleanAmount: string | null = null;
+      if (amount && typeof amount === "string") {
+        const cleaned = amount.replace(/[^0-9.]/g, "");
+        const num = parseFloat(cleaned);
+        if (!isNaN(num) && num > 0) {
+          cleanAmount = cleaned;
+        }
+      }
+
+      // Step 1: Source chain picker
+      if (!parsedFromChain) {
+        const options = await getBridgeSourceChainOptions(
+          userId,
+          userCtx.stellarAddress,
+          parsedToChain,
+        );
+
+        return {
+          toolName: name,
+          summaryForAI: "Select the network you want to bridge from.",
+          cardHint: {
+            type: "options",
+            data: { options },
+          },
+          requiresConfirmation: false,
+        };
+      }
+
+      // Step 2: Destination chain picker
+      if (!parsedToChain || parsedToChain === parsedFromChain) {
+        const fromDisplayName = getBridgeChainDisplayName(parsedFromChain);
+        return {
+          toolName: name,
+          summaryForAI: `Bridging from **${fromDisplayName}** — select the network to receive the funds.`,
+          cardHint: {
+            type: "options",
+            data: { options: bridgeDestChains(parsedFromChain) },
+          },
+          requiresConfirmation: false,
+        };
+      }
+
+      const fromDisplayName = getBridgeChainDisplayName(parsedFromChain);
+      const toDisplayName = getBridgeChainDisplayName(parsedToChain);
+
+      // Step 3: Amount picker (prelisted options + custom amount option)
+      if (!cleanAmount) {
+        return {
+          toolName: name,
+          summaryForAI: `Select or enter the amount of **USDC** to bridge from **${fromDisplayName}** to **${toDisplayName}**.`,
+          cardHint: {
+            type: "options",
+            data: { options: BRIDGE_AMOUNTS },
+          },
+          requiresConfirmation: false,
+        };
+      }
+
+      // Step 4: All required parameters provided. Connect wallet and generate quote proposal.
+      await connectDB();
+      let wallet = null;
+      if (userId && userId !== "UNKNOWN") {
+        wallet = await Wallet.findOne({ userId });
+      }
+      const stellarAddr =
+        wallet?.addresses?.xlm || userCtx.stellarAddress || "";
+      const evmAddr =
+        wallet?.addresses?.base || wallet?.addresses?.eth || "";
+
       let quote: ReturnType<typeof getBridgeQuote>;
       try {
         quote = getBridgeQuote({
-          fromToken,
-          toToken,
-          amount,
-          fromChain,
-          toChain,
+          fromToken: "USDC",
+          toToken: "USDC",
+          amount: cleanAmount,
+          fromChain: parsedFromChain,
+          toChain: parsedToChain,
         });
       } catch (err: any) {
         return {
@@ -438,9 +678,12 @@ export async function executeTool(
         };
       }
 
+      const recipientAddress =
+        quote.toChain === "stellar" ? stellarAddr : evmAddr;
+
       const cardData: BridgeCard = {
-        title: "Bridge (Simulation)",
-        status: { lead: "Mode ", value: "Simulated" },
+        title: "Bridge",
+        status: { lead: "Arrival ", value: quote.estimatedTime || "~20s" },
         pay: {
           caption: "YOU PAY",
           value: quote.amountIn,
@@ -456,22 +699,22 @@ export async function executeTool(
         stats: [
           { lead: "Rate ", value: quote.rate },
           { lead: "Fee ", value: quote.fee },
-          { lead: "Provider ", value: quote.provider || "Allbridge Core (Simulation)" },
-          { lead: "Est. Time ", value: quote.estimatedTime || "2-4 mins" },
+          { lead: "Provider ", value: quote.provider || "Circle CCTP v2" },
+          { lead: "Est. Time ", value: quote.estimatedTime || "~15–30s" },
         ],
       };
 
       return {
         toolName: name,
         summaryForAI: [
-          "Simulated bridge quote ready (Testnet Staging):",
-          `- ${quote.amountIn} ${quote.fromToken} on ${quote.fromChainName} → ${quote.amountOut} ${quote.toToken} on ${quote.toChainName}`,
+          "Bridge quote ready:",
+          `- Pay: ${quote.amountIn} ${quote.fromToken} on ${quote.fromChainName}`,
+          `- Receive: ${quote.amountOut} ${quote.toToken} on ${quote.toChainName}`,
           `- Rate: ${quote.rate}`,
           `- Fee: ${quote.fee}`,
-          `- Provider: ${quote.provider || "Allbridge Core (Simulation)"}`,
-          `- Est. Delivery: ${quote.estimatedTime || "2-4 mins"}`,
-          `- Mode: Simulated Testnet Staging`,
-          "The simulated bridge card is on screen. Ask them to confirm to simulate the bridge order. Do NOT use emojis or tell them to press buttons or enter a PIN.",
+          `- Provider: ${quote.provider || "Circle CCTP v2"}`,
+          `- Estimated Delivery: ${quote.estimatedTime || "~15–30s"}`,
+          "The bridge card is displayed on the screen. Ask the user to review and confirm if they would like to proceed. Do NOT use emojis or instruct them to enter a PIN.",
         ].join("\n"),
         cardHint: { type: "bridge", data: cardData },
         transactionParams: {
@@ -484,7 +727,9 @@ export async function executeTool(
           toChain: quote.toChain,
           currency: quote.fromToken,
           fee: quote.fee,
-          provider: quote.provider || "Allbridge Core (Simulation)",
+          provider: quote.provider || "Circle CCTP v2",
+          recipientAddress,
+          transferType: "fast",
         },
         requiresConfirmation: true,
       };

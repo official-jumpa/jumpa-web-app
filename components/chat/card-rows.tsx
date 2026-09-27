@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { CardRule } from "@/components/chat/chat-card";
 import { BadgePercentIcon } from "@/components/ui/icons/badge-percent";
@@ -77,7 +78,15 @@ export function OptionRow({
       onClick={() => onSelect?.(option.reply ?? option.label)}
       className={cn(ROW, selected ? SELECTED : RESTING)}
     >
-      {Icon ? (
+      {option.logo ? (
+        <Image
+          src={option.logo}
+          alt=""
+          width={24}
+          height={24}
+          className="size-6 shrink-0 rounded-full object-contain"
+        />
+      ) : Icon ? (
         <Icon
           aria-hidden="true"
           className="size-6 shrink-0 text-jumpa-primary-600"

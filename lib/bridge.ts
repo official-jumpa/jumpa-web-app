@@ -60,12 +60,22 @@ export function resolveChain(symbol: string, chain?: string): string {
   return first?.id ?? "stellar";
 }
 
+/**
+ * Circle CCTP v2 Cross-Chain Quoting (Stellar Testnet, Ethereum Sepolia, Base Sepolia).
+ * Cross-chain transfers for USDC settle 1:1 natively across Soroban and EVM TokenMessenger contracts.
+ * Jumpa sponsors destination gas fees for Stellar -> EVM transfers.
+ */
+
 export function chainName(id: string): string {
+  const low = id.toLowerCase().trim();
+  if (low === "stellar") return "Stellar Testnet";
+  if (low === "ethereum" || low === "eth") return "Ethereum Sepolia";
+  if (low === "base") return "Base Sepolia";
   return CHAINS[id]?.name ?? id;
 }
 
 export function isBridgeable(symbol: string): boolean {
-  return PRICES[symbol.toUpperCase()] !== undefined;
+  return symbol.toUpperCase().trim() === "USDC";
 }
 
 export function getBridgeQuote({
@@ -75,19 +85,19 @@ export function getBridgeQuote({
   toChain,
   amount,
 }: {
-  fromToken: string;
-  toToken: string;
+  fromToken?: string;
+  toToken?: string;
   fromChain?: string;
   toChain?: string;
   amount: string;
 }): BridgeQuote {
-  const from = fromToken.toUpperCase().trim();
-  const to = toToken.toUpperCase().trim();
+  const from = (fromToken || "USDC").toUpperCase().trim();
+  const to = (toToken || "USDC").toUpperCase().trim();
 
-  const fromPrice = PRICES[from];
-  const toPrice = PRICES[to];
-  if (!fromPrice || !toPrice) {
-    throw new Error(`Jumpa cannot bridge ${from} to ${to} yet.`);
+  if (from !== "USDC" || to !== "USDC") {
+    throw new Error(
+      "Cross-chain bridging is currently supported for USDC across Stellar Testnet, Ethereum Sepolia, and Base Sepolia.",
+    );
   }
 
   const input = Number.parseFloat(amount);
@@ -95,32 +105,40 @@ export function getBridgeQuote({
     throw new Error("Enter an amount greater than zero to bridge.");
   }
 
+  if (!fromChain?.trim()) {
+    throw new Error("Source network is required.");
+  }
+  if (!toChain?.trim()) {
+    throw new Error("Destination network is required.");
+  }
+
   const fromId = resolveChain(from, fromChain);
-  const toId = resolveChain(to, toChain || (fromId === "base" ? "stellar" : "base"));
+  const toId = resolveChain(to, toChain);
 
-  // Calculate Allbridge Core fee: 0.3% LP fee + relayer gas fee
-  const lpFee = input * ALLBRIDGE_LP_FEE_RATE;
-  const relayerFeeInToken = ALLBRIDGE_RELAYER_FEE_USD / fromPrice;
-  const totalFee = lpFee + (from === to ? relayerFeeInToken : 0);
+  if (fromId === toId) {
+    throw new Error(
+      "Source and destination networks cannot be the same for a cross-chain bridge. Use swap for same-chain transfers.",
+    );
+  }
 
-  // Compute output amount after fees
-  const netInput = Math.max(0, input - totalFee);
-  const out = (netInput * fromPrice) / toPrice;
+  const isStellarSource = fromId === "stellar";
+  const feeText = isStellarSource ? "Free" : "0.00 USDC";
+  const estTime = "~15–30s";
 
   return {
-    fromToken: from,
-    toToken: to,
+    fromToken: "USDC",
+    toToken: "USDC",
     fromChain: fromId,
     toChain: toId,
     fromChainName: chainName(fromId),
     toChainName: chainName(toId),
     amountIn: trim(input),
-    amountOut: trim(out, 4),
-    rate: `1 ${to} = ${trim(toPrice / fromPrice, 4)} ${from}`,
-    fee: `${trim(totalFee, 4)} ${from}`,
-    slippage: ALLBRIDGE_SLIPPAGE,
-    provider: "Allbridge Core (Simulation)",
-    relayerFee: `${trim(relayerFeeInToken, 4)} ${from}`,
-    estimatedTime: ALLBRIDGE_ESTIMATED_TIME,
+    amountOut: trim(input, 6),
+    rate: "1 USDC = 1.0000 USDC",
+    fee: feeText,
+    slippage: "0.0%",
+    provider: "Circle CCTP v2",
+    relayerFee: isStellarSource ? "Sponsored" : "0.00 USDC",
+    estimatedTime: estTime,
   };
 }

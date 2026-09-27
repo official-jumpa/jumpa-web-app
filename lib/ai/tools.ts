@@ -539,39 +539,40 @@ const bridgeTokens: DeepSeekTool = {
   function: {
     name: "bridge_tokens",
     description:
-      "Quote moving a token from one chain to another (bridging), e.g. 'bridge 20 USDC to XLM' " +
-      "or 'move my USDC from Base to Stellar'. Call it as soon as the user asks to bridge, with " +
-      "whatever they have given — omit a chain you have not been told and it resolves to where " +
-      "the asset lives. Bridging is cross-chain; use the swap tools when both sides sit on Stellar.",
+      "Interactive cross-chain USDC bridge wizard (Circle CCTP v2 on Stellar Testnet, Base Sepolia, Ethereum Sepolia). " +
+      "You MUST call this tool whenever the user wants to bridge, picks a network (e.g. 'Bridge from Stellar Testnet', 'Bridge to Base Sepolia'), or specifies an amount (e.g. '5 USDC'). " +
+      "Even when the amount is not yet specified, you MUST call this tool with 'fromChain' and 'toChain' — it will display the interactive amount chooser card (with prelisted amounts and custom amount option) directly in the UI. " +
+      "DO NOT ask the user for the amount or chains in chat text. Always call this tool to render the interactive picker card.",
     parameters: {
       type: "object",
       properties: {
-        fromToken: {
+        fromChain: {
           type: "string",
-          description: "Token symbol leaving the wallet, e.g. 'USDC'.",
-        },
-        toToken: {
-          type: "string",
+          enum: ["stellar", "ethereum", "base"],
           description:
-            "Token symbol the user wants to end up with, e.g. 'XLM'.",
+            "Source chain the funds leave from: 'stellar' (Stellar Testnet), 'ethereum' (Ethereum Sepolia), or 'base' (Base Sepolia). Omit if not stated by the user.",
+        },
+        toChain: {
+          type: "string",
+          enum: ["stellar", "ethereum", "base"],
+          description:
+            "Destination chain the funds arrive on: 'stellar' (Stellar Testnet), 'ethereum' (Ethereum Sepolia), or 'base' (Base Sepolia). Omit if not stated by the user.",
         },
         amount: {
           type: "string",
           description:
-            "Amount to bridge as a decimal string. Must come from the user, never assumed.",
+            "Amount of USDC to bridge as a decimal string. Omit if unstated — never assume one.",
         },
-        fromChain: {
+        fromToken: {
           type: "string",
-          description:
-            "Chain the funds leave from: stellar, solana, ethereum, base. Omit if not stated.",
+          description: "Token symbol leaving the wallet (defaults to 'USDC').",
         },
-        toChain: {
+        toToken: {
           type: "string",
-          description:
-            "Chain the funds arrive on: stellar, solana, ethereum, base. Omit if not stated.",
+          description: "Token symbol arriving in destination wallet (defaults to 'USDC').",
         },
       },
-      required: ["fromToken", "toToken", "amount"],
+      required: [],
     },
   },
 };

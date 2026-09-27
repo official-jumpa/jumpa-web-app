@@ -614,7 +614,7 @@ function relayStellarToEvm({
         tab: "transactions",
         title: "Bridge Completed",
         body: `${amount} USDC has arrived on ${isEth ? "Ethereum Sepolia" : "Base Sepolia"}!`,
-        type: "FUNDS_RECEIVED",
+        type: "BRIDGE_COMPLETED",
       }).catch(() => null);
     } catch (err) {
       console.error("[Relayer Execution Error]", err);

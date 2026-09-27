@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
       tab: "transactions",
       title: "Bridge Transfer Initiated",
       body: `Bridging ${amount} USDC from ${result.fromChain} to ${result.toChain}.`,
-      type: "TRANSFER_SENT",
+      type: "BRIDGE_INITIATED",
     }).catch(() => null);
 
     return NextResponse.json({

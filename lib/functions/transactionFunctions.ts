@@ -230,11 +230,11 @@ export function formatDbTransaction(tx: any) {
     } else if (tx.type === "FAUCET") {
       title = `Claim ${tx.token}`;
     } else if (tx.type === "SAVINGS_WITHDRAW") {
-      title = `Withdrew from Savings Goal`;
+      title = `Withdrew from Savings`;
     } else if (tx.type === "SAVINGS_DEPOSIT") {
-      title = `Deposited to Savings Goal`;
+      title = `Deposited to Savings`;
     } else if (tx.type === "BRIDGE") {
-      title = `Bridged from ${tx.bridgeDetails?.fromChain} to ${tx.bridgeDetails?.toChain}`;
+      title = `Bridged to ${tx.bridgeDetails?.toChain}`;
     } else if (typeUpper === "AIRTIME") {
       title = tx.memo || "Airtime Recharge";
     } else if (typeUpper === "DATA") {

@@ -238,6 +238,10 @@
   --animate-kyc-flash: kyc-flash 360ms var(--ease-jumpa) forwards;
   --animate-kyc-scan: kyc-scan 2600ms var(--ease-jumpa) infinite;
 
+  /* One confetti piece on the waitlist celebration. Each carries its own
+     `--dx`/`--dy`/`--spin`, so one keyframe scatters the whole burst. */
+  --animate-confetti: confetti 1400ms var(--ease-jumpa) both;
+
   @keyframes rise {
     from {
       opacity: 0;
@@ -435,6 +439,21 @@
     100% {
       transform: translateY(110%);
       opacity: 0;
+    }
+  }
+
+  @keyframes confetti {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, 0, 0) scale(0.4) rotate(0deg);
+    }
+    12% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(var(--dx, 0), var(--dy, 0), 0) scale(1)
+        rotate(var(--spin, 180deg));
     }
   }
 }

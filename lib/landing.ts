@@ -254,6 +254,26 @@ export const BETA_CTA = {
   },
 } as const;
 
+/**
+ * The community the waitlist modal sends people to. `brand` is WhatsApp's own
+ * green — a third-party brand colour, so it lives here with the link rather
+ * than in `@theme`, the same call as the carrier tints in `lib/bills.ts`.
+ */
+export const WAITLIST_COMMUNITY = {
+  url: "https://chat.whatsapp.com/KExp42DN6gr9yPkSUpIa6L?mode=gi_t",
+  brand: "#25d366",
+  heading: "You're on the list",
+  returningHeading: "You're already in",
+  /* The email still goes out; the group is where testing actually happens. */
+  blurb:
+    "Your invite email is on its way. Our WhatsApp group is where testers get in first, try the app early and tell us what breaks.",
+  cta: "Join the WhatsApp group",
+  dismiss: "Maybe later",
+  /* What a tester gets out of the group, in their words, not the team's. */
+  perks: ["Early access", "Try new features", "Report bugs fast"],
+  emailNote: "We've emailed you too, check spam if it hasn't landed.",
+} as const;
+
 export const FOOTER = {
   tagline: "Move money the way you chat.",
   copyright: { year: `© ${new Date().getFullYear()} `, owner: "Jumpa app" },

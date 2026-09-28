@@ -362,20 +362,23 @@ export function NgnAccountDetails({
           >
             <ToggleIcon className="size-6" />
           </button>
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={refreshing}
-            aria-label="Refresh balance"
-            className="tap ml-1 active:scale-95 disabled:opacity-60"
-          >
-            <RefreshIcon
-              className={`size-5 text-jumpa-white/80 transition-transform ${
-                refreshing ? "animate-spin text-jumpa-white" : "hover:text-jumpa-white"
-              }`}
-            />
-          </button>
         </p>
+
+        {/* Refresh acts on the card, not on the figure, so it sits in the corner
+            and leaves the amount optically centred with its one eye toggle. */}
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          aria-label="Refresh balance"
+          className="tap absolute top-2.5 right-2.5 flex size-8 items-center justify-center rounded-full bg-jumpa-white/15 active:scale-95 disabled:opacity-60"
+        >
+          <RefreshIcon
+            className={`size-4 text-jumpa-white transition-transform ${
+              refreshing ? "animate-spin" : ""
+            }`}
+          />
+        </button>
       </section>
 
 

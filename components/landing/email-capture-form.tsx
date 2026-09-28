@@ -1,7 +1,8 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import { CtaPill } from "@/components/landing/cta-pill";
+import { WaitlistModal } from "@/components/landing/waitlist-modal";
 import { ArrowRightIcon } from "@/components/ui/icons/arrow-right";
 import { AtSignIcon } from "@/components/ui/icons/at-sign";
 import { CheckIcon } from "@/components/ui/icons/check";
@@ -19,6 +20,8 @@ interface UseWaitlistReturn {
   isNew: boolean | null;
   submit: (event: FormEvent) => Promise<void>;
   reset: () => void;
+  /** The celebration, raised on every successful join. Null once dismissed. */
+  modal: ReactNode;
 }
 
 function extractAttribution() {
@@ -47,6 +50,7 @@ function useWaitlist(source: string): UseWaitlistReturn {
   const [message, setMessage] = useState<string | null>(null);
   const [position, setPosition] = useState<number | null>(null);
   const [isNew, setIsNew] = useState<boolean | null>(null);
+  const [celebrating, setCelebrating] = useState(false);
 
   function setEmail(value: string) {
     setEmailState(value);
@@ -62,6 +66,7 @@ function useWaitlist(source: string): UseWaitlistReturn {
     setMessage(null);
     setPosition(null);
     setIsNew(null);
+    setCelebrating(false);
   }
 
   async function submit(event: FormEvent) {
@@ -110,6 +115,7 @@ function useWaitlist(source: string): UseWaitlistReturn {
           ? BETA_CTA.alreadyJoinedNotice
           : BETA_CTA.successNotice
       );
+      setCelebrating(true);
       triggerHaptic("light");
     } catch (err) {
       console.error("Waitlist submit error:", err);
@@ -119,7 +125,15 @@ function useWaitlist(source: string): UseWaitlistReturn {
     }
   }
 
-  return { email, setEmail, status, message, isNew, submit, reset };
+  const modal = celebrating ? (
+    <WaitlistModal
+      returning={isNew === false}
+      position={position}
+      onClose={() => setCelebrating(false)}
+    />
+  ) : null;
+
+  return { email, setEmail, status, message, isNew, submit, reset, modal };
 }
 
 const INPUT =
@@ -158,7 +172,7 @@ function EmailInput({
 
 /** Hero: the white pill with the purple button inside. Sized in its own 432-unit frame. */
 export function HeroEmailForm() {
-  const { email, setEmail, status, message, submit } =
+  const { email, setEmail, status, message, submit, modal } =
     useWaitlist("landing-hero");
 
   return (
@@ -209,13 +223,15 @@ export function HeroEmailForm() {
           {message}
         </p>
       )}
+
+      {modal}
     </div>
   );
 }
 
 /** Beta CTA: the frosted card with a label, a tinted field and a full-width pill. */
 export function BetaEmailCard() {
-  const { email, setEmail, status, message, isNew, submit } =
+  const { email, setEmail, status, message, isNew, submit, modal } =
     useWaitlist("landing-beta");
 
   return (
@@ -273,13 +289,15 @@ export function BetaEmailCard() {
             : BETA_CTA.formTitle}
         </CtaPill>
       )}
+
+      {modal}
     </form>
   );
 }
 
 /** Footer: the compact white pill with a lime arrow button. */
 export function FooterEmailForm() {
-  const { email, setEmail, status, message, submit } =
+  const { email, setEmail, status, message, submit, modal } =
     useWaitlist("landing-footer");
 
   return (
@@ -333,6 +351,8 @@ export function FooterEmailForm() {
           {message}
         </p>
       )}
+
+      {modal}
     </div>
   );
 }

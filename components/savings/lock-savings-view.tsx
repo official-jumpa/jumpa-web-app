@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { ChoiceChips } from "@/components/savings/choice-chips";
 import { FundingSheet } from "@/components/savings/funding-sheet";
 import {
@@ -30,11 +30,15 @@ import { useWalletBalance } from "@/hooks/use-wallet-balance";
 import { type FriendlyError, friendlyError } from "@/lib/errors";
 import {
   addDays,
+  apyForDays,
   displayDate,
   type FundingSource,
+  formatApy,
   LOCK_SOURCES,
   LOCK_TERMS,
   longDate,
+  projectedYield,
+  rateForTerm,
   shortDate,
 } from "@/lib/savings";
 import { formatAmount } from "@/lib/transfer";
@@ -67,41 +71,6 @@ export function LockSavingsView() {
   const [done, setDone] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdTx, setCreatedTx] = useState<string>();
-  const [apyRate, setApyRate] = useState<number>(0);
-
-  useEffect(() => {
-    let isMounted = true;
-    async function loadApy() {
-      try {
-        const res = await fetch("/api/savings?type=lock");
-        if (res.ok && isMounted) {
-          const data = await res.json();
-          if (
-            typeof data.summary?.apyValue === "number" &&
-            data.summary.apyValue > 0
-          ) {
-            setApyRate(data.summary.apyValue);
-          } else if (data.summary?.apy) {
-            const parsed = parseFloat(data.summary.apy);
-            if (!isNaN(parsed) && parsed > 0) {
-              setApyRate(parsed);
-            } else {
-              setApyRate(0);
-            }
-          } else {
-            setApyRate(0);
-          }
-        }
-      } catch (err) {
-        if (isMounted) setApyRate(0);
-      }
-    }
-    loadApy();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
   const custom = term === "Custom";
   const days = LOCK_TERMS.find((option) => option.label === term)?.days ?? null;
   const customDays =
@@ -120,8 +89,8 @@ export function LockSavingsView() {
   const total = `$${formatAmount(amount)}`;
 
   const principal = parseFloat(amount) || 0;
-  const estimatedYield =
-    lockDays > 0 ? (principal * (apyRate / 100) * lockDays) / 365 : 0;
+  const apyRate = apyForDays("lock", lockDays);
+  const estimatedYield = projectedYield(principal, apyRate, lockDays);
 
   const clear = (field: keyof Errors) =>
     setErrors((current) => ({ ...current, [field]: undefined }));
@@ -154,6 +123,7 @@ export function LockSavingsView() {
       <DetailRow label="Name" value={goal} />
       <DetailRow label="Unlock date" value={longDate(maturity)} />
       <DetailRow label="Lock duration" value={`${lockDays} days`} />
+      <DetailRow label="Interest rate" value={`${formatApy(apyRate)} per year`} />
       <DetailRow label="Funding source" value={source?.label ?? ""} />
       <DetailRow
         label="Estimated yield"
@@ -240,6 +210,7 @@ export function LockSavingsView() {
             <SavingsLabel>How long do you want to lock it?</SavingsLabel>
             <ChoiceChips
               options={LOCK_TERMS.map((option) => option.label)}
+              caption={(option) => rateForTerm("lock", LOCK_TERMS, option)}
               value={term}
               onChange={(next) => {
                 setTerm(next);
@@ -293,12 +264,23 @@ export function LockSavingsView() {
 
           <SavingsRule />
 
-          <div className="flex items-center justify-between px-2.5">
-            <span className="text-[10px] leading-4 text-jumpa-black/50">
-              Estimated yield: +${formatAmount(estimatedYield.toFixed(2))}
-              {apyRate > 0 ? ` (${apyRate.toFixed(1)}% p.a.)` : ""}
+          {/* The rate leads — it is the reason to pick a longer term, and the
+              old line buried it in a parenthesis at 10px on black/50. */}
+          <div className="flex items-end justify-between gap-3 px-2.5">
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-[10px] leading-3 font-medium tracking-wider text-jumpa-neutral-500 uppercase">
+                You earn
+              </span>
+              <span className="text-sm leading-4 font-semibold text-jumpa-primary-600">
+                {formatApy(apyRate)} per year
+              </span>
+              <span className="text-[11px] leading-4 text-jumpa-neutral-600">
+                {lockDays > 0
+                  ? `+$${formatAmount(estimatedYield.toFixed(2))} over ${lockDays} days`
+                  : "Pick a lock period to see your return"}
+              </span>
             </span>
-            <span className="text-xs leading-5 font-medium text-jumpa-black">
+            <span className="shrink-0 text-xs leading-4 font-medium text-jumpa-black">
               {maturity
                 ? `Unlocks ${shortDate(maturity)}`
                 : "Select lock period"}

@@ -16,7 +16,7 @@ export function EmptyPlans({
       <div className="flex flex-col items-center gap-0.5 text-center">
         <p className="text-sm font-semibold text-jumpa-black">{title}</p>
         {caption ? (
-          <p className="text-xs text-jumpa-neutral-350">{caption}</p>
+          <p className="text-xs text-jumpa-neutral-500">{caption}</p>
         ) : null}
       </div>
     </div>

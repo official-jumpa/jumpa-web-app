@@ -37,7 +37,7 @@ const FILLED = {
 } as const;
 
 const PLACEHOLDER = {
-  field: "text-jumpa-grey-400",
+  field: "text-jumpa-neutral-425",
   statement: "text-jumpa-neutral-500",
   account: "text-jumpa-primary-950/40",
 } as const;

@@ -28,7 +28,7 @@ export function PlanDetail({
         <PlanCard plan={plan} />
 
         {plan.status === "Closed" ? (
-          <div className="flex items-center justify-center rounded-tile bg-jumpa-neutral-50 py-3 text-xs font-medium text-jumpa-neutral-400">
+          <div className="flex items-center justify-center rounded-tile bg-jumpa-neutral-50 py-3 text-xs font-medium text-jumpa-neutral-500">
             This savings plan has ended
           </div>
         ) : (
@@ -94,7 +94,7 @@ export function PlanDetail({
                       <span className="truncate text-sm font-semibold text-jumpa-black">
                         {member.name}
                       </span>
-                      <span className="truncate text-xs leading-3 font-bold text-jumpa-neutral-400">
+                      <span className="truncate text-xs leading-3 font-bold text-jumpa-neutral-500">
                         {member.role}
                       </span>
                     </span>

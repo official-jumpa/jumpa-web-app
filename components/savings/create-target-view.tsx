@@ -27,8 +27,12 @@ import { useWalletBalance } from "@/hooks/use-wallet-balance";
 import { type FriendlyError, friendlyError } from "@/lib/errors";
 import {
   addDays,
+  apyForDays,
+  daysBetween,
   displayDate,
   type FundingSource,
+  formatApy,
+  rateForTerm,
   SAVINGS_CATEGORIES,
   SAVINGS_FREQUENCIES,
   TARGET_SOURCES,
@@ -50,13 +54,6 @@ type Errors = {
 };
 
 const MONTH_DAYS = Array.from({ length: 28 }, (_, index) => `${index + 1}`);
-
-function getDaysBetween(startIso: string, endIso: string): number {
-  if (!startIso || !endIso) return 0;
-  const s = new Date(startIso.replace(/-/g, "/")).getTime();
-  const e = new Date(endIso.replace(/-/g, "/")).getTime();
-  return Math.round((e - s) / (1000 * 60 * 60 * 24));
-}
 
 /** A personal target: what you are saving for, then how you will fund it. */
 export function CreateTargetView() {
@@ -90,7 +87,10 @@ export function CreateTargetView() {
   const [createdTx, setCreatedTx] = useState<string>();
 
   const openEnded = term === "No Deadline";
-  const planDays = !openEnded && start && end ? Math.max(0, getDaysBetween(start, end)) : 0;
+  const planDays = !openEnded && start && end ? Math.max(0, daysBetween(start, end)) : 0;
+  // The rate follows the dates, so it has to be derived from the day count
+  // rather than the chip — a custom range earns whatever its length earns.
+  const apyRate = apyForDays("individual", openEnded ? null : planDays);
   const total = `$${formatAmount(target)}`;
   const categoryValue = resolveCategory(category, customCategory);
 
@@ -153,7 +153,7 @@ export function CreateTargetView() {
     } else if (term === "90 DAYS") {
       setEnd(addDays(90, nextStartObj));
     } else if (term === "Custom" && end) {
-      const diff = getDaysBetween(nextStart, end);
+      const diff = daysBetween(nextStart, end);
       if (diff === 30) setTerm("30 DAYS");
       else if (diff === 60) setTerm("60 DAYS");
       else if (diff === 90) setTerm("90 DAYS");
@@ -165,7 +165,7 @@ export function CreateTargetView() {
     setEnd(nextEnd);
     clear("dates");
     if (start && nextEnd) {
-      const diff = getDaysBetween(start, nextEnd);
+      const diff = daysBetween(start, nextEnd);
       if (diff === 30) setTerm("30 DAYS");
       else if (diff === 60) setTerm("60 DAYS");
       else if (diff === 90) setTerm("90 DAYS");
@@ -298,12 +298,16 @@ export function CreateTargetView() {
               options={TARGET_TERMS.map((option) => option.label)}
               value={term}
               onChange={handleTermChange}
+              caption={(option) =>
+                rateForTerm("individual", TARGET_TERMS, option)
+              }
             />
           </div>
 
           {openEnded ? (
             <p className="text-[11px] leading-4 font-medium text-jumpa-primary-600">
-              Save at your own pace with no fixed deadline
+              Save at your own pace with no fixed deadline — earning{" "}
+              {formatApy(apyRate)} per year
             </p>
           ) : (
             <>
@@ -332,9 +336,18 @@ export function CreateTargetView() {
               </div>
 
               {planDays > 0 ? (
-                <div className="flex items-center justify-between rounded-lg bg-jumpa-primary-50 px-3 py-2 text-xs font-medium text-jumpa-primary-700">
-                  <span>Saving duration</span>
-                  <span className="font-semibold">
+                /* The rate leads. The old row printed the duration alone, which
+                   never said what picking a longer one actually earns. */
+                <div className="flex items-end justify-between gap-3 rounded-lg bg-jumpa-white px-3 py-2.5">
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="text-[10px] leading-3 font-medium tracking-wider text-jumpa-neutral-500 uppercase">
+                      You earn
+                    </span>
+                    <span className="text-sm leading-4 font-semibold text-jumpa-primary-600">
+                      {formatApy(apyRate)} per year
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-[11px] leading-4 font-medium text-jumpa-neutral-600">
                     {planDays} {planDays === 1 ? "day" : "days"} ({term})
                   </span>
                 </div>
@@ -506,6 +519,10 @@ export function CreateTargetView() {
             <DetailRow
               label="End date"
               value={openEnded ? "No deadline" : displayDate(end)}
+            />
+            <DetailRow
+              label="Interest rate"
+              value={`${formatApy(apyRate)} per year`}
             />
             <DetailRow label="Frequency" value={schedule} />
             <DetailRow label="From" value={source?.label ?? ""} rule={false} />

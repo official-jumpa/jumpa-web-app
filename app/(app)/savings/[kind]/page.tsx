@@ -115,10 +115,14 @@ export default async function SavingsProductPage({
           return formatPlanForUI(p);
         });
         const defaultBal = SAVINGS_BALANCE[kind];
+        // No "$" here — SavingsBalance draws its own, and prefixing one made
+        // the hero read "$$698.00".
         initialBalance = {
           badge: defaultBal.badge,
-          amount: `$${totalSaved.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-          rate: "rate" in defaultBal ? (defaultBal as any).rate : undefined,
+          amount: totalSaved.toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }),
         };
       }
     }

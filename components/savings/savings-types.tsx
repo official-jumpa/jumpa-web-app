@@ -4,7 +4,7 @@ import type { ComponentType } from "react";
 import { CircleUserIcon } from "@/components/ui/icons/circle-user";
 import { LockIcon } from "@/components/ui/icons/lock";
 import { UsersIcon } from "@/components/ui/icons/users";
-import type { SavingsKind } from "@/lib/savings";
+import { rateRange, type SavingsKind } from "@/lib/savings";
 
 type SavingsType = {
   kind: SavingsKind;
@@ -17,13 +17,13 @@ const TYPES: SavingsType[] = [
   {
     kind: "individual",
     label: "Individual Savings",
-    caption: "Save towards something personal.",
+    caption: "Save towards a personal goal at your own pace.",
     Icon: CircleUserIcon,
   },
   {
     kind: "lock",
     label: "Lock savings",
-    caption: "Save towards something personal.",
+    caption: "Lock funds for a fixed term and earn a higher rate.",
     Icon: LockIcon,
   },
   {
@@ -45,11 +45,28 @@ function TypeIcon({ Icon }: { Icon: SavingsType["Icon"] }) {
   );
 }
 
-function TypeText({ label, caption }: { label: string; caption: string }) {
+/**
+ * Title, the rate the product pays, then what it is for. The rate sits between
+ * the two because it is the reason to pick one product over another.
+ */
+function TypeText({
+  label,
+  caption,
+  kind,
+}: {
+  label: string;
+  caption: string;
+  kind: SavingsKind;
+}) {
   return (
-    <span className="flex min-w-0 flex-col gap-0.5">
+    <span className="flex min-w-0 flex-col gap-1">
       <span className="text-sm font-semibold text-jumpa-black">{label}</span>
-      <span className="text-[10px] leading-3.5 text-jumpa-neutral-400">
+      <span className="text-xs leading-4 font-semibold text-jumpa-primary-600">
+        {rateRange(kind)}
+      </span>
+      {/* Was 10px on neutral-400 — 3.4:1 against this ground, which is why it
+          read as unreadable. 11px on neutral-600 is 8.2:1. */}
+      <span className="text-[11px] leading-4 text-jumpa-neutral-600">
         {caption}
       </span>
     </span>
@@ -69,16 +86,16 @@ export function SavingsTypes({
       {/* The frame heads the list "Loan types"; kept verbatim. */}
       <h2 className="text-xs font-medium text-jumpa-black">Loan types</h2>
 
-      <div className="flex items-start gap-3">
+      <div className="flex items-stretch gap-3">
         {[individual, lock].map(({ kind, label, caption, Icon }) => (
           <button
             key={kind}
             type="button"
             onClick={() => onSelect(kind)}
-            className={`${CARD} min-w-0 flex-1 flex-col justify-center gap-3`}
+            className={`${CARD} min-w-0 flex-1 flex-col gap-3`}
           >
             <TypeIcon Icon={Icon} />
-            <TypeText label={label} caption={caption} />
+            <TypeText label={label} caption={caption} kind={kind} />
           </button>
         ))}
       </div>
@@ -89,7 +106,11 @@ export function SavingsTypes({
         className={`${CARD} items-center gap-4`}
       >
         <TypeIcon Icon={circles.Icon} />
-        <TypeText label={circles.label} caption={circles.caption} />
+        <TypeText
+          label={circles.label}
+          caption={circles.caption}
+          kind={circles.kind}
+        />
       </button>
     </section>
   );

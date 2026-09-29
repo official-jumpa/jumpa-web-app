@@ -8,7 +8,7 @@ import { SavingsBalance } from "@/components/savings/savings-balance";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { PlusIcon } from "@/components/ui/icons/plus";
 import type { SavingsKind, SavingsPlan } from "@/lib/savings";
-import { SAVINGS_BALANCE, savingsHref } from "@/lib/savings";
+import { rateRange, SAVINGS_BALANCE, savingsHref } from "@/lib/savings";
 
 /**
  * One product's own landing — total, create button and the plans under it.
@@ -31,21 +31,15 @@ export function ProductScreen({
   emptyTitle: string;
   emptyCaption?: string;
   plans?: SavingsPlan[];
-  initialBalance?: {
-    badge: string;
-    amount: string;
-    rate?: string;
-  };
+  initialBalance?: { badge: string; amount: string };
 }) {
   const hasServerData = initialPlans !== undefined;
   const newHref = savingsHref(kind, { create: true });
   const [plans, setPlans] = useState<SavingsPlan[]>(initialPlans ?? []);
   const defaultBalance = SAVINGS_BALANCE[kind];
-  const [balance, setBalance] = useState<{
-    badge: string;
-    amount: string;
-    rate?: string;
-  }>(initialBalance || defaultBalance);
+  const [balance, setBalance] = useState<{ badge: string; amount: string }>(
+    initialBalance || defaultBalance,
+  );
   const [loading, setLoading] = useState(!hasServerData);
 
   useEffect(() => {
@@ -64,9 +58,6 @@ export function ProductScreen({
             setBalance({
               badge: defaultBalance.badge,
               amount: data.summary.saved || "0",
-              rate:
-                data.summary.apy ||
-                ("rate" in defaultBalance ? defaultBalance.rate : undefined),
             });
           }
         }
@@ -97,7 +88,7 @@ export function ProductScreen({
       />
 
       <div className="mt-4 flex flex-col gap-2">
-        <SavingsBalance {...balance} />
+        <SavingsBalance {...balance} rate={rateRange(kind)} />
         <Link
           prefetch
           href={newHref}

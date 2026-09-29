@@ -149,7 +149,9 @@ export function JoinCircleView() {
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 px-2.5">
-      <span className="text-[10px] leading-4 text-jumpa-black/50">{label}</span>
+      <span className="text-[10px] leading-4 text-jumpa-neutral-500">
+        {label}
+      </span>
       {children}
     </div>
   );

@@ -307,7 +307,7 @@ export function SavingsWithdrawView({ initialPlans }: SavingsWithdrawViewProps =
             })}
           </div>
 
-          <p className="text-xs leading-4 font-medium text-jumpa-neutral-400">
+          <p className="text-xs leading-4 font-medium text-jumpa-neutral-500">
             Current saving balance: {selectedPlan?.saved || "$0.00"}
           </p>
 

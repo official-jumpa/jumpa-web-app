@@ -14,7 +14,13 @@ import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { DateField } from "@/components/ui/date-field";
 import { FieldError } from "@/components/ui/field-error";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
-import { addDays, SAVINGS_CATEGORIES } from "@/lib/savings";
+import {
+  addDays,
+  apyForDays,
+  daysBetween,
+  formatApy,
+  SAVINGS_CATEGORIES,
+} from "@/lib/savings";
 import { revealFirstError } from "@/lib/validation";
 
 type Errors = { name?: string; target?: string; date?: string };
@@ -29,6 +35,11 @@ export function CreateCircleView() {
   const [date, setDate] = useState(addDays(60));
   const [errors, setErrors] = useState<Errors>({});
   const [done, setDone] = useState(false);
+
+  // A circle has no term chips — the target date is the whole duration, so the
+  // rate is derived from it and moves as the user picks.
+  const circleDays = Math.max(0, daysBetween(addDays(0), date));
+  const apyRate = apyForDays("circle", circleDays);
 
   const clear = (field: keyof Errors) =>
     setErrors((current) => ({ ...current, [field]: undefined }));
@@ -137,6 +148,24 @@ export function CreateCircleView() {
           />
           <FieldError>{errors.date}</FieldError>
         </div>
+
+        {circleDays > 0 ? (
+          /* The rate leads, and the run length sits beside it — picking a
+             further date is what earns the circle more. */
+          <div className="flex items-end justify-between gap-3 rounded-lg bg-jumpa-white px-3 py-2.5">
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-[10px] leading-3 font-medium tracking-wider text-jumpa-neutral-500 uppercase">
+                The circle earns
+              </span>
+              <span className="text-sm leading-4 font-semibold text-jumpa-primary-600">
+                {formatApy(apyRate)} per year
+              </span>
+            </span>
+            <span className="shrink-0 text-[11px] leading-4 font-medium text-jumpa-neutral-600">
+              {circleDays} {circleDays === 1 ? "day" : "days"}
+            </span>
+          </div>
+        ) : null}
       </SavingsPanel>
     </SavingsForm>
   );

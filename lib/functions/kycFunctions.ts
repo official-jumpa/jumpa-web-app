@@ -120,13 +120,13 @@ export async function saveKycMedia(
   const update: Record<string, unknown> = { status: "in_progress" };
 
   if (params.type === "document") {
-    update.docMediaId = params.mediaId;
+    if (params.mediaId) update.docMediaId = params.mediaId;
     update["stepsCompleted.document"] = true;
     if (params.idType) update.idType = params.idType;
     if (params.idNumber) update.idNumber = params.idNumber;
     if (params.docPhotoUrl) update.docPhotoUrl = params.docPhotoUrl;
   } else if (params.type === "selfie") {
-    update.selfieMediaId = params.mediaId;
+    if (params.mediaId) update.selfieMediaId = params.mediaId;
     update["stepsCompleted.selfie"] = true;
     if (params.selfiePhotoUrl) update.selfiePhotoUrl = params.selfiePhotoUrl;
   }
@@ -138,6 +138,31 @@ export async function saveKycMedia(
   ).lean<IKYCSchema>();
 
   return updated ?? null;
+}
+
+/**
+ * Saves user's government ID number into their KYC record.
+ */
+export async function saveKycId(
+  userId: string,
+  params: {
+    idType: KycIdType;
+    idNumber: string;
+  },
+): Promise<IKYCSchema | null> {
+  await connectDB();
+  return await KYCSchema.findOneAndUpdate(
+    { userId },
+    {
+      $set: {
+        idType: params.idType,
+        idNumber: params.idNumber.trim(),
+        "stepsCompleted.document": true,
+        status: "in_progress",
+      },
+    },
+    { returnDocument: "after", upsert: true, runValidators: true },
+  ).lean<IKYCSchema>();
 }
 
 /**
@@ -590,21 +615,36 @@ export async function checkMyazaVerificationStatus(
   }
 }
 
+function sanitizeNameText(val?: string | null): string | null {
+  if (!val || typeof val !== "string") return null;
+  const cleaned = val
+    .replace(/^middle\s+name\s+/i, "")
+    .replace(/^date\s+of\s+/i, "")
+    .replace(/^surname\s+/i, "")
+    .replace(/^first\s+name\s+/i, "")
+    .trim();
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 /**
  * Normalizes biodata returned from Myaza verification results.
  */
 export function parseMyazaBiodata(data: any): IKycDetails {
   const resultObj = data?.result || data?.data || data || {};
+  const firstName = sanitizeNameText(resultObj.firstName);
+  const middleName = sanitizeNameText(resultObj.middleName);
+  const lastName = sanitizeNameText(resultObj.lastName);
+
+  let rawFullName = sanitizeNameText(resultObj.fullName);
+  if (!rawFullName && (firstName || lastName)) {
+    rawFullName = [firstName, middleName, lastName].filter(Boolean).join(" ");
+  }
+
   return {
-    firstName: resultObj.firstName || null,
-    middleName: resultObj.middleName || null,
-    lastName: resultObj.lastName || null,
-    fullName:
-      resultObj.fullName ||
-      [resultObj.firstName, resultObj.middleName, resultObj.lastName]
-        .filter(Boolean)
-        .join(" ") ||
-      null,
+    firstName,
+    middleName,
+    lastName,
+    fullName: rawFullName || null,
     dateOfBirth: resultObj.dateOfBirth || resultObj.dob || null,
     gender: resultObj.gender || null,
     phone: resultObj.phone || resultObj.phoneNumber || null,

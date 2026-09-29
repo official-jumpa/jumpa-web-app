@@ -70,6 +70,7 @@ export interface IKYCSchema {
   // Provider & Audit Information
   provider: string; // e.g. "myaza"
   verificationId?: string | null;
+  attemptCount?: number;
   rejectionReason?: string | null;
   rawResponse?: Record<string, unknown> | null;
   submittedAt?: Date | null;
@@ -159,6 +160,7 @@ const KycSchema = new Schema<IKYCSchema>(
     // Provider & Audit Information
     provider: { type: String, default: "myaza" },
     verificationId: { type: String, default: null },
+    attemptCount: { type: Number, default: 0 },
     rejectionReason: { type: String, default: null },
     rawResponse: { type: Schema.Types.Mixed, default: null },
     submittedAt: { type: Date, default: null },

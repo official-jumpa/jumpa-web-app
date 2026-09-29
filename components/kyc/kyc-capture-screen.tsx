@@ -260,7 +260,6 @@ export function KycCaptureScreen({
     initialMediaId || null,
   );
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Clean up object URL on unmount or preview reset
   useEffect(() => {
@@ -311,7 +310,7 @@ export function KycCaptureScreen({
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play().catch(() => {});
+        await videoRef.current.play().catch(() => { });
       }
       setCameraState("ready");
     } catch (err) {
@@ -451,9 +450,9 @@ export function KycCaptureScreen({
               // Track physical movement velocity (are they holding still?)
               const movementDelta = prevFaceAnchorRef.current
                 ? Math.hypot(
-                    visualFaceX - prevFaceAnchorRef.current.x,
-                    visualFaceY - prevFaceAnchorRef.current.y,
-                  )
+                  visualFaceX - prevFaceAnchorRef.current.x,
+                  visualFaceY - prevFaceAnchorRef.current.y,
+                )
                 : 0;
               prevFaceAnchorRef.current = { x: visualFaceX, y: visualFaceY };
               const isHoldingStill = movementDelta < 0.026;
@@ -845,9 +844,7 @@ export function KycCaptureScreen({
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
-      formData.append("type", isSelfie ? "selfie" : "document_front");
-      if (documentType) formData.append("idType", documentType);
-      if (cleanId) formData.append("idNumber", cleanId);
+      formData.append("type", "selfie");
 
       const res = await fetch("/api/kyc/upload", {
         method: "POST",
@@ -864,7 +861,7 @@ export function KycCaptureScreen({
       } else {
         console.error("[KYC Capture] Upload error response:", data);
         setUploadError(
-          data.error || "Failed to upload file. Please try again.",
+          data.error || "Failed to upload selfie. Please try again.",
         );
       }
     } catch (err) {
@@ -873,22 +870,6 @@ export function KycCaptureScreen({
     } finally {
       setUploading(false);
     }
-  };
-
-  // Document photo picked (preview only)
-  const handleFilePicked = async (file: File | undefined) => {
-    if (!file) return;
-
-    setUploadedMediaId(null);
-    setUploadError(null);
-
-    const processedFile = await normalizeImageFile(file);
-
-    setSelectedFile(processedFile);
-    setPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(processedFile);
-    });
   };
 
   // Clean ID for submission
@@ -911,17 +892,17 @@ export function KycCaptureScreen({
   const blocked = cameraState === "denied" || cameraState === "unsupported";
   const tone =
     TONE[
-      preview
-        ? "good"
-        : isSelfie && blocked
-          ? "danger"
-          : !live
-            ? "rest"
-            : livenessStage === "align"
-              ? isFaceCentered
-                ? "good"
-                : "idle"
-              : stage.tone
+    preview
+      ? "good"
+      : isSelfie && blocked
+        ? "danger"
+        : !live
+          ? "rest"
+          : livenessStage === "align"
+            ? isFaceCentered
+              ? "good"
+              : "idle"
+            : stage.tone
     ];
 
   // A cooldown is the detector confirming the step just passed, so it speaks
@@ -938,16 +919,7 @@ export function KycCaptureScreen({
         {description}
       </p>
 
-      {/* Hidden File Input for Documents */}
-      {!isSelfie && (
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/jpg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf,image/*"
-          onChange={(event) => handleFilePicked(event.target.files?.[0])}
-          className="sr-only"
-        />
-      )}
+
 
       {/* Mandatory ID Number Input for Document Step */}
       {!isSelfie && (
@@ -963,11 +935,10 @@ export function KycCaptureScreen({
             </label>
             {isNin && (
               <span
-                className={`flex shrink-0 items-center gap-1 rounded-pill px-2 py-0.5 text-[11px] leading-4 font-semibold transition-colors ${
-                  isIdValid
+                className={`flex shrink-0 items-center gap-1 rounded-pill px-2 py-0.5 text-[11px] leading-4 font-semibold transition-colors ${isIdValid
                     ? "bg-jumpa-success/10 text-jumpa-success"
                     : "bg-jumpa-neutral-95 text-jumpa-neutral-400"
-                }`}
+                  }`}
               >
                 {isIdValid && (
                   <CheckIcon aria-hidden="true" className="size-3 shrink-0" />
@@ -985,29 +956,27 @@ export function KycCaptureScreen({
               setIdNumber(formatIdInput(e.target.value, documentType))
             }
             placeholder={isNin ? "e.g. 123 456 78901" : "Enter document number"}
-            className={`h-11.5 w-full rounded-panel border px-3 text-sm leading-5 font-semibold tracking-wide text-jumpa-black outline-none transition-colors placeholder:font-normal placeholder:text-jumpa-secondary-200 ${
-              isIdValid
+            className={`h-11.5 w-full rounded-panel border px-3 text-sm leading-5 font-semibold tracking-wide text-jumpa-black outline-none transition-colors placeholder:font-normal placeholder:text-jumpa-secondary-200 ${isIdValid
                 ? "border-jumpa-success bg-jumpa-success/5"
                 : "border-jumpa-neutral-100 bg-jumpa-neutral-50 focus:border-jumpa-primary-600 focus:bg-jumpa-white"
-            }`}
+              }`}
           />
           <p className="text-[11px] leading-4 text-jumpa-neutral-400">
             {isNin
-              ? "Enter your 11-digit NIN exactly as issued by NIMC."
-              : "Enter your official document number."}
+              ? "Enter your 11-digit NIN ID"
+              : "Enter your official document number"}
           </p>
         </div>
       )}
 
-      {/* Capture Frame (Live Webcam for Selfie, Upload Card for Document) */}
-      <div className={FRAME[shape].wrap}>
-        <div
-          className={`relative flex items-center justify-center overflow-hidden ${
-            isSelfie ? `${tone.ring} ${tone.halo}` : ""
-          } ${FRAME[shape].frame}`}
-        >
-          {isSelfie ? (
-            preview ? (
+      {/* Capture Frame (Live Webcam for Selfie, Trust Badge for Document) */}
+      {isSelfie ? (
+        <div className={FRAME[shape].wrap}>
+          <div
+            className={`relative flex items-center justify-center overflow-hidden ${tone.ring
+              } ${tone.halo} ${FRAME[shape].frame}`}
+          >
+            {preview ? (
               // biome-ignore lint/performance/noImgElement: dynamic blob URL preview
               <img
                 src={preview}
@@ -1053,8 +1022,7 @@ export function KycCaptureScreen({
                   className="pointer-events-none absolute inset-0 z-10 rounded-[50%] shadow-jumpa-vignette"
                 />
 
-                {/* Only while the detector is still looking for a face, so a
-                    camera that is working never reads as frozen. */}
+                {/* Only while the detector is still looking for a face */}
                 {livenessStage === "align" && !isFaceCentered ? (
                   <span
                     aria-hidden="true"
@@ -1062,16 +1030,14 @@ export function KycCaptureScreen({
                   />
                 ) : null}
 
-                {/* Face guide. The oval's own border carries the status colour,
-                    so this stays white and quiet or the frame reads as two. */}
+                {/* Face guide */}
                 <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
                   <svg
                     viewBox="0 0 200 250"
-                    className={`h-[76%] w-[68%] transition-opacity duration-300 ${
-                      isFaceCentered
+                    className={`h-[76%] w-[68%] transition-opacity duration-300 ${isFaceCentered
                         ? "text-jumpa-white opacity-80"
                         : "text-jumpa-white opacity-40"
-                    }`}
+                      }`}
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
                   >
@@ -1110,71 +1076,35 @@ export function KycCaptureScreen({
                   />
                 )}
               </div>
-            )
-          ) : (
-            // Document Mode: Upload Box
-            <button
-              type="button"
-              onClick={() => {
-                if (!preview) fileInputRef.current?.click();
-              }}
-              aria-label={preview ? "Document photo preview" : "Choose a photo"}
-              className={`flex size-full items-center justify-center ${
-                preview ? "cursor-default" : "tap cursor-pointer"
-              }`}
-            >
-              {preview ? (
-                // biome-ignore lint/performance/noImgElement: dynamic blob URL preview
-                <img
-                  src={preview}
-                  alt="Uploaded document preview"
-                  className="size-full object-cover"
-                />
-              ) : (
-                <span className="flex flex-col items-center gap-2 px-6 text-center">
-                  <span className="flex size-12 items-center justify-center rounded-full bg-jumpa-primary-50 text-jumpa-primary-600">
-                    <ImageIcon aria-hidden="true" className="size-6" />
-                  </span>
-                  <span className="text-sm leading-5 font-semibold text-jumpa-black">
-                    Upload or take a photo
-                  </span>
-                  <span className="text-[11px] leading-4 text-jumpa-neutral-400">
-                    JPEG, PNG or PDF, up to 3MB
-                  </span>
-                </span>
-              )}
-            </button>
-          )}
+            )}
 
-          {uploadedMediaId && !uploading && (
-            <span className="absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded-pill bg-jumpa-success px-2.5 py-1 text-[11px] leading-4 font-semibold text-jumpa-white shadow-jumpa-sm">
-              <CheckIcon aria-hidden="true" className="size-3.5 shrink-0" />
-              Uploaded
-            </span>
+            {uploadedMediaId && !uploading && (
+              <span className="absolute top-3 right-3 z-20 flex items-center gap-1.5 rounded-pill bg-jumpa-success px-2.5 py-1 text-[11px] leading-4 font-semibold text-jumpa-white shadow-jumpa-sm">
+                <CheckIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                Uploaded
+              </span>
+            )}
+          </div>
+
+          {/* Retake Selfie */}
+          {preview && (
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={handleRetakeSelfie}
+                className="tap flex items-center gap-1.5 rounded-pill bg-jumpa-neutral-50 px-3.5 py-2 text-xs leading-4 font-semibold text-jumpa-neutral-700 active:scale-95"
+              >
+                <RefreshIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                Retake selfie
+              </button>
+            </div>
           )}
         </div>
+      ) : (
+        <></>
+      )}
 
-        {/* Retake / Replace */}
-        {preview && (
-          <div className="mt-3 flex justify-end">
-            <button
-              type="button"
-              onClick={
-                isSelfie
-                  ? handleRetakeSelfie
-                  : () => fileInputRef.current?.click()
-              }
-              className="tap flex items-center gap-1.5 rounded-pill bg-jumpa-neutral-50 px-3.5 py-2 text-xs leading-4 font-semibold text-jumpa-neutral-700 active:scale-95"
-            >
-              <RefreshIcon aria-hidden="true" className="size-3.5 shrink-0" />
-              {isSelfie ? "Retake selfie" : "Replace photo"}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Liveness rail and status. The rail is the only progress display —
-          the hold step fills its own segment rather than adding a second bar. */}
+      {/* Liveness rail and status */}
       {live && (
         <>
           <div aria-hidden="true" className="mt-4 flex items-center gap-1.5">
@@ -1194,11 +1124,10 @@ export function KycCaptureScreen({
                   className="h-1 flex-1 overflow-hidden rounded-pill bg-jumpa-neutral-100"
                 >
                   <span
-                    className={`block h-full rounded-pill transition-[width] duration-200 ${
-                      done || livenessStage === "hold"
+                    className={`block h-full rounded-pill transition-[width] duration-200 ${done || livenessStage === "hold"
                         ? "bg-jumpa-success"
                         : "bg-jumpa-primary-600"
-                    }`}
+                      }`}
                     style={{ width: `${fill}%` }}
                   />
                 </span>
@@ -1216,12 +1145,10 @@ export function KycCaptureScreen({
         </>
       )}
 
-      {uploadedMediaId && (
+      {uploadedMediaId && isSelfie && (
         <p className="mt-3 flex items-center gap-2 rounded-panel bg-jumpa-success/10 px-3 py-2.5 text-[11.5px] leading-4 font-medium text-jumpa-success">
           <CheckIcon aria-hidden="true" className="size-4 shrink-0" />
-          {isSelfie
-            ? "Selfie captured and verified"
-            : "Document uploaded successfully"}
+          Selfie captured and verified
         </p>
       )}
 
@@ -1234,60 +1161,16 @@ export function KycCaptureScreen({
 
       {/* Main Dynamic Action Button */}
       <div className="mt-auto pt-6">
-        {uploading ? (
-          <Button variant="gradient" size="lg" disabled>
-            <span className="flex items-center gap-2">
-              <RefreshIcon aria-hidden="true" className="size-5 animate-spin" />
-              {isSelfie ? "Uploading selfie" : "Uploading document"}
-            </span>
-          </Button>
-        ) : isSelfie ? (
-          !preview ? (
-            blocked ? (
-              <Button variant="gradient" size="lg" onClick={startCamera}>
-                <span className="flex items-center gap-2">
-                  <CameraIcon aria-hidden="true" className="size-5" />
-                  Allow camera
-                </span>
-              </Button>
-            ) : (
-              <Button
-                variant="gradient"
-                size="lg"
-                onClick={handleSnapSelfie}
-                disabled={cameraState !== "ready"}
-              >
-                <span className="flex items-center gap-2">
-                  <CameraIcon aria-hidden="true" className="size-5" />
-                  {cameraState === "ready" ? stage.cta : "Take live selfie"}
-                </span>
-              </Button>
-            )
-          ) : !uploadedMediaId ? (
-            <Button variant="gradient" size="lg" onClick={handleUpload}>
-              <span className="flex items-center gap-2">
-                <CloudIcon aria-hidden="true" className="size-5" />
-                Upload selfie
-              </span>
-            </Button>
-          ) : (
-            <Button variant="gradient" size="lg" onClick={handleContinue}>
-              Continue
-            </Button>
-          )
-        ) : preview && !uploadedMediaId ? (
+        {!isSelfie ? (
           <Button
             variant="gradient"
             size="lg"
-            onClick={handleUpload}
+            onClick={handleContinue}
             disabled={!isIdValid}
           >
             <span className="flex items-center gap-2">
               {isIdValid ? (
-                <>
-                  <CloudIcon aria-hidden="true" className="size-5" />
-                  Upload document
-                </>
+                "Continue to live selfie"
               ) : isNin ? (
                 "Enter your 11-digit NIN"
               ) : (
@@ -1295,29 +1178,44 @@ export function KycCaptureScreen({
               )}
             </span>
           </Button>
-        ) : uploadedMediaId ? (
-          <Button
-            variant="gradient"
-            size="lg"
-            onClick={handleContinue}
-            disabled={!isIdValid}
-          >
-            {isIdValid
-              ? "Continue to live selfie"
-              : isNin
-                ? "Enter your 11-digit NIN"
-                : "Enter your ID number"}
+        ) : uploading ? (
+          <Button variant="gradient" size="lg" disabled>
+            <span className="flex items-center gap-2">
+              <RefreshIcon aria-hidden="true" className="size-5 animate-spin" />
+              Uploading selfie
+            </span>
+          </Button>
+        ) : !preview ? (
+          blocked ? (
+            <Button variant="gradient" size="lg" onClick={startCamera}>
+              <span className="flex items-center gap-2">
+                <CameraIcon aria-hidden="true" className="size-5" />
+                Allow camera
+              </span>
+            </Button>
+          ) : (
+            <Button
+              variant="gradient"
+              size="lg"
+              onClick={handleSnapSelfie}
+              disabled={cameraState !== "ready"}
+            >
+              <span className="flex items-center gap-2">
+                <CameraIcon aria-hidden="true" className="size-5" />
+                {cameraState === "ready" ? stage.cta : "Take live selfie"}
+              </span>
+            </Button>
+          )
+        ) : !uploadedMediaId ? (
+          <Button variant="gradient" size="lg" onClick={handleUpload}>
+            <span className="flex items-center gap-2">
+              <CloudIcon aria-hidden="true" className="size-5" />
+              Upload selfie
+            </span>
           </Button>
         ) : (
-          <Button
-            variant="gradient"
-            size="lg"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <span className="flex items-center gap-2">
-              <ImageIcon aria-hidden="true" className="size-5" />
-              Choose or take photo
-            </span>
+          <Button variant="gradient" size="lg" onClick={handleContinue}>
+            Continue
           </Button>
         )}
       </div>

@@ -36,15 +36,15 @@ export const KYC_TASKS: readonly {
 }[] = [
   {
     id: "document",
-    title: "Provide a Valid ID Document",
+    title: "Provide document ID Number",
     description:
-      "Upload or take a clear photo of your NIN slip, Driver's License, or Passport.",
+      "Enter your NIN, Driver's License, or Passport number.",
   },
   {
     id: "selfie",
     title: "Take a Live Selfie",
     description:
-      "Snap a quick live photo using your camera to verify biometric identity.",
+      "Take a quick live photo to verify your identity.",
   },
 ];
 

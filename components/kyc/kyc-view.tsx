@@ -237,18 +237,13 @@ export function KycView({
   };
 
   const handleExecuteVerification = async () => {
-    if (!docMediaId) {
-      setApiError("Please upload your ID document before continuing.");
+    const finalIdNumber = docIdNumber.trim();
+    if (!finalIdNumber) {
+      setApiError("Please enter your official document ID number before continuing.");
       return;
     }
     if (!selfieMediaId) {
       setApiError("Please capture your live selfie before continuing.");
-      return;
-    }
-
-    const finalIdNumber = docIdNumber.trim();
-    if (!finalIdNumber) {
-      setApiError("Please provide your ID document number.");
       return;
     }
 
@@ -258,7 +253,6 @@ export function KycView({
     const payload = {
       idType: document.id,
       idNumber: finalIdNumber,
-      docMediaId,
       selfieMediaId,
     };
 
@@ -314,7 +308,7 @@ export function KycView({
     }
   };
 
-  const title = stage === "document" ? "Scan ID" : "KYC Verification";
+  const title = stage === "document" ? "Enter ID" : "KYC Verification";
 
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)] bg-jumpa-white text-jumpa-black max-w-app mx-auto w-full">
@@ -356,8 +350,8 @@ export function KycView({
       {/* Stage 3: Document Capture */}
       {stage === "document" ? (
         <KycCaptureScreen
-          title={`Upload a Picture of your ${document.name}`}
-          description={`Take a clear photo of your ${document.label}. Every corner should be visible and the text readable`}
+          title={`Provide your ${document.name} Number`}
+          description={`Enter your ${document.label} number to verify your identity. Double check to avoid errors`}
           documentType={document.id}
           defaultIdNumber={docIdNumber || ""}
           initialMediaId={docMediaId || undefined}

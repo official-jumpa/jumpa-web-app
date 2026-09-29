@@ -6,7 +6,7 @@ export const kycVerifySchema = z.object({
     .string()
     .min(1, "Document or identification number is required")
     .trim(),
-  docMediaId: z.string().min(1, "Document front photo is required"),
+  docMediaId: z.string().optional().nullable(),
   selfieMediaId: z.string().min(1, "Selfie photo is required"),
   userData: z
     .object({

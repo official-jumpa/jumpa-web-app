@@ -75,28 +75,6 @@ export async function POST(req: NextRequest) {
     let uploadFilename = safeFilename;
     let uploadMimeType = mimeType;
 
-    // Development Mode Fallback:
-    // Substitute real user photos with public/logo.png so no private selfies/docs are sent to Myaza in dev
-    if (process.env.NODE_ENV !== "production") {
-      try {
-        const fs = await import("fs/promises");
-        const path = await import("path");
-        const logoPath = path.join(process.cwd(), "public", "logo.png");
-        const logoBuffer = await fs.readFile(logoPath);
-        uploadBlob = new Blob([logoBuffer], { type: "image/png" });
-        uploadFilename = `test_logo_${type}.png`;
-        uploadMimeType = "image/png";
-        console.log(
-          `[Myaza Upload DEV] Transparently substituting user photo with public/logo.png for dev testing (Type: ${type})`,
-        );
-      } catch (err) {
-        console.warn(
-          "[Myaza Upload DEV] Could not read public/logo.png, using provided upload:",
-          err,
-        );
-      }
-    }
-
     const myazaFormData = new FormData();
     myazaFormData.append("file", uploadBlob, uploadFilename);
     myazaFormData.append("type", type);

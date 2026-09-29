@@ -63,7 +63,7 @@ export function KycTasks({
     : isPendingVerification
       ? "Verification in Progress..."
       : !hasDoc
-        ? "Upload ID Document"
+        ? "Enter Document ID"
         : !hasSelfieTask
           ? "Take Live Selfie"
           : "Submit for Verification";

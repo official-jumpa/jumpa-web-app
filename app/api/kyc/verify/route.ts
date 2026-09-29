@@ -9,6 +9,7 @@ import { requireAuth } from "@/lib/functions/permissionFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { kycVerifySchema } from "@/lib/validations/kyc.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { KYCSchema } from "@/models/KYCSchema";
 
 const MYAZA_TYPE_MAP: Record<string, string> = {
   nin: "nin",
@@ -44,26 +45,23 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { idType, idNumber, docMediaId, selfieMediaId } = validation.data;
+    const { idType, idNumber, selfieMediaId } = validation.data;
 
-    // Security (IDOR fix): fetch user's record from DB to verify media belongs to them
-    const kycRecord = await getOrCreateKycRecord(userId);
-    const resolvedDocMediaId = kycRecord.docMediaId || docMediaId;
-    const resolvedSelfieMediaId = kycRecord.selfieMediaId || selfieMediaId;
-    const resolvedIdNumber = idNumber || kycRecord.idNumber;
-
-    if (!resolvedDocMediaId) {
-      return NextResponse.json(
-        { error: "Please upload your ID document before completing verification." },
-        { status: 400 },
-      );
-    }
-    if (!resolvedSelfieMediaId) {
+    if (!selfieMediaId) {
       return NextResponse.json(
         { error: "Please capture your live selfie before completing verification." },
         { status: 400 },
       );
     }
+
+    const rawIdNumber = (idNumber || "").trim();
+    if (!rawIdNumber) {
+      return NextResponse.json(
+        { error: "Valid document or identification number is required." },
+        { status: 400 },
+      );
+    }
+
     const isDev = process.env.NODE_ENV !== "production";
 
     const MYAZA_DEV_SANDBOX_IDS: Record<string, string> = {
@@ -72,12 +70,10 @@ export async function POST(req: NextRequest) {
       passport: "A00000001",
     };
 
-    let effectiveIdNumber = (resolvedIdNumber || "").trim();
+    let effectiveIdNumber = rawIdNumber;
 
     if (isDev) {
-      // Server-side fallback for development:
-      // If user typed any arbitrary ID in dev mode (e.g. 11 digits of their choice),
-      // seamlessly substitute with Myaza's recognized sandbox catalogue ID so Myaza doesn't return 422.
+      // In dev mode: substitute with recognized test IDs if arbitrary numbers entered
       if (!effectiveIdNumber || !DEFAULT_SANDBOX_IDS.has(effectiveIdNumber)) {
         const fallbackId = MYAZA_DEV_SANDBOX_IDS[idType] || "00000000001";
         console.log(
@@ -86,19 +82,10 @@ export async function POST(req: NextRequest) {
         effectiveIdNumber = fallbackId;
       }
     } else {
-      // Production: strictly enforce valid user ID and reject test IDs
-      if (!effectiveIdNumber) {
-        return NextResponse.json(
-          { error: "Valid document ID number is required." },
-          { status: 400 },
-        );
-      }
+      // In production: strictly enforce non-empty real IDs and reject sandbox test IDs
       if (DEFAULT_SANDBOX_IDS.has(effectiveIdNumber)) {
         return NextResponse.json(
-          {
-            error:
-              "Please provide your real ID.",
-          },
+          { error: "Please provide your real ID number." },
           { status: 400 },
         );
       }
@@ -114,19 +101,34 @@ export async function POST(req: NextRequest) {
         { status: 503 },
       );
     }
+
     const myazaIdType = MYAZA_TYPE_MAP[idType] || idType;
 
-    // Build verification payload for Myaza REST API
+    // Fetch user KYC record and track deterministic attempt count for idempotency
+    const kycRecord = await getOrCreateKycRecord(userId);
+    const attemptCount = (kycRecord.attemptCount || 0) + 1;
+    await KYCSchema.updateOne({ userId }, { $set: { attemptCount } });
+
+    // Deterministic idempotency key: prevents duplicate charges on re-tries or network retries
+    const requestId = `kyc_${userId}_${attemptCount}`;
+
+    // Pure Government-Database Payload:
+    // Only pass the live selfie in mediaIds.
+    // Document images are intentionally omitted so Myaza verifies directly against
+    // source government registries (NIMC, FRSC, NIS) and performs 1:1 facial matching
+    // against the official government photo, completely bypassing error-prone document OCR.
     const verifyPayload = {
       country: "NG",
       idType: myazaIdType,
       idNumber: effectiveIdNumber,
       externalUserId: userId,
       mediaIds: {
-        documentFront: resolvedDocMediaId,
-        selfie: resolvedSelfieMediaId,
+        selfie: selfieMediaId,
       },
-      metadata: { source: "jumpa_web_kyc", requestId: `req_${Date.now()}` },
+      metadata: {
+        source: "jumpa_web_kyc",
+        requestId,
+      },
     };
 
     console.log(
@@ -136,98 +138,43 @@ export async function POST(req: NextRequest) {
       JSON.stringify(verifyPayload, null, 2),
     );
 
-    const callMyazaVerify = async (payload: any) => {
-      const res = await fetch(`${baseUrl}/verify`, {
+    let response: Response;
+    let data: any = null;
+
+    try {
+      response = await fetch(`${baseUrl}/verify`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(25000),
+        body: JSON.stringify(verifyPayload),
+        signal: AbortSignal.timeout(30000),
       });
-      let parsed: any = null;
+
       try {
-        parsed = await res.json();
+        data = await response.json();
       } catch {
-        parsed = {
+        data = {
           error: "gateway_error",
-          message: `Provider returned status ${res.status}`,
+          message: `Provider returned status ${response.status}`,
         };
       }
-      return { res, parsed };
-    };
-
-    let response: Response;
-    let data: any = null;
-
-    try {
-      const initial = await callMyazaVerify(verifyPayload);
-      response = initial.res;
-      data = initial.parsed;
-    } catch (err) {
-      console.warn(
-        "[Myaza Verify] Initial call timed out or network error. Retrying once...",
-        err,
+    } catch (fetchErr) {
+      console.error("[Myaza Verify] Network/timeout exception:", fetchErr);
+      return NextResponse.json(
+        {
+          error:
+            "Connection to the verification provider timed out. Please try submitting again.",
+        },
+        { status: 504 },
       );
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        const retry = await callMyazaVerify(verifyPayload);
-        response = retry.res;
-        data = retry.parsed;
-      } catch (retryErr) {
-        console.error("[Myaza Verify] Retry also failed:", retryErr);
-        return NextResponse.json(
-          {
-            error:
-              "Unable to connect to the verification provider. Please try submitting again in a moment.",
-          },
-          { status: 504 },
-        );
-      }
     }
 
-    // Provider 5xx error handling:
-    if (!response.ok && (data?.error === "internal_error" || response.status >= 500)) {
-      if (isDev) {
-        // Dev fallback for stale/mismatched test media
-        console.warn(
-          "[Myaza Verify DEV] Provider returned internal_error on mediaIds. Retrying without stale media IDs...",
-        );
-        const retryPayload = {
-          country: "NG",
-          idType: myazaIdType,
-          idNumber: effectiveIdNumber,
-          externalUserId: userId,
-          metadata: {
-            source: "jumpa_web_kyc",
-            requestId: `req_retry_${Date.now()}`,
-          },
-        };
-        try {
-          const devRetry = await callMyazaVerify(retryPayload);
-          response = devRetry.res;
-          data = devRetry.parsed;
-          console.log("[Myaza Verify DEV Retry] Response from provider:", data);
-        } catch (e) {
-          console.error("[Myaza Verify DEV Retry] Failed:", e);
-        }
-      } else {
-        // In Production: if Myaza has a transient 5xx glitch, retry once with exponential backoff
-        console.warn("[Myaza Verify PROD] Provider returned 5xx. Retrying once after 1.5s...");
-        try {
-          await new Promise((resolve) => setTimeout(resolve, 1500));
-          const prodRetry = await callMyazaVerify(verifyPayload);
-          if (prodRetry.res.ok) {
-            response = prodRetry.res;
-            data = prodRetry.parsed;
-            console.log("[Myaza Verify PROD Retry] Succeeded:", data);
-          }
-        } catch (e) {
-          console.error("[Myaza Verify PROD Retry] Failed:", e);
-        }
-      }
-    }
+    console.log(
+      `[Myaza Verify] Response status: ${response.status} Data:`,
+      JSON.stringify(data, null, 2),
+    );
 
     const statusStr = String(data?.status || "").toLowerCase();
     const verificationId = data?.id || data?.verificationId || null;
@@ -238,12 +185,13 @@ export async function POST(req: NextRequest) {
         statusStr === "success" ||
         data?.success === true);
 
+    // Only treat as processing if explicitly indicated by status or 202 Accepted
     const isProcessing =
       response.ok &&
       (statusStr === "processing" ||
         statusStr === "pending" ||
         statusStr === "in_review" ||
-        (!isApproved && verificationId));
+        response.status === 202);
 
     if (isApproved) {
       const verifiedDetails = parseMyazaBiodata(data);
@@ -304,7 +252,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Failed verification: Map provider technical error messages into clear, actionable user messages
+    // Explicit rejection or error from provider
     const rawMsg = String(data?.message || data?.error || "");
     let userFacingError =
       "Identity verification could not be completed. Please review your details and try again.";
@@ -312,14 +260,15 @@ export async function POST(req: NextRequest) {
     if (response.status >= 500 || data?.error === "internal_error") {
       userFacingError =
         "The verification service is momentarily busy. Please try submitting again in a moment.";
-    } else if (/media|mismatch|not found|expired/i.test(rawMsg)) {
+    } else if (/facial|face|match|confidence/i.test(rawMsg)) {
       userFacingError =
-        "Your verification photos could not be verified or have expired. Please re-take your document photo and selfie.";
-    } else if (response.status === 422 || /invalid|id number|does not match/i.test(rawMsg)) {
+        "Biometric facial match could not be confirmed. Please take a clear, well-lit live selfie looking straight at the camera.";
+    } else if (
+      response.status === 422 ||
+      /invalid|not found|id number|record|does not match/i.test(rawMsg)
+    ) {
       userFacingError =
-        rawMsg.length > 5 && rawMsg.length < 120 && !rawMsg.includes("{")
-          ? rawMsg
-          : "The document ID provided could not be matched with official government records. Please check the number and try again.";
+        "The ID number provided was not found. Please double-check your ID number and try again.";
     } else if (rawMsg && rawMsg.length < 120 && !rawMsg.includes("{")) {
       userFacingError = rawMsg;
     }

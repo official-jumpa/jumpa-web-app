@@ -9,6 +9,7 @@ import {
   updateTransactionByReference,
 } from "@/lib/functions/transactionFunctions";
 import { getCentiivRequestStatus } from "@/lib/functions/centiivFunctions";
+import { settleOnrampTransferCustom } from "@/lib/chains/onramp-transfer-custom";
 
 export async function GET(req: NextRequest) {
   try {
@@ -28,7 +29,11 @@ export async function GET(req: NextRequest) {
     // Return instantly if already settled in our database
     const existingTx = await findTransactionByReference(validation.data.reference);
 
-    if (existingTx && existingTx.status === "CONFIRMED") {
+    const isCustomPendingSettlement =
+      existingTx?.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
+      existingTx?.rampDetails?.settlementStatus !== "COMPLETED";
+
+    if (existingTx && existingTx.status === "CONFIRMED" && !isCustomPendingSettlement) {
       return NextResponse.json({
         success: true,
         status: "COMPLETED",
@@ -100,19 +105,62 @@ export async function GET(req: NextRequest) {
     let humanMessage = "Awaiting deposit. Waiting for a few seconds before trying again.";
     if (isCompleted) {
       humanMessage = "Transaction completed";
-      txHash = txHash || validation.data.reference;
-      const explorerUrl = resultData?.meta?.explorer_url || null;
+      let explorerUrl = resultData?.meta?.explorer_url || null;
 
-      try {
-        await updateTransactionByReference(validation.data.reference, {
-          status: "CONFIRMED",
-          txHash,
-          ...(explorerUrl ? { explorerUrl } : {}),
-          updatedAt: new Date(),
-        });
-        invalidateBalanceCache(session.user.id);
-      } catch (dbErr: any) {
-        console.warn("Err updating transaction status:", dbErr?.message);
+      // Handle custom onramp settlement if applicable
+      if (
+        existingTx?.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
+        existingTx.toAddress
+      ) {
+        try {
+          const settlementRes = await settleOnrampTransferCustom({
+            transactionId: existingTx._id.toString(),
+            recipientAddress: existingTx.toAddress,
+            targetToken: existingTx.token || "XLM",
+            cryptoAmount: existingTx.amount,
+            centiivTxHash: txHash,
+            expectedUsdcAmount: existingTx.rampDetails?.expectedUsdc,
+            userId: session.user.id,
+          });
+
+          if (settlementRes.success && settlementRes.txHash) {
+            txHash = settlementRes.txHash;
+            explorerUrl = `https://stellar.expert/explorer/public/tx/${settlementRes.txHash}`;
+            if (resultData?.meta) {
+              resultData.meta.hash = txHash;
+              resultData.meta.explorer_url = explorerUrl;
+            }
+          } else if (settlementRes.duplicatePrevented) {
+            console.log(`[StatusRoute] Settlement already completed or settling for ${existingTx._id}`);
+          } else if (!settlementRes.success) {
+            console.error(`[StatusRoute] Custom settlement error: ${settlementRes.error}`);
+            return NextResponse.json({
+              success: true,
+              status: "PROCESSING",
+              isCompleted: false,
+              isAwaiting: true,
+              isAwaitingDeposit: false,
+              isProcessing: true,
+              isFailed: false,
+              message: "Deposit received. Finalizing delivery to your wallet...",
+              data: resultData,
+            });
+          }
+        } catch (settleErr: any) {
+          console.error(`[StatusRoute] Error executing custom settlement:`, settleErr);
+        }
+      } else {
+        try {
+          await updateTransactionByReference(validation.data.reference, {
+            status: "CONFIRMED",
+            txHash,
+            ...(explorerUrl ? { explorerUrl } : {}),
+            updatedAt: new Date(),
+          });
+          invalidateBalanceCache(session.user.id);
+        } catch (dbErr: any) {
+          console.warn("Err updating transaction status:", dbErr?.message);
+        }
       }
     } else if (isFailed) {
       humanMessage = "Transaction failed or expired. Please initiate a new transaction.";

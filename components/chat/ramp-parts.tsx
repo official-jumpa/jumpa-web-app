@@ -66,10 +66,11 @@ export function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 /** Provider notes — instructions, not errors, so they sit on the card's own white. */
-export function RampNotes({ notes }: { notes: string[] }) {
+export function RampNotes({ notes }: { notes: string[] | string }) {
+  const items = Array.isArray(notes) ? notes : [notes];
   return (
     <div className="flex flex-col gap-1.5 rounded-xl bg-jumpa-white px-3 py-2.5">
-      {notes.map((note) => (
+      {items.map((note) => (
         <p
           key={note}
           className="flex gap-1.5 text-[11px] leading-4 text-jumpa-neutral-400"

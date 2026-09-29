@@ -253,6 +253,42 @@ const onrampNgn: DeepSeekTool = {
   },
 };
 
+const onrampNgnCustom: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "onramp_ngn_custom",
+    description:
+      "Deposit Nigerian Naira (NGN) via bank transfer to buy native cryptocurrencies (such as XLM) " +
+      "delivered directly into the user's wallet. The system handles fiat settlement and treasury delivery automatically. " +
+      "MANDATORY: Use this whenever the user wants to buy XLM (or non-stablecoins) with Naira (e.g. 'buy 50 XLM with naira', 'deposit 20,000 naira for XLM').",
+    parameters: {
+      type: "object",
+      properties: {
+        fiatAmount: {
+          type: "string",
+          description:
+            "Amount of NGN to deposit provided by user (e.g. '10000', '50000'). Pass this when user specifies Naira.",
+        },
+        cryptoAmount: {
+          type: "string",
+          description:
+            "Amount of target token to buy/receive (e.g. '50' for 50 XLM). If provided without fiatAmount, the tool calculates the required fiatAmount using live rates.",
+        },
+        targetToken: {
+          type: "string",
+          description: "Target cryptocurrency to receive. Currently supports 'XLM'.",
+        },
+        walletAddress: {
+          type: "string",
+          description:
+            "User's wallet address to receive the crypto. If omitted, will be derived automatically.",
+        },
+      },
+      required: ["targetToken"],
+    },
+  },
+};
+
 const offrampNgn: DeepSeekTool = {
   type: "function",
   function: {
@@ -657,6 +693,7 @@ export const JUMPA_TOOLS: DeepSeekTool[] = [
   checkPortfolio,
   sendFunds,
   onrampNgn,
+  onrampNgnCustom,
   offrampNgn,
   getRampRate,
   claimFaucet,
@@ -678,6 +715,7 @@ export type JumpaToolName =
   | "check_portfolio"
   | "send_funds"
   | "onramp_ngn"
+  | "onramp_ngn_custom"
   | "offramp_ngn"
   | "get_ramp_rate"
   | "claim_faucet"

@@ -29,7 +29,11 @@ export async function createTransactionRecord(
  *  - Centiiv offramp          (provider: "centiiv")
  */
 export async function syncPendingRampTransaction(tx: any): Promise<any> {
-  if (!tx || tx.status !== "PENDING" || !tx.rampDetails?.reference) {
+  const isCustomPendingSettlement =
+    tx?.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
+    tx?.rampDetails?.settlementStatus !== "COMPLETED";
+
+  if (!tx || (!isCustomPendingSettlement && tx.status !== "PENDING") || !tx.rampDetails?.reference) {
     return tx;
   }
 
@@ -125,7 +129,28 @@ async function _syncCentiivTransaction(tx: any): Promise<any> {
   const isFailed = ["FAILED", "EXPIRED", "REFUNDED"].includes(rawStatus);
 
   if (isCompleted) {
-    const txHash = result.txHash || requestId;
+    const txHash = result.txHash;
+
+    if (
+      tx.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
+      tx.rampDetails?.settlementStatus !== "COMPLETED" &&
+      tx.toAddress
+    ) {
+      const { settleOnrampTransferCustom } = await import(
+        "@/lib/chains/onramp-transfer-custom"
+      );
+      await settleOnrampTransferCustom({
+        transactionId: tx._id.toString(),
+        recipientAddress: tx.toAddress,
+        targetToken: tx.token || "XLM",
+        cryptoAmount: tx.amount,
+        centiivTxHash: txHash,
+        expectedUsdcAmount: tx.rampDetails?.expectedUsdc,
+        userId: tx.userId,
+      });
+      return tx;
+    }
+
     return _applySyncResult(tx, "CONFIRMED", txHash);
   } else if (isFailed) {
     return _applySyncResult(tx, "FAILED");
@@ -148,11 +173,16 @@ export async function listTransactionsByUserId(
     .lean<ITransaction[]>();
 
   return Promise.all(
-    raw.map((tx) =>
-      tx.status === "PENDING" && tx.rampDetails?.reference
+    raw.map((tx) => {
+      const isCustomPendingSettlement =
+        tx.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
+        tx.rampDetails?.settlementStatus !== "COMPLETED";
+
+      return (tx.status === "PENDING" || isCustomPendingSettlement) &&
+        tx.rampDetails?.reference
         ? syncPendingRampTransaction(tx)
-        : Promise.resolve(tx),
-    ),
+        : Promise.resolve(tx);
+    }),
   );
 }
 
@@ -744,6 +774,29 @@ export async function resolveAllPendingTransactions(options?: {
       const isStale = tx.createdAt && new Date(tx.createdAt) < cutoffTime;
 
       if (isCompleted) {
+        if (tx.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" && tx.toAddress) {
+          const { settleOnrampTransferCustom } = await import("@/lib/chains/onramp-transfer-custom");
+          const settleRes = await settleOnrampTransferCustom({
+            transactionId: tx._id.toString(),
+            recipientAddress: tx.toAddress,
+            targetToken: tx.token || "XLM",
+            cryptoAmount: tx.amount,
+            centiivTxHash: centiivRes.txHash || reference,
+            expectedUsdcAmount: tx.rampDetails?.expectedUsdc,
+            userId: tx.userId,
+          });
+
+          if (settleRes.success) {
+            console.log(`[ResolveTx] ✅ Custom Onramp ${tx._id} fulfilled -> CONFIRMED (tx: ${settleRes.txHash})`);
+            result.confirmed++;
+            result.details.push({ id: tx._id, reference, type: tx.type, amount: tx.amount, token: tx.token, previousStatus: "PENDING", newStatus: "CONFIRMED", providerStatus: "FULFILLED" });
+          } else {
+            console.log(`[ResolveTx] ⏳ Custom Onramp ${tx._id} settlement pending or already processed: ${settleRes.error}`);
+            result.stillPending++;
+          }
+          continue;
+        }
+
         const txHash = centiivRes.txHash || reference;
         await Transaction.updateOne(
           { _id: tx._id },

@@ -65,6 +65,16 @@ export interface ITransaction {
       accountName?: string;
       bankCode?: string;
     };
+    fulfillmentAction?: "CUSTOM_ONRAMP" | string;
+    targetToken?: string;
+    expectedUsdc?: string;
+    treasuryAddress?: string;
+    settlementStatus?: "PENDING" | "SETTLING" | "COMPLETED" | "RETRY_PENDING" | "FAILED" | string;
+    settlementStartedAt?: Date;
+    inboundConfirmedTxHash?: string;
+    relayTxHash?: string;
+    settledAt?: Date;
+    lastSettlementError?: string;
   };
 
   // Savings Details (if type === "SAVINGS_DEPOSIT" | "SAVINGS_WITHDRAW")
@@ -178,6 +188,16 @@ const TransactionSchema = new Schema<ITransaction>(
         accountName: { type: String },
         bankCode: { type: String },
       },
+      fulfillmentAction: { type: String },
+      targetToken: { type: String },
+      expectedUsdc: { type: String },
+      treasuryAddress: { type: String },
+      settlementStatus: { type: String },
+      settlementStartedAt: { type: Date },
+      inboundConfirmedTxHash: { type: String },
+      relayTxHash: { type: String },
+      settledAt: { type: Date },
+      lastSettlementError: { type: String },
     },
 
     bridgeDetails: {

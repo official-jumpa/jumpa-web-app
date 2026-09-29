@@ -160,13 +160,21 @@ export async function createCentiivOnramp(params: {
 }
 
 export async function getCentiivRequestStatus(requestId: string) {
-  return request<{
-    id: string;
-    status: "PENDING" | "PROCESSING" | "FULFILLED" | "FAILED" | "EXPIRED" | "REFUNDED";
-    txHash?: string;
-  }>(`/requests/${requestId}`, {
+  const data = await request<any>(`/requests/${requestId}`, {
     method: "GET",
   });
+
+  const txHash =
+    data.txHash ||
+    data.fulfillments?.[0]?.disbursalTxHash ||
+    data.fulfillments?.[0]?.txHash ||
+    data.temporaryWallet?.disbursalTxHash;
+
+  return {
+    ...data,
+    status: data.status as "PENDING" | "PROCESSING" | "FULFILLED" | "FAILED" | "EXPIRED" | "REFUNDED",
+    txHash,
+  };
 }
 
 export async function submitCentiivStellarPayment(params: {

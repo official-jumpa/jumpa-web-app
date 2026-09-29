@@ -20,6 +20,7 @@ export class ChatErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.warn("[ChatErrorBoundary] ERROR MESSAGE:", error?.message);
     console.warn("[ChatErrorBoundary caught component error]", error, info);
   }
 

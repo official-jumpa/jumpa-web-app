@@ -34,6 +34,8 @@ import { getNetworkFromToolName, type JumpaToolName } from "./tools";
 import { analyzeImageWithGemini } from "./vision";
 import { getCentiivQuote, createCentiivOnramp, createCentiivOfframp } from "@/lib/functions/centiivFunctions";
 import { findCentiivBank } from "@/lib/constants/centiiv-banks";
+import { getLiveRates } from "@/lib/rates";
+import { getSponsorKeypair } from "@/lib/chains/stellar/sponsor";
 
 export type CardHint =
   | { type: "quote"; data: QuoteCardData }
@@ -1347,6 +1349,217 @@ export async function executeTool(
         return {
           toolName: name,
           summaryForAI: `Failed to initiate onramp: ${err.message}`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+    }
+
+    // ── Onramp NGN Custom (e.g. NGN -> XLM) — powered by Centiiv + Jumpa Treasury Float Fulfillment
+    case "onramp_ngn_custom": {
+      const { fiatAmount, cryptoAmount, targetToken = "XLM", walletAddress } = toolArgs as {
+        fiatAmount?: string;
+        cryptoAmount?: string;
+        targetToken?: string;
+        walletAddress?: string;
+      };
+
+      console.log(
+        `[ToolExecutor] [User: ${userId}] onramp_ngn_custom → ${JSON.stringify({
+          fiatAmount,
+          cryptoAmount,
+          targetToken,
+          walletAddress,
+        })}`,
+      );
+
+      let cardData;
+      let summaryForAI: string;
+
+      try {
+        const tokenUpper = (targetToken || "XLM").toUpperCase();
+        if (tokenUpper !== "XLM") {
+          throw new Error(`Currently only XLM is supported for custom onramp. Received: ${tokenUpper}`);
+        }
+
+        // 1. Resolve user's Stellar wallet address
+        let recipientAddress = walletAddress || userCtx?.stellarAddress;
+        let userName = "Jumpa User";
+        let userEmail = "user@jumpa.cash";
+
+        if (userId) {
+          const [wallet, user] = await Promise.all([
+            Wallet.findOne({ userId }),
+            User.findOne({ $or: [{ _id: userId }, { id: userId }] }),
+          ]);
+
+          if (!recipientAddress && wallet) {
+            recipientAddress = wallet.addresses?.xlm || wallet.address;
+          }
+          if (user) {
+            if (user.name) userName = user.name;
+            if (user.email) userEmail = user.email;
+          }
+        }
+
+        if (!recipientAddress) {
+          throw new Error("Unable to resolve your Stellar wallet address. Please ensure your wallet is initialized.");
+        }
+
+        // 2. Fetch live crypto rates (XLM/USD)
+        const { tokens } = await getLiveRates();
+        const xlmRate = tokens.find((t) => t.symbol.toUpperCase() === "XLM");
+        const xlmUsdPrice = xlmRate?.usd && xlmRate.usd > 0 ? xlmRate.usd : 0.12;
+
+        let cleanFiat: number;
+        let finalCryptoAmount: string;
+        let expectedUsdcAmount: number;
+
+        const rawFiat = fiatAmount ? Number(String(fiatAmount).replace(/[^\d.]/g, "")) : 0;
+        const rawCrypto = cryptoAmount ? Number(String(cryptoAmount).replace(/[^\d.]/g, "")) : 0;
+
+        if (rawFiat > 0) {
+          cleanFiat = Math.round(rawFiat);
+          // Query Centiiv NGN -> USDC
+          const quote = await getCentiivQuote({ fromAsset: "NGN", toAsset: "USDC", amount: cleanFiat });
+          expectedUsdcAmount = Number(quote.estimatedReceivableAmount || "0");
+          if (isNaN(expectedUsdcAmount) || expectedUsdcAmount <= 0) {
+            throw new Error("Unable to calculate USDC conversion from Centiiv");
+          }
+          // Compute XLM receivable = USDC / xlmUsdPrice
+          const receivableXlm = expectedUsdcAmount / xlmUsdPrice;
+          finalCryptoAmount = receivableXlm.toFixed(4);
+        } else if (rawCrypto > 0) {
+          finalCryptoAmount = rawCrypto.toFixed(4);
+          // Compute required USDC = XLM * xlmUsdPrice
+          expectedUsdcAmount = rawCrypto * xlmUsdPrice;
+          // Query Centiiv USDC -> NGN
+          const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: expectedUsdcAmount });
+          cleanFiat = Math.round(Number(quote.estimatedReceivableAmount || "0"));
+          if (isNaN(cleanFiat) || cleanFiat <= 0) {
+            throw new Error("Unable to calculate NGN deposit amount from Centiiv");
+          }
+        } else {
+          throw new Error("Please specify the deposit amount in Naira (fiatAmount) or XLM (cryptoAmount).");
+        }
+
+        if (isNaN(cleanFiat) || cleanFiat <= 0) {
+          throw new Error("Invalid onramp fiat amount.");
+        }
+
+        // 3. Resolve Treasury Address for inbound Centiiv deposit
+        const sponsorKey = getSponsorKeypair();
+        if (!sponsorKey) {
+          throw new Error("Jumpa Treasury key is not configured.");
+        }
+        const treasuryAddress = sponsorKey.publicKey();
+
+        // 4. Create Centiiv Onramp Order directed to Treasury
+        const res = await createCentiivOnramp({
+          fiatAmount: cleanFiat,
+          destinationAddress: treasuryAddress,
+          senderName: userName,
+          senderEmail: userEmail,
+          senderPhone: "0000000000",
+          userId,
+        });
+
+        console.log(
+          `[ToolExecutor] [User: ${userId}] Centiiv onramp response:`,
+          JSON.stringify(res, null, 2),
+        );
+
+        const reference = res.id;
+        const tw = (res as any).temporaryWallet || (res as any).temporary_wallet || {};
+        const deposit = {
+          bank_name: tw.virtualBankName || tw.virtual_bank_name || tw.bankName || tw.bank_name || "",
+          account_name: tw.virtualAccountName || tw.virtual_account_name || tw.accountName || tw.account_name || "",
+          account_number: tw.virtualAccountNumber || tw.virtual_account_number || tw.accountNumber || tw.account_number || "",
+          note: "Centiiv Onramp",
+        };
+
+        // 5. Record Transaction in MongoDB
+        try {
+          await connectDB();
+          await Transaction.create({
+            userId,
+            type: "ONRAMP",
+            status: "PENDING",
+            chain: "stellar",
+            network: "mainnet",
+            fromAddress: "CENTIIV_NGN_BANK",
+            toAddress: recipientAddress,
+            amount: finalCryptoAmount,
+            token: tokenUpper,
+            txHash: reference,
+            feePaid: "0",
+            rampDetails: {
+              provider: "centiiv",
+              fiatCurrency: "NGN",
+              fiatAmount: cleanFiat,
+              reference,
+              fulfillmentAction: "CUSTOM_ONRAMP",
+              targetToken: tokenUpper,
+              expectedUsdc: String(expectedUsdcAmount.toFixed(4)),
+              treasuryAddress,
+              settlementStatus: "PENDING",
+            },
+            executedAt: new Date(),
+          });
+          console.log(
+            `[ToolExecutor] [User: ${userId}] Custom onramp transaction saved: ${reference} (${finalCryptoAmount} ${tokenUpper})`,
+          );
+        } catch (dbErr: any) {
+          console.warn(
+            `[ToolExecutor] [User: ${userId}] DB record notice for custom onramp:`,
+            dbErr.message,
+          );
+        }
+
+        const finalFiatStr = String(cleanFiat);
+        cardData = {
+          title: `Buy ${tokenUpper} with NGN`,
+          fiatAmount: finalFiatStr,
+          fiatCurrency: "NGN",
+          cryptoAmount: finalCryptoAmount,
+          cryptoToken: tokenUpper,
+          bankName: deposit.bank_name,
+          accountName: deposit.account_name,
+          accountNumber: deposit.account_number,
+          reference,
+          asset: "stellar:native",
+          notes: deposit.note ? [deposit.note] : [],
+          status: "pending",
+          provider: "centiiv",
+        };
+
+        summaryForAI =
+          `Custom onramp initiated via Centiiv. User should transfer ₦${cleanFiat.toLocaleString()} to ${deposit.bank_name} ` +
+          `account ${deposit.account_number} (${deposit.account_name}). ` +
+          `Once the bank transfer confirms, Jumpa Treasury will instantly deliver ${finalCryptoAmount} ${tokenUpper} to their Stellar wallet (${recipientAddress}). ` +
+          `Reference: ${reference}.`;
+
+        return {
+          toolName: name,
+          summaryForAI,
+          cardHint: { type: "onramp", data: cardData },
+          transactionParams: {
+            type: "onramp",
+            fiatAmount: finalFiatStr,
+            fiatCurrency: "NGN",
+            cryptoToken: tokenUpper,
+            asset: "stellar:native",
+          },
+          requiresConfirmation: true,
+        };
+      } catch (err: any) {
+        console.error(
+          `[ToolExecutor] [User: ${userId}] onramp_ngn_custom ✗ Error:`,
+          err.message,
+        );
+        return {
+          toolName: name,
+          summaryForAI: `Failed to initiate custom onramp: ${err.message}`,
           cardHint: { type: "none" },
           requiresConfirmation: false,
         };

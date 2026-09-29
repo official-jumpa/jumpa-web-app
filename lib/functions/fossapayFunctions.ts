@@ -37,6 +37,30 @@ export {
   calculateFossaPayWithdrawalFee,
 };
 
+// In-Memory Balance Cache & Coalescing Registry for FossaPay
+declare global {
+  var _fossapaySyncTimestamps: Map<string, number> | undefined;
+  var _fossapayInFlightSyncs: Map<string, Promise<any>> | undefined;
+  var _fossapayRateLimitCooldownUntil: number | undefined;
+}
+
+const balanceSyncTimestamps = (globalThis._fossapaySyncTimestamps ??= new Map<string, number>());
+const inFlightSyncs = (globalThis._fossapayInFlightSyncs ??= new Map<string, Promise<any>>());
+
+export const FOSSAPAY_BALANCE_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+export const FOSSAPAY_RATE_LIMIT_COOLDOWN_MS = 60 * 1000; // 60 seconds
+
+/**
+ * Invalidates cached NGN balance for a specific user, or all users if no userId is provided.
+ */
+export function invalidateNgnBalanceCache(userId?: string) {
+  if (userId) {
+    balanceSyncTimestamps.delete(userId);
+  } else {
+    balanceSyncTimestamps.clear();
+  }
+}
+
 /**
  * Base HTTP helper for FossaPay API
  */
@@ -75,12 +99,20 @@ async function fossapayRequest<T>(
     }
 
     if (!res.ok) {
-      console.error(`[FossaPay] API Error [${res.status}] (${duration}ms):`, {
-        url,
-        method,
-        status: res.status,
-        response: data,
-      });
+      if (res.status === 429) {
+        globalThis._fossapayRateLimitCooldownUntil =
+          Date.now() + FOSSAPAY_RATE_LIMIT_COOLDOWN_MS;
+        console.warn(
+          `[FossaPay] Rate limit hit on ${method} ${url}. Entering cooldown for ${FOSSAPAY_RATE_LIMIT_COOLDOWN_MS / 1000}s.`,
+        );
+      } else {
+        console.error(`[FossaPay] API Error [${res.status}] (${duration}ms):`, {
+          url,
+          method,
+          status: res.status,
+          response: data,
+        });
+      }
 
       const message =
         data?.message ||
@@ -1130,7 +1162,7 @@ export async function getNgnBalance(userId: string): Promise<number> {
  * Synchronizes and refreshes user's live NGN account balance from FossaPay,
  * updating the local database record.
  */
-export async function refreshUserNgnAccountBalance(userId: string): Promise<{
+export type RefreshUserNgnAccountBalanceResult = {
   hasAccount: boolean;
   account: {
     bankName: string;
@@ -1143,97 +1175,174 @@ export async function refreshUserNgnAccountBalance(userId: string): Promise<{
     ledgerBalance: number;
     currency: string;
   } | null;
-}> {
-  await connectDB();
+};
 
-  let account = await NgnAccount.findOne({
-    userId,
-    provider: "fossapay",
-  }).lean<INgnAccount>();
+/**
+ * Synchronizes and refreshes user's live NGN account balance from FossaPay,
+ * updating the local database record.
+ *
+ * Implements:
+ * - 60s TTL Caching (served directly from DB if fresh)
+ * - In-flight Promise deduplication (coalesces simultaneous component calls)
+ * - 429 Rate limit circuit-breaker (fails softly to DB balance during provider backoff)
+ */
+export async function refreshUserNgnAccountBalance(
+  userId: string,
+  options?: { force?: boolean }
+): Promise<RefreshUserNgnAccountBalanceResult> {
+  const force = options?.force ?? false;
 
-  if (!account) {
-    account = await NgnAccount.findOne({
+  // 1. In-flight request deduplication: if this user's balance is currently syncing, share the promise
+  if (!force && inFlightSyncs.has(userId)) {
+    return inFlightSyncs.get(userId)!;
+  }
+
+  const syncPromise = (async () => {
+    await connectDB();
+
+    let account = await NgnAccount.findOne({
       userId,
+      provider: "fossapay",
     }).lean<INgnAccount>();
-  }
 
-  if (!account) {
-    return { hasAccount: false, account: null, balance: null };
-  }
+    if (!account) {
+      account = await NgnAccount.findOne({
+        userId,
+      }).lean<INgnAccount>();
+    }
 
-  let liveBalance = {
-    availableBalance: account.balance ?? 0,
-    ledgerBalance: account.balance ?? 0,
-    currency: account.currency || "NGN",
-  };
+    if (!account) {
+      return { hasAccount: false, account: null, balance: null };
+    }
 
-  const walletId = account.providerAccountId;
-  if (walletId) {
-    try {
-      const walletDetails: any = await getFossapayWallet(walletId);
-      if (walletDetails) {
+    let liveBalance = {
+      availableBalance: account.balance ?? 0,
+      ledgerBalance: account.balance ?? 0,
+      currency: account.currency || "NGN",
+    };
+
+    const walletId = account.providerAccountId;
+    const now = Date.now();
+    const lastSyncMem = balanceSyncTimestamps.get(userId) ?? 0;
+    const lastSyncDb = account.providerMetadata?.lastBalanceSyncAt
+      ? new Date(account.providerMetadata.lastBalanceSyncAt).getTime()
+      : 0;
+    const lastSync = Math.max(lastSyncMem, lastSyncDb);
+    const isFresh = now - lastSync < FOSSAPAY_BALANCE_CACHE_TTL_MS;
+
+    const cooldownUntil = globalThis._fossapayRateLimitCooldownUntil ?? 0;
+    const isCoolingDown = now < cooldownUntil;
+
+    // If cache is fresh and not forced, or currently in 429 cooldown, serve from DB directly
+    if (!force && (isFresh || isCoolingDown)) {
+      if (isCoolingDown) {
         console.log(
-          "[FossaPay] Raw wallet details received for balance refresh:",
-          JSON.stringify(walletDetails),
+          `[FossaPay] Rate limit cooldown active (${Math.round((cooldownUntil - now) / 1000)}s left). Serving DB balance for user ${userId}.`,
         );
+      }
+      return {
+        hasAccount: true,
+        account: {
+          bankName: account.bankName || "Sterling MFB",
+          accountNumber: account.accountNumber || "",
+          accountName: account.accountName || "Jumpa User",
+          status: account.status || "active",
+        },
+        balance: liveBalance,
+      };
+    }
 
-        const rawAvail =
-          walletDetails.availableBalance ??
-          walletDetails.data?.availableBalance ??
-          walletDetails.balance ??
-          walletDetails.data?.balance;
-        const rawLedger =
-          walletDetails.ledgerBalance ??
-          walletDetails.data?.ledgerBalance ??
-          rawAvail;
-
-        const numAvail = Number(rawAvail ?? account.balance ?? 0);
-        const numLedger = Number(rawLedger ?? account.balance ?? 0);
-
-        const finalAvail = isNaN(numAvail) ? (account.balance ?? 0) : numAvail;
-        const finalLedger = isNaN(numLedger) ? finalAvail : numLedger;
-
-        liveBalance = {
-          availableBalance: finalAvail,
-          ledgerBalance: finalLedger,
-          currency: walletDetails.currency ?? account.currency ?? "NGN",
-        };
-
-        if (!isNaN(numAvail) && account.balance !== finalAvail) {
+    if (walletId) {
+      try {
+        const walletDetails: any = await getFossapayWallet(walletId);
+        if (walletDetails) {
           console.log(
-            `[FossaPay] Updating DB balance for account ${account._id} from ₦${account.balance} to ₦${finalAvail}`,
+            "[FossaPay] Raw wallet details received for balance refresh:",
+            JSON.stringify(walletDetails),
           );
-          const updateResult = await NgnAccount.updateOne(
+
+          const rawAvail =
+            walletDetails.availableBalance ??
+            walletDetails.data?.availableBalance ??
+            walletDetails.balance ??
+            walletDetails.data?.balance;
+          const rawLedger =
+            walletDetails.ledgerBalance ??
+            walletDetails.data?.ledgerBalance ??
+            rawAvail;
+
+          const numAvail = Number(rawAvail ?? account.balance ?? 0);
+          const numLedger = Number(rawLedger ?? account.balance ?? 0);
+
+          const finalAvail = isNaN(numAvail) ? (account.balance ?? 0) : numAvail;
+          const finalLedger = isNaN(numLedger) ? finalAvail : numLedger;
+
+          liveBalance = {
+            availableBalance: finalAvail,
+            ledgerBalance: finalLedger,
+            currency: walletDetails.currency ?? account.currency ?? "NGN",
+          };
+
+          balanceSyncTimestamps.set(userId, Date.now());
+
+          const updateFields: any = {
+            "providerMetadata.lastBalanceSyncAt": new Date(),
+          };
+          if (!isNaN(numAvail) && account.balance !== finalAvail) {
+            updateFields.balance = finalAvail;
+            console.log(
+              `[FossaPay] Updating DB balance for account ${account._id} from ₦${account.balance} to ₦${finalAvail}`,
+            );
+          }
+
+          await NgnAccount.updateOne(
             {
               $or: [
                 { _id: account._id },
                 { userId: account.userId },
               ],
             },
-            { $set: { balance: finalAvail } },
+            { $set: updateFields },
           );
-          console.log(
-            `[FossaPay] DB balance updated: matched ${updateResult.matchedCount}, modified ${updateResult.modifiedCount}`,
+        }
+      } catch (err: any) {
+        if (err?.status === 429) {
+          globalThis._fossapayRateLimitCooldownUntil =
+            Date.now() + FOSSAPAY_RATE_LIMIT_COOLDOWN_MS;
+          console.warn(
+            `[FossaPay] 429 received during balance refresh. Cooldown set for ${FOSSAPAY_RATE_LIMIT_COOLDOWN_MS / 1000}s. Using cached DB balance.`,
+          );
+        } else {
+          console.warn(
+            "[FossaPay] Could not fetch live balance, using cached balance:",
+            err.message,
           );
         }
       }
-    } catch (err: any) {
-      console.warn(
-        "[FossaPay] Could not fetch live balance, using cached balance:",
-        err.message,
-      );
     }
+
+    return {
+      hasAccount: true,
+      account: {
+        bankName: account.bankName || "Sterling MFB",
+        accountNumber: account.accountNumber || "",
+        accountName: account.accountName || "Jumpa User",
+        status: account.status || "active",
+      },
+      balance: liveBalance,
+    };
+  })();
+
+  if (!force) {
+    inFlightSyncs.set(userId, syncPromise);
   }
 
-  return {
-    hasAccount: true,
-    account: {
-      bankName: account.bankName || "Sterling MFB",
-      accountNumber: account.accountNumber || "",
-      accountName: account.accountName || "Jumpa User",
-      status: account.status || "active",
-    },
-    balance: liveBalance,
-  };
+  try {
+    return await syncPromise;
+  } finally {
+    if (!force) {
+      inFlightSyncs.delete(userId);
+    }
+  }
 }
 

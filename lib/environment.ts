@@ -9,7 +9,7 @@ export const environment = {
   IS_PRODUCTION: process.env.NODE_ENV === "production",
 
   // Database
-  MONGO_URI: process.env.MONGO_URI || "mongodb://localhost:27017/jumpa",
+  MONGO_URI: process.env.MONGO_URI || "",
 
   // BetterAuth Config
   AUTH_SECRET: process.env.AUTH_SECRET || "",

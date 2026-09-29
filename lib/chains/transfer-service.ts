@@ -156,18 +156,18 @@ export async function sendStellar(params: {
     throw err;
   }
 
-  // Check if destination exists
-  let destExists = false;
+  // Check if destination exists and retrieve account details
+  let destAccount: any = null;
   try {
-    await server.loadAccount(destination);
-    destExists = true;
+    destAccount = await server.loadAccount(destination);
   } catch (err: any) {
     if (err?.response?.status === 404 || err?.message?.includes("Not Found")) {
-      destExists = false;
+      destAccount = null;
     } else {
       throw err;
     }
   }
+  const destExists = !!destAccount;
 
   const upperAsset = asset.toUpperCase();
   const numAmount = parseFloat(amount);
@@ -215,13 +215,25 @@ export async function sendStellar(params: {
       networkPassphrase: passphrase,
     }).addOperation(paymentOp);
   } else if (upperAsset === "USDC") {
-    if (!destExists) {
+    if (!destAccount) {
       throw new Error(
         "Destination Stellar account is not activated. Only XLM can be sent to fund a new account.",
       );
     }
 
     const issuer = STELLAR_USDC_ISSUERS[network];
+    const destHasUsdcTrustline = destAccount.balances?.some(
+      (b: any) =>
+        b.asset_code === "USDC" &&
+        (!b.asset_issuer || b.asset_issuer === issuer),
+    );
+
+    if (!destHasUsdcTrustline) {
+      throw new Error(
+        "Destination account does not have a USDC trustline. The recipient must add the USDC trustline in their wallet before receiving USDC.",
+      );
+    }
+
     const usdcAsset = new StellarSdk.Asset("USDC", issuer);
 
     const usdcBal = sourceAccount.balances.find(
@@ -335,7 +347,41 @@ export async function sendStellar(params: {
   console.log(
     `[Transfer Service] Submitting Stellar (${network}) transfer...${useGasAbstraction ? " (gas abstracted)" : " (user paid XLM gas)"}`,
   );
-  const horizonRes = await server.submitTransaction(finalTx);
+  let horizonRes: any;
+  try {
+    horizonRes = await server.submitTransaction(finalTx);
+  } catch (err: any) {
+    const extras = err?.response?.data?.extras;
+    const resultCodes = extras?.result_codes;
+    const opCodes = resultCodes?.operations ? ` [${resultCodes.operations.join(", ")}]` : "";
+    const txCode = resultCodes?.transaction ? ` (${resultCodes.transaction})` : "";
+    const detail = err?.response?.data?.detail || err?.message;
+
+    if (resultCodes?.operations?.includes("op_no_trust")) {
+      throw new Error(
+        "Destination account does not have a trustline for USDC. The recipient must add the USDC trustline before receiving USDC.",
+      );
+    }
+    if (
+      resultCodes?.operations?.includes("op_underfunded") ||
+      resultCodes?.transaction === "tx_insufficient_balance"
+    ) {
+      throw new Error("Transaction failed: Insufficient balance on account.");
+    }
+    if (resultCodes?.transaction === "tx_bad_seq") {
+      throw new Error("Transaction sequence error. Please try again in a few moments.");
+    }
+
+    console.error("[Transfer Service] Horizon submission failed:", {
+      status: err?.response?.status,
+      detail,
+      resultCodes,
+    });
+
+    throw new Error(
+      `Stellar transaction failed${txCode}${opCodes}: ${detail || "Transaction submission failed."}`,
+    );
+  }
 
   const txHash = horizonRes.hash;
   const explorerUrl = getExplorerTxUrl("stellar", txHash, network === "testnet");

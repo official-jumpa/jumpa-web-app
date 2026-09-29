@@ -6,6 +6,7 @@ import { Transaction } from "@/models/Transaction";
 import {
   atomicCreditNgnBalance,
   refreshUserNgnAccountBalance,
+  invalidateNgnBalanceCache,
 } from "@/lib/functions/fossapayFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
@@ -84,8 +85,9 @@ export async function POST(req: Request) {
       console.log(`FossaPay: Deposit of ₦${amount} credited. New balance: ₦${creditResult.newBalance} for user ${userId}`);
 
       // Invalidate balance cache across server and trigger live wallet sync
+      invalidateNgnBalanceCache(userId);
       invalidateBalanceCache(userId);
-      refreshUserNgnAccountBalance(userId).catch((err) => {
+      refreshUserNgnAccountBalance(userId, { force: true }).catch((err) => {
         console.warn("[FossaPay Webhook] Background live sync notice:", err);
       });
     } else {

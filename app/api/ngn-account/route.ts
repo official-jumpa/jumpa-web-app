@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   createFossapayCustomer,
   createFossapayNgnWallet,
@@ -19,7 +19,7 @@ import { formatZodError } from "@/lib/validations/validation-helper";
  * GET /api/ngn-account
  * Returns the authenticated user's active FossaPay NGN account and live balance.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const auth = await requireActiveUser({
       requireWallet: false,
@@ -27,7 +27,8 @@ export async function GET() {
     });
     if (!auth.ok) return auth.response;
 
-    const result = await refreshUserNgnAccountBalance(auth.userId);
+    const force = req.nextUrl?.searchParams?.get("refresh") === "true";
+    const result = await refreshUserNgnAccountBalance(auth.userId, { force });
 
     if (!result.hasAccount) {
       return NextResponse.json(

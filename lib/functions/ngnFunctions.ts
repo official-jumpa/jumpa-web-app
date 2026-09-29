@@ -34,6 +34,7 @@ export async function getUserNgnAccount(
 export async function getUserNgnAccountDetails(
   userId: string,
   fallbackAccountName = "Jumpa User",
+  options?: { force?: boolean },
 ): Promise<{
   account: FormattedNgnAccountDetails | null;
   balance: FormattedNgnBalance | null;
@@ -42,7 +43,7 @@ export async function getUserNgnAccountDetails(
     const { refreshUserNgnAccountBalance } = await import(
       "@/lib/functions/fossapayFunctions"
     );
-    const refreshed = await refreshUserNgnAccountBalance(userId);
+    const refreshed = await refreshUserNgnAccountBalance(userId, options);
     if (refreshed.hasAccount && refreshed.account && refreshed.balance) {
       return {
         account: {

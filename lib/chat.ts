@@ -13,8 +13,11 @@ export type CardRow = {
   chain?: string;
 };
 
-/** Pill opposite a card title. `done` is lime, `pending` purple. */
-export type CardStatus = { label: string; tone?: "pending" | "done" };
+/** Pill opposite a card title. `done` is lime, `pending` purple, `failed` red. */
+export type CardStatus = {
+  label: string;
+  tone?: "pending" | "done" | "failed";
+};
 
 export type QuoteCard = {
   title: string;

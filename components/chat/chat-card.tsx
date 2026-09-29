@@ -52,9 +52,13 @@ export function CardTitle({
 const STATUS_TONE = {
   pending: "bg-jumpa-primary-525 text-jumpa-primary-50",
   done: "bg-jumpa-alt-500 text-jumpa-primary-900",
+  failed: "bg-jumpa-warning-50 text-jumpa-warning",
 } as const;
 
-/** Purple while a ramp waits on the user, lime once it has settled. */
+/**
+ * Purple while a ramp waits on the user, lime once it has settled. `failed`
+ * carries the same tone the ramp cards' error notices do.
+ */
 export function CardStatusPill({ status }: { status: CardStatus }) {
   return (
     <span

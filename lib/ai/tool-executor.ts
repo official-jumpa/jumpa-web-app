@@ -1243,7 +1243,7 @@ export async function executeTool(
             bank_name: res.temporaryWallet.virtualBankName,
             account_name: res.temporaryWallet.virtualAccountName,
             account_number: res.temporaryWallet.virtualAccountNumber,
-            note: "Centiiv Onramp",
+            note: "Transfer the exact amount from a bank account in your own name.",
           };
           
           if (cleanFiat > 0) {
@@ -1475,7 +1475,6 @@ export async function executeTool(
           bank_name: tw.virtualBankName || tw.virtual_bank_name || tw.bankName || tw.bank_name || "",
           account_name: tw.virtualAccountName || tw.virtual_account_name || tw.accountName || tw.account_name || "",
           account_number: tw.virtualAccountNumber || tw.virtual_account_number || tw.accountNumber || tw.account_number || "",
-          note: "Centiiv Onramp",
         };
 
         // 5. Record Transaction in MongoDB
@@ -1528,7 +1527,12 @@ export async function executeTool(
           accountNumber: deposit.account_number,
           reference,
           asset: "stellar:native",
-          notes: deposit.note ? [deposit.note] : [],
+          // The card renders these as its instruction bullets, so they say what
+          // the user has to do — the provider's own name is not an instruction.
+          notes: [
+            `Transfer exactly ₦${cleanFiat.toLocaleString()} from a bank account in your own name.`,
+            `${Number(finalCryptoAmount).toLocaleString("en-US", { maximumFractionDigits: 4 })} ${tokenUpper} is locked for this order and lands in your Jumpa Stellar wallet once the transfer confirms.`,
+          ],
           status: "pending",
           provider: "centiiv",
         };

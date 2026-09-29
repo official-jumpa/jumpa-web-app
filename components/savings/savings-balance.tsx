@@ -27,7 +27,7 @@ export function SavingsBalance({
         aria-hidden="true"
         width={357}
         height={328}
-        className="pointer-events-none absolute top-[-102.2px] left-0 max-w-none"
+        className="pointer-events-none absolute top-1/2 left-1/2 max-w-none -translate-x-1/2 -translate-y-1/2"
       />
 
       <div className="relative flex h-31.25 flex-col items-center justify-center gap-3">

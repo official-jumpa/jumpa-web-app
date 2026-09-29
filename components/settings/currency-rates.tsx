@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Fragment, useState } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { settingsHref } from "@/components/settings/sections";
 import {
   SettingCard,
@@ -13,9 +13,11 @@ import { Select } from "@/components/ui/select";
 import { getAssetLogo } from "@/lib/assets";
 import {
   DEFAULT_RATE_CURRENCY,
+  FIAT_RATES,
   formatRate,
   RATE_CURRENCIES,
   RATE_TOKENS,
+  type RateToken,
 } from "@/lib/rates";
 
 const CURRENCY_OPTIONS = RATE_CURRENCIES.map(({ code, flag }) => ({
@@ -28,15 +30,45 @@ const CURRENCY_OPTIONS = RATE_CURRENCIES.map(({ code, flag }) => ({
 export function CurrencyRates() {
   const [currency, setCurrency] = useState(DEFAULT_RATE_CURRENCY);
   const [query, setQuery] = useState("");
+  const [tokens, setTokens] = useState<RateToken[]>(RATE_TOKENS);
+  const [fiatRates, setFiatRates] = useState<Record<string, { symbol: string; perUsd: number }> | null>(null);
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRates() {
+      try {
+        const res = await fetch("/api/rates");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data?.tokens && data?.fiatRates) {
+          setTokens(data.tokens);
+          setFiatRates(data.fiatRates);
+          setIsLive(true);
+        }
+      } catch (err) {
+        console.warn("[CurrencyRates] Failed to load live rates:", err);
+      }
+    }
+
+    void loadRates();
+    // Poll every 60 seconds
+    const interval = setInterval(loadRates, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   const term = query.trim().toLowerCase();
   const matches = term
-    ? RATE_TOKENS.filter((token) =>
+    ? tokens.filter((token) =>
         [token.symbol, token.name].some((field) =>
           field.toLowerCase().includes(term),
         ),
       )
-    : RATE_TOKENS;
+    : tokens;
 
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+21px)] pb-12">
@@ -69,12 +101,24 @@ export function CurrencyRates() {
         />
       </label>
 
+      <div className="mt-3 flex items-center justify-between px-2 text-xs font-medium text-jumpa-neutral-400">
+        <span>Token</span>
+        <span className="flex items-center gap-1.5">
+          <span
+            className={`inline-block size-1.5 rounded-full ${
+              isLive ? "bg-emerald-500 animate-pulse" : "bg-neutral-300"
+            }`}
+          />
+          <span>{isLive ? "Live Rates" : "Updating..."}</span>
+        </span>
+      </div>
+
       {matches.length === 0 ? (
         <p className="mt-10 text-center text-sm text-jumpa-neutral-400">
           No rate matches &ldquo;{query}&rdquo;.
         </p>
       ) : (
-        <SettingCard className="mt-4.25">
+        <SettingCard className="mt-2">
           {matches.map((token, index) => (
             <Fragment key={token.symbol}>
               {index > 0 ? <SettingRule /> : null}
@@ -92,9 +136,13 @@ export function CurrencyRates() {
                     {token.symbol}
                   </span>
                 </span>
-                <span className="shrink-0 text-sm leading-4 font-medium text-jumpa-black">
-                  {formatRate(token, currency)}
-                </span>
+                {fiatRates && token.usd ? (
+                  <span className="shrink-0 text-sm leading-4 font-medium text-jumpa-black">
+                    {formatRate(token, currency, fiatRates)}
+                  </span>
+                ) : (
+                  <span className="h-4 w-20 animate-pulse rounded-pill bg-jumpa-neutral-100" />
+                )}
               </div>
             </Fragment>
           ))}

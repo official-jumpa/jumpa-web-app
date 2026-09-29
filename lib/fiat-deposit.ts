@@ -62,7 +62,7 @@ export function quoteDeposit(
   const paid = Number(amount);
   const fiat = FIAT_RATES[currency];
   const token = DEPOSIT_TOKENS.find((entry) => entry.symbol === symbol);
-  if (!paid || !fiat || !token) return null;
+  if (!paid || !fiat?.perUsd || !token?.usd) return null;
 
   const usd = paid / fiat.perUsd;
   const gross = usd / token.usd;

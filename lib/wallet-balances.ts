@@ -52,21 +52,23 @@ const balanceCache: Record<
 > = (globalThis._balanceCache ??= {});
 const CACHE_TTL = 1 * 60 * 1000; //1 minute balance cache
 
+import { getLiveRates } from "@/lib/rates";
+
 interface CoinGeckoInfo {
   priceUsd: string;
   icon: string;
 }
 
 const coinGeckoCache: Record<string, CoinGeckoInfo> = {
-  SOL: { priceUsd: "150.00", icon: "/images/home/coin-generic.svg" },
-  XLM: { priceUsd: "0.12", icon: "/images/home/coin-generic.svg" },
-  ETH: { priceUsd: "3540.21", icon: "/images/home/coin-generic.svg" },
-  USDC: { priceUsd: "1.00", icon: "/coins/usdc.webp" },
-  USDT: { priceUsd: "1.00", icon: "/images/home/coin-generic.svg" },
+  SOL: { priceUsd: "0.00", icon: getAssetLogo("SOL") },
+  XLM: { priceUsd: "0.00", icon: getAssetLogo("XLM") },
+  ETH: { priceUsd: "0.00", icon: getAssetLogo("ETH") },
+  USDC: { priceUsd: "1.00", icon: getAssetLogo("USDC") },
+  USDT: { priceUsd: "1.00", icon: getAssetLogo("USDT") },
 };
 
 let pricesLastFetched = 0;
-const PRICES_CACHE_TTL = 5 * 60 * 1000;
+const PRICES_CACHE_TTL = 60 * 1000; // 1 minute price cache
 
 async function updateCoinGeckoData() {
   const now = Date.now();
@@ -75,38 +77,20 @@ async function updateCoinGeckoData() {
   }
 
   try {
-    const ids = "ethereum,solana,stellar,usd-coin,tether";
-    const res = await fetch(
-      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}`,
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    const data = await res.json();
-    if (Array.isArray(data)) {
-      const map: Record<string, string> = {
-        ethereum: "ETH",
-        solana: "SOL",
-        stellar: "XLM",
-        "usd-coin": "USDC",
-        tether: "USDT",
-      };
-
-      for (const coin of data) {
-        const symbol = map[coin.id];
-        if (symbol) {
-          coinGeckoCache[symbol] = {
-            priceUsd:
-              coin.current_price?.toString() || coinGeckoCache[symbol].priceUsd,
-            icon: coin.image || coinGeckoCache[symbol].icon,
-          };
-        }
+    const { tokens } = await getLiveRates();
+    for (const token of tokens) {
+      if (token.symbol && token.usd !== undefined) {
+        coinGeckoCache[token.symbol] = {
+          priceUsd: token.usd.toString(),
+          icon: getAssetLogo(token.symbol) || coinGeckoCache[token.symbol]?.icon || "/images/home/coin-generic.svg",
+        };
       }
-      pricesLastFetched = now;
-      console.log("[Balance Service] CoinGecko price cache updated.");
     }
+    pricesLastFetched = now;
+
   } catch (err) {
     console.warn(
-      "[Balance Service] CoinGecko Markets API failed, using fallback values:",
+      "[Balance Service] Live price update failed, using fallback values:",
       err,
     );
   }
@@ -118,8 +102,11 @@ async function updateCoinGeckoData() {
  * Triggers a background cache refresh so subsequent calls stay fresh.
  */
 export async function getAssetPriceUsd(symbol: string): Promise<number> {
-  // Kick off a refresh in the background (won't block if cache is still fresh)
-  void updateCoinGeckoData();
+  if (pricesLastFetched === 0) {
+    await updateCoinGeckoData();
+  } else {
+    void updateCoinGeckoData();
+  }
   const info = coinGeckoCache[symbol.toUpperCase()];
   return info ? parseFloat(info.priceUsd) || 0 : 0;
 }

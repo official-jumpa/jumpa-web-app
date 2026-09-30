@@ -328,11 +328,11 @@ async function getBridgeSourceChainOptions(
         for (const t of balances.tokens) {
           if (t.symbol?.toUpperCase() === "USDC") {
             const net = (t.network || "").toLowerCase();
-            if (net.includes("stellar") && t.isTestnet) {
+            if (net.includes("stellar") && !t.isTestnet) {
               stellarUsdc = formatBalance(t.balance);
-            } else if (net.includes("base") && t.isTestnet) {
+            } else if (net.includes("base") && !t.isTestnet) {
               baseUsdc = formatBalance(t.balance);
-            } else if (net.includes("eth") && t.isTestnet) {
+            } else if (net.includes("eth") && !t.isTestnet) {
               ethUsdc = formatBalance(t.balance);
             }
           }
@@ -346,13 +346,13 @@ async function getBridgeSourceChainOptions(
       stellarUsdc === "0.00"
     ) {
       const stellar = await fetchStellarBalances(stellarAddress);
-      if (stellar.testnet?.usdc) {
-        stellarUsdc = formatBalance(stellar.testnet.usdc);
+      if (stellar.mainnet?.usdc) {
+        stellarUsdc = formatBalance(stellar.mainnet.usdc);
       }
     }
   } catch (err) {
     console.warn(
-      "[Bridge] Error loading testnet balances for chain options:",
+      "[Bridge] Error loading mainnet balances for chain options:",
       err,
     );
   }
@@ -367,27 +367,27 @@ async function getBridgeSourceChainOptions(
   }[] = [
     {
       id: "stellar",
-      label: "Stellar Testnet",
+      label: "Stellar",
       description: "Circle CCTP v2",
       amount: `${stellarUsdc} USDC`,
       logo: "/coins/xlm.webp",
-      reply: "Bridge from Stellar Testnet",
+      reply: "Bridge from Stellar",
     },
     {
       id: "base",
-      label: "Base Sepolia",
+      label: "Base",
       description: "Circle CCTP v2",
       amount: `${baseUsdc} USDC`,
       logo: "/coins/base.webp",
-      reply: "Bridge from Base Sepolia",
+      reply: "Bridge from Base",
     },
     {
       id: "ethereum",
-      label: "Ethereum Sepolia",
+      label: "Ethereum",
       description: "Circle CCTP v2",
       amount: `${ethUsdc} USDC`,
       logo: "/coins/eth.webp",
-      reply: "Bridge from Ethereum Sepolia",
+      reply: "Bridge from Ethereum",
     },
   ];
 
@@ -414,24 +414,24 @@ function bridgeDestChains(
   }[] = [
     {
       id: "stellar",
-      label: "Stellar Testnet",
+      label: "Stellar",
       description: "Circle CCTP v2",
       logo: "/coins/xlm.webp",
-      reply: "Bridge to Stellar Testnet",
+      reply: "Bridge to Stellar",
     },
     {
       id: "base",
-      label: "Base Sepolia",
+      label: "Base",
       description: "Circle CCTP v2",
       logo: "/coins/base.webp",
-      reply: "Bridge to Base Sepolia",
+      reply: "Bridge to Base",
     },
     {
       id: "ethereum",
-      label: "Ethereum Sepolia",
+      label: "Ethereum",
       description: "Circle CCTP v2",
       logo: "/coins/eth.webp",
-      reply: "Bridge to Ethereum Sepolia",
+      reply: "Bridge to Ethereum",
     },
   ];
   return all
@@ -470,11 +470,11 @@ function getBridgeChainDisplayName(
 ): string {
   switch (chain) {
     case "stellar":
-      return "Stellar Testnet";
+      return "Stellar";
     case "base":
-      return "Base Sepolia";
+      return "Base";
     case "ethereum":
-      return "Ethereum Sepolia";
+      return "Ethereum";
   }
 }
 

@@ -93,9 +93,9 @@ export function BridgeView({
 
   const isStellarSource = direction === "stellar-to-evm";
   const evmLabel = evmChain === "ethereum" ? "Ethereum" : "Base";
-  const evmChainName = `${evmLabel} Sepolia`;
-  const sourceChainName = isStellarSource ? "Stellar Testnet" : evmChainName;
-  const destChainName = isStellarSource ? evmChainName : "Stellar Testnet";
+  const evmChainName = evmLabel;
+  const sourceChainName = isStellarSource ? "Stellar" : evmChainName;
+  const destChainName = isStellarSource ? evmChainName : "Stellar";
 
   const defaultRecipient = isStellarSource
     ? (evmChain === "ethereum"
@@ -327,8 +327,8 @@ export function BridgeView({
 
 
   const EVM_NETWORKS = [
-    { value: "ethereum", logo: "/coins/eth.webp", name: "Ethereum Sepolia" },
-    { value: "base", logo: "/coins/base.webp", name: "Base Sepolia" },
+    { value: "ethereum", logo: "/coins/eth.webp", name: "Ethereum" },
+    { value: "base", logo: "/coins/base.webp", name: "Base" },
   ] as const;
 
   /** Chain mark overlapping the token mark — the pair a bridge leg moves. */

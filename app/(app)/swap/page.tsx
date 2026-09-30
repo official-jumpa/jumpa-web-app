@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { createPublicClient, http, erc20Abi, formatUnits } from "viem";
-import { sepolia, baseSepolia } from "viem/chains";
+import { mainnet, base } from "viem/chains";
 import { SwapView } from "@/components/swap/swap-view";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import { getCachedWalletBalances } from "@/lib/wallet-balances";
@@ -8,7 +8,6 @@ import { CONTRACT_ADDRESSES, getRpcUrl } from "@/lib/blockchain";
 
 export const metadata: Metadata = { title: "Swap" };
 
-// these are testnet balanaces, replace with mainnet balances afetr detailed testing
 export default async function SwapPage() {
   let stellarBalances = { xlm: "0.00", usdc: "0.00" };
   let bridgeBalances = {
@@ -38,38 +37,33 @@ export default async function SwapPage() {
           (t) => t.symbol === "XLM" && !t.isTestnet,
         );
         const usdcToken = balances.tokens.find(
-          (t) => t.symbol === "USDC" && !t.isTestnet,
+          (t) => t.symbol === "USDC" && !t.isTestnet && t.network?.toLowerCase().includes("stellar"),
         );
         stellarBalances = {
           xlm: xlmToken?.balance || "0.00",
           usdc: usdcToken?.balance || "0.00",
         };
 
-        const stellarTestnetUsdc = balances.tokens.find(
+        const mainnetStellarUsdc = usdcToken?.balance || "0.00";
+        const mainnetBaseToken = balances.tokens.find(
           (t) =>
             t.symbol === "USDC" &&
-            t.isTestnet &&
-            t.network?.toLowerCase().includes("stellar"),
-        );
-        const baseSepoliaUsdc = balances.tokens.find(
-          (t) =>
-            t.symbol === "USDC" &&
-            t.isTestnet &&
+            !t.isTestnet &&
             t.network?.toLowerCase().includes("base"),
         );
 
         let ethUsdc = "0.00";
-        let baseUsdc = baseSepoliaUsdc?.balance || "0.00";
+        let baseUsdc = mainnetBaseToken?.balance || "0.00";
 
-        // Query on-chain testnet USDC for EVM if address exists
+        // Query on-chain mainnet USDC for EVM if address exists
         if (walletAddresses.ethereum) {
           try {
             const ethClient = createPublicClient({
-              chain: sepolia,
-              transport: http(getRpcUrl("ethereum-sepolia")),
+              chain: mainnet,
+              transport: http(getRpcUrl("ethereum")),
             });
             const bal = await ethClient.readContract({
-              address: CONTRACT_ADDRESSES.cctp.testnet.ethereum.usdc,
+              address: CONTRACT_ADDRESSES.cctp.mainnet.ethereum.usdc,
               abi: erc20Abi,
               functionName: "balanceOf",
               args: [walletAddresses.ethereum as `0x${string}`],
@@ -79,7 +73,7 @@ export default async function SwapPage() {
         }
 
         bridgeBalances = {
-          stellarUsdc: stellarTestnetUsdc?.balance || "0.00",
+          stellarUsdc: mainnetStellarUsdc,
           baseUsdc,
           ethereumUsdc: ethUsdc,
         };

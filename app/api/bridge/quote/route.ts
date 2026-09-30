@@ -44,11 +44,20 @@ export async function POST(req: NextRequest) {
     let feeAmount = 0;
 
     if (isStellarSource) {
-      // Stellar -> EVM (Base or Ethereum): Jumpa automated relayer sponsors destination gas (1:1 bridge)
-      feeAmount = 0;
-      protocolFeeBps = 0;
-      estimatedTime = "~15–30 seconds";
-      effectiveTransferType = "fast";
+      //ETH bridging is expensive. thats why its 3.5$
+      if (toChain === "ethereum") {
+        // Stellar -> Ethereum L1: Flat 3.50 USDC relayer gas fee
+        feeAmount = 3.50;
+        protocolFeeBps = 0;
+        estimatedTime = "~1–3 minutes";
+        effectiveTransferType = "fast";
+      } else {
+        // Stellar -> Base: Sponsored by Jumpa
+        feeAmount = 0;
+        protocolFeeBps = 0;
+        estimatedTime = "~15–30 seconds";
+        effectiveTransferType = "fast";
+      }
     } else {
       // EVM (Base or Ethereum) -> Stellar
       if (transferType === "fast") {

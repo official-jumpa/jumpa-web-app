@@ -575,8 +575,8 @@ const bridgeTokens: DeepSeekTool = {
   function: {
     name: "bridge_tokens",
     description:
-      "Interactive cross-chain USDC bridge wizard (Circle CCTP v2 on Stellar Testnet, Base Sepolia, Ethereum Sepolia). " +
-      "You MUST call this tool whenever the user wants to bridge, picks a network (e.g. 'Bridge from Stellar Testnet', 'Bridge to Base Sepolia'), or specifies an amount (e.g. '5 USDC'). " +
+      "Interactive cross-chain USDC bridge wizard (Circle CCTP v2 on Stellar Mainnet, Base Mainnet, Ethereum Mainnet). " +
+      "You MUST call this tool whenever the user wants to bridge, picks a network (e.g. 'Bridge from Stellar', 'Bridge to Base'), or specifies an amount (e.g. '5 USDC'). " +
       "Even when the amount is not yet specified, you MUST call this tool with 'fromChain' and 'toChain' — it will display the interactive amount chooser card (with prelisted amounts and custom amount option) directly in the UI. " +
       "DO NOT ask the user for the amount or chains in chat text. Always call this tool to render the interactive picker card.",
     parameters: {
@@ -586,13 +586,13 @@ const bridgeTokens: DeepSeekTool = {
           type: "string",
           enum: ["stellar", "ethereum", "base"],
           description:
-            "Source chain the funds leave from: 'stellar' (Stellar Testnet), 'ethereum' (Ethereum Sepolia), or 'base' (Base Sepolia). Omit if not stated by the user.",
+            "Source chain the funds leave from: 'stellar' (Stellar), 'ethereum' (Ethereum), or 'base' (Base). Omit if not stated by the user.",
         },
         toChain: {
           type: "string",
           enum: ["stellar", "ethereum", "base"],
           description:
-            "Destination chain the funds arrive on: 'stellar' (Stellar Testnet), 'ethereum' (Ethereum Sepolia), or 'base' (Base Sepolia). Omit if not stated by the user.",
+            "Destination chain the funds arrive on: 'stellar' (Stellar), 'ethereum' (Ethereum), or 'base' (Base). Omit if not stated by the user.",
         },
         amount: {
           type: "string",

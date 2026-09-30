@@ -1,13 +1,5 @@
 import { CHAINS, chainsFor } from "@/lib/blockchain";
 
-/**
- * Cross-chain quoting simulation (Testnet Staging).
- * Note: External bridge pools (such as Allbridge Core) have been paused upstream following
- * their transition away from liquidity pool models. This module provides deterministic
- * mathematical quoting (0.3% LP fee + relayer gas) to stage the cross-chain drawer,
- * card UI, and ledger flow without executing live on-chain settlement.
- */
-
 export type BridgeQuote = {
   fromToken: string;
   toToken: string;
@@ -26,24 +18,6 @@ export type BridgeQuote = {
   estimatedTime?: string;
 };
 
-/** Indicative USD prices for token cross-conversions. */
-const PRICES: Record<string, number> = {
-  USDC: 1,
-  USDT: 1,
-  USD: 1,
-  XLM: 0.325,
-  ETH: 2450,
-  SOL: 148,
-  TRX: 0.17,
-  TON: 3.1,
-};
-
-/** Allbridge Core fee structure (0.3% LP pool fee). */
-const ALLBRIDGE_LP_FEE_RATE = 0.003;
-const ALLBRIDGE_RELAYER_FEE_USD = 0.15;
-const ALLBRIDGE_SLIPPAGE = "0.5%";
-const ALLBRIDGE_ESTIMATED_TIME = "2-4 minutes";
-
 const trim = (value: number, places = 6) =>
   Number(value.toFixed(places)).toString();
 
@@ -61,16 +35,17 @@ export function resolveChain(symbol: string, chain?: string): string {
 }
 
 /**
- * Circle CCTP v2 Cross-Chain Quoting (Stellar Testnet, Ethereum Sepolia, Base Sepolia).
+ * Circle CCTP v2 Cross-Chain Quoting (Stellar Mainnet, Base Mainnet, Ethereum Mainnet).
  * Cross-chain transfers for USDC settle 1:1 natively across Soroban and EVM TokenMessenger contracts.
- * Jumpa sponsors destination gas fees for Stellar -> EVM transfers.
+ * Jumpa sponsors destination gas fees for Stellar -> Base transfers.
+ * Stellar -> Ethereum Mainnet incurs a flat estimated L1 destination gas fee.
  */
 
 export function chainName(id: string): string {
   const low = id.toLowerCase().trim();
-  if (low === "stellar") return "Stellar Testnet";
-  if (low === "ethereum" || low === "eth") return "Ethereum Sepolia";
-  if (low === "base") return "Base Sepolia";
+  if (low === "stellar") return "Stellar";
+  if (low === "ethereum" || low === "eth") return "Ethereum";
+  if (low === "base") return "Base";
   return CHAINS[id]?.name ?? id;
 }
 
@@ -96,7 +71,7 @@ export function getBridgeQuote({
 
   if (from !== "USDC" || to !== "USDC") {
     throw new Error(
-      "Cross-chain bridging is currently supported for USDC across Stellar Testnet, Ethereum Sepolia, and Base Sepolia.",
+      "Cross-chain bridging is currently supported for USDC across Stellar, Base, and Ethereum.",
     );
   }
 
@@ -122,8 +97,14 @@ export function getBridgeQuote({
   }
 
   const isStellarSource = fromId === "stellar";
-  const feeText = isStellarSource ? "Free" : "0.00 USDC";
-  const estTime = "~15–30s";
+  const isEthereumDest = toId === "ethereum";
+  
+  // Base is sponsored; Ethereum L1 incurs an estimated 3.50 USDC relayer gas fee
+  const feeNumber = (isStellarSource && isEthereumDest) ? 3.50 : 0.00;
+  const feeText = feeNumber > 0 ? `${feeNumber.toFixed(2)} USDC` : "Sponsored";
+  const relayerText = feeNumber > 0 ? `${feeNumber.toFixed(2)} USDC` : "Sponsored";
+  const estTime = isEthereumDest ? "~1–3 mins" : "~15–30s";
+  const outputAmount = Math.max(0, input - feeNumber);
 
   return {
     fromToken: "USDC",
@@ -133,12 +114,12 @@ export function getBridgeQuote({
     fromChainName: chainName(fromId),
     toChainName: chainName(toId),
     amountIn: trim(input),
-    amountOut: trim(input, 6),
+    amountOut: trim(outputAmount, 6),
     rate: "1 USDC = 1.0000 USDC",
     fee: feeText,
     slippage: "0.0%",
     provider: "Circle CCTP v2",
-    relayerFee: isStellarSource ? "Sponsored" : "0.00 USDC",
+    relayerFee: relayerText,
     estimatedTime: estTime,
   };
 }

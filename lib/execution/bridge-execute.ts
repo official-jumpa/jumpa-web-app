@@ -18,7 +18,7 @@ import {
   erc20Abi,
 } from "viem";
 import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
-import { baseSepolia, sepolia } from "viem/chains";
+import { base, mainnet } from "viem/chains";
 import { decryptMnemonic } from "@/lib/crypto";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
@@ -31,6 +31,7 @@ import { deriveAddresses } from "@/lib/derive-addresses";
 import {
   CONTRACT_ADDRESSES,
   CCTP_DOMAINS,
+  CIRCLE_IRIS_API,
   evmAddressToBytes32,
   stellarAddressToBytes32,
   getExplorerTxUrl,
@@ -168,13 +169,13 @@ export async function executeBridge(
 
   try {
     if (fromChain === "stellar") {
-      // ── Stellar Testnet -> Base Sepolia via Circle CCTP Soroban ──
+      // ── Stellar Mainnet -> Base / Ethereum Mainnet via Circle CCTP Soroban ──
       const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
       const sourceKeypair = StellarSdk.Keypair.fromSecret(stellarKeys.secretKey);
       const sourceAddress = sourceKeypair.publicKey();
 
-      const horizon = getHorizonServer("testnet");
-      const rpc = getSorobanRpcServer("testnet");
+      const horizon = getHorizonServer("mainnet");
+      const rpc = getSorobanRpcServer("mainnet");
 
       let account: any;
       try {
@@ -183,14 +184,14 @@ export async function executeBridge(
         if (loadErr?.response?.status === 404) {
           return {
             ok: false,
-            error: "Stellar testnet account not activated. Please fund with Friendbot first.",
+            error: "Stellar account not activated. Please fund your wallet with at least 1 XLM.",
             status: 400,
           };
         }
         return {
           ok: false,
           error: loadErr?.message?.includes("fetch failed")
-            ? "Stellar testnet Horizon node unreachable. Please check connection and try again."
+            ? "Node unreachable. Please check connection and try again."
             : loadErr?.message || "Failed to load Stellar account.",
           status: 502,
         };
@@ -207,12 +208,12 @@ export async function executeBridge(
         };
       }
 
-      // Verify Stellar USDC testnet balance
-      const testnetUsdcIssuer = CONTRACT_ADDRESSES.stellar.testnet.USDC;
+      // Verify Stellar USDC mainnet balance
+      const mainnetUsdcIssuer = CONTRACT_ADDRESSES.stellar.mainnet.USDC;
       const usdcBalObj = account.balances.find(
         (b: any) =>
           b.asset_code === "USDC" &&
-          (b.asset_issuer === testnetUsdcIssuer || !testnetUsdcIssuer),
+          (b.asset_issuer === mainnetUsdcIssuer || !mainnetUsdcIssuer),
       ) || account.balances.find((b: any) => b.asset_code === "USDC");
 
       const currentBalance = usdcBalObj ? parseFloat(usdcBalObj.balance) : 0;
@@ -221,16 +222,16 @@ export async function executeBridge(
       if (currentBalance < sendAmount) {
         return {
           ok: false,
-          error: `Insufficient testnet USDC balance on Stellar (available: ${currentBalance.toFixed(2)} USDC)`,
+          error: `Insufficient USDC balance on Stellar (available: ${currentBalance.toFixed(2)} USDC)`,
           status: 400,
         };
       }
 
-      const stellarCctp = CONTRACT_ADDRESSES.cctp.testnet.stellar;
+      const stellarCctp = CONTRACT_ADDRESSES.cctp.mainnet.stellar;
       const destCctp =
         toChain === "ethereum"
-          ? CONTRACT_ADDRESSES.cctp.testnet.ethereum
-          : CONTRACT_ADDRESSES.cctp.testnet.base;
+          ? CONTRACT_ADDRESSES.cctp.mainnet.ethereum
+          : CONTRACT_ADDRESSES.cctp.mainnet.base;
       const stellarUsdcContract = stellarCctp.usdc;
       const tokenMessengerContract = stellarCctp.tokenMessenger;
 
@@ -248,7 +249,7 @@ export async function executeBridge(
       const simAccount = new StellarSdk.Account(sourceAddress, "0");
       const simTx = new StellarSdk.TransactionBuilder(simAccount, {
         fee: "100000",
-        networkPassphrase: StellarSdk.Networks.TESTNET,
+        networkPassphrase: StellarSdk.Networks.PUBLIC,
       })
         .addOperation(allowanceOp)
         .setTimeout(30)
@@ -287,7 +288,7 @@ export async function executeBridge(
           sourceAccount: accForApprove,
           keypair: sourceKeypair,
           operation: approveOp,
-          networkPassphrase: StellarSdk.Networks.TESTNET,
+          networkPassphrase: StellarSdk.Networks.PUBLIC,
         });
       }
 
@@ -326,19 +327,19 @@ export async function executeBridge(
         sourceAccount: accForBurn,
         keypair: sourceKeypair,
         operation: burnOp,
-        networkPassphrase: StellarSdk.Networks.TESTNET,
+        networkPassphrase: StellarSdk.Networks.PUBLIC,
       });
 
-      explorerUrl = getExplorerTxUrl("stellar", txHash, true);
+      explorerUrl = getExplorerTxUrl("stellar", txHash, false);
     } else {
-      // ── EVM (Base or Ethereum Sepolia) -> Stellar Testnet ──
+      // ── EVM (Base or Ethereum Mainnet) -> Stellar Mainnet ──
       const isEth = fromChain === "ethereum";
-      const evmChain = isEth ? sepolia : baseSepolia;
-      const evmRpcUrl = getRpcUrl(isEth ? "ethereum-sepolia" : "base-sepolia");
+      const evmChain = isEth ? mainnet : base;
+      const evmRpcUrl = getRpcUrl(isEth ? "ethereum" : "base");
       const evmCctp = isEth
-        ? CONTRACT_ADDRESSES.cctp.testnet.ethereum
-        : CONTRACT_ADDRESSES.cctp.testnet.base;
-      const chainLabel = isEth ? "Ethereum Sepolia" : "Base Sepolia";
+        ? CONTRACT_ADDRESSES.cctp.mainnet.ethereum
+        : CONTRACT_ADDRESSES.cctp.mainnet.base;
+      const chainLabel = isEth ? "Ethereum" : "Base";
 
       const evmAccount = mnemonicToAccount(phrase);
       const publicClient = createPublicClient({
@@ -351,7 +352,7 @@ export async function executeBridge(
         transport: http(evmRpcUrl),
       });
 
-      const stellarCctp = CONTRACT_ADDRESSES.cctp.testnet.stellar;
+      const stellarCctp = CONTRACT_ADDRESSES.cctp.mainnet.stellar;
       const sendAmount = parseUnits(amount, evmCctp.decimals);
 
       // Check EVM ETH balance for gas
@@ -361,7 +362,7 @@ export async function executeBridge(
       if (ethBalance === BigInt(0)) {
         return {
           ok: false,
-          error: `Insufficient ${chainLabel} ETH for gas. Please fund your address with testnet ETH.`,
+          error: `Insufficient ${chainLabel} ETH for gas. Please fund your address with ETH.`,
           status: 400,
         };
       }
@@ -425,21 +426,21 @@ export async function executeBridge(
         args: [sendAmount, stellarCctp.domain, forwarderBytes32, evmCctp.usdc],
       });
 
-      explorerUrl = getExplorerTxUrl(isEth ? "ethereum" : "base", txHash, true);
+      explorerUrl = getExplorerTxUrl(isEth ? "ethereum" : "base", txHash, false);
     }
 
     const fromDisplayName =
       fromChain === "stellar"
-        ? "Stellar Testnet"
+        ? "Stellar"
         : fromChain === "ethereum"
-          ? "Ethereum Sepolia"
-          : "Base Sepolia";
+          ? "Ethereum"
+          : "Base";
     const toDisplayName =
       toChain === "stellar"
-        ? "Stellar Testnet"
+        ? "Stellar"
         : toChain === "ethereum"
-          ? "Ethereum Sepolia"
-          : "Base Sepolia";
+          ? "Ethereum"
+          : "Base";
 
     // 2. Persist in database
     await connectDB();
@@ -449,7 +450,7 @@ export async function executeBridge(
       type: "BRIDGE",
       status: "PENDING",
       chain: fromChain,
-      network: "testnet",
+      network: "mainnet",
       fromAddress:
         fromChain === "stellar"
           ? derived.addresses.xlm
@@ -505,7 +506,7 @@ export async function executeBridge(
 
 /**
  * Automated Background Relayer for CCTP v2 transfers from Stellar to EVM (Ethereum / Base).
- * Polls Circle Iris for attestation and broadcasts receiveMessage automatically.
+ * Polls Circle Iris Production for attestation and broadcasts receiveMessage automatically.
  */
 function relayStellarToEvm({
   txHash,
@@ -521,11 +522,11 @@ function relayStellarToEvm({
   (async () => {
     try {
       const isEth = toChain === "ethereum";
-      const targetChain = isEth ? sepolia : baseSepolia;
-      const rpcUrl = getRpcUrl(isEth ? "ethereum-sepolia" : "base-sepolia");
+      const targetChain = isEth ? mainnet : base;
+      const rpcUrl = getRpcUrl(isEth ? "ethereum" : "base");
       const messageTransmitter = isEth
-        ? CONTRACT_ADDRESSES.cctp.testnet.ethereum.messageTransmitter
-        : CONTRACT_ADDRESSES.cctp.testnet.base.messageTransmitter;
+        ? CONTRACT_ADDRESSES.cctp.mainnet.ethereum.messageTransmitter
+        : CONTRACT_ADDRESSES.cctp.mainnet.base.messageTransmitter;
 
       const sponsoredKey = process.env.SPONSORED_FEE_EVM_KEY;
       if (!sponsoredKey) {
@@ -540,12 +541,12 @@ function relayStellarToEvm({
       let attempts = 0;
       let msgObj: any = null;
 
-      // Poll Iris sandbox for up to ~2 minutes
-      while (attempts < 40) {
+      // Poll Iris production API for up to ~3 minutes
+      while (attempts < 60) {
         await new Promise((r) => setTimeout(r, 3000));
         try {
           const res = await fetch(
-            `https://iris-api-sandbox.circle.com/v2/messages/27?transactionHash=${txHash}`,
+            `${CIRCLE_IRIS_API.mainnet}/v2/messages/27?transactionHash=${txHash}`,
             { headers: { Accept: "application/json" }, cache: "no-store" },
           );
           if (res.ok) {
@@ -569,7 +570,7 @@ function relayStellarToEvm({
         return;
       }
 
-      console.log(`[Relayer] Attestation ready! Minting on ${isEth ? "Ethereum Sepolia" : "Base Sepolia"}...`);
+      console.log(`[Relayer] Attestation ready! Minting on ${isEth ? "Ethereum" : "Base"}...`);
 
       const messageTransmitterAbi = [
         {
@@ -602,7 +603,7 @@ function relayStellarToEvm({
           $set: {
             status: "CONFIRMED",
             "bridgeDetails.mintTxHash": mintHash,
-            "bridgeDetails.mintExplorerUrl": getExplorerTxUrl(toChain, mintHash, true),
+            "bridgeDetails.mintExplorerUrl": getExplorerTxUrl(toChain, mintHash, false),
           },
         },
       );
@@ -613,7 +614,7 @@ function relayStellarToEvm({
         userId,
         tab: "transactions",
         title: "Bridge Completed",
-        body: `${amount} USDC has arrived on ${isEth ? "Ethereum Sepolia" : "Base Sepolia"}!`,
+        body: `${amount} USDC has arrived on ${isEth ? "Ethereum" : "Base"}!`,
         type: "BRIDGE_COMPLETED",
       }).catch(() => null);
     } catch (err) {

@@ -515,6 +515,8 @@ export async function queryUserTransactions(params: {
       typeMatch = [{ type: "DEPOSIT" }, { type: "ONRAMP" }];
     } else if (t === "WITHDRAW" || t === "OFFRAMP") {
       typeMatch = [{ type: "WITHDRAW" }, { type: "OFFRAMP" }];
+    } else if (t === "SAVINGS" || t === "SAVINGS_DEPOSIT") {
+      typeMatch = [{ type: "SAVINGS_DEPOSIT" }, { type: "SAVINGS_WITHDRAW" }];
     } else {
       typeMatch = [{ type: t }];
     }
@@ -525,7 +527,17 @@ export async function queryUserTransactions(params: {
         { $or: typeMatch },
       ]);
       delete query.$or;
-    } else if (t === "UTILITY" || t === "AIRTIME" || t === "DATA" || t === "DEPOSIT" || t === "ONRAMP" || t === "WITHDRAW" || t === "OFFRAMP") {
+    } else if (
+      t === "UTILITY" ||
+      t === "AIRTIME" ||
+      t === "DATA" ||
+      t === "DEPOSIT" ||
+      t === "ONRAMP" ||
+      t === "WITHDRAW" ||
+      t === "OFFRAMP" ||
+      t === "SAVINGS" ||
+      t === "SAVINGS_DEPOSIT"
+    ) {
       query.$or = typeMatch;
     } else {
       query.type = t;

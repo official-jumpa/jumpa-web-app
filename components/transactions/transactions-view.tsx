@@ -22,8 +22,12 @@ function buildFilterParams(selected: Record<string, string>): string {
   if (type && type !== "Show All") {
     if (type === "Transfer") params.set("type", "TRANSFER");
     else if (type === "Swap") params.set("type", "SWAP");
+    else if (type === "Bridge") params.set("type", "BRIDGE");
     else if (type === "Deposit") params.set("type", "DEPOSIT");
     else if (type === "Withdraw") params.set("type", "WITHDRAW");
+    else if (type === "Savings") params.set("type", "SAVINGS_DEPOSIT");
+    else if (type === "Airtime") params.set("type", "AIRTIME");
+    else if (type === "Data") params.set("type", "DATA");
     else if (type === "Utility") params.set("type", "UTILITY");
   }
 

@@ -89,22 +89,26 @@ export const TRANSACTION_FILTERS: TransactionFilter[] = [
     label: "Transaction Type",
     options: [
       "Show All",
-      "Send",
+      "Transfer",
+      "Swap",
+      "Bridge",
       "Deposit",
-      "Investment",
+      "Withdraw",
       "Savings",
-      "Credit",
       "Airtime",
       "Data",
     ],
   },
+  /* 
+  // Commented out until virtual card transactions are active in the database
   {
     label: "Card",
     options: ["Show All", "**** 4392", "**** 2141"],
   },
+  */
   {
     label: "Status",
-    options: ["Show All", "Successful", "Pending", "Failed"],
+    options: ["Show All", "Completed", "Pending", "Failed"],
   },
   {
     label: "Duration",
@@ -112,7 +116,7 @@ export const TRANSACTION_FILTERS: TransactionFilter[] = [
   },
   {
     label: "Chain",
-    options: ["Show All", "Stellar", "Solana", "Base", "Fiat"],
+    options: ["Show All", "Stellar", "Solana", "Base", "Ethereum", "Fiat"],
   },
 ];
 

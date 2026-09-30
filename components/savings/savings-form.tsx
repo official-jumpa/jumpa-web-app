@@ -35,7 +35,10 @@ export function SavingsForm({
     >
       <TransferHeader back={back} onBack={onBack} title={title} />
 
-      <div ref={fields} className="mt-6 flex flex-col gap-5">
+      {/* `mt-auto` on the CTA is slack, not a gap — a form taller than the
+          viewport has none, which jams the button against the last field. The
+          `mb-8` is the floor; `mt-auto` still spends the rest on tall screens. */}
+      <div ref={fields} className="mt-6 mb-8 flex flex-col gap-5">
         {children}
       </div>
 

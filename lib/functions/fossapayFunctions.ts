@@ -923,7 +923,7 @@ export async function updateNgnAccountWallet(
         status: "active",
       },
     },
-    { new: true }
+    { returnDocument: "after" }
   ).lean();
 }
 
@@ -938,7 +938,7 @@ export async function updateNgnAccountCustomerId(
   return NgnAccount.findByIdAndUpdate(
     ngnAccountId,
     { $set: { providerCustomerId: customerId } },
-    { new: true }
+    { returnDocument: "after" }
   ).lean();
 }
 

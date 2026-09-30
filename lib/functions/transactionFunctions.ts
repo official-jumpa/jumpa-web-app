@@ -608,7 +608,7 @@ export async function updateTransactionStatus(params: {
   return Transaction.findOneAndUpdate(
     { _id: params.id, userId: params.userId },
     update,
-    { new: true },
+    { returnDocument: "after" },
   );
 }
 
@@ -681,7 +681,7 @@ export async function updateTransactionRecord(
   const updated = await Transaction.findByIdAndUpdate(
     id,
     { $set: data },
-    { new: true },
+    { returnDocument: "after" },
   ).lean<ITransaction>();
   return updated ?? null;
 }

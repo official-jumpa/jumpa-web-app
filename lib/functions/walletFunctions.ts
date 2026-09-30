@@ -225,7 +225,7 @@ export async function updateWalletPin({
   const updatedWallet = await Wallet.findOneAndUpdate(
     { _id: walletId, userId },
     { $set: updateData },
-    { new: true },
+    { returnDocument: "after" },
   );
 
   if (!updatedWallet) {
@@ -265,7 +265,7 @@ export async function updateWalletById(
   const updated = await Wallet.findByIdAndUpdate(
     walletId,
     { $set: updateData },
-    { new: true },
+    { returnDocument: "after" },
   ).lean<IWallet>();
   return updated ?? null;
 }

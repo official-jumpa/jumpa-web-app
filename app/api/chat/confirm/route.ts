@@ -278,7 +278,7 @@ export async function POST(req: NextRequest) {
         effectiveCardData?.stats?.find((s: any) =>
           s.lead?.toLowerCase().includes("fee"),
         )?.value ||
-        (fromChain === "stellar" ? "Free (Sponsored)" : "0.00");
+        (fromChain === "stellar" ? "Sponsored" : "0.00");
 
       const transferType =
         (txParams?.transferType as "standard" | "fast") || "fast";

@@ -27,7 +27,7 @@ export async function updateUserProfile(
   const updated = await User.findByIdAndUpdate(
     userId,
     { $set: data },
-    { new: true, runValidators: true },
+    { returnDocument: "after", runValidators: true },
   ).lean<IUser>();
   if (updated) {
     logUserActivity({
@@ -50,7 +50,7 @@ export async function updateUserNickname(
   const updated = await User.findByIdAndUpdate(
     userId,
     { $set: { nickname: nickname.trim() } },
-    { new: true, runValidators: true },
+    { returnDocument: "after", runValidators: true },
   ).lean<IUser>();
   return updated ?? null;
 }
@@ -235,7 +235,7 @@ export async function saveOrUpdateBeneficiary(
 
   const doc = await Beneficiary.findOneAndUpdate(filter, update, {
     upsert: true,
-    new: true,
+    returnDocument: "after",
     setDefaultsOnInsert: true,
   });
 
@@ -296,7 +296,7 @@ export async function setUserLoginPassword(
   const updated = await User.findByIdAndUpdate(
     userId,
     { $set: { loginPasswordHash } },
-    { new: true },
+    { returnDocument: "after" },
   ).lean<IUser>();
   return updated ?? null;
 }
@@ -312,7 +312,7 @@ export async function setUserJumpaTag(
   const updated = await User.findByIdAndUpdate(
     userId,
     { $set: { jumpaTag: jumpaTag.toLowerCase().trim() } },
-    { new: true },
+    { returnDocument: "after" },
   ).lean<IUser>();
   return updated ?? null;
 }

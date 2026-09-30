@@ -122,9 +122,9 @@ export function BridgeView({
 
   const feeLabel = quote
     ? parseFloat(quote.fee) === 0
-      ? "Free (Sponsored)"
+      ? "Sponsored"
       : `${quote.fee} USDC`
-    : "Free (Sponsored)";
+    : "Sponsored";
 
   const arrivalLabel =
     quote?.estimatedTime ?? (transferMode === "fast" ? "~20 secs" : "~18 mins");
@@ -475,9 +475,8 @@ export function BridgeView({
           >
             {/* Spins with the direction it just set, so the flip reads as one motion. */}
             <ArrowDownArrowUpIcon
-              className={`size-4 transition-transform duration-500 ease-jumpa ${
-                isStellarSource ? "" : "rotate-180"
-              }`}
+              className={`size-4 transition-transform duration-500 ease-jumpa ${isStellarSource ? "" : "rotate-180"
+                }`}
             />
           </button>
 
@@ -489,9 +488,8 @@ export function BridgeView({
               </span>
               {/* Opacity and blur only — the row never resizes as a quote lands. */}
               <span
-                className={`text-xl leading-6 font-medium text-jumpa-black transition-[opacity,filter] duration-300 ease-jumpa ${
-                  quoteLoading ? "opacity-40 blur-[2px]" : "opacity-100 blur-0"
-                }`}
+                className={`text-xl leading-6 font-medium text-jumpa-black transition-[opacity,filter] duration-300 ease-jumpa ${quoteLoading ? "opacity-40 blur-[2px]" : "opacity-100 blur-0"
+                  }`}
               >
                 {quote?.toAmount ?? "0.00"}
               </span>
@@ -655,9 +653,9 @@ export function BridgeView({
           onRetry={
             failure.retry
               ? () => {
-                  setFailure(undefined);
-                  setStage("quote");
-                }
+                setFailure(undefined);
+                setStage("quote");
+              }
               : undefined
           }
           onClose={() => setFailure(undefined)}

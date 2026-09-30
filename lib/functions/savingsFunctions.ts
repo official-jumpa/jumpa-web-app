@@ -83,7 +83,7 @@ export async function updateSavingsPlanBalance(params: {
   return SavingsPlan.findOneAndUpdate(
     { _id: params.planId, userId: params.userId },
     update,
-    { new: true },
+    { returnDocument: "after" },
   );
 }
 
@@ -98,6 +98,6 @@ export async function closeSavingsPlanRecord(
   return SavingsPlan.findOneAndUpdate(
     { _id: planId, userId },
     { $set: { status: "Completed", currentAmount: 0 } },
-    { new: true },
+    { returnDocument: "after" },
   );
 }

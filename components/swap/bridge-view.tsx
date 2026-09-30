@@ -294,7 +294,7 @@ export function BridgeView({
               label="Amount received"
               value={`${formatBalance(txResult.receivedAmount)} USDC`}
             />
-            <DetailRow label="Bridge fee" value={txResult.fee} />
+            <DetailRow label="Fee" value={txResult.fee} />
             <DetailRow label="From" value={txResult.fromChain} />
             <DetailRow label="To" value={txResult.toChain} />
             <DetailRow
@@ -422,7 +422,6 @@ export function BridgeView({
 
   const balanceLine = (value: string, max?: boolean) => (
     <span className="flex items-center gap-1 text-[10px] leading-3 font-bold text-jumpa-primary-400">
-      <WalletIcon aria-hidden="true" className="size-3.5 text-jumpa-primary-600" />
       Balance: {formatBalance(value)}
       {max ? (
         <button
@@ -510,7 +509,7 @@ export function BridgeView({
             Arrival: <b className="font-bold text-jumpa-black">{arrivalLabel}</b>
           </span>
           <span>
-            Bridge Fee: <b className="font-bold text-jumpa-black">{feeLabel}</b>
+            Fee: <b className="font-bold text-jumpa-black">{feeLabel}</b>
           </span>
         </p>
       </div>
@@ -617,7 +616,7 @@ export function BridgeView({
           <DetailList tone="secondary">
             <DetailRow label="Source network" value={sourceChainName} />
             <DetailRow label="Destination network" value={destChainName} />
-            <DetailRow label="Bridge Fee" value={feeLabel} />
+            <DetailRow label="Fee" value={feeLabel} />
             <DetailRow label="Estimated arrival" value={arrivalLabel} />
             <DetailRow
               label="Recipient"

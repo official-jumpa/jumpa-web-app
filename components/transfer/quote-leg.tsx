@@ -79,10 +79,6 @@ export function QuoteLeg({
 
         {balance === undefined ? null : (
           <span className="flex items-center gap-1 text-[10px] leading-3 font-bold text-jumpa-primary-400">
-            <WalletIcon
-              aria-hidden="true"
-              className="size-3.5 text-jumpa-primary-600"
-            />
             Balance: {formatBalance(balance)}
           </span>
         )}

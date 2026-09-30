@@ -356,7 +356,7 @@ export async function POST(req: NextRequest) {
           { value: `- ${fromAmount} ${fromToken} (${bridgeResult.fromChain})` },
           { value: `+ ${toAmount} ${toToken} (${bridgeResult.toChain})` },
           { lead: "Provider ", value: "Circle CCTP v2" },
-          { lead: "Bridge Fee ", value: fee },
+          { lead: "Fee ", value: fee },
           {
             lead: "Recipient ",
             value: recipientAddress

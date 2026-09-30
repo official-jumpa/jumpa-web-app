@@ -392,7 +392,7 @@ export function BankTransferForm({
             Recent accounts
           </h2>
           <ul className="flex flex-col gap-4 rounded-surface bg-jumpa-primary-50 px-4 py-4">
-            {recentAccounts.slice(0, 4).map((entry) => (
+            {recentAccounts.slice(0, 5).map((entry) => (
               <li key={entry.id}>
                 <OptionRow
                   Icon={CircleInformationIcon}

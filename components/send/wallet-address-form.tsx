@@ -20,9 +20,7 @@ import { getAssetLogo } from "@/lib/assets";
 import {
   NETWORKS,
   NETWORK_CONFIGS,
-  RECENT_WALLETS,
   shortenAddress,
-  SUPPORTED_SEND_CHAINS,
   type WalletContact,
 } from "@/lib/transfer";
 import { revealFirstError } from "@/lib/validation";
@@ -56,11 +54,15 @@ export function WalletAddressForm({
   onChange,
   onPickRecent,
   onProceed,
+  recentWallets = [],
+  isLoadingRecents = false,
 }: {
   form: WalletForm;
   onChange: (next: WalletForm) => void;
   onPickRecent: (contact: WalletContact) => void;
   onProceed: () => void;
+  recentWallets?: WalletContact[];
+  isLoadingRecents?: boolean;
 }) {
   const [error, setError] = useState<string>();
   const fields = useRef<HTMLDivElement>(null);
@@ -203,9 +205,19 @@ export function WalletAddressForm({
           <h2 className="text-xs leading-5 font-medium text-jumpa-black">
             Recent accounts
           </h2>
-          {RECENT_WALLETS.length > 0 ? (
+          {isLoadingRecents ? (
+            <div className="flex flex-col gap-3 rounded-surface bg-jumpa-primary-50 px-4 py-4 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="size-10 rounded-full bg-jumpa-primary-200" />
+                <div className="flex flex-col gap-1.5 flex-1">
+                  <div className="h-4 w-28 rounded bg-jumpa-primary-200" />
+                  <div className="h-3 w-40 rounded bg-jumpa-primary-200" />
+                </div>
+              </div>
+            </div>
+          ) : recentWallets.length > 0 ? (
             <ul className="flex flex-col gap-4 rounded-surface bg-jumpa-primary-50 px-4 py-4">
-              {RECENT_WALLETS.map((contact) => (
+              {recentWallets.slice(0, 5).map((contact) => (
                 <li key={contact.id}>
                   <OptionRow
                     media={
@@ -230,9 +242,6 @@ export function WalletAddressForm({
               <span className="flex flex-col items-center gap-1 text-center">
                 <span className="text-base leading-5 font-bold text-jumpa-black">
                   No recent accounts
-                </span>
-                <span className="text-sm leading-4 font-medium text-jumpa-neutral-300">
-                  {SUPPORTED_SEND_CHAINS}
                 </span>
               </span>
             </div>

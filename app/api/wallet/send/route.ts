@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import * as bip39 from "bip39";
-import { derivePath } from "ed25519-hd-key";
-import { Keypair as SolanaKeypair } from "@solana/web3.js";
-import { HDKey } from "@scure/bip32";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { findWalletForUser, findWalletByAddress } from "@/lib/functions/walletFunctions";
 import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
-import { logUserActivity } from "@/lib/functions/userFunctions";
+import { logUserActivity, saveOrUpdateBeneficiary } from "@/lib/functions/userFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { sendTokenSchema } from "@/lib/validations/wallet.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { decryptMnemonic } from "@/lib/crypto";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { deriveStellarKeypairFromMnemonic } from "@/lib/chains/stellar";
-import { NETWORK_CONFIGS } from "@/lib/transfer";
+import { NETWORK_CONFIGS, shortenAddress } from "@/lib/transfer";
 import {
   sendStellar,
   sendSolana,
@@ -209,7 +204,20 @@ export async function POST(req: NextRequest) {
       link: tx?._id ? `/transactions` : undefined,
     }).catch((e) => console.error("[Wallet Send] Notification error:", e));
 
-    // 3. Detect internal recipient and notify them of funds received
+    // 3. Save / Update Wallet Beneficiary for sender's recent list
+    saveOrUpdateBeneficiary(session.user.id, {
+      type: "wallet",
+      name: shortenAddress(recipient.trim()),
+      identifier: `${config.chain}:${recipient.trim().toLowerCase()}`,
+      details: {
+        walletAddress: recipient.trim(),
+        chain: config.chain,
+        network: networkName,
+        memo: memo?.trim() || "",
+      },
+    }).catch((e) => console.error("Beneficiary save error:", e));
+
+    // 4. Detect internal recipient and notify them of funds received
     try {
       const recipientWallet = await findWalletByAddress(recipient.trim());
       if (recipientWallet?.userId && recipientWallet.userId !== session.user.id) {

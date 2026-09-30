@@ -100,18 +100,8 @@ export type WalletContact = {
   handle: string;
   network: string;
   address: string;
+  memo?: string;
 };
-
-/**
- * "Recent accounts" on the wallet-address form. Empty at the client's ask —
- * there are no transactions yet, so the form shows its empty state. The
- * design's three placeholder contacts are in git history.
- */
-export const RECENT_WALLETS: WalletContact[] = [];
-
-// TODO(content): the empty state's caption. Hardcoded — `NETWORK_CONFIGS` only
-// carries the two Stellar networks, so this cannot be derived yet.
-export const SUPPORTED_SEND_CHAINS = "Stellar, Solana, Base";
 
 /** Quick-fill chips above the keypad; MAX is rendered alongside them. */
 export const QUICK_AMOUNTS = [5, 25, 50, 100] as const;

@@ -20,7 +20,7 @@ import { getAssetLogo } from "@/lib/assets";
 import { usdEquivalent } from "@/lib/token-amount";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import { invalidateClientBalances } from "@/lib/client-events";
-import { NETWORK_CONFIGS, shortenAddress } from "@/lib/transfer";
+import { NETWORK_CONFIGS, shortenAddress, type WalletContact } from "@/lib/transfer";
 
 type Stage = "form" | "amount" | "done";
 type Sheet = "review" | "pin" | null;
@@ -53,6 +53,9 @@ export function WalletAddressView({
   const [liveBalance, setLiveBalance] = useState("$0.00");
   /** Live price for the selected asset, straight off `/api/wallet/balance`. */
   const [priceUsd, setPriceUsd] = useState<string>();
+
+  const [recentWallets, setRecentWallets] = useState<WalletContact[]>([]);
+  const [isLoadingRecents, setIsLoadingRecents] = useState(true);
 
   const currentConfig =
     NETWORK_CONFIGS[form.network] || NETWORK_CONFIGS["Stellar Mainnet"];
@@ -114,6 +117,42 @@ export function WalletAddressView({
       isMounted = false;
     };
   }, [form.asset, form.network, currentConfig.chain, currentConfig.network]);
+
+  // Fetch recent wallet beneficiaries
+  useEffect(() => {
+    let isMounted = true;
+    async function loadRecentWallets() {
+      try {
+        const res = await fetch("/api/beneficiaries?type=wallet");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (isMounted && Array.isArray(data.beneficiaries)) {
+          const mapped: WalletContact[] = data.beneficiaries.map((b: any) => {
+            const rawAddress =
+              b.details?.walletAddress ||
+              (b.identifier?.includes(":") ? b.identifier.split(":")[1] : b.identifier) ||
+              "";
+            return {
+              id: b._id,
+              handle: b.name || shortenAddress(rawAddress),
+              network: b.details?.network || "Stellar Mainnet",
+              address: rawAddress,
+              memo: b.details?.memo || "",
+            };
+          });
+          setRecentWallets(mapped);
+        }
+      } catch (err) {
+        console.warn("Failed to load recent wallets:", err);
+      } finally {
+        if (isMounted) setIsLoadingRecents(false);
+      }
+    }
+    loadRecentWallets();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // A rejected PIN stays in the sheet, where it can be retyped. Anything else
   // ended the attempt, so it leaves the sheet and says so in plain copy.
@@ -299,14 +338,25 @@ export function WalletAddressView({
       <WalletAddressForm
         form={form}
         onChange={setForm}
-        onPickRecent={(contact) =>
+        recentWallets={recentWallets}
+        isLoadingRecents={isLoadingRecents}
+        onPickRecent={(contact) => {
+          const targetNetwork =
+            contact.network && NETWORK_CONFIGS[contact.network]
+              ? contact.network
+              : "Stellar Mainnet";
+          const config = NETWORK_CONFIGS[targetNetwork];
+          const defaultAsset = config?.assets?.[0] || "USDC";
+
           setForm({
             ...form,
             address: contact.address,
-            network: contact.network,
+            network: targetNetwork,
+            asset: defaultAsset,
+            memo: contact.memo || "",
             pasted: false,
-          })
-        }
+          });
+        }}
         onProceed={() => setStage("amount")}
       />
     </div>

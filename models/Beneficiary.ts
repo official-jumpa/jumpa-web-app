@@ -16,6 +16,7 @@ export interface IBeneficiaryDetails {
   jumpaTag?: string;
   email?: string;
   phone?: string;
+  memo?: string;
 }
 
 export interface IBeneficiary {

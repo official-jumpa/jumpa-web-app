@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  joinWaitlist,
-  getWaitlistEntry,
-  getWaitlistPosition,
-  getWaitlistStats,
-} from "@/lib/functions/waitlistFunctions";
-import {
-  joinWaitlistSchema,
-  checkWaitlistSchema,
-} from "@/lib/validations/waitlist.validation";
+import { joinWaitlist } from "@/lib/functions/waitlistFunctions";
+import { joinWaitlistSchema } from "@/lib/validations/waitlist.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
-import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { enforceRateLimit } from "@/lib/functions/rateLimitFunctions";
 import { sendWaitlistWelcomeEmail } from "@/lib/email-notifications";
 
@@ -52,7 +43,7 @@ export async function POST(req: NextRequest) {
         email: validation.data.email,
         customerName: validation.data.name,
       }).catch((err) => {
-        console.error("[waitlist] Welcome email dispatch error:", err);
+        console.error("[waitlist] error:", err);
       });
     }
 
@@ -74,49 +65,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
-/**
- * GET /api/waitlist?email=...
- * Queries a user's status/position or returns global stats.
- * 
- * @todo : Remove this API after beta launch
- */
-// export async function GET(req: NextRequest) {
-//   try {
-//     const auth = await requireActiveUser();
-//     if (!auth.ok) return auth.response;
-//     const email = req.nextUrl.searchParams.get("email");
-
-//     if (!email) {
-//       const stats = await getWaitlistStats();
-//       return NextResponse.json({ success: true, stats });
-//     }
-
-//     const validation = checkWaitlistSchema.safeParse({ email });
-//     if (!validation.success) {
-//       return NextResponse.json(formatZodError(validation.error), { status: 400 });
-//     }
-
-//     const entry = await getWaitlistEntry(validation.data.email);
-//     if (!entry) {
-//       return NextResponse.json(
-//         { error: "Email not found on waitlist" },
-//         { status: 404 },
-//       );
-//     }
-
-//     const position = await getWaitlistPosition(entry.createdAt);
-
-//     return NextResponse.json({
-//       success: true,
-//       waitlist: entry,
-//       position,
-//     });
-//   } catch (err: any) {
-//     console.error("[GET /api/waitlist] Error:", err);
-//     return NextResponse.json(
-//       { error: err.message || "Failed to query waitlist" },
-//       { status: 500 },
-//     );
-//   }
-// }

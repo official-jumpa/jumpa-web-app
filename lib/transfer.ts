@@ -41,34 +41,6 @@ export type BankAccount = {
   number: string;
 };
 
-/** "Recent accounts" on the bank-transfer form. Empty hides the section. */
-export const RECENT_BANK_ACCOUNTS: BankAccount[] = [
-  {
-    id: "olafunke",
-    name: "Olafunke Mariam",
-    bank: "UBA",
-    number: "2319383829",
-  },
-  {
-    id: "chinedu",
-    name: "Chinedu Okafor",
-    bank: "GTBank",
-    number: "0048392012",
-  },
-  {
-    id: "amina",
-    name: "Amina Yusuf",
-    bank: "Access Bank",
-    number: "8723498723",
-  },
-  {
-    id: "emeka",
-    name: "Emeka Nwosu",
-    bank: "Zenith Bank",
-    number: "9988776655",
-  },
-];
-
 /** Placeholder names the stub resolver returns. Not real account holders. */
 const RESOLVED_NAMES = [
   "Adekunle Michael",
@@ -154,8 +126,8 @@ export type BalanceBucket = {
 
 export const BALANCE_BUCKETS: BalanceBucket[] = [
   { id: "savings", label: "Savings", amount: "$0.00" },
-  { id: "credit", label: "Credit", amount: null },
-  { id: "commercial-paper", label: "Commercial paper", amount: "$0.00" },
+  // { id: "credit", label: "Credit", amount: null },
+  // { id: "commercial-paper", label: "Commercial paper", amount: "$0.00" },
   {
     id: "available",
     label: "Available",
@@ -163,17 +135,6 @@ export const BALANCE_BUCKETS: BalanceBucket[] = [
     amount: "$0.00",
   },
 ];
-
-/** Placeholder swap quote until the DEX route is wired in. */
-export const SWAP_QUOTE = {
-  rate: 3.25,
-  provider: "Soroswap",
-  networkFee: "0.001 XLM (~$0.001)",
-  slippage: "0.5%",
-  settlement: "3-5 seconds",
-  /** Seconds a quote stays valid, as the design states it. */
-  lockSeconds: 30,
-};
 
 /**
  * Digits with one dot, clamped to the asset's own precision. Defaults to fiat,
@@ -313,13 +274,3 @@ export function depositNotes(
     "Funds arrive in your Jumpa wallet few seconds after confirmation",
   ];
 }
-
-
-/**‼️ MOCK Spendable balance the transfer screens show until live balances land. */
-export const SEND_BALANCE = { symbol: "USDC", balance: "$450.50" };
-
-/** ‼️ MOCK prices for the pair the swap screen opens on. */
-export const SWAP_PAIR = {
-  from: { symbol: "USDC", balance: "$450.50" },
-  to: { symbol: "XLM", balance: "0.00" },
-};

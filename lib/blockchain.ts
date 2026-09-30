@@ -341,30 +341,6 @@ export const CHAINS: Record<string, ChainDef> = {
     address: "",
     walletKey: "base",
   },
-
-  // TODO: Tron support — when ready:
-  //   1. Add `trx: string` to IWallet.addresses in models/Wallet.ts + WalletSchema
-  //   2. Set walletKey: "trx" below and remove the `unavailable` flag
-  //   3. Add Tron address derivation in lib/derive-addresses.ts
-  tron: {
-    id: "tron",
-    name: "Tron",
-    caption: "Tron network (TRC-20)",
-    address: "Unavailable",
-    unavailable: true,
-  },
-
-  // TODO: TON support — when ready:
-  //   1. Add `ton: string` to IWallet.addresses in models/Wallet.ts + WalletSchema
-  //   2. Set walletKey: "ton" below and remove the `unavailable` flag
-  //   3. Add TON address derivation in lib/derive-addresses.ts
-  ton: {
-    id: "ton",
-    name: "TON",
-    caption: "The Open Network",
-    address: "Unavailable",
-    unavailable: true,
-  },
 };
 
 /** Where each asset can be received, in the order the picker offers them. */
@@ -394,7 +370,6 @@ export const NETWORKS = ["stellar", "base", "solana", "ethereum"].map((id) => ({
 
 /**
  * Injects real wallet addresses into a chain list.
- *
  * Supported chains (stellar, solana, ethereum, base) get the user's actual
  * address from their wallet record. Chains marked `unavailable` are passed
  * through unchanged (address stays "Unavailable").

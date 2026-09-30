@@ -30,7 +30,6 @@ export function AssetList({ assets, visible = false }: AssetListProps) {
       <ul className="-mx-4.5 flex snap-x scroll-pl-4.5 gap-2 overflow-x-auto px-4.5 [scrollbar-width:none]">
         {assets.map((asset, index) => (
           <li
-            // Placeholder data repeats the same asset, so the index is the key.
             key={`${asset.symbol}-${index}`}
             className="shrink-0 snap-start"
           >

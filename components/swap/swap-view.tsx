@@ -23,7 +23,7 @@ import { useSwapQuote } from "@/hooks/use-swap-quote";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import { invalidateClientBalances } from "@/lib/client-events";
 import { decimalsFor } from "@/lib/token-amount";
-import { sanitiseAmount, SWAP_QUOTE } from "@/lib/transfer";
+import { sanitiseAmount } from "@/lib/transfer";
 
 import {
   BridgeView,
@@ -216,41 +216,39 @@ export function SwapView({
     >
       {/* ── Header ── */}
       {bridgeDone ? null : (
-      <ScreenHeader
-        back="/home"
-        onBack={
-          mode === "swap" && stage === "review"
-            ? () => setStage("quote")
-            : undefined
-        }
-        /* The thumb slides between the two tabs, so the switch reads as one control. */
-        center={
-          <div className="relative flex items-center rounded-pill border border-jumpa-neutral-100 bg-jumpa-neutral-90 p-1">
-            <span
-              aria-hidden="true"
-              className={`absolute top-1 bottom-1 left-1 w-[calc(50%-0.25rem)] rounded-pill bg-jumpa-white shadow-jumpa-sm transition-transform duration-300 ease-jumpa ${
-                mode === "bridge" ? "translate-x-full" : "translate-x-0"
-              }`}
-            />
-            {MODES.map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setMode(tab)}
-                aria-pressed={mode === tab}
-                className={`tap relative z-10 w-20 rounded-pill py-1 text-xs font-semibold capitalize transition-colors ${
-                  mode === tab
-                    ? "text-jumpa-black"
-                    : "text-jumpa-neutral-425 hover:text-jumpa-black"
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-        }
-        round
-      />
+        <ScreenHeader
+          back="/home"
+          onBack={
+            mode === "swap" && stage === "review"
+              ? () => setStage("quote")
+              : undefined
+          }
+          /* The thumb slides between the two tabs, so the switch reads as one control. */
+          center={
+            <div className="relative flex items-center rounded-pill border border-jumpa-neutral-100 bg-jumpa-neutral-90 p-1">
+              <span
+                aria-hidden="true"
+                className={`absolute top-1 bottom-1 left-1 w-[calc(50%-0.25rem)] rounded-pill bg-jumpa-white shadow-jumpa-sm transition-transform duration-300 ease-jumpa ${mode === "bridge" ? "translate-x-full" : "translate-x-0"
+                  }`}
+              />
+              {MODES.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setMode(tab)}
+                  aria-pressed={mode === tab}
+                  className={`tap relative z-10 w-20 rounded-pill py-1 text-xs font-semibold capitalize transition-colors ${mode === tab
+                      ? "text-jumpa-black"
+                      : "text-jumpa-neutral-425 hover:text-jumpa-black"
+                    }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          }
+          round
+        />
       )}
 
       {mode === "bridge" ? (
@@ -392,8 +390,8 @@ export function SwapView({
                 Review swap
               </Button>
             </div>
-
-            <QuoteLockNote seconds={SWAP_QUOTE.lockSeconds} />
+            {/* lock the quote for 30 secs */}
+            <QuoteLockNote seconds={30} />
           </div>
 
           {/* ── Review sheet ── */}
@@ -449,9 +447,9 @@ export function SwapView({
               onRetry={
                 failure.retry
                   ? () => {
-                      setFailure(undefined);
-                      setStage("quote");
-                    }
+                    setFailure(undefined);
+                    setStage("quote");
+                  }
                   : undefined
               }
               onClose={() => setFailure(undefined)}

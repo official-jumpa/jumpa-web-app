@@ -27,17 +27,6 @@ export async function getWaitlistPosition(createdAt: Date): Promise<number> {
 }
 
 /**
- * Retrieves a waitlist entry by email.
- */
-export async function getWaitlistEntry(
-  email: string,
-): Promise<IWaitlist | null> {
-  await connectDB();
-  const normalizedEmail = email.trim().toLowerCase();
-  return Waitlist.findOne({ email: normalizedEmail }).lean<IWaitlist>();
-}
-
-/**
  * Adds a user to the waitlist or returns their existing entry.
  */
 export async function joinWaitlist(
@@ -84,13 +73,4 @@ export async function joinWaitlist(
     waitlist: newEntry.toObject ? newEntry.toObject() : newEntry,
     position,
   };
-}
-
-/**
- * Returns overall waitlist metrics.
- */
-export async function getWaitlistStats(): Promise<{ total: number }> {
-  await connectDB();
-  const total = await Waitlist.countDocuments();
-  return { total };
 }

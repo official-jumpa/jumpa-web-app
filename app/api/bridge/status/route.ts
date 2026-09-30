@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
     try {
       const irisRes = await fetch(
-        `${CIRCLE_IRIS_API.testnet}/v2/messages/${domain}?transactionHash=${txHash}`,
+        `${CIRCLE_IRIS_API.mainnet}/v2/messages/${domain}?transactionHash=${txHash}`,
         {
           headers: { Accept: "application/json" },
           next: { revalidate: 0 },

@@ -16,6 +16,7 @@ import {
   http,
   parseUnits,
   erc20Abi,
+  getAddress,
 } from "viem";
 import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 import { base, mainnet } from "viem/chains";
@@ -181,6 +182,7 @@ export async function executeBridge(
       try {
         account = await horizon.loadAccount(sourceAddress);
       } catch (loadErr: any) {
+        console.log("Failed to bridge", loadErr);
         if (loadErr?.response?.status === 404) {
           return {
             ok: false,
@@ -586,7 +588,7 @@ function relayStellarToEvm({
       ] as const;
 
       const mintHash = await walletClient.writeContract({
-        address: messageTransmitter,
+        address: getAddress(messageTransmitter),
         abi: messageTransmitterAbi,
         functionName: "receiveMessage",
         args: [msgObj.message as `0x${string}`, msgObj.attestation as `0x${string}`],

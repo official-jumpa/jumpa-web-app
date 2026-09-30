@@ -66,7 +66,7 @@ export const CONTRACT_ADDRESSES = {
         decimals: 6,
       },
       cNGN: {
-        address: "0x2F7817441fcC56543b5C27C7f28243171887eD60" as `0x${string}`,
+        address: "0x2F7817441fcc56543b5c27C7F28243171887ED60" as `0x${string}`,
         decimals: 6,
       },
     },
@@ -129,15 +129,15 @@ export const CONTRACT_ADDRESSES = {
       },
       base: {
         domain: 6,
-        tokenMessenger: "0x1682Ae6375C4E4A97e4B583BC394c361A6F41f5e" as `0x${string}`,
-        messageTransmitter: "0xAD09780d193884d503182aD4588450C416d6F9D4" as `0x${string}`,
+        tokenMessenger: "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d" as `0x${string}`,
+        messageTransmitter: "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64" as `0x${string}`,
         usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as `0x${string}`,
         decimals: 6,
       },
       ethereum: {
         domain: 0,
-        tokenMessenger: "0xBd3fa81B58Ba92a82136038B25aDec7066af3155" as `0x${string}`,
-        messageTransmitter: "0x0a992d191DEeC32aFe36203Ad87D7d289a738F81" as `0x${string}`,
+        tokenMessenger: "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d" as `0x${string}`,
+        messageTransmitter: "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64" as `0x${string}`,
         usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" as `0x${string}`,
         decimals: 6,
       },

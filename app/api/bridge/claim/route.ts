@@ -3,8 +3,8 @@ import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { CIRCLE_IRIS_API, CONTRACT_ADDRESSES, getRpcUrl, getExplorerTxUrl } from "@/lib/blockchain";
 import { decryptMnemonic } from "@/lib/crypto";
 import { mnemonicToAccount } from "viem/accounts";
-import { createWalletClient, createPublicClient, http } from "viem";
-import { baseSepolia, sepolia } from "viem/chains";
+import { createWalletClient, createPublicClient, http, getAddress } from "viem";
+import { base, mainnet } from "viem/chains";
 import { Wallet } from "@/models/Wallet";
 import { connectDB } from "@/lib/db";
 
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Fetch attestation from Iris
     const irisRes = await fetch(
-      `${CIRCLE_IRIS_API.testnet}/v2/messages/${domain}?transactionHash=${txHash}`,
+      `${CIRCLE_IRIS_API.mainnet}/v2/messages/${domain}?transactionHash=${txHash}`,
       { headers: { Accept: "application/json" }, cache: "no-store" },
     );
 
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       } catch {}
     }
     const isEth = targetChain === "ethereum";
-    const chainName = isEth ? "Ethereum Sepolia" : "Base Sepolia";
+    const chainName = isEth ? "Ethereum" : "Base";
     const chainKey = isEth ? "ethereum" : "base";
 
     // If already minted by Iris or relayer
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
         ok: true,
         alreadyMinted: true,
         mintTxHash: destinationMintTxHash,
-        explorerUrl: getExplorerTxUrl(chainKey, destinationMintTxHash, true),
+        explorerUrl: getExplorerTxUrl(chainKey, destinationMintTxHash, false),
         message: "USDC has already been minted on destination chain.",
       });
     }
@@ -115,8 +115,8 @@ export async function POST(req: NextRequest) {
 
     // 3. Submit receiveMessage on destination EVM chain
     const evmAccount = mnemonicToAccount(phrase);
-    const targetViemChain = isEth ? sepolia : baseSepolia;
-    const rpcUrl = getRpcUrl(isEth ? "ethereum-sepolia" : "base-sepolia");
+    const targetViemChain = isEth ? mainnet : base;
+    const rpcUrl = getRpcUrl(isEth ? "ethereum" : "base");
 
     const publicClient = createPublicClient({
       chain: targetViemChain,
@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            `Your ${chainName} address needs a tiny amount of testnet ETH to pay the gas fee to mint. Please get free testnet ETH at faucets.chain.link or use Fast Transfer for zero-gas automatic minting.`,
+            `Your ${chainName} address needs a small amount of ETH to pay the gas fee to mint. Or use Fast Transfer for zero-gas automatic minting.`,
           needsGas: true,
           address: evmAccount.address,
         },
@@ -158,11 +158,11 @@ export async function POST(req: NextRequest) {
     ] as const;
 
     const messageTransmitter = isEth
-      ? CONTRACT_ADDRESSES.cctp.testnet.ethereum.messageTransmitter
-      : CONTRACT_ADDRESSES.cctp.testnet.base.messageTransmitter;
+      ? CONTRACT_ADDRESSES.cctp.mainnet.ethereum.messageTransmitter
+      : CONTRACT_ADDRESSES.cctp.mainnet.base.messageTransmitter;
 
     const mintTxHash = await walletClient.writeContract({
-      address: messageTransmitter,
+      address: getAddress(messageTransmitter),
       abi: messageTransmitterAbi,
       functionName: "receiveMessage",
       args: [message as `0x${string}`, attestation as `0x${string}`],
@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       mintTxHash,
-      explorerUrl: getExplorerTxUrl(chainKey, mintTxHash, true),
+      explorerUrl: getExplorerTxUrl(chainKey, mintTxHash, false),
       message: `Successfully submitted receiveMessage! USDC minted on ${chainName}.`,
     });
   } catch (error: any) {

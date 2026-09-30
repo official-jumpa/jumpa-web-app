@@ -203,7 +203,7 @@ export async function POST(req: NextRequest) {
 
       if (stepResponse.mode === "chat") {
         console.log(
-          `[Chat Send] AI text response (Turn ${turn}): "${stepResponse.message.slice(0, 80)}..."`,
+          `[Chat Send] AI text response (Turn ${turn}): "${stepResponse.message}"`,
         );
         finalAssistantContent = stepResponse.message;
         break;

@@ -10,6 +10,7 @@ export const metadata: Metadata = { title: "Swap" };
 
 export default async function SwapPage() {
   let stellarBalances = { xlm: "0.00", usdc: "0.00" };
+  let solanaBalances = { sol: "0.00", usdc: "0.00", usdt: "0.00" };
   let bridgeBalances = {
     stellarUsdc: "0.00",
     baseUsdc: "0.00",
@@ -19,6 +20,7 @@ export default async function SwapPage() {
     stellar: "",
     base: "",
     ethereum: "",
+    solana: "",
   };
 
   try {
@@ -30,21 +32,37 @@ export default async function SwapPage() {
           stellar: balances.addresses.xlm || "",
           base: balances.addresses.base || "",
           ethereum: balances.addresses.eth || balances.addresses.base || "",
+          solana: balances.addresses.sol || "",
         };
       }
       if (balances?.tokens) {
         const xlmToken = balances.tokens.find(
           (t) => t.symbol === "XLM" && !t.isTestnet,
         );
-        const usdcToken = balances.tokens.find(
+        const usdcStellarToken = balances.tokens.find(
           (t) => t.symbol === "USDC" && !t.isTestnet && t.network?.toLowerCase().includes("stellar"),
         );
         stellarBalances = {
           xlm: xlmToken?.balance || "0.00",
-          usdc: usdcToken?.balance || "0.00",
+          usdc: usdcStellarToken?.balance || "0.00",
         };
 
-        const mainnetStellarUsdc = usdcToken?.balance || "0.00";
+        const solToken = balances.tokens.find(
+          (t) => t.symbol === "SOL" && !t.isTestnet,
+        );
+        const usdcSolanaToken = balances.tokens.find(
+          (t) => t.symbol === "USDC" && !t.isTestnet && t.network?.toLowerCase().includes("solana"),
+        );
+        const usdtSolanaToken = balances.tokens.find(
+          (t) => t.symbol === "USDT" && !t.isTestnet && t.network?.toLowerCase().includes("solana"),
+        );
+        solanaBalances = {
+          sol: solToken?.balance || "0.00",
+          usdc: usdcSolanaToken?.balance || "0.00",
+          usdt: usdtSolanaToken?.balance || "0.00",
+        };
+
+        const mainnetStellarUsdc = usdcStellarToken?.balance || "0.00";
         const mainnetBaseToken = balances.tokens.find(
           (t) =>
             t.symbol === "USDC" &&
@@ -86,6 +104,7 @@ export default async function SwapPage() {
   return (
     <SwapView
       stellarBalances={stellarBalances}
+      solanaBalances={solanaBalances}
       bridgeBalances={bridgeBalances}
       walletAddresses={walletAddresses}
     />

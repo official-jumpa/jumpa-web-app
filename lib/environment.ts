@@ -43,7 +43,7 @@ export const environment = {
       ? process.env.ALCHEMY_MAINNET_RPC
       : "") ||
     (process.env.SOL_MAINNET &&
-    !process.env.SOL_MAINNET.includes("api.mainnet-beta.solana.com")
+      !process.env.SOL_MAINNET.includes("api.mainnet-beta.solana.com")
       ? process.env.SOL_MAINNET
       : "") ||
     (process.env.ALCHEMY_API_KEY
@@ -68,11 +68,11 @@ export const environment = {
   ALCHEMY_API_KEY: process.env.ALCHEMY_API_KEY || "",
   ALCHEMY_ETH_MAINNET_RPC:
     (process.env.ALCHEMY_ETH_MAINNET_RPC &&
-    !process.env.ALCHEMY_ETH_MAINNET_RPC.includes("solana")
+      !process.env.ALCHEMY_ETH_MAINNET_RPC.includes("solana")
       ? process.env.ALCHEMY_ETH_MAINNET_RPC
       : "") ||
     (process.env.ALCHEMY_MAINNET_RPC &&
-    !process.env.ALCHEMY_MAINNET_RPC.includes("solana")
+      !process.env.ALCHEMY_MAINNET_RPC.includes("solana")
       ? process.env.ALCHEMY_MAINNET_RPC
       : "") ||
     (process.env.ALCHEMY_API_KEY
@@ -80,11 +80,11 @@ export const environment = {
       : "https://eth.drpc.org"),
   ALCHEMY_MAINNET_RPC:
     (process.env.ALCHEMY_ETH_MAINNET_RPC &&
-    !process.env.ALCHEMY_ETH_MAINNET_RPC.includes("solana")
+      !process.env.ALCHEMY_ETH_MAINNET_RPC.includes("solana")
       ? process.env.ALCHEMY_ETH_MAINNET_RPC
       : "") ||
     (process.env.ALCHEMY_MAINNET_RPC &&
-    !process.env.ALCHEMY_MAINNET_RPC.includes("solana")
+      !process.env.ALCHEMY_MAINNET_RPC.includes("solana")
       ? process.env.ALCHEMY_MAINNET_RPC
       : "") ||
     (process.env.ALCHEMY_API_KEY
@@ -92,7 +92,7 @@ export const environment = {
       : "https://eth.drpc.org"),
   ALCHEMY_BASE_MAINNET_RPC:
     (process.env.ALCHEMY_BASE_MAINNET_RPC &&
-    !process.env.ALCHEMY_BASE_MAINNET_RPC.includes("solana")
+      !process.env.ALCHEMY_BASE_MAINNET_RPC.includes("solana")
       ? process.env.ALCHEMY_BASE_MAINNET_RPC
       : "") ||
     (process.env.ALCHEMY_API_KEY
@@ -196,6 +196,10 @@ export const environment = {
   CENTIIV_BASE_URL: process.env.CENTIIV_BASE_URL || "",
   CENTIIV_PUBLIC_KEY: process.env.CENTIIV_PUBLIC_KEY || "",
   CENTIIV_SECRET_KEY: process.env.CENTIIV_SECRET_KEY || "",
+
+  // JUPITER
+  JUPITER_API_KEY: process.env.JUPITER_API_KEY || "",
+  JUPITER_BASE_URL: process.env.JUPITER_BASE_URL || "https://api.jup.ag/swap/v2",
 };
 
 export default environment;

@@ -56,6 +56,7 @@ export type SwapBuildInput = z.infer<typeof swapBuildSchema>;
 export const swapExecuteSchema = z.object({
   pin: pinSchema,
   rawQuote: z.any().refine((q) => Boolean(q), { message: "rawQuote is required" }),
+  chain: z.string().trim().optional(),
   network: z.enum(["testnet", "mainnet"]).optional(),
   fromToken: z
     .string({

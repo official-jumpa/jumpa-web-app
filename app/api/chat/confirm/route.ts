@@ -14,7 +14,7 @@ import {
   resolveChainPrivateKey,
 } from "@/lib/chains/transfer-service";
 import { decryptMnemonic } from "@/lib/crypto";
-import { executeSwap } from "@/lib/execution/stellar-swap";
+import { executeStellarSwap } from "@/lib/execution/stellar-swap";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { generateId } from "@/lib/schema-ids";
 import { SwitchService } from "@/lib/switch";
@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
         console.warn("[Chat Confirm] No rawQuote found");
       }
 
-      const swapResult = await executeSwap({
+      const swapResult = await executeStellarSwap({
         wallet,
         pin,
         rawQuote: rawQuote || {},

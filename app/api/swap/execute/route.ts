@@ -3,7 +3,8 @@ import { headers } from "next/headers";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
-import { executeSwap } from "@/lib/execution/stellar-swap";
+import { executeStellarSwap } from "@/lib/execution/stellar-swap";
+import { executeSolanaSwap } from "@/lib/execution/solana-swap";
 import { swapExecuteSchema } from "@/lib/validations/swap.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { logUserActivity } from "@/lib/functions/userFunctions";
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest) {
     const {
       pin,
       rawQuote,
+      chain,
       network = "mainnet",
       fromToken,
       toToken,
@@ -54,18 +56,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Detect target chain
+    const targetChain = (chain || rawQuote?.chain || (fromToken.toUpperCase() === "SOL" ? "solana" : "stellar")).toLowerCase();
+
     // Execute swap
-    const result = await executeSwap({
-      wallet,
-      pin,
-      rawQuote,
-      network,
-      fromToken,
-      toToken,
-      fromAmount,
-      toAmount: toAmount || "0",
-      userId,
-    });
+    const result = targetChain === "solana" || targetChain === "sol"
+      ? await executeSolanaSwap({
+          wallet,
+          pin,
+          rawQuote,
+          network,
+          fromToken,
+          toToken,
+          fromAmount,
+          toAmount: toAmount || "0",
+          userId,
+        })
+      : await executeStellarSwap({
+          wallet,
+          pin,
+          rawQuote,
+          network: network as "testnet" | "mainnet",
+          fromToken,
+          toToken,
+          fromAmount,
+          toAmount: toAmount || "0",
+          userId,
+        });
 
     if (!result.ok) {
       return NextResponse.json(

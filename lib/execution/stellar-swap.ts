@@ -75,7 +75,7 @@ function horizonErrorMessage(err: any): string {
  * 5. Persist a Transaction record in the DB.
  * 6. Touch wallet.lastUsedAt.
  */
-export async function executeSwap(
+export async function executeStellarSwap(
   params: SwapExecuteParams,
 ): Promise<SwapExecuteResult> {
   const {

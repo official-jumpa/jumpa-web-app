@@ -1,4 +1,5 @@
 import { buildSoroswapTransaction, fetchSoroswapQuote } from "./soroswap";
+import { fetchJupiterQuote } from "./jupiter/client";
 import type {
   SwapBuildRequest,
   SwapBuildResult,
@@ -7,6 +8,7 @@ import type {
 } from "./types";
 
 export * as soroswap from "./soroswap";
+export * as jupiter from "./jupiter/client";
 export * from "./types";
 
 /**
@@ -18,6 +20,9 @@ export async function getSwapQuote(
   const chain = (request.chain || "stellar").toLowerCase();
 
   switch (chain) {
+    case "solana":
+    case "sol":
+      return fetchJupiterQuote(request);
     case "stellar":
     case "xlm":
       return fetchSoroswapQuote(request);

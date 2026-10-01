@@ -19,6 +19,7 @@ import { ArrowDownArrowUpIcon } from "@/components/ui/icons/arrow-down-arrow-up"
 import { GearIcon } from "@/components/ui/icons/gear";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { ScreenHeader } from "@/components/ui/screen-header";
+import { Select, type SelectOption } from "@/components/ui/select";
 import { useSwapQuote } from "@/hooks/use-swap-quote";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import { invalidateClientBalances } from "@/lib/client-events";
@@ -31,8 +32,13 @@ import {
   type WalletAddresses,
 } from "@/components/swap/bridge-view";
 
-/** Assets available for swap. Extend when new chains are integrated. */
-const SWAP_ASSETS = ["XLM", "USDC"] as const;
+/** Assets available for swap per chain. */
+const NETWORK_ASSETS = {
+  stellar: ["XLM", "USDC"] as const,
+  solana: ["SOL", "USDC", "USDT"] as const,
+} as const;
+
+export type SwapChain = keyof typeof NETWORK_ASSETS;
 
 type Stage = "quote" | "review" | "done";
 
@@ -48,16 +54,24 @@ export interface StellarBalances {
   usdc: string;
 }
 
+export interface SolanaBalances {
+  sol: string;
+  usdc: string;
+  usdt: string;
+}
+
 type SwapMode = "swap" | "bridge";
 
 const MODES: readonly SwapMode[] = ["swap", "bridge"];
 
 export function SwapView({
   stellarBalances,
+  solanaBalances = { sol: "0.00", usdc: "0.00", usdt: "0.00" },
   bridgeBalances,
   walletAddresses,
 }: {
   stellarBalances: StellarBalances;
+  solanaBalances?: SolanaBalances;
   bridgeBalances?: BridgeBalances;
   walletAddresses?: WalletAddresses;
 }) {
@@ -66,15 +80,41 @@ export function SwapView({
   /** The bridge receipt draws its own header; this hides the screen's. */
   const [bridgeDone, setBridgeDone] = useState(false);
 
+  // ── Network selector (Stellar vs Solana) ──
+  const [network, setNetwork] = useState<SwapChain>("stellar");
+
+  const networkOptions: SelectOption[] = [
+    {
+      value: "stellar",
+      label: "Stellar",
+    },
+    {
+      value: "solana",
+      label: "Solana",
+    },
+  ];
+
   // ── Settings ──
   const [slippage, setSlippage] = useState(0.5);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   // ── Swap pair ──
-  const tokenOptions = assetOptions(SWAP_ASSETS);
-  const [fromToken, setFromToken] = useState<string>(SWAP_ASSETS[0]);
-  const [toToken, setToToken] = useState<string>(SWAP_ASSETS[1]);
+  const activeAssets = NETWORK_ASSETS[network];
+  const tokenOptions = assetOptions(activeAssets);
+  const [fromToken, setFromToken] = useState<string>(activeAssets[0]);
+  const [toToken, setToToken] = useState<string>(activeAssets[1]);
   const [amount, setAmount] = useState("");
+
+  // Switch network helper
+  function handleNetworkChange(nextNetwork: string) {
+    const net = nextNetwork as SwapChain;
+    if (net === network) return;
+    setNetwork(net);
+    const nextAssets = NETWORK_ASSETS[net];
+    setFromToken(nextAssets[0]);
+    setToToken(nextAssets[1]);
+    setAmount("");
+  }
 
   // ── Flow ──
   const [stage, setStage] = useState<Stage>("quote");
@@ -91,6 +131,7 @@ export function SwapView({
     loading: quoteLoading,
     error: quoteError,
   } = useSwapQuote({
+    chain: network,
     fromToken,
     toToken,
     amount,
@@ -99,22 +140,55 @@ export function SwapView({
 
   const received = quote?.amountOut ?? "—";
   const rate = quote?.rate ?? (quoteLoading ? "Fetching…" : "—");
-  const estimatedFee = "None";
+  const estimatedFee = network === "solana" ? "~0.00005 SOL" : "None";
   const quoteSlippage = quote?.slippage ?? `${slippage}%`;
 
   // ── Balance lookup ──
-  function balanceFor(token: string): string {
+  function getRawBalance(token: string): number {
     const t = token.toUpperCase();
-    if (t === "XLM") return formatBalance(stellarBalances.xlm);
-    if (t === "USDC") return formatBalance(stellarBalances.usdc);
-    return "0";
+    let str = "0";
+    if (network === "stellar") {
+      if (t === "XLM") str = stellarBalances.xlm;
+      if (t === "USDC") str = stellarBalances.usdc;
+    } else if (network === "solana") {
+      if (t === "SOL") str = solanaBalances.sol;
+      if (t === "USDC") str = solanaBalances.usdc;
+      if (t === "USDT") str = solanaBalances.usdt;
+    }
+    const parsed = Number.parseFloat(str);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  }
+
+  function balanceFor(token: string): string {
+    return formatBalance(getRawBalance(token));
+  }
+
+  /**
+   * Guardrail:
+   * - Max 5 whole digits (e.g. up to 99999)
+   * - Max 4 decimal digits (e.g. .1234)
+   */
+  function sanitiseSwapAmount(value: string): string {
+    const clean = value.replace(/[^\d.]/g, "");
+    if (clean === ".") return "0.";
+    const [whole = "", ...rest] = clean.split(".");
+    // Limit whole number to max 5 digits
+    const cappedWhole = whole.slice(0, 5);
+    if (!rest.length) return cappedWhole;
+    // Limit decimals to max 4 digits
+    const cappedDecimals = rest.join("").slice(0, 4);
+    return `${cappedWhole || "0"}.${cappedDecimals}`;
   }
 
   // ── Direction flip ──
   function flipPair() {
     setFromToken(toToken);
     setToToken(fromToken);
-    setAmount("");
+    // If a valid quote was received on the bottom leg, move it to the top input
+    if (quote?.amountOut && Number(quote.amountOut) > 0) {
+      setAmount(sanitiseSwapAmount(quote.amountOut));
+    }
+    setError(undefined);
   }
 
   // A rejected PIN stays in the sheet, where it can be retyped. Anything else
@@ -140,6 +214,7 @@ export function SwapView({
         body: JSON.stringify({
           pin,
           rawQuote: quote,
+          chain: network,
           network: "mainnet",
           fromToken,
           toToken,
@@ -278,6 +353,21 @@ export function SwapView({
 
           {/* ── Quote stage ── */}
           <div className="mt-6 flex flex-col gap-6">
+            {/* ── Network selector ── */}
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-semibold uppercase tracking-wider text-jumpa-black/50">
+                Network
+              </span>
+              <Select
+                variant="pill"
+                label="Swap network"
+                value={network}
+                options={networkOptions}
+                onValueChange={handleNetworkChange}
+                className="capitalize font-semibold"
+              />
+            </div>
+
             <div className="flex flex-col gap-4 rounded-surface bg-jumpa-neutral-95 px-2.5 pt-3 pb-2.5">
               <div className="relative flex flex-col gap-1">
                 <QuoteLeg
@@ -294,9 +384,7 @@ export function SwapView({
                     value={amount}
                     onChange={(e) => {
                       setError(undefined);
-                      setAmount(
-                        sanitiseAmount(e.target.value, decimalsFor(fromToken)),
-                      );
+                      setAmount(sanitiseSwapAmount(e.target.value));
                     }}
                     inputMode="decimal"
                     aria-label="Amount to swap"
@@ -376,8 +464,15 @@ export function SwapView({
                 variant="gradient"
                 size="lg"
                 onClick={() => {
-                  if (!Number(amount)) {
+                  const numAmount = Number(amount);
+                  const available = getRawBalance(fromToken);
+
+                  if (!numAmount || numAmount <= 0) {
                     setError("Enter an amount to swap");
+                  } else if (numAmount > available) {
+                    setError(
+                      `Insufficient balance. You have ${formatBalance(available)} ${fromToken}`,
+                    );
                   } else if (!quote) {
                     setError(
                       "Waiting for a quote. Please try again in a moment.",
@@ -419,7 +514,7 @@ export function SwapView({
                 <DetailRow label="Slippage" value={quoteSlippage} />
                 <DetailRow
                   label="Network"
-                  value="Stellar Mainnet"
+                  value={network === "solana" ? "Solana Mainnet" : "Stellar Mainnet"}
                   rule={false}
                 />
               </DetailList>

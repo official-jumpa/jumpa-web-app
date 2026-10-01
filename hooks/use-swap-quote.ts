@@ -13,6 +13,7 @@ import { useEffect, useRef, useState } from "react";
 import type { SwapQuote } from "@/lib/dex/types";
 
 interface UseSwapQuoteParams {
+  chain?: string;
   fromToken: string;
   toToken: string;
   amount: string;
@@ -33,7 +34,7 @@ export function useSwapQuote(params: UseSwapQuoteParams): UseSwapQuoteResult {
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { fromToken, toToken, amount, slippage } = params;
+  const { chain = "stellar", fromToken, toToken, amount, slippage } = params;
 
   useEffect(() => {
     // Clear any running debounce and in-flight request
@@ -60,7 +61,7 @@ export function useSwapQuote(params: UseSwapQuoteParams): UseSwapQuoteResult {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            chain: "stellar",
+            chain,
             assetIn: fromToken,
             assetOut: toToken,
             amount,

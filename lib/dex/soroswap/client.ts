@@ -191,7 +191,7 @@ export async function fetchSoroswapQuote(
   const amountUnits = toSorobanUnits(params.amount);
   const slippage = params.slippageTolerance ?? 0.5;
 
-  // Direct On-Chain Soroswap Router Query
+  // 1. Prioritize Direct On-Chain Soroswap Router (Soroban AMM)
   const onChainQuote = await fetchSoroswapOnChainQuote(
     contractIn,
     contractOut,
@@ -244,63 +244,7 @@ export async function fetchSoroswapQuote(
     };
   }
 
-  // Try Soroswap REST API if available (e.g., active on mainnet)
-  if (apiKey) {
-    try {
-      const response = await fetch(`${baseUrl}/quote?network=${network}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          assetIn: contractIn,
-          assetOut: contractOut,
-          amount: amountUnits,
-          tradeType: params.tradeType || "EXACT_IN",
-          protocols: SOROSWAP_PROTOCOLS,
-          slippageBps: Math.round(slippage * 100),
-          parts: 10,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const rawAmountIn = data.amountIn || amountUnits;
-        const rawAmountOut = data.amountOut || data.amount || "0";
-
-        const amountInFormatted = fromSorobanUnits(rawAmountIn);
-        const amountOutFormatted = fromSorobanUnits(rawAmountOut);
-
-        const inNum = Number.parseFloat(amountInFormatted) || 1;
-        const outNum = Number.parseFloat(amountOutFormatted) || 1;
-        const rateVal = outNum / inNum;
-
-        const rateStr = `1 ${symbolIn} = ${rateVal < 1 ? rateVal.toFixed(4) : rateVal.toFixed(2)} ${symbolOut}`;
-        const minReceived = (outNum * (1 - slippage / 100)).toFixed(7);
-
-        return {
-          chain: "stellar",
-          protocol: data.platform ? `Soroswap (${data.platform})` : "Soroswap DEX",
-          assetIn: symbolIn,
-          assetOut: symbolOut,
-          amountIn: amountInFormatted,
-          amountOut: Number.parseFloat(amountOutFormatted).toFixed(4),
-          rate: rateStr,
-          priceImpact: data.priceImpactPct ? `${data.priceImpactPct}%` : "< 0.05%",
-          minimumReceived: minReceived,
-          slippage: `${slippage}%`,
-          estimatedFee: "0.00001 XLM",
-          path: [symbolIn, symbolOut],
-          rawQuote: data,
-        };
-      }
-    } catch (err) {
-      console.warn("[Soroswap Quote] REST quote query error:", err);
-    }
-  }
-
-  // Live Stellar SDEX Orderbook Query (via Horizon /paths/strict-send)
+  // 2. Fallback to Live Stellar SDEX Orderbook (via Horizon /paths/strict-send) if Soroswap fails
   const sendAsset = resolveStellarAsset(symbolIn, network);
   const destAsset = resolveStellarAsset(symbolOut, network);
   const inputAmount = Number.parseFloat(params.amount) || 1;
@@ -312,44 +256,43 @@ export async function fetchSoroswapQuote(
     network,
   );
 
-  // If orderbook has no offers or route, throw an explicit error
-  if (!pathRecord?.destination_amount) {
-    throw new Error(
-      `Insufficient liquidity: No trade path or orderbook offers found on Stellar ${network} for ${symbolIn} → ${symbolOut}. Try a smaller amount or a different pair.`,
-    );
-  }
+  if (pathRecord?.destination_amount) {
+    const rawDest = Number.parseFloat(pathRecord.destination_amount);
+    const outputAmount = rawDest.toFixed(4);
+    const rateVal = rawDest / inputAmount;
+    const rawPath = pathRecord.path || [];
 
-  const rawDest = Number.parseFloat(pathRecord.destination_amount);
-  const outputAmount = rawDest.toFixed(4);
-  const rateVal = rawDest / inputAmount;
-  const rawPath = pathRecord.path || [];
+    const rateStr = `1 ${symbolIn} = ${rateVal < 1 ? rateVal.toFixed(4) : rateVal.toFixed(2)} ${symbolOut}`;
+    const minReceived = (rawDest * (1 - slippage / 100)).toFixed(7);
 
-  const rateStr = `1 ${symbolIn} = ${rateVal < 1 ? rateVal.toFixed(4) : rateVal.toFixed(2)} ${symbolOut}`;
-  const minReceived = (rawDest * (1 - slippage / 100)).toFixed(7);
-
-  return {
-    chain: "stellar",
-    protocol: `Stellar SDEX (${network === "testnet" ? "Testnet" : "Mainnet"})`,
-    assetIn: symbolIn,
-    assetOut: symbolOut,
-    amountIn: inputAmount.toString(),
-    amountOut: outputAmount,
-    rate: rateStr,
-    priceImpact: "< 0.01%",
-    minimumReceived: (rawDest * (1 - slippage / 100)).toFixed(4),
-    slippage: `${slippage}%`,
-    estimatedFee: "0.00002 XLM",
-    path: [symbolIn, symbolOut],
-    rawQuote: {
-      _isNativeSdex: true,
+    return {
+      chain: "stellar",
+      protocol: `Stellar SDEX (${network === "testnet" ? "Testnet" : "Mainnet"})`,
       assetIn: symbolIn,
       assetOut: symbolOut,
       amountIn: inputAmount.toString(),
       amountOut: outputAmount,
-      minimumReceived: minReceived,
-      path: rawPath,
-    },
-  };
+      rate: rateStr,
+      priceImpact: "< 0.01%",
+      minimumReceived: (rawDest * (1 - slippage / 100)).toFixed(4),
+      slippage: `${slippage}%`,
+      estimatedFee: "0.00002 XLM",
+      path: [symbolIn, symbolOut],
+      rawQuote: {
+        _isNativeSdex: true,
+        assetIn: symbolIn,
+        assetOut: symbolOut,
+        amountIn: inputAmount.toString(),
+        amountOut: outputAmount,
+        minimumReceived: minReceived,
+        path: rawPath,
+      },
+    };
+  }
+
+  throw new Error(
+    `Insufficient liquidity: No trade path found on Stellar ${network} for ${symbolIn} → ${symbolOut}. Try a smaller amount.`,
+  );
 }
 
 /**

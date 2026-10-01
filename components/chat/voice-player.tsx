@@ -32,7 +32,7 @@ export function VoicePlayer({
     <div
       className={`flex w-full flex-col ${align === "user" ? "items-end" : "items-start"}`}
     >
-      <div className="w-full overflow-hidden rounded-dock bg-jumpa-neutral-95">
+      <div className="w-full overflow-hidden rounded-surface bg-jumpa-neutral-95">
         <div className="flex items-center gap-2.5 p-2.5">
           {/* biome-ignore lint/a11y/useMediaCaption: a voice note is the caption's own source */}
           <audio ref={audio.audioRef} src={url} preload="metadata" />

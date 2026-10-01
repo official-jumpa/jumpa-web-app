@@ -24,7 +24,7 @@ export function RampShell({
   children: ReactNode;
 }) {
   return (
-    <div className="w-full overflow-hidden rounded-xl border border-jumpa-neutral-100 bg-jumpa-white shadow-xs">
+    <div className="w-full overflow-hidden rounded-surface border border-jumpa-neutral-100 bg-jumpa-white shadow-xs">
       <div className="flex items-center justify-between gap-3 px-3.5 pt-3.5 pb-3">
         <h3 className="min-w-0 truncate text-[13px] leading-5 font-semibold text-jumpa-black">
           {title}

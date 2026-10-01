@@ -59,7 +59,7 @@ export function AttachmentList({
                   setZoomedImage(item);
                   setScale(1);
                 }}
-                className="tap group relative block size-30 overflow-hidden rounded-xl bg-jumpa-neutral-95 active:scale-[0.98] cursor-zoom-in text-left focus:outline-hidden"
+                className="tap group relative block size-30 overflow-hidden rounded-surface bg-jumpa-neutral-95 active:scale-[0.98] cursor-zoom-in text-left focus:outline-hidden"
                 aria-label={`Zoom ${item.name}`}
               >
                 {/* biome-ignore lint/performance/noImgElement: the file is served from a session-scoped route or CDN */}
@@ -95,7 +95,7 @@ export function AttachmentList({
             href={item.url}
             target="_blank"
             rel="noreferrer"
-            className="tap flex max-w-full items-center gap-2 rounded-xl bg-jumpa-neutral-95 px-3 py-2.5 active:scale-[0.99]"
+            className="tap flex max-w-full items-center gap-2 rounded-surface bg-jumpa-neutral-95 px-3 py-2.5 active:scale-[0.99]"
           >
             <FileIcon className="size-6 shrink-0 text-jumpa-primary-600" />
             <span className="flex min-w-0 flex-col">

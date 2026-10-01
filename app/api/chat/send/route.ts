@@ -2,8 +2,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import {
   buildSystemPrompt,
   type ChatHistoryMessage,
-  runDeepSeekStep,
-} from "@/lib/ai/deepseek";
+  runAgentStep,
+} from "@/lib/ai/jumpaAgent";
 import { executeTool } from "@/lib/ai/tool-executor";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { detectTargetChains } from "@/lib/blockchain";
@@ -195,10 +195,10 @@ export async function POST(req: NextRequest) {
             : "auto";
 
       console.log(
-        `[Chat Send] Calling DeepSeek AI (Turn ${turn}/${MAX_TURNS}, toolChoice: ${toolChoice})...`,
+        `[Chat Send] Calling Jumpa AI (Turn ${turn}/${MAX_TURNS}, toolChoice: ${toolChoice})...`,
       );
 
-      const stepResponse = await runDeepSeekStep({
+      const stepResponse = await runAgentStep({
         messages,
         toolChoice,
       });

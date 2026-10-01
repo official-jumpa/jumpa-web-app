@@ -175,6 +175,8 @@ export const environment = {
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
   OPENROUTER_VISION_MODEL:
     process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.5-flash",
+  OPENROUTER_CHAT_MODEL:
+    process.env.OPENROUTER_CHAT_MODEL || "deepseek/deepseek-chat",
 
   // FossaPay NGN Provider
   FOSSAPAY_API_KEY: process.env.FOSSAPAY_API_KEY || "",

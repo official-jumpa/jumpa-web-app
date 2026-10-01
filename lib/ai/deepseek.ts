@@ -7,6 +7,7 @@
  */
 
 import { JUMPA_TOOLS, type ToolCall } from "./tools";
+import { environment } from "@/lib/environment";
 
 export interface ChatHistoryMessage {
   role: "user" | "assistant" | "tool" | "system";
@@ -239,16 +240,22 @@ export async function runDeepSeekStep(options: {
     maxTokens = 1024,
   } = options;
 
-  const apiKey = process.env.DEEPSEEK_API;
-  const model = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
+  const openRouterKey =
+    process.env.OPENROUTER_API_KEY || environment.OPENROUTER_API_KEY;
+  const deepseekApiKey = process.env.DEEPSEEK_API;
+  const apiKey = openRouterKey || deepseekApiKey;
 
   if (!apiKey) {
-    console.warn("[DeepSeek] API key missing");
+    console.warn("[AI AGENT] API key missing");
     return {
       mode: "chat",
       message: "An error occurred. Please try again in a moment.",
     };
   }
+
+  const model = openRouterKey
+    ? process.env.OPENROUTER_CHAT_MODEL || "deepseek/deepseek-chat"
+    : process.env.DEEPSEEK_MODEL || "deepseek-chat";
 
   try {
     const requestBody: Record<string, any> = {
@@ -263,56 +270,37 @@ export async function runDeepSeekStep(options: {
       requestBody.tool_choice = toolChoice;
     }
 
-    const openRouterKey = process.env.OPENROUTER_API_KEY;
-    let endpoint = "https://api.deepseek.com/chat/completions";
-    let authHeader = `Bearer ${apiKey}`;
-    let effectiveModel = model;
+    const endpoint = openRouterKey
+      ? "https://openrouter.ai/api/v1/chat/completions"
+      : "https://api.deepseek.com/chat/completions";
 
-    let response: Response | undefined;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+
+    let response: Response;
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout for direct endpoint
-      try {
-        response = await fetch(endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: authHeader,
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    } catch (primaryErr) {
-      console.warn("[DeepSeek] Direct endpoint timed out (>5s) or failed. Trying OpenRouter fallback...", primaryErr);
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          ...(openRouterKey
+            ? {
+                "HTTP-Referer": "https://usejumpa.com",
+                "X-Title": "Jumpa",
+              }
+            : {}),
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
     }
 
-    // Fallback to OpenRouter (runs DeepSeek with high availability)
-    if ((!response || !response.ok) && openRouterKey) {
-      try {
-        console.log("[DeepSeek] Routing via OpenRouter deepseek/deepseek-chat...");
-        const fallbackBody = {
-          ...requestBody,
-          model: "deepseek/deepseek-chat",
-        };
-        response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${openRouterKey}`,
-          },
-          body: JSON.stringify(fallbackBody),
-        });
-      } catch (fallbackErr) {
-        console.error("[DeepSeek] OpenRouter fallback error:", fallbackErr);
-      }
-    }
-
-    if (!response || !response.ok) {
-      const errText = response ? await response.text() : "No response";
-      console.error("[DeepSeek API Error]", response?.status, errText);
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("[AI Gateway API Error]", response.status, errText);
       return {
         mode: "chat",
         message: "An error occurred. Please try again.",

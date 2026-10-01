@@ -1,4 +1,5 @@
 import { sanitizeDSML } from "@/lib/ai/deepseek";
+import { environment } from "@/lib/environment";
 
 export interface SupportChatMessage {
   role: "user" | "assistant" | "system";
@@ -113,13 +114,23 @@ export async function runSupportAgentCompletion(
   messages: SupportChatMessage[],
   context?: SupportAgentContext,
 ): Promise<string> {
-  const apiKey = process.env.DEEPSEEK_API;
-  const model = process.env.DEEPSEEK_MODEL || "deepseek-v4-flash";
+  const openRouterKey =
+    process.env.OPENROUTER_API_KEY || environment.OPENROUTER_API_KEY;
+  const deepseekApiKey = process.env.DEEPSEEK_API;
+  const apiKey = openRouterKey || deepseekApiKey;
 
   if (!apiKey) {
-    console.warn("[SupportAgent] DEEPSEEK_API key missing");
+    console.warn("[SupportAgent] API key missing");
     return "Our support assistant is temporarily unavailable. Please email us at support@usejumpa.com and our team will assist you immediately.";
   }
+
+  const model = openRouterKey
+    ? process.env.OPENROUTER_CHAT_MODEL || "deepseek/deepseek-chat"
+    : process.env.DEEPSEEK_MODEL || "deepseek-chat";
+
+  const endpoint = openRouterKey
+    ? "https://openrouter.ai/api/v1/chat/completions"
+    : "https://api.deepseek.com/chat/completions";
 
   const systemPrompt = buildSupportSystemPrompt(context);
 
@@ -129,19 +140,34 @@ export async function runSupportAgentCompletion(
   ];
 
   try {
-    const response = await fetch("https://api.deepseek.com/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: fullMessages,
-        temperature: 0.2,
-        max_tokens: 1024,
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // timeout after 20 secs
+
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          ...(openRouterKey
+            ? {
+                "HTTP-Referer": "https://usejumpa.com",
+                "X-Title": "Jumpa",
+              }
+            : {}),
+        },
+        body: JSON.stringify({
+          model,
+          messages: fullMessages,
+          temperature: 0.2,
+          max_tokens: 1024,
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       const errText = await response.text();

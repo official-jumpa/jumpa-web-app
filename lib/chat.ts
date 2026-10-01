@@ -2,7 +2,7 @@
 import type { ChatAttachment } from "@/lib/chat-attachments";
 
 /** Muted lead-in followed by an emphasised value, e.g. "Fee **0.3 XLM**". */
-export type Stat = { lead?: string; value: string };
+export type Stat = { lead?: string; value: string; badge?: string; chain?: string };
 
 /** White row inside a card: caption above a value, with an optional badge. */
 export type CardRow = {

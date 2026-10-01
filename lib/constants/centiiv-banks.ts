@@ -2804,6 +2804,34 @@ export const centiivBanks: CentiivBank[] = [
   }
 ];
 
+const CENTIIV_BANK_ALIASES: Record<string, string> = {
+  opay: "100004", // Paycom(Opay)
+  paycom: "100004",
+  palmpay: "100033",
+  kuda: "090267",
+  moniepoint: "090405",
+  gtbank: "000013",
+  gtb: "000013",
+  access: "000014",
+  zenith: "000015",
+  firstbank: "000016",
+  fbn: "000016",
+  uba: "000004",
+  fcmb: "000003",
+  wema: "000017",
+  alat: "000017",
+  ecobank: "000010",
+  fidelity: "000007",
+  unionbank: "000018",
+  stanbic: "000012",
+  sterling: "000001",
+  polaris: "000008",
+  keystone: "000002",
+  providus: "000023",
+  jaiz: "000006",
+  taj: "000026",
+};
+
 /**
  * Searches for a bank by its name or alias.
  * Returns the closest match or undefined if not found.
@@ -2812,9 +2840,18 @@ export function findCentiivBank(bankName: string): CentiivBank | undefined {
   if (!bankName) return undefined;
   const search = bankName.toLowerCase().replace(/[^a-z0-9]/g, "");
 
+  // 1. Direct alias check
+  for (const [alias, code] of Object.entries(CENTIIV_BANK_ALIASES)) {
+    if (search.includes(alias)) {
+      const match = centiivBanks.find((b) => b.code === code);
+      if (match) return match;
+    }
+  }
+
+  // 2. Normalized alphanumeric search
   return centiivBanks.find((b) => {
     const name = (b.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const slug = (b.slug || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    return name.includes(search) || search.includes(name) || slug.includes(search);
+    return name.includes(search) || search.includes(name) || (slug && slug.includes(search));
   });
 }

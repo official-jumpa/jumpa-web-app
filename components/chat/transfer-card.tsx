@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { ContactRow } from "@/components/chat/card-rows";
 import {
@@ -8,6 +9,7 @@ import {
   CardTitle,
   ChatCard,
 } from "@/components/chat/chat-card";
+import { getAssetLogo } from "@/lib/assets";
 import type { AssetOption, TransferCard as Transfer } from "@/lib/chat";
 import { cn } from "@/lib/cn";
 
@@ -78,6 +80,8 @@ function AssetRow({
   isSelected: boolean;
   onSelect: () => void;
 }) {
+  const logo = getAssetLogo(option.symbol);
+
   return (
     <button
       type="button"
@@ -91,8 +95,17 @@ function AssetRow({
           : "border-transparent bg-jumpa-white",
       )}
     >
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5 px-2">
-        <span className="truncate text-lg leading-5.5 font-medium text-jumpa-black">
+      {logo ? (
+        <Image
+          src={logo}
+          alt={option.symbol}
+          width={28}
+          height={28}
+          className="size-7 shrink-0 rounded-full object-contain"
+        />
+      ) : null}
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5 px-1">
+        <span className="truncate text-base leading-5 font-semibold text-jumpa-black">
           {option.symbol}
         </span>
         <span className="truncate text-[10px] leading-3 tracking-wider text-jumpa-black/50 uppercase">

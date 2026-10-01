@@ -8,6 +8,7 @@
 
 import { getBridgeQuote } from "@/lib/bridge";
 import { fetchStellarBalances, fundTestnetAccount } from "@/lib/chains/stellar";
+import { getAssetLogo } from "@/lib/assets";
 import type {
   AccountsCard,
   BridgeCard,
@@ -130,7 +131,7 @@ function fundingOptions(tokens: TokenBalanceInfo[]): ChatOption[] {
         ? `${token.symbol} on ${token.network}`
         : token.symbol,
       amount: formatBalance(token.balance),
-      icon: "balance",
+      logo: getAssetLogo(token.symbol),
       reply: token.network
         ? `Sell my ${token.symbol} on ${token.network}`
         : `Sell my ${token.symbol}`,
@@ -142,13 +143,17 @@ function fundingOptions(tokens: TokenBalanceInfo[]): ChatOption[] {
  * cannot be read — the user picks the network, we never assume one for them.
  */
 const SELLABLE_ASSETS: ChatOption[] = [
-  "USDC on Base",
-  "USDC on Solana",
-  "USDC on Ethereum",
-  "USDC on Stellar",
-  "USDT on Solana",
-  "USDT on Ethereum",
-].map((label) => ({ label, icon: "balance", reply: `Sell my ${label}` }));
+  { symbol: "USDC", network: "Base" },
+  { symbol: "USDC", network: "Solana" },
+  { symbol: "USDC", network: "Ethereum" },
+  { symbol: "USDC", network: "Stellar" },
+  { symbol: "USDT", network: "Solana" },
+  { symbol: "USDT", network: "Ethereum" },
+].map(({ symbol, network }) => ({
+  label: `${symbol} on ${network}`,
+  logo: getAssetLogo(symbol),
+  reply: `Sell my ${symbol} on ${network}`,
+}));
 
 /** Map a balance record's network label to a Switch-supported chain identifier. */
 function networkToSwitchChain(network?: string): string | null {
@@ -182,12 +187,16 @@ const CANDIDATE_BANKS = [
 
 /** Which of those actually hold the number — a NUBAN is not unique across banks. */
 async function resolveBankCandidates(accountNumber: string) {
+  let cleanNumber = accountNumber.trim().replace(/\D/g, "");
+  if (cleanNumber.startsWith("234") && cleanNumber.length === 13) {
+    cleanNumber = cleanNumber.slice(3);
+  }
   const found = await Promise.all(
     CANDIDATE_BANKS.map(async (bankName) => {
       const bank = findPaystackBank(bankName);
       if (!bank) return null;
       try {
-        const res = await validateAccountNumber(accountNumber, bank.code);
+        const res = await validateAccountNumber(cleanNumber, bank.code);
         const holder = res?.data?.account_name?.trim();
         return res?.status && holder ? { bank: bank.name, holder } : null;
       } catch {
@@ -292,14 +301,14 @@ const SWAP_ASSETS = ["XLM", "USDC"] as const;
 const swapFromOptions = (): ChatOption[] =>
   SWAP_ASSETS.map((token) => ({
     label: token,
-    icon: "crypto",
+    logo: getAssetLogo(token),
     reply: `Swap from ${token}`,
   }));
 
 const swapToOptions = (from: string): ChatOption[] =>
   SWAP_ASSETS.filter((token) => token !== from).map((token) => ({
     label: token,
-    icon: "crypto",
+    logo: getAssetLogo(token),
     reply: `Receive ${token}`,
   }));
 
@@ -700,24 +709,14 @@ export async function executeTool(
         },
         stats: [
           { lead: "Rate ", value: quote.rate },
-          { lead: "Fee ", value: quote.fee },
-          { lead: "Provider ", value: quote.provider || "Circle CCTP v2" },
-          { lead: "Est. Time ", value: quote.estimatedTime || "~15–30s" },
+          { lead: "Fee ", value: quote.fee === "0.00" ? "0.00 USDC" : quote.fee },
         ],
       };
 
       return {
         toolName: name,
-        summaryForAI: [
-          "Bridge quote ready:",
-          `- Pay: ${quote.amountIn} ${quote.fromToken} on ${quote.fromChainName}`,
-          `- Receive: ${quote.amountOut} ${quote.toToken} on ${quote.toChainName}`,
-          `- Rate: ${quote.rate}`,
-          `- Fee: ${quote.fee}`,
-          `- Provider: ${quote.provider || "Circle CCTP v2"}`,
-          `- Estimated Delivery: ${quote.estimatedTime || "~15–30s"}`,
-          "The bridge card is displayed on the screen. Ask the user to review and confirm if they would like to proceed. Do NOT use emojis or instruct them to enter a PIN.",
-        ].join("\n"),
+        summaryForAI:
+          "The bridge quote card is displayed on the screen. Ask the user to review the details and confirm if they would like to proceed. Do NOT re-list the amounts, rates, or fees in your response.",
         cardHint: { type: "bridge", data: cardData },
         transactionParams: {
           type: "bridge",
@@ -927,8 +926,8 @@ export async function executeTool(
       }
 
       const cardData: QuoteCardData = {
-        title: `Swapping (${quote.protocol})`,
-        status: { lead: "Slippage ", value: quote.slippage },
+        title: "Swap",
+        status: { lead: "", value: "" },
         pay: { caption: "YOU PAY", value: quote.amountIn, badge: fromToken },
         receive: {
           caption: "YOU RECEIVE",
@@ -938,10 +937,6 @@ export async function executeTool(
         stats: [
           { lead: "Rate ", value: quote.rate },
           { lead: "Est. Fee ", value: quote.estimatedFee },
-          {
-            lead: "Min Received ",
-            value: `${quote.minimumReceived} ${toToken}`,
-          },
         ],
         _rawQuote: quote,
         network,
@@ -950,16 +945,8 @@ export async function executeTool(
 
       return {
         toolName: name,
-        summaryForAI: [
-          `Quote fetched successfully for Stellar ${network}:`,
-          `- Swap: ${quote.amountIn} ${fromToken} → ${quote.amountOut} ${toToken}`,
-          `- Rate: ${quote.rate}`,
-          `- Slippage: ${quote.slippage}`,
-          `- Est. Fee: ${quote.estimatedFee}`,
-          `- Min Received: ${quote.minimumReceived} ${toToken}`,
-          `- Protocol: ${quote.protocol}`,
-          `The quote card has been shown to the user. Ask them to confirm to proceed. Do NOT use emojis or instruct them to click buttons or enter PINs.`,
-        ].join("\n"),
+        summaryForAI:
+          "The swap quote card has been shown to the user. Direct the user to review the quote and confirm to proceed. Do NOT re-list the amounts, rates, slippage, or fees in your response.",
         cardHint: { type: "quote", data: cardData },
         transactionParams: {
           type: "swap",
@@ -1629,9 +1616,12 @@ export async function executeTool(
 
       // ── The designed cash-out conversation: one chooser per missing detail,
       // so the user taps rather than being asked for token, network and bank in prose.
-      const cleanedAccount = String(accountNumber || "")
+      let cleanedAccount = String(accountNumber || "")
         .trim()
         .replace(/\D/g, "");
+      if (cleanedAccount.startsWith("234") && cleanedAccount.length === 13) {
+        cleanedAccount = cleanedAccount.slice(3);
+      }
 
       if (!effectiveAsset || !effectiveToken) {
         const balances = await getCachedWalletBalances(userId);
@@ -1776,9 +1766,12 @@ export async function executeTool(
           );
         }
 
-        const cleanAccount = String(accountNumber || "")
+        let cleanAccount = String(accountNumber || "")
           .trim()
           .replace(/\D/g, "");
+        if (cleanAccount.startsWith("234") && cleanAccount.length === 13) {
+          cleanAccount = cleanAccount.slice(3);
+        }
         if (cleanAccount.length !== 10) {
           throw new Error(
             `Invalid account number "${accountNumber}". Nigerian bank account numbers must be exactly 10 digits.`,

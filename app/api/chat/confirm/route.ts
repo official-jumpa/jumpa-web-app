@@ -222,7 +222,7 @@ export async function POST(req: NextRequest) {
       }).catch(() => {});
 
       receiptCardData = {
-        title: `Swapped (${protocolName})`,
+        title: "Swap",
         status: "Successful",
         balance: {
           caption: "RECEIVED",
@@ -233,12 +233,6 @@ export async function POST(req: NextRequest) {
           { value: `- ${payVal} ${payBadge}` },
           { value: `+ ${receiveVal} ${receiveBadge}` },
           { lead: "Network Fee ", value: "0.00001 XLM" },
-          {
-            lead: "Tx Hash ",
-            value: txHash
-              ? `${txHash.slice(0, 6)}...${txHash.slice(-6)}`
-              : "On-chain",
-          },
         ],
         txHash: txHash || undefined,
         explorerUrl: explorerUrl || undefined,
@@ -355,19 +349,12 @@ export async function POST(req: NextRequest) {
         stats: [
           { value: `- ${fromAmount} ${fromToken} (${bridgeResult.fromChain})` },
           { value: `+ ${toAmount} ${toToken} (${bridgeResult.toChain})` },
-          { lead: "Provider ", value: "Circle CCTP v2" },
-          { lead: "Fee ", value: fee },
+          { lead: "Fee ", value: fee === "0.00" ? "0.00 USDC" : fee },
           {
             lead: "Recipient ",
             value: recipientAddress
               ? `${recipientAddress.slice(0, 6)}...${recipientAddress.slice(-6)}`
               : "Wallet",
-          },
-          {
-            lead: "Tx Hash ",
-            value: txHash
-              ? `${txHash.slice(0, 6)}...${txHash.slice(-6)}`
-              : "On-chain",
           },
         ],
         txHash: txHash || undefined,
@@ -509,7 +496,7 @@ export async function POST(req: NextRequest) {
 
       let txHash = "";
       let explorerUrl = "";
-      let executedNetworkLabel = `Stellar ${network}`;
+      let executedNetworkLabel = "Stellar";
 
       if (isEvmDest) {
         const targetChain: "base" | "eth" =
@@ -955,12 +942,10 @@ export async function POST(req: NextRequest) {
         status: "Successful",
         balance: {
           caption: "SENT",
-          value: cryptoAmount,
-          badge: cryptoToken,
+          value: Number(fiatAmount).toLocaleString(),
+          badge: "NGN",
         },
         stats: [
-          { value: `- ${cryptoAmount} ${cryptoToken}` },
-          { lead: "Network ", value: targetChainName },
           { lead: "Bank ", value: bankName },
           { lead: "Account Name ", value: accountName },
           {
@@ -971,16 +956,16 @@ export async function POST(req: NextRequest) {
                 : accountNumber,
           },
           {
-            lead: "Receiving ",
-            value: `₦${Number(fiatAmount).toLocaleString()}`,
+            lead: "Asset Withdrawn ",
+            value: cryptoAmount,
+            badge: cryptoToken,
+            chain: resolvedTxChain,
           },
           {
-            lead: "Tx Hash ",
-            value: txHash ? `${txHash.slice(0, 6)}...${txHash.slice(-6)}` : "—",
+            lead: "Date ",
+            value: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           },
         ],
-        txHash,
-        explorerUrl,
       };
     } else {
       // Fallback for onramp — no on-chain call needed, user transfers NGN to bank

@@ -315,7 +315,7 @@ export async function fetchWalletBalances(
       icon: xlmCached.icon,
       balance: xlmMainnet.native,
       priceUsd: xlmCached.priceUsd,
-      network: "Stellar Mainnet",
+      network: "Stellar",
       isTestnet: false,
     });
     tokens.push({
@@ -324,7 +324,7 @@ export async function fetchWalletBalances(
       icon: usdcCached.icon,
       balance: xlmMainnet.usdc,
       priceUsd: usdcCached.priceUsd,
-      network: "Stellar Mainnet",
+      network: "Stellar",
       isTestnet: false,
     });
     tokens.push({
@@ -333,7 +333,7 @@ export async function fetchWalletBalances(
       icon: usdtCached.icon,
       balance: xlmMainnet.usdt,
       priceUsd: usdtCached.priceUsd,
-      network: "Stellar Mainnet",
+      network: "Stellar",
       isTestnet: false,
     });
 
@@ -373,7 +373,7 @@ export async function fetchWalletBalances(
       icon: solCached.icon,
       balance: solMainnetBal.native,
       priceUsd: solCached.priceUsd,
-      network: "Solana Mainnet",
+      network: "Solana",
       isTestnet: false,
     });
     tokens.push({
@@ -382,7 +382,7 @@ export async function fetchWalletBalances(
       icon: usdcCached.icon,
       balance: solMainnetBal.usdc,
       priceUsd: usdcCached.priceUsd,
-      network: "Solana Mainnet",
+      network: "Solana",
       isTestnet: false,
     });
     tokens.push({
@@ -391,7 +391,7 @@ export async function fetchWalletBalances(
       icon: usdtCached.icon,
       balance: solMainnetBal.usdt,
       priceUsd: usdtCached.priceUsd,
-      network: "Solana Mainnet",
+      network: "Solana",
       isTestnet: false,
     });
     summary.SOL = `${solMainnetBal.native} SOL`;

@@ -138,9 +138,9 @@ export function SwapView({
     slippage,
   });
 
-  const received = quote?.amountOut ?? "—";
-  const rate = quote?.rate ?? (quoteLoading ? "Fetching…" : "—");
-  const estimatedFee = network === "solana" ? "~0.00005 SOL" : "None";
+  const received = quote?.amountOut ?? "0.00";
+  const rate = quote?.rate ?? (quoteLoading ? "Fetching…" : "0.00");
+  const estimatedFee = network === "solana" ? "~0.00005 SOL" : "0.00";
   const quoteSlippage = quote?.slippage ?? `${slippage}%`;
 
   // ── Balance lookup ──
@@ -440,7 +440,7 @@ export function SwapView({
             <DetailList tone="secondary">
               <DetailRow label="Network fee" value={estimatedFee} />
               <DetailRow
-                label="Slippage tolerance"
+                label="Slippage"
                 value={
                   <button
                     type="button"
@@ -510,11 +510,11 @@ export function SwapView({
               onClose={() => setStage("quote")}
             >
               <DetailList tone="secondary">
-                <DetailRow label="Network fee" value={estimatedFee} />
+                <DetailRow label="Fee" value={estimatedFee} />
                 <DetailRow label="Slippage" value={quoteSlippage} />
                 <DetailRow
                   label="Network"
-                  value={network === "solana" ? "Solana Mainnet" : "Stellar Mainnet"}
+                  value={network === "solana" ? "Solana" : "Stellar"}
                   rule={false}
                 />
               </DetailList>

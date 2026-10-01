@@ -150,7 +150,9 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    const hasNumericalAmount = /\b\d+(\.\d+)?\b/.test(message);
+    // A standalone numerical amount (e.g. "50", "10.5", "$25", "₦5000"), excluding phone/account numbers (10+ digits)
+    const sanitizedMsg = message.replace(/(?:\+?234|\b0)\d{9,11}\b/g, "").replace(/\b\d{10,}\b/g, "");
+    const hasNumericalAmount = /(?:\$|₦|£|€)?\b\d+(\.\d+)?\b/.test(sanitizedMsg);
     const isLookupAction =
       /\b(balance|balances|portfolio|holdings|net worth|history)\b/i.test(
         message,

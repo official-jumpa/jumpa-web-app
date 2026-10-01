@@ -120,11 +120,12 @@ export function BridgeView({
     ? evmBalance
     : bridgeBalances.stellarUsdc;
 
+  // write 0 as the fee instead of sponsored
   const feeLabel = quote
     ? parseFloat(quote.fee) === 0
-      ? "Sponsored"
+      ? "0.0"
       : `${quote.fee} USDC`
-    : "Sponsored";
+    : "0.00";
 
   const arrivalLabel =
     quote?.estimatedTime ?? (transferMode === "fast" ? "~20 secs" : "~18 mins");

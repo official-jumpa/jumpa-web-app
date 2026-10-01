@@ -121,13 +121,21 @@ export function QuoteCard({
     fetchLiveQuote(payAmount, newFrom, newTo);
   };
 
+  const showHeader = Boolean(
+    (card?.title && card.title.trim() && card.title.trim().toLowerCase() !== "swap") ||
+    (card?.status && card.status.value && card.status.value.trim())
+  );
+
   return (
     <ChatCard>
-      <CardTitle title={card?.title || "Swap"}>
-        {card?.status ? <StatText stat={card.status} /> : null}
-      </CardTitle>
-
-      <CardRule />
+      {showHeader ? (
+        <>
+          <CardTitle title={card?.title || "Swap"}>
+            {card?.status ? <StatText stat={card.status} /> : null}
+          </CardTitle>
+          <CardRule />
+        </>
+      ) : null}
 
       {/* The direction control sits on the seam between the two rows. */}
       <div className="relative flex w-full flex-col gap-2">

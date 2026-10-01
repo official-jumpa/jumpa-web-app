@@ -1,8 +1,9 @@
 import Image from "next/image";
-import type { ReactNode } from "react";
-import { TbCurrencyNaira } from "react-icons/tb";
+import { type ReactNode, useEffect, useState } from "react";
+import { NairaSignIcon } from "@/components/ui/icons/naira-sign";
 import { getAssetLogo } from "@/lib/assets";
 import type { CardRow, CardStatus, Stat } from "@/lib/chat";
+import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/cn";
 
 /** Rounded panel behind a structured agent reply — quote, receipt or chooser. */
@@ -77,7 +78,7 @@ export function CardRule() {
   return <span aria-hidden="true" className="rule-dashed -mb-px h-px w-full" />;
 }
 
-/** Muted lead-in plus an emphasised value, e.g. "Fee **0.3 XLM**". */
+/** Muted lead-in plus an emphasised value, e.g. "Fee **0.3 XLM**", or with asset & chain badge. */
 export function StatText({
   stat,
   className,
@@ -86,10 +87,33 @@ export function StatText({
   className?: string;
 }) {
   return (
-    <p className={cn("text-[11px] leading-4 text-jumpa-black/50", className)}>
-      {stat.lead}
+    <div className={cn("flex items-center gap-1.5 text-[11px] leading-4 text-jumpa-black/50", className)}>
+      <span>{stat.lead}</span>
       <span className="font-bold text-jumpa-black">{stat.value}</span>
-    </p>
+      {stat.badge ? (
+        <span className="inline-flex items-center gap-1 font-semibold text-jumpa-black">
+          <Image
+            src={getAssetLogo(stat.badge)}
+            alt={stat.badge}
+            width={14}
+            height={14}
+            className="size-3.5 shrink-0 rounded-full object-contain"
+          />
+          {stat.chain ? (
+            <>
+              <span className="text-[10px] text-jumpa-neutral-400 font-normal">on</span>
+              <Image
+                src={getAssetLogo(stat.chain)}
+                alt={stat.chain}
+                width={14}
+                height={14}
+                className="size-3.5 shrink-0 rounded-full object-contain"
+              />
+            </>
+          ) : null}
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -124,8 +148,31 @@ export function CardStats({ stats = [] }: { stats?: Stat[] }) {
           <span className="shrink-0 text-jumpa-black/50">
             {stat.lead?.trim()}
           </span>
-          <span className="min-w-0 text-right font-bold text-jumpa-black">
-            {stat.value}
+          <span className="inline-flex items-center gap-1 min-w-0 text-right font-bold text-jumpa-black">
+            <span>{stat.value}</span>
+            {stat.badge ? (
+              <span className="inline-flex items-center gap-1 font-semibold text-jumpa-black">
+                <Image
+                  src={getAssetLogo(stat.badge)}
+                  alt={stat.badge}
+                  width={14}
+                  height={14}
+                  className="size-3.5 shrink-0 rounded-full object-contain"
+                />
+                {stat.chain ? (
+                  <>
+                    <span className="text-[10px] text-jumpa-neutral-400 font-normal">on</span>
+                    <Image
+                      src={getAssetLogo(stat.chain)}
+                      alt={stat.chain}
+                      width={14}
+                      height={14}
+                      className="size-3.5 shrink-0 rounded-full object-contain"
+                    />
+                  </>
+                ) : null}
+              </span>
+            ) : null}
           </span>
         </div>
       ))}
@@ -162,7 +209,7 @@ export function AssetBadge({
       )}
     >
       {isNaira ? (
-        <TbCurrencyNaira className="size-4 shrink-0" />
+        <NairaSignIcon className="size-3.5 shrink-0" />
       ) : logo ? (
         <Image
           src={logo}
@@ -235,12 +282,51 @@ export function CardAmount({
   );
 }
 
-/** Foot of a ramp card: "Payment Reference:   REF-789210". */
+/** Foot of a ramp card: Truncated and copyable payment reference */
 export function ReferenceLine({ reference }: { reference: string }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  if (!reference) return null;
+
+  const truncated =
+    reference.length > 16
+      ? `${reference.slice(0, 8)}...${reference.slice(-6)}`
+      : reference;
+
   return (
-    <p className="px-2.5 text-[11px] leading-4 text-jumpa-black/50">
-      Payment Reference:{" "}
-      <span className="font-bold text-jumpa-black">{reference}</span>
-    </p>
+    <div className="flex items-center justify-between gap-2 px-2.5 text-[11px] leading-4 text-jumpa-black/50">
+      <span>Payment Reference:</span>
+      <button
+        type="button"
+        onClick={() => {
+          copyText(reference);
+          setCopied(true);
+        }}
+        title="Click to copy full reference"
+        className="tap inline-flex items-center gap-1.5 rounded-md bg-jumpa-neutral-100 px-2 py-0.5 font-bold font-mono text-jumpa-black hover:bg-jumpa-neutral-200 active:scale-95"
+      >
+        <span>{truncated}</span>
+        {copied ? (
+          <span className="text-[10px] text-jumpa-primary-600 font-semibold">Copied!</span>
+        ) : (
+          <svg
+            className="size-3 text-jumpa-neutral-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+          </svg>
+        )}
+      </button>
+    </div>
   );
 }

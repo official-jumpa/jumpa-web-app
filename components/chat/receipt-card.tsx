@@ -39,7 +39,11 @@ export function ReceiptCard({ card }: { card: Receipt }) {
       <CardRule />
 
       {card?.stats && card.stats.length > 0 ? (
-        <CardStats stats={card.stats} />
+        <CardStats
+          stats={card.stats.filter(
+            (s) => !/^(tx\s*hash|hash|transaction\s*hash)/i.test(s.lead || ""),
+          )}
+        />
       ) : null}
 
       {href ? (

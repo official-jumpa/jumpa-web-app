@@ -148,7 +148,7 @@
   --radius-tile: 10px; /* inner surface of an inset card */
   --radius-panel: 16px; /* PIN box, backup option rows */
   --radius-card: 18px;
-  --radius-surface: 22px; /* composer input and its suggestion card */
+  --radius-surface: 22px; /* every surface in the chat thread, plus the composer and its suggestion card */
   --radius-dock: 32px; /* chat composer dock and its suggestion card */
   --radius-key: 24px; /* keypad keys */
   --radius-sheet: 40px; /* keypad panel, bottom sheet */

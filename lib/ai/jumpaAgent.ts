@@ -1,5 +1,5 @@
 /**
- * Jumpa AI — DeepSeek Client with Function Calling & Multi-Tool Agent Loop
+ * Jumpa AI — Jumpa Agent Client with Function Calling & Multi-Tool Agent Loop
  *
  * The AI decides which tools to call. The server executes them in an iterative loop.
  * Supports parallel tool calls in a single turn and multi-turn sequential tool chaining.
@@ -23,7 +23,7 @@ export interface ParsedToolCall {
   toolArgs: Record<string, any>;
 }
 
-export interface DeepSeekContext {
+export interface JumpaAgentContext {
   walletAddress?: string;
   stellarAddress?: string;
   solanaAddress?: string;
@@ -40,7 +40,7 @@ export type AIStepResponse =
       rawAssistantMessage: any;
     };
 
-export function buildSystemPrompt(context?: DeepSeekContext): string {
+export function buildSystemPrompt(context?: JumpaAgentContext): string {
   return `You are Jumpa AI — a friendly, knowledgeable personal finance assistant inside the Jumpa app.
 Jumpa is a multi-chain Web3 + fiat neo-banking platform for users in Nigeria and beyond.
 
@@ -223,11 +223,95 @@ export function parseDSMLToolCalls(content: string): ParsedToolCall[] {
   return toolCalls;
 }
 
+function handleChoiceResponse(choice: any): AIStepResponse {
+  if (!choice) {
+    return {
+      mode: "chat",
+      message: "I didn't get a response. Could you try sending it again?",
+    };
+  }
+
+  const message = choice.message;
+
+  // Structured tool calls from API
+  if (
+    choice.finish_reason === "tool_calls" ||
+    (message?.tool_calls && message.tool_calls.length > 0)
+  ) {
+    const toolCalls: ParsedToolCall[] = [];
+    for (const tc of message.tool_calls) {
+      let args: Record<string, any> = {};
+      try {
+        args =
+          typeof tc.function.arguments === "string"
+            ? JSON.parse(tc.function.arguments)
+            : tc.function.arguments || {};
+      } catch {
+        console.error(
+          "[JumpaAgent] Failed to parse tool args:",
+          tc.function.arguments,
+        );
+        args = {};
+      }
+      toolCalls.push({
+        toolCallId: tc.id || `call_${Date.now()}_${toolCalls.length}`,
+        toolName: tc.function.name,
+        toolArgs: args,
+      });
+    }
+
+    if (toolCalls.length > 0) {
+      console.log(
+        `[JumpaAgent] Structured tool calls received (${toolCalls.length}):`,
+        toolCalls.map((t) => t.toolName).join(", "),
+      );
+      return {
+        mode: "tool_calls",
+        toolCalls,
+        rawAssistantMessage: message,
+      };
+    }
+  }
+
+  // Fallback: Check if raw DSML markup is in message content
+  const rawContent = message?.content || "";
+  const dsmlCalls = parseDSMLToolCalls(rawContent);
+  if (dsmlCalls.length > 0) {
+    console.log(
+      `[JumpaAgent] Extracted ${dsmlCalls.length} tool calls from DSML markup:`,
+      dsmlCalls.map((t) => t.toolName).join(", "),
+    );
+    return {
+      mode: "tool_calls",
+      toolCalls: dsmlCalls,
+      rawAssistantMessage: {
+        role: "assistant",
+        content: null,
+        tool_calls: dsmlCalls.map((tc) => ({
+          id: tc.toolCallId,
+          type: "function",
+          function: {
+            name: tc.toolName,
+            arguments: JSON.stringify(tc.toolArgs),
+          },
+        })),
+      },
+    };
+  }
+
+  // Pure chat mode
+  const cleanContent = sanitizeDSML(rawContent);
+  return {
+    mode: "chat",
+    message: cleanContent || "I've processed your request.",
+  };
+}
+
 /**
- * Execute a single step with DeepSeek.
+ * Execute a single step with Jumpa Agent (OpenRouter).
  * Can return either chat text or 1+ tool calls to execute.
  */
-export async function runDeepSeekStep(options: {
+export async function runAgentStep(options: {
   messages: ChatHistoryMessage[];
   toolChoice?: "auto" | "required" | "none";
   temperature?: number;
@@ -309,90 +393,9 @@ export async function runDeepSeekStep(options: {
 
     const data = await response.json();
     const choice = data.choices?.[0];
-
-    if (!choice) {
-      return {
-        mode: "chat",
-        message: "I didn't get a response. Could you try rephrasing that?",
-      };
-    }
-
-    const message = choice.message;
-
-    // Structured tool calls from API
-    if (
-      choice.finish_reason === "tool_calls" ||
-      (message?.tool_calls && message.tool_calls.length > 0)
-    ) {
-      const toolCalls: ParsedToolCall[] = [];
-      for (const tc of message.tool_calls) {
-        let args: Record<string, any> = {};
-        try {
-          args =
-            typeof tc.function.arguments === "string"
-              ? JSON.parse(tc.function.arguments)
-              : tc.function.arguments || {};
-        } catch {
-          console.error(
-            "[DeepSeek] Failed to parse tool args:",
-            tc.function.arguments,
-          );
-          args = {};
-        }
-        toolCalls.push({
-          toolCallId: tc.id || `call_${Date.now()}_${toolCalls.length}`,
-          toolName: tc.function.name,
-          toolArgs: args,
-        });
-      }
-
-      if (toolCalls.length > 0) {
-        console.log(
-          `[DeepSeek] Structured tool calls received (${toolCalls.length}):`,
-          toolCalls.map((t) => t.toolName).join(", "),
-        );
-        return {
-          mode: "tool_calls",
-          toolCalls,
-          rawAssistantMessage: message,
-        };
-      }
-    }
-
-    // Fallback: Check if raw DSML markup is in message content
-    const rawContent = message?.content || "";
-    const dsmlCalls = parseDSMLToolCalls(rawContent);
-    if (dsmlCalls.length > 0) {
-      console.log(
-        `[DeepSeek] Extracted ${dsmlCalls.length} tool calls from DSML markup:`,
-        dsmlCalls.map((t) => t.toolName).join(", "),
-      );
-      return {
-        mode: "tool_calls",
-        toolCalls: dsmlCalls,
-        rawAssistantMessage: {
-          role: "assistant",
-          content: null,
-          tool_calls: dsmlCalls.map((tc) => ({
-            id: tc.toolCallId,
-            type: "function",
-            function: {
-              name: tc.toolName,
-              arguments: JSON.stringify(tc.toolArgs),
-            },
-          })),
-        },
-      };
-    }
-
-    // Pure chat mode
-    const cleanContent = sanitizeDSML(rawContent);
-    return {
-      mode: "chat",
-      message: cleanContent || "I've processed your request.",
-    };
+    return handleChoiceResponse(choice);
   } catch (err) {
-    console.error("[DeepSeek Fetch Error]", err);
+    console.error("[JumpaAgent Fetch Error]", err);
     return {
       mode: "chat",
       message:

@@ -1,4 +1,4 @@
-import { sanitizeDSML } from "@/lib/ai/deepseek";
+import { sanitizeDSML } from "@/lib/ai/jumpaAgent";
 import { environment } from "@/lib/environment";
 
 export interface SupportChatMessage {

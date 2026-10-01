@@ -119,7 +119,7 @@ export const SAVE_CARD = {
       description: "Save for a fixed period, at a fixed rate.",
     },
     {
-      title: "Circles (Groups)",
+      title: "Circles (Group Savings)",
       description: "Create or join a shared savings goal.",
     },
   ],

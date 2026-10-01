@@ -16,7 +16,7 @@ export const SAVINGS_INTROS: Record<SavingsKind, SavingsIntro> = {
     title: "Individual Savings",
     body: "Save at your own pace. Set a personal target and work towards it consistently.",
     terms: INDIVIDUAL_SAVINGS_TERMS,
-    cta: "Create a new target",
+    cta: "Create Savings",
     href: savingsHref("individual"),
   },
   lock: {
@@ -26,7 +26,7 @@ export const SAVINGS_INTROS: Record<SavingsKind, SavingsIntro> = {
     title: "Lock savings",
     body: "Build towards your future. Keep your money secured until you reach your goal.",
     terms: LOCK_SAVINGS_TERMS,
-    cta: "Proceed to lock",
+    cta: "Create Locked Savings",
     href: savingsHref("lock"),
   },
   circle: {
@@ -36,7 +36,7 @@ export const SAVINGS_INTROS: Record<SavingsKind, SavingsIntro> = {
     title: "Circle",
     body: "Save together. Stay accountable. Build towards a shared goal with your squad.",
     terms: CIRCLE_TERMS,
-    cta: "Create a new circle",
+    cta: "Create Circle",
     href: savingsHref("circle"),
     secondary: {
       label: "Join a circle",

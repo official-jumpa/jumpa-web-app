@@ -164,9 +164,9 @@ export const SAVINGS_BALANCE: Record<
   SavingsKind,
   { badge: string; amount: string }
 > = {
-  individual: { badge: "Referral Earnings", amount: "0.00" },
-  lock: { badge: "Locked savings", amount: "0.00" },
-  circle: { badge: "Group savings", amount: "0.00" },
+  individual: { badge: "Individual Savings", amount: "0.00" },
+  lock: { badge: "Locked Savings", amount: "0.00" },
+  circle: { badge: "Group Savings", amount: "0.00" },
 };
 
 export const SAVINGS_CATEGORIES = [

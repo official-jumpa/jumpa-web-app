@@ -28,7 +28,7 @@ const TYPES: SavingsType[] = [
   },
   {
     kind: "circle",
-    label: "Circles (Groups)",
+    label: "Circles (Group Savings)",
     caption: "Create or join a shared savings goal.",
     Icon: UsersIcon,
   },
@@ -83,8 +83,7 @@ export function SavingsTypes({
 
   return (
     <section className="flex flex-col gap-3">
-      {/* The frame heads the list "Loan types"; kept verbatim. */}
-      <h2 className="text-xs font-medium text-jumpa-black">Loan types</h2>
+      <h2 className="text-xs font-medium text-jumpa-black">Savings types</h2>
 
       <div className="flex items-stretch gap-3">
         {[individual, lock].map(({ kind, label, caption, Icon }) => (

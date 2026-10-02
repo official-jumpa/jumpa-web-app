@@ -59,10 +59,9 @@ export function AuthStepGuard({ children }: { children: ReactNode }) {
           return;
         }
 
-        // 3. Already has wallet & pin -> redirect away from /sign-up/pin or /import-wallet
+        // 3. Already has wallet & pin -> redirect away from /sign-up/pin
         const onPinPage = pathname?.startsWith("/sign-up/pin");
-        const onImportPage = pathname?.startsWith("/import-wallet");
-        if ((onPinPage || onImportPage) && status.hasPin) {
+        if (onPinPage && status.hasPin) {
           router.replace(status.nextRoute || "/home");
           return;
         }

@@ -86,7 +86,6 @@ export const config = {
     "/onboarding(.*)",
     "/sign-in(.*)",
     "/sign-up(.*)",
-    "/import-wallet(.*)",
     "/migrate-pin(.*)",
   ],
 };

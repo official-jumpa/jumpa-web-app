@@ -23,26 +23,9 @@ export type VerifyPinInput = z.infer<typeof verifyPinSchema>;
 /**
  * Validation for /api/auth/wallet-setup.
  */
-export const walletSetupSchema = z
-  .object({
-    pin: pinSchema,
-    phrase: z.string().trim().optional(),
-    privateKey: z.string().trim().optional(),
-    chain: z.enum(["stellar", "solana", "base", "eth"]).optional(),
-    action: z.enum(["create", "import"]).optional().default("create"),
-  })
-  .refine(
-    (data) => {
-      if (data.action === "import") {
-        return Boolean(data.phrase || data.privateKey);
-      }
-      return true;
-    },
-    {
-      message: "Either seed phrase or private key is required for wallet import",
-      path: ["phrase"],
-    },
-  );
+export const walletSetupSchema = z.object({
+  pin: pinSchema,
+});
 
 export type WalletSetupInput = z.infer<typeof walletSetupSchema>;
 

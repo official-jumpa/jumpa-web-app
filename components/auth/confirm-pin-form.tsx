@@ -44,37 +44,11 @@ export function ConfirmPinForm({
     setError(null);
 
     try {
-      const setupType =
-        typeof window !== "undefined"
-          ? sessionStorage.getItem("setupType")
-          : null;
-
-      let phrase: string | undefined;
-      let privateKey: string | undefined;
-      let chain: string | undefined;
-
-      if (typeof window !== "undefined") {
-        if (setupType === "phrase") {
-          phrase = sessionStorage.getItem("setupPhrase") || undefined;
-        } else if (setupType === "privateKey") {
-          privateKey = sessionStorage.getItem("setupPrivateKey") || undefined;
-          chain = sessionStorage.getItem("setupChain") || undefined;
-        } else {
-          phrase = sessionStorage.getItem("setupPhrase") || undefined;
-          privateKey = sessionStorage.getItem("setupPrivateKey") || undefined;
-          chain = sessionStorage.getItem("setupChain") || undefined;
-        }
-      }
-
       const res = await fetch("/api/auth/wallet-setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pin: confirmValue,
-          phrase,
-          privateKey,
-          chain,
-          action: phrase || privateKey ? "import" : "create",
         }),
       });
 
@@ -92,10 +66,6 @@ export function ConfirmPinForm({
         if (data.address) {
           sessionStorage.setItem("userWalletAddress", data.address);
         }
-        sessionStorage.removeItem("setupPhrase");
-        sessionStorage.removeItem("setupPrivateKey");
-        sessionStorage.removeItem("setupChain");
-        sessionStorage.removeItem("setupType");
         sessionStorage.removeItem("setupPin");
       }
 

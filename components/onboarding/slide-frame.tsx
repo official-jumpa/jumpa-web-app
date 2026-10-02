@@ -116,7 +116,7 @@ export function SlideFrame({
                 Create new Wallet
               </Button>
               <Button href={IMPORT_WALLET_HREF} variant={secondaryVariant}>
-                I Have an Existing Wallet
+                I Have an Existing Account
               </Button>
             </div>
           </div>

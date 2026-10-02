@@ -21,7 +21,7 @@ export default function SignUpPage() {
     >
       <div className="flex flex-col items-center gap-8">
         <div className="flex w-full flex-col gap-6">
-          <AuthHeading title="Create account 👋">
+          <AuthHeading title="Create account">
             Get started with Jumpa in minutes
           </AuthHeading>
 

@@ -7,13 +7,11 @@ import { requireAuth } from "@/lib/functions/permissionFunctions";
 import { encryptMnemonic, decryptMnemonic } from "@/lib/crypto";
 import {
   deriveAddresses,
-  deriveFromPrivateKey,
   type DerivedWallet,
 } from "@/lib/derive-addresses";
 import { environment } from "@/lib/environment";
 import {
   deriveStellarKeypairFromMnemonic,
-  deriveStellarKeypairFromPrivateKey,
   activateAndTrustlineWallet,
 } from "@/lib/chains/stellar";
 import {
@@ -484,24 +482,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Step 3 (Default): Transaction PIN & Wallet Creation/Import
+    // Step 3 (Default): Transaction PIN & Wallet Creation
     const validation = walletSetupSchema.safeParse(body);
     if (!validation.success) {
       return NextResponse.json(formatZodError(validation.error), { status: 400 });
     }
 
-    const {
-      pin,
-      phrase: providedPhrase,
-      privateKey,
-      chain,
-      action = "create",
-    } = validation.data;
+    const { pin } = validation.data;
 
     // If the user already has a wallet:
     const existingWallets = await listWalletsByUserId(session.user.id);
     const existingWallet = existingWallets[0];
-    console.log("🟢🟢🟢 Total user wallets", existingWallets.length)
+    console.log("🟢🟢🟢 Total wallets", existingWallets.length)
 
     if (existingWallet) {
       // If the wallet exists but is missing pinHash, complete the setup instead of throwing error:
@@ -521,47 +513,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-
     const walletName = await getNextWalletName(session.user.id);
 
-    let derived: DerivedWallet;
-    let secretToEncrypt: string;
-
-    if (privateKey) {
-      // 1. Private Key Import
-      try {
-        derived = deriveFromPrivateKey(privateKey, chain || "base");
-        secretToEncrypt = privateKey.trim();
-      } catch (err: any) {
-        return NextResponse.json(
-          { error: err.message || "Invalid private key" },
-          { status: 400 },
-        );
-      }
-    } else if (providedPhrase) {
-      // 2. Recovery Phrase Import
-      const isValid = validateMnemonic(providedPhrase, wordlist);
-      if (!isValid) {
-        return NextResponse.json(
-          { error: "Invalid seed phrase" },
-          { status: 400 },
-        );
-      }
-      try {
-        derived = deriveAddresses(providedPhrase);
-        secretToEncrypt = providedPhrase;
-      } catch (err: any) {
-        return NextResponse.json(
-          { error: err?.message || "Failed to derive addresses from phrase" },
-          { status: 400 },
-        );
-      }
-    } else {
-      // 3. New Wallet Generation
-      const newPhrase = generateMnemonic(wordlist);
-      derived = deriveAddresses(newPhrase);
-      secretToEncrypt = newPhrase;
-    }
+    // Generate new wallet
+    const newPhrase = generateMnemonic(wordlist);
+    const derived = deriveAddresses(newPhrase);
+    const secretToEncrypt = newPhrase;
 
     const primaryAddress =
       derived.addresses.eth ||
@@ -583,12 +540,7 @@ export async function POST(req: NextRequest) {
     );
     const pinHash = await bcrypt.hash(pin, 10);
 
-    const setupMethod =
-      action === "import"
-        ? providedPhrase
-          ? "IMPORTED_SEED"
-          : "IMPORTED_PRIVATE_KEY"
-        : "CREATED_SEED";
+    const setupMethod = "CREATED_SEED";
 
     const wallet = await createWalletRecord({
       userId: session.user.id,
@@ -602,7 +554,7 @@ export async function POST(req: NextRequest) {
       pinHash,
       pinVersion: "v2",
       setupMethod,
-      importedChain: chain || null,
+      importedChain: null,
       lastUsedAt: new Date(),
     });
 
@@ -612,10 +564,7 @@ export async function POST(req: NextRequest) {
     // Auto-activate Stellar account & USDC trustline if sponsor key is configured
     if (environment.SPONSORED_FEE_STELLAR_KEY && derived.addresses.xlm) {
       try {
-        const stellarKeypair =
-          setupMethod === "IMPORTED_PRIVATE_KEY"
-            ? deriveStellarKeypairFromPrivateKey(secretToEncrypt)
-            : deriveStellarKeypairFromMnemonic(secretToEncrypt);
+        const stellarKeypair = deriveStellarKeypairFromMnemonic(secretToEncrypt);
 
         activateAndTrustlineWallet(stellarKeypair)
           .then((res) => {
@@ -640,12 +589,12 @@ export async function POST(req: NextRequest) {
     // Log user activity
     logUserActivity({
       userId: session.user.id,
-      action: action === "import" ? "WALLET_IMPORTED" : "WALLET_CREATED",
+      action: "WALLET_CREATED",
       details: {
         walletId: wallet._id,
         address: wallet.address,
         setupMethod,
-        chain: chain || "multichain",
+        chain: "multichain",
       },
       req,
     }).catch((e) => console.error("[WalletSetup] ActivityLog error:", e));
@@ -653,19 +602,16 @@ export async function POST(req: NextRequest) {
     createNotification({
       userId: session.user.id,
       tab: "activities",
-      type: action === "import" ? "WALLET_IMPORTED" : "WALLET_CREATED",
-      title: action === "import" ? "Wallet Imported" : "Wallet Created",
-      body:
-        action === "import"
-          ? "Your wallet was successfully imported."
-          : "Your wallet was successfully created.",
+      type: "WALLET_CREATED",
+      title: "Wallet Created",
+      body: "Your wallet was successfully created.",
       metadata: { walletId: wallet._id, address: wallet.address },
       link: "/home",
     }).catch((e) => console.error("[WalletSetup] Notification error:", e));
 
     const response = NextResponse.json(
       {
-        message: action === "import" ? "Wallet imported" : "Wallet created",
+        message: "Wallet created",
         address: wallet.address,
         addresses: wallet.addresses,
       },

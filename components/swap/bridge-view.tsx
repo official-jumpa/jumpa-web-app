@@ -544,7 +544,7 @@ export function BridgeView({
                 ? `${defaultRecipient.slice(0, 10)}…${defaultRecipient.slice(-8)}`
                 : "No derived address available"}
             </span>
-            <span className="shrink-0 rounded-pill bg-jumpa-success/10 px-2 py-0.5 text-[10px] font-semibold text-jumpa-success">
+            <span className="shrink-0 rounded-pill bg-jumpa-success/10 px-2 py-0.5 text-[10px] font-semibold">
               Your Wallet
             </span>
           </div>

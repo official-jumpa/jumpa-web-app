@@ -4,11 +4,198 @@ import { SwitchService } from "@/lib/switch";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
-import type {
-  TransactionDetailRow,
-  TransactionKind,
-} from "@/lib/wallet";
+import type { TransactionDetailRow, TransactionKind } from "@/lib/wallet";
 import { detectCarrierFromPhone } from "@/lib/bills";
+
+// Types & Provider Interfaces 
+
+export interface ProviderSyncResult {
+  status: "CONFIRMED" | "FAILED" | "PENDING";
+  txHash?: string;
+  explorerUrl?: string;
+  reason?: string;
+  rawStatus: string;
+}
+
+interface RampProviderSyncHandler {
+  checkStatus(reference: string, tx: any): Promise<ProviderSyncResult>;
+}
+
+export interface ResolveTransactionsResult {
+  totalChecked: number;
+  confirmed: number;
+  failed: number;
+  stillPending: number;
+  details: Array<{
+    id: string;
+    reference: string;
+    type: string;
+    amount: string;
+    token: string;
+    previousStatus: string;
+    newStatus: string;
+    providerStatus: string;
+    reason?: string;
+  }>;
+}
+
+//  Helpers
+
+function formatDecimal(val: string | number, maxDecimals = 4): string {
+  if (val === undefined || val === null || val === "") return "";
+  const cleaned = String(val).replace(/,/g, "").trim();
+  const num = parseFloat(cleaned);
+  if (isNaN(num)) return String(val);
+
+  return num.toLocaleString(undefined, {
+    maximumFractionDigits: maxDecimals,
+  });
+}
+
+function exchangeRate(from?: string, to?: string): string {
+  const a = parseFloat(String(from || ""));
+  const b = parseFloat(String(to || ""));
+  if (!a || !b) return "";
+  return formatDecimal(b / a, 4);
+}
+
+function timeTaken(tx: any): string {
+  if (!tx.executedAt || !tx.createdAt) return "";
+  const ms = new Date(tx.executedAt).getTime() - new Date(tx.createdAt).getTime();
+  if (!isFinite(ms) || ms <= 0) return "";
+  return ms < 60000 ? `${Math.round(ms / 1000)} secs` : `${Math.round(ms / 60000)} mins`;
+}
+
+function shortenKey(value?: string): string {
+  if (!value || value.length <= 18) return value || "";
+  return `${value.slice(0, 8)}…${value.slice(value.length - 6)}`;
+}
+
+//  Provider Handlers
+
+const switchSyncHandler: RampProviderSyncHandler = {
+  async checkStatus(reference: string): Promise<ProviderSyncResult> {
+    const result = await SwitchService.getTransactionStatus(reference);
+    if (!result.success || !result.data) {
+      return {
+        status: "PENDING",
+        rawStatus: "UNKNOWN",
+        reason: result?.message || "Failed to reach Switch",
+      };
+    }
+
+    const rawStatus = (result.data.status || "").toUpperCase();
+    const isCompleted = ["COMPLETED", "SUCCESS", "SUCCESSFUL", "DELIVERED", "SETTLED"].includes(rawStatus);
+    const isFailed = ["FAILED", "EXPIRED", "CANCELLED", "REJECTED"].includes(rawStatus);
+
+    if (isCompleted) {
+      return {
+        status: "CONFIRMED",
+        txHash: result.data.meta?.hash || reference,
+        explorerUrl: result.data.meta?.explorer_url || undefined,
+        rawStatus,
+      };
+    }
+    if (isFailed) {
+      return {
+        status: "FAILED",
+        rawStatus,
+        reason: result?.message || `Provider status: ${rawStatus}`,
+      };
+    }
+
+    return {
+      status: "PENDING",
+      rawStatus: rawStatus || "AWAITING_DEPOSIT",
+    };
+  },
+};
+
+const centiivSyncHandler: RampProviderSyncHandler = {
+  async checkStatus(reference: string, tx: any): Promise<ProviderSyncResult> {
+    const { getCentiivRequestStatus } = await import("@/lib/functions/centiivFunctions");
+    const result = await getCentiivRequestStatus(reference);
+
+    if (!result?.status) {
+      return { status: "PENDING", rawStatus: "UNKNOWN" };
+    }
+
+    const rawStatus = (result.status || "").toUpperCase();
+    const isCompleted = rawStatus === "FULFILLED";
+    const isFailed = ["FAILED", "EXPIRED", "REFUNDED"].includes(rawStatus);
+
+    if (isCompleted) {
+      const txHash = result.txHash || reference;
+
+      // Handle custom onramp settlement if applicable
+      if (
+        tx.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
+        tx.rampDetails?.settlementStatus !== "COMPLETED" &&
+        tx.toAddress
+      ) {
+        const { settleOnrampTransferCustom } = await import(
+          "@/lib/chains/onramp-transfer-custom"
+        );
+        const settleRes = await settleOnrampTransferCustom({
+          transactionId: tx._id.toString(),
+          recipientAddress: tx.toAddress,
+          targetToken: tx.token || "XLM",
+          cryptoAmount: tx.amount,
+          centiivTxHash: txHash,
+          expectedUsdcAmount: tx.rampDetails?.expectedUsdc,
+          userId: tx.userId,
+        });
+
+        if (settleRes.success) {
+          return {
+            status: "CONFIRMED",
+            txHash: settleRes.txHash || txHash,
+            rawStatus,
+          };
+        }
+
+        return {
+          status: "PENDING",
+          rawStatus: "SETTLING",
+          reason: settleRes.error || "Custom onramp settlement in progress",
+        };
+      }
+
+      return {
+        status: "CONFIRMED",
+        txHash,
+        rawStatus,
+      };
+    }
+
+    if (isFailed) {
+      return {
+        status: "FAILED",
+        rawStatus,
+        reason: `Centiiv status: ${rawStatus}`,
+      };
+    }
+
+    return {
+      status: "PENDING",
+      rawStatus: rawStatus || "PROCESSING",
+    };
+  },
+};
+
+const PROVIDER_HANDLERS: Record<string, RampProviderSyncHandler> = {
+  switch: switchSyncHandler,
+  centiiv: centiivSyncHandler,
+};
+
+function getProviderHandler(provider?: string): RampProviderSyncHandler {
+  if (provider && PROVIDER_HANDLERS[provider.toLowerCase()]) {
+    return PROVIDER_HANDLERS[provider.toLowerCase()];
+  }
+  return switchSyncHandler;
+}
+
+//  CRUD Operations 
 
 /**
  * Creates a new transaction record in MongoDB.
@@ -20,59 +207,25 @@ export async function createTransactionRecord(
   return Transaction.create(data);
 }
 
-/**
- * Syncs a single PENDING ramp transaction against its provider (Switch or Centiiv),
- * updating the DB and invalidating balance cache if the status has changed.
- *
- * Supports:
- *  - Switch onramp / offramp  (provider: "switch")
- *  - Centiiv offramp          (provider: "centiiv")
- */
-export async function syncPendingRampTransaction(tx: any): Promise<any> {
-  const isCustomPendingSettlement =
-    tx?.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
-    tx?.rampDetails?.settlementStatus !== "COMPLETED";
-
-  if (!tx || (!isCustomPendingSettlement && tx.status !== "PENDING") || !tx.rampDetails?.reference) {
-    return tx;
-  }
-
-  const provider = tx.rampDetails?.provider;
-
-  try {
-    if (provider === "centiiv") {
-      return await _syncCentiivTransaction(tx);
-    }
-
-    // Default: Switch provider
-    if (provider === "switch" || tx.type === "ONRAMP" || tx.type === "OFFRAMP") {
-      return await _syncSwitchTransaction(tx);
-    }
-  } catch (err) {
-    console.warn(`[Transaction Sync] Notice syncing pending tx ${tx._id}:`, err);
-  }
-
-  return tx;
-}
-
-/** @deprecated Use syncPendingRampTransaction instead */
-export const syncPendingSwitchTransaction = syncPendingRampTransaction;
-
 async function _applySyncResult(
   tx: any,
   newStatus: "CONFIRMED" | "FAILED",
   txHash?: string,
   explorerUrl?: string,
+  errorMessage?: string,
 ) {
   const updateData: Record<string, any> = { status: newStatus, updatedAt: new Date() };
   if (txHash) updateData.txHash = txHash;
   if (explorerUrl) updateData.explorerUrl = explorerUrl;
+  if (errorMessage) updateData.errorMessage = errorMessage;
 
   await Transaction.updateOne({ _id: tx._id }, { $set: updateData });
 
   tx.status = newStatus;
   if (txHash) tx.txHash = txHash;
   if (explorerUrl) tx.explorerUrl = explorerUrl;
+  if (errorMessage) tx.errorMessage = errorMessage;
+  tx.updatedAt = updateData.updatedAt;
 
   if (newStatus === "CONFIRMED") {
     if (tx.userId) invalidateBalanceCache(tx.userId);
@@ -84,11 +237,35 @@ async function _applySyncResult(
       const isWithdraw = tx.type === "OFFRAMP" || tx.type === "WITHDRAW";
 
       if (isDeposit) {
-        logUserActivity({ userId: tx.userId, action: "ONRAMP_COMPLETED", details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash } }).catch(() => {});
-        createNotification({ userId: tx.userId, tab: "transactions", type: "ONRAMP_COMPLETED", title: "Deposit Successful", body: `${tx.amount} ${tx.token} successfully deposited to your wallet`, metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token }, link: "/transactions" }).catch(() => {});
+        logUserActivity({
+          userId: tx.userId,
+          action: "ONRAMP_COMPLETED",
+          details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
+        }).catch(() => {});
+        createNotification({
+          userId: tx.userId,
+          tab: "transactions",
+          type: "ONRAMP_COMPLETED",
+          title: "Deposit Successful",
+          body: `${tx.amount} ${tx.token} successfully deposited to your wallet`,
+          metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
+          link: "/transactions",
+        }).catch(() => {});
       } else if (isWithdraw) {
-        logUserActivity({ userId: tx.userId, action: "OFFRAMP_COMPLETED", details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash } }).catch(() => {});
-        createNotification({ userId: tx.userId, tab: "transactions", type: "OFFRAMP_COMPLETED", title: "Withdrawal Successful", body: `${tx.amount} ${tx.token} sent to your bank account`, metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token }, link: "/transactions" }).catch(() => {});
+        logUserActivity({
+          userId: tx.userId,
+          action: "OFFRAMP_COMPLETED",
+          details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
+        }).catch(() => {});
+        createNotification({
+          userId: tx.userId,
+          tab: "transactions",
+          type: "OFFRAMP_COMPLETED",
+          title: "Withdrawal Successful",
+          body: `${tx.amount} ${tx.token} sent to your bank account`,
+          metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
+          link: "/transactions",
+        }).catch(() => {});
       }
     }
   }
@@ -96,64 +273,32 @@ async function _applySyncResult(
   return tx;
 }
 
-async function _syncSwitchTransaction(tx: any): Promise<any> {
-  const reference = tx.rampDetails.reference;
-  const result = await SwitchService.getTransactionStatus(reference);
+/**
+ * Syncs a single PENDING ramp transaction against its provider (Switch or Centiiv),
+ * updating the DB and invalidating balance cache if the status has changed.
+ */
+export async function syncPendingRampTransaction(tx: any): Promise<any> {
+  const isCustomPendingSettlement =
+    tx?.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
+    tx?.rampDetails?.settlementStatus !== "COMPLETED";
 
-  if (!result.success || !result.data) return tx;
-
-  const rawStatus = (result.data.status || "").toUpperCase();
-  const isCompleted = ["COMPLETED", "SUCCESS", "SUCCESSFUL", "DELIVERED", "SETTLED"].includes(rawStatus);
-  const isFailed = ["FAILED", "EXPIRED", "CANCELLED", "REJECTED"].includes(rawStatus);
-
-  if (isCompleted) {
-    const txHash = result.data.meta?.hash || reference;
-    const explorerUrl = result.data.meta?.explorer_url || undefined;
-    return _applySyncResult(tx, "CONFIRMED", txHash, explorerUrl);
-  } else if (isFailed) {
-    return _applySyncResult(tx, "FAILED");
+  if (!tx || (!isCustomPendingSettlement && tx.status !== "PENDING") || !tx.rampDetails?.reference) {
+    return tx;
   }
 
-  return tx;
-}
+  const handler = getProviderHandler(tx.rampDetails?.provider);
 
-async function _syncCentiivTransaction(tx: any): Promise<any> {
-  const { getCentiivRequestStatus } = await import("@/lib/functions/centiivFunctions");
-  const requestId = tx.rampDetails.reference;
-  const result = await getCentiivRequestStatus(requestId);
+  try {
+    const syncRes = await handler.checkStatus(tx.rampDetails.reference, tx);
 
-  if (!result?.status) return tx;
-
-  const rawStatus = result.status.toUpperCase();
-  const isCompleted = ["FULFILLED"].includes(rawStatus);
-  const isFailed = ["FAILED", "EXPIRED", "REFUNDED"].includes(rawStatus);
-
-  if (isCompleted) {
-    const txHash = result.txHash;
-
-    if (
-      tx.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
-      tx.rampDetails?.settlementStatus !== "COMPLETED" &&
-      tx.toAddress
-    ) {
-      const { settleOnrampTransferCustom } = await import(
-        "@/lib/chains/onramp-transfer-custom"
-      );
-      await settleOnrampTransferCustom({
-        transactionId: tx._id.toString(),
-        recipientAddress: tx.toAddress,
-        targetToken: tx.token || "XLM",
-        cryptoAmount: tx.amount,
-        centiivTxHash: txHash,
-        expectedUsdcAmount: tx.rampDetails?.expectedUsdc,
-        userId: tx.userId,
-      });
-      return tx;
+    if (syncRes.status === "CONFIRMED") {
+      return await _applySyncResult(tx, "CONFIRMED", syncRes.txHash, syncRes.explorerUrl);
     }
-
-    return _applySyncResult(tx, "CONFIRMED", txHash);
-  } else if (isFailed) {
-    return _applySyncResult(tx, "FAILED");
+    if (syncRes.status === "FAILED") {
+      return await _applySyncResult(tx, "FAILED", undefined, undefined, syncRes.reason);
+    }
+  } catch (err) {
+    console.warn(`[Transaction Sync] Notice syncing pending tx ${tx._id}:`, err);
   }
 
   return tx;
@@ -199,82 +344,274 @@ export async function getTransactionById(
   return syncPendingRampTransaction(tx);
 }
 
-function formatDecimal(val: string | number, maxDecimals = 4): string {
-  if (val === undefined || val === null || val === "") return "";
-  const cleaned = String(val).replace(/,/g, "").trim();
-  const num = parseFloat(cleaned);
-  if (isNaN(num)) return String(val);
+// Transaction Formatting Engine
 
-  return num.toLocaleString(undefined, {
-    maximumFractionDigits: maxDecimals,
-  });
+const SUBJECT: Partial<Record<TransactionKind, string>> = {
+  send: "Transfer",
+  receive: "Deposit",
+  card: "Card deposit",
+  swap: "Swap",
+  bridge: "Bridge",
+  airtime: "Airtime",
+  data: "Data",
+  invest: "Savings",
+};
+
+const OUTCOME = {
+  completed: "complete",
+  pending: "pending",
+  failed: "failed",
+} as const;
+
+interface TxTypeDescriptor {
+  kind: TransactionKind;
+  isIncoming: (tx: any) => boolean;
+  getTitle: (tx: any) => string;
+  getRows: (tx: any, status: string) => Array<[string, unknown, string?]>;
+}
+
+const DEFAULT_DESCRIPTOR: TxTypeDescriptor = {
+  kind: "send",
+  isIncoming: (tx) =>
+    tx.type === "ONRAMP" ||
+    tx.type === "DEPOSIT" ||
+    tx.type === "FAUCET" ||
+    tx.type === "SAVINGS_WITHDRAW" ||
+    (tx.type === "TRANSFER" &&
+      (tx.fromAddress === "SWITCH_NGN_BANK" ||
+        tx.fromAddress?.toLowerCase().includes("faucet"))),
+  getTitle: (tx) => {
+    if (tx.type === "TRANSFER") {
+      const isIncoming =
+        tx.fromAddress === "SWITCH_NGN_BANK" ||
+        tx.fromAddress?.toLowerCase().includes("faucet");
+      return `${isIncoming ? "Received" : "Sent"} ${tx.token}`;
+    }
+    return tx.token || "Transaction";
+  },
+  getRows: (tx) => {
+    const rows: [string, unknown, string?][] = [
+      ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
+    ];
+    if (tx.toAddress) rows.push(["To", shortenKey(tx.toAddress)]);
+    if (tx.fromAddress) rows.push(["From", shortenKey(tx.fromAddress)]);
+    return rows;
+  },
+};
+
+const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
+  SWAP: {
+    kind: "swap",
+    isIncoming: () => false,
+    getTitle: (tx) => {
+      const toAmount = tx.swapDetails?.toAmount
+        ? `${formatDecimal(tx.swapDetails.toAmount, 4)} `
+        : "";
+      return `Swap to ${toAmount}${tx.swapDetails?.toToken || "Asset"}`;
+    },
+    getRows: (tx) => {
+      const swap = tx.swapDetails;
+      if (!swap) return [["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`]];
+      return [
+        ["Amount sent", `${formatDecimal(swap.fromAmount, 4)} ${swap.fromToken}`],
+        ["Amount received", `${formatDecimal(swap.toAmount, 4)} ${swap.toToken}`],
+        ["Exchange rate", exchangeRate(swap.fromAmount, swap.toAmount)],
+        ["Slippage", swap.slippage ? `${swap.slippage}%` : ""],
+      ];
+    },
+  },
+
+  BRIDGE: {
+    kind: "bridge",
+    isIncoming: () => false,
+    getTitle: (tx) => `Bridged to ${tx.bridgeDetails?.toChain || "Asset"}`,
+    getRows: (tx) => {
+      const bridge = tx.bridgeDetails;
+      const rows: [string, unknown, string?][] = [
+        ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
+      ];
+      if (bridge?.fromChain) rows.push(["Source Chain", bridge.fromChain]);
+      if (bridge?.toChain) rows.push(["Destination Chain", bridge.toChain]);
+      if (bridge?.fromToken && bridge?.toToken) {
+        rows.push(["Asset Pair", `${bridge.fromToken} → ${bridge.toToken}`]);
+      }
+      if (bridge?.fee) rows.push(["Bridge Fee", bridge.fee]);
+      return rows;
+    },
+  },
+
+  ONRAMP: {
+    kind: "receive",
+    isIncoming: () => true,
+    getTitle: (tx) => `Deposit ${tx.token}`,
+    getRows: (tx) => buildRampOrBankRows(tx),
+  },
+
+  DEPOSIT: {
+    kind: "receive",
+    isIncoming: () => true,
+    getTitle: (tx) => `Deposit ${tx.token}`,
+    getRows: (tx) => buildRampOrBankRows(tx),
+  },
+
+  OFFRAMP: {
+    kind: "send",
+    isIncoming: () => false,
+    getTitle: (tx) => `Withdraw ${tx.token}`,
+    getRows: (tx) => buildRampOrBankRows(tx),
+  },
+
+  WITHDRAW: {
+    kind: "send",
+    isIncoming: () => false,
+    getTitle: (tx) => `Withdraw ${tx.token}`,
+    getRows: (tx) => buildRampOrBankRows(tx),
+  },
+
+  FAUCET: {
+    kind: "receive",
+    isIncoming: () => true,
+    getTitle: (tx) => `Claim ${tx.token}`,
+    getRows: (tx) => [
+      ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
+      ["To", shortenKey(tx.toAddress)],
+    ],
+  },
+
+  SAVINGS_DEPOSIT: {
+    kind: "invest",
+    isIncoming: () => false,
+    getTitle: () => "Deposited to Savings",
+    getRows: (tx) => {
+      const rows: [string, unknown, string?][] = [
+        ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
+      ];
+      if (tx.savingsDetails?.planId) rows.push(["Plan ID", tx.savingsDetails.planId]);
+      if (tx.savingsDetails?.vaultAddress) rows.push(["Vault", shortenKey(tx.savingsDetails.vaultAddress)]);
+      return rows;
+    },
+  },
+
+  SAVINGS_WITHDRAW: {
+    kind: "invest",
+    isIncoming: () => true, // Funds return to wallet -> positive sign
+    getTitle: () => "Withdrew from Savings",
+    getRows: (tx) => {
+      const rows: [string, unknown, string?][] = [
+        ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
+      ];
+      if (tx.savingsDetails?.penaltyFee) rows.push(["Penalty Fee", tx.savingsDetails.penaltyFee]);
+      return rows;
+    },
+  },
+
+  AIRTIME: {
+    kind: "airtime",
+    isIncoming: () => false,
+    getTitle: (tx) => tx.memo || "Airtime Recharge",
+    getRows: (tx) => [
+      ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
+      ["Recipient Phone", tx.toAddress, tx.toAddress],
+      ["Description", tx.memo],
+    ],
+  },
+
+  DATA: {
+    kind: "data",
+    isIncoming: () => false,
+    getTitle: (tx) => tx.memo || "Data Subscription",
+    getRows: (tx) => [
+      ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
+      ["Recipient Phone", tx.toAddress, tx.toAddress],
+      ["Description", tx.memo],
+    ],
+  },
+};
+
+function buildRampOrBankRows(tx: any): Array<[string, unknown, string?]> {
+  const rows: [string, unknown, string?][] = [
+    ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
+  ];
+  const ramp = tx.rampDetails;
+  const bank = tx.bankDetails || ramp?.bankDetails;
+
+  if (bank) {
+    if (bank.bankName) rows.push(["Bank", bank.bankName]);
+    if (bank.accountNumber) rows.push(["Account Number", bank.accountNumber, bank.accountNumber]);
+    if (bank.accountName) rows.push(["Account Name", bank.accountName]);
+    const ref = bank.reference || tx.txHash;
+    if (ref) rows.push(["Reference", ref, ref]);
+  } else if (ramp) {
+    rows.push([
+      "Fiat amount",
+      ramp.fiatAmount ? `${ramp.fiatCurrency} ${ramp.fiatAmount}` : "",
+    ]);
+    if (ramp.reference) rows.push(["Reference", ramp.reference, ramp.reference]);
+  }
+
+  if (tx.memo) rows.push(["Description", tx.memo]);
+  return rows;
+}
+
+function resolveCarrier(tx: any, typeUpper: string): string | undefined {
+  if (tx.carrier) return tx.carrier;
+  if (typeUpper !== "AIRTIME" && typeUpper !== "DATA") return undefined;
+
+  const memoLower = (tx.memo || "").toLowerCase();
+  if (memoLower.includes("mtn")) return "mtn";
+  if (memoLower.includes("airtel")) return "airtel";
+  if (memoLower.includes("glo")) return "glo";
+  if (memoLower.includes("9mobile") || memoLower.includes("etisalat")) return "9mobile";
+  if (tx.toAddress) {
+    return detectCarrierFromPhone(tx.toAddress) || undefined;
+  }
+  return undefined;
+}
+
+function detailRows(tx: any, status: string, descriptor: TxTypeDescriptor): TransactionDetailRow[] {
+  const rows = descriptor.getRows(tx, status);
+
+  if (tx.chain && tx.chain !== "fiat") {
+    rows.push(
+      ["Network", `${tx.chain} ${tx.network || ""}`.trim()],
+      ["Network fee", tx.feePaid],
+    );
+    if (status !== "failed") {
+      rows.push(["Transaction hash", shortenKey(tx.txHash), tx.txHash]);
+    }
+  }
+
+  rows.push(["Time taken", timeTaken(tx)]);
+  if (status === "failed") rows.push(["Reason", tx.errorMessage]);
+
+  return rows
+    .filter(([, value]) => value !== undefined && value !== null && `${value}`.trim() !== "")
+    .map(([label, value, copy]) => ({
+      label,
+      value: `${value}`.trim(),
+      ...(copy ? { copy } : {}),
+    }));
 }
 
 export function formatDbTransaction(tx: any) {
   const typeUpper = (tx.type || "").toUpperCase();
   const token = (tx.token || "").toUpperCase();
 
-  const isIncoming =
-    tx.type === "ONRAMP" ||
-    tx.type === "DEPOSIT" ||
-    tx.type === "FAUCET" ||
-    (tx.type === "TRANSFER" &&
-      (tx.fromAddress === "SWITCH_NGN_BANK" ||
-        tx.fromAddress?.toLowerCase().includes("faucet")));
+  const isCard = tx.rampDetails?.provider === "mercuryo" || tx.kind === "card";
+  const descriptor = isCard
+    ? {
+        ...DEFAULT_DESCRIPTOR,
+        kind: "card" as TransactionKind,
+        getTitle: (t: any) => t.title || "Card deposit",
+      }
+    : TX_DESCRIPTORS[typeUpper] ||
+      (token === "AIRTIME" ? TX_DESCRIPTORS.AIRTIME : undefined) ||
+      (token === "DATA" ? TX_DESCRIPTORS.DATA : undefined) ||
+      DEFAULT_DESCRIPTOR;
 
-  const isCard =
-    tx.rampDetails?.provider === "mercuryo" ||
-    tx.kind === "card";
-
-  const kind: TransactionKind =
-    tx.type === "SWAP"
-      ? "swap"
-      : tx.type === "BRIDGE"
-        ? "bridge"
-        : typeUpper === "AIRTIME" || token === "AIRTIME"
-          ? "airtime"
-          : typeUpper === "DATA" || token === "DATA"
-            ? "data"
-            : tx.type === "SAVINGS_DEPOSIT" || tx.type === "SAVINGS_WITHDRAW"
-              ? "invest"
-              : isCard
-                ? "card"
-                : isIncoming
-                  ? "receive"
-                  : "send";
-
-  let title = tx.title;
-  if (!title) {
-    if (tx.type === "SWAP") {
-      const fromAmount = tx.swapDetails?.fromAmount
-        ? `${formatDecimal(tx.swapDetails.fromAmount, 4)} `
-        : "";
-      const toAmount = tx.swapDetails?.toAmount
-        ? `${formatDecimal(tx.swapDetails.toAmount, 4)} `
-        : "";
-      title = `Swap to ${toAmount}${tx.swapDetails?.toToken || "Asset"}`;
-    } else if (tx.type === "ONRAMP" || tx.type === "DEPOSIT") {
-      title = `Deposit ${tx.token}`;
-    } else if (tx.type === "OFFRAMP" || tx.type === "WITHDRAW") {
-      title = `Withdraw ${tx.token}`;
-    } else if (tx.type === "FAUCET") {
-      title = `Claim ${tx.token}`;
-    } else if (tx.type === "SAVINGS_WITHDRAW") {
-      title = `Withdrew from Savings`;
-    } else if (tx.type === "SAVINGS_DEPOSIT") {
-      title = `Deposited to Savings`;
-    } else if (tx.type === "BRIDGE") {
-      title = `Bridged to ${tx.bridgeDetails?.toChain}`;
-    } else if (typeUpper === "AIRTIME") {
-      title = tx.memo || "Airtime Recharge";
-    } else if (typeUpper === "DATA") {
-      title = tx.memo || "Data Subscription";
-    } else if (tx.type === "TRANSFER") {
-      title = `${isIncoming ? "Received" : "Sent"} ${tx.token}`;
-    } else {
-      title = tx.token || "Transaction";
-    }
-  }
+  const kind = descriptor.kind;
+  const isIncoming = descriptor.isIncoming(tx);
+  const title = tx.title || descriptor.getTitle(tx);
 
   const createdAtMs = new Date(
     tx.createdAt || tx.executedAt || Date.now(),
@@ -289,7 +626,7 @@ export function formatDbTransaction(tx: any) {
     sign = "-";
     rawAmount = rawAmount.slice(1).trim();
   } else {
-    sign = kind === "receive" ? "+" : "-";
+    sign = isIncoming ? "+" : "-";
   }
 
   let tokenPart = tx.token || "";
@@ -308,17 +645,7 @@ export function formatDbTransaction(tx: any) {
         ? "pending"
         : "completed";
 
-  let carrier = (tx as any).carrier;
-  if (!carrier && (typeUpper === "AIRTIME" || typeUpper === "DATA")) {
-    const memoLower = (tx.memo || "").toLowerCase();
-    if (memoLower.includes("mtn")) carrier = "mtn";
-    else if (memoLower.includes("airtel")) carrier = "airtel";
-    else if (memoLower.includes("glo")) carrier = "glo";
-    else if (memoLower.includes("9mobile") || memoLower.includes("etisalat")) carrier = "9mobile";
-    else if (tx.toAddress) {
-      carrier = detectCarrierFromPhone(tx.toAddress) || undefined;
-    }
-  }
+  const carrier = resolveCarrier(tx, typeUpper);
 
   return {
     id: tx._id,
@@ -334,125 +661,46 @@ export function formatDbTransaction(tx: any) {
       tx.swapDetails?.fromToken || tokenPart
     }`.trim(),
     heading: `${SUBJECT[kind] ?? "Transaction"} ${OUTCOME[status]}`,
-    rows: detailRows(tx, status),
+    rows: detailRows(tx, status, descriptor),
   };
 }
 
-/** What the detail screen calls the transaction, above the date. */
-const SUBJECT: Partial<Record<TransactionKind, string>> = {
-  send: "Transfer",
-  receive: "Deposit",
-  card: "Card deposit",
-  swap: "Swap",
-  bridge: "Bridge",
-  airtime: "Airtime",
-  data: "Data",
-  invest: "Savings",
+const DURATION_DAYS: Record<string, number> = {
+  "7d": 7,
+  "30d": 30,
+  "90d": 90,
 };
 
-const OUTCOME = {
-  completed: "complete",
-  pending: "pending",
-  failed: "failed",
-} as const;
-
-
-/** Only rows the record can actually answer — an empty value is left out. */
-function detailRows(tx: any, status: string): TransactionDetailRow[] {
-  // Third slot is the full value to copy, where the printed one is shortened.
-  const rows: [string, unknown, string?][] = [];
-  const swap = tx.swapDetails;
-  const ramp = tx.rampDetails;
-
-  if (tx.type === "SWAP" && swap) {
-    const bridged = /bridge|wormhole|squid/i.test(swap.protocol || "");
-    rows.push(
-      ["Amount sent", `${formatDecimal(swap.fromAmount, 4)} ${swap.fromToken}`],
-      ["Amount received", `${formatDecimal(swap.toAmount, 4)} ${swap.toToken}`],
-      ["Exchange rate", exchangeRate(swap.fromAmount, swap.toAmount)],
-      ["Slippage", swap.slippage ? `${swap.slippage}%` : ""],
-      [bridged ? "Bridge Provider" : "Provider", swap.protocol],
-    );
-  } else {
-    rows.push(["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`]);
-    if (tx.type === "DEPOSIT" || tx.type === "WITHDRAW" || tx.bankDetails) {
-      const bank = tx.bankDetails || tx.rampDetails?.bankDetails;
-      if (bank?.bankName) rows.push(["Bank", bank.bankName]);
-      if (bank?.accountNumber) rows.push(["Account Number", bank.accountNumber, bank.accountNumber]);
-      if (bank?.accountName) rows.push(["Account Name", bank.accountName]);
-      const ref = bank?.reference || tx.txHash;
-      if (ref) rows.push(["Reference", ref, ref]);
-      if (tx.memo) rows.push(["Description", tx.memo]);
-    } else if (ramp) {
-      rows.push(
-        ["Provider", ramp.provider],
-        [
-          "Fiat amount",
-          ramp.fiatAmount ? `${ramp.fiatCurrency} ${ramp.fiatAmount}` : "",
-        ],
-        ["Bank", ramp.bankDetails?.bankName],
-        ["Reference", ramp.reference, ramp.reference],
-      );
-    } else if (
-      tx.type === "AIRTIME" ||
-      tx.type === "DATA" ||
-      tx.type === "airtime" ||
-      tx.type === "data"
-    ) {
-      rows.push(
-        ["Recipient Phone", tx.toAddress, tx.toAddress],
-        ["Description", tx.memo],
-      );
-    } else {
-      if (tx.toAddress) rows.push(["To", shortenKey(tx.toAddress)]);
-      if (tx.fromAddress) rows.push(["From", shortenKey(tx.fromAddress)]);
-    }
-  }
-
-  if (tx.chain && tx.chain !== "fiat") {
-    rows.push(
-      ["Network", `${tx.chain} ${tx.network || ""}`.trim()],
-      ["Network fee", tx.feePaid],
-      ["TXN HASH", shortenKey(tx.txHash), tx.txHash],
-    );
-  }
-  rows.push(["Time taken", timeTaken(tx)]);
-
-  if (status === "failed") rows.push(["Reason", tx.errorMessage]);
-
-  return rows
-    .filter(([, value]) => value !== undefined && value !== null && `${value}`.trim() !== "")
-    .map(([label, value, copy]) => ({
-      label,
-      value: `${value}`.trim(),
-      ...(copy ? { copy } : {}),
-    }));
+function parseDurationDays(duration?: string): number {
+  if (!duration) return 0;
+  if (DURATION_DAYS[duration]) return DURATION_DAYS[duration];
+  if (duration.includes("7")) return 7;
+  if (duration.includes("30") || duration.includes("1 Month")) return 30;
+  if (duration.includes("90") || duration.includes("3 Months")) return 90;
+  return 0;
 }
 
-function exchangeRate(from?: string, to?: string): string {
-  const a = parseFloat(String(from || ""));
-  const b = parseFloat(String(to || ""));
-  if (!a || !b) return "";
-  return formatDecimal(b / a, 4);
-}
+const TYPE_FILTER_MAP: Record<string, any[]> = {
+  UTILITY: [
+    { type: "UTILITY" },
+    { type: "AIRTIME" },
+    { type: "DATA" },
+    { type: "airtime" },
+    { type: "data" },
+    { "rampDetails.provider": "bills" },
+    { token: { $in: ["AIRTIME", "DATA", "ELECTRICITY"] } },
+  ],
+  AIRTIME: [{ type: "AIRTIME" }, { type: "airtime" }, { token: "AIRTIME" }],
+  DATA: [{ type: "DATA" }, { type: "data" }, { token: "DATA" }],
+  DEPOSIT: [{ type: "DEPOSIT" }, { type: "ONRAMP" }],
+  ONRAMP: [{ type: "DEPOSIT" }, { type: "ONRAMP" }],
+  WITHDRAW: [{ type: "WITHDRAW" }, { type: "OFFRAMP" }],
+  OFFRAMP: [{ type: "WITHDRAW" }, { type: "OFFRAMP" }],
+  SAVINGS: [{ type: "SAVINGS_DEPOSIT" }, { type: "SAVINGS_WITHDRAW" }],
+  SAVINGS_DEPOSIT: [{ type: "SAVINGS_DEPOSIT" }],
+  SAVINGS_WITHDRAW: [{ type: "SAVINGS_WITHDRAW" }],
+};
 
-/** Between the record being written and the chain confirming it. */
-function timeTaken(tx: any): string {
-  if (!tx.executedAt || !tx.createdAt) return "";
-  const ms = new Date(tx.executedAt).getTime() - new Date(tx.createdAt).getTime();
-  if (!isFinite(ms) || ms <= 0) return "";
-  return ms < 60000 ? `${Math.round(ms / 1000)} secs` : `${Math.round(ms / 60000)} mins`;
-}
-
-/** Addresses and hashes render as GB25HB…QJDYMZ, never truncated mid-string. */
-function shortenKey(value?: string): string {
-  if (!value || value.length <= 18) return value || "";
-  return `${value.slice(0, 8)}…${value.slice(value.length - 6)}`;
-}
-
-/**
- * Queries transactions belonging to an authenticated user with filtering and pagination.
- */
 export async function queryUserTransactions(params: {
   userId: string;
   type?: string;
@@ -471,112 +719,53 @@ export async function queryUserTransactions(params: {
   const limit = Math.min(100, Math.max(1, params.limit || 20));
   const skip = (page - 1) * limit;
 
-  const query: Record<string, any> = { userId: params.userId };
+  // Declarative query builder — avoid fragile mutations of $or / $and
+  const filterClauses: any[] = [{ userId: params.userId }];
 
   if (params.token) {
     const tokenUpper = params.token.toUpperCase();
-    const rampRegex = new RegExp(`:${params.token}$`, "i");
-    const tokenMatch = [
-      { token: tokenUpper },
-      { "swapDetails.fromToken": tokenUpper },
-      { "swapDetails.toToken": tokenUpper },
-      { "rampDetails.asset": rampRegex },
-      { "rampDetails.fiatCurrency": tokenUpper },
-    ];
-    query.$or = tokenMatch;
+    filterClauses.push({
+      $or: [
+        { token: tokenUpper },
+        { "swapDetails.fromToken": tokenUpper },
+        { "swapDetails.toToken": tokenUpper },
+        { "rampDetails.asset": new RegExp(`:${params.token}$`, "i") },
+        { "rampDetails.fiatCurrency": tokenUpper },
+      ],
+    });
   }
 
   if (params.type) {
     const t = params.type.toUpperCase();
-    let typeMatch: any;
-    if (t === "UTILITY") {
-      typeMatch = [
-        { type: "UTILITY" },
-        { type: "AIRTIME" },
-        { type: "DATA" },
-        { type: "airtime" },
-        { type: "data" },
-        { "rampDetails.provider": "bills" },
-        { token: { $in: ["AIRTIME", "DATA", "ELECTRICITY"] } },
-      ];
-    } else if (t === "AIRTIME") {
-      typeMatch = [
-        { type: "AIRTIME" },
-        { type: "airtime" },
-        { token: "AIRTIME" },
-      ];
-    } else if (t === "DATA") {
-      typeMatch = [
-        { type: "DATA" },
-        { type: "data" },
-        { token: "DATA" },
-      ];
-    } else if (t === "DEPOSIT" || t === "ONRAMP") {
-      typeMatch = [{ type: "DEPOSIT" }, { type: "ONRAMP" }];
-    } else if (t === "WITHDRAW" || t === "OFFRAMP") {
-      typeMatch = [{ type: "WITHDRAW" }, { type: "OFFRAMP" }];
-    } else if (t === "SAVINGS" || t === "SAVINGS_DEPOSIT") {
-      typeMatch = [{ type: "SAVINGS_DEPOSIT" }, { type: "SAVINGS_WITHDRAW" }];
-    } else {
-      typeMatch = [{ type: t }];
-    }
-
-    if (query.$or) {
-      query.$and = (query.$and || []).concat([
-        { $or: query.$or },
-        { $or: typeMatch },
-      ]);
-      delete query.$or;
-    } else if (
-      t === "UTILITY" ||
-      t === "AIRTIME" ||
-      t === "DATA" ||
-      t === "DEPOSIT" ||
-      t === "ONRAMP" ||
-      t === "WITHDRAW" ||
-      t === "OFFRAMP" ||
-      t === "SAVINGS" ||
-      t === "SAVINGS_DEPOSIT"
-    ) {
-      query.$or = typeMatch;
-    } else {
-      query.type = t;
-    }
+    const typeClauses = TYPE_FILTER_MAP[t] || [{ type: t }];
+    filterClauses.push({ $or: typeClauses });
   }
 
-  if (params.status) query.status = params.status.toUpperCase();
-  if (params.chain) query.chain = params.chain.toLowerCase();
-  if (params.network) query.network = params.network.toLowerCase();
+  if (params.status) filterClauses.push({ status: params.status.toUpperCase() });
+  if (params.chain) filterClauses.push({ chain: params.chain.toLowerCase() });
+  if (params.network) filterClauses.push({ network: params.network.toLowerCase() });
 
-  if (params.duration) {
-    let days = 0;
-    if (params.duration === "7d" || params.duration.includes("7")) days = 7;
-    else if (params.duration === "30d" || params.duration.includes("30") || params.duration.includes("1 Month")) days = 30;
-    else if (params.duration === "90d" || params.duration.includes("90") || params.duration.includes("3 Months")) days = 90;
-
-    if (days > 0) {
-      const threshold = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-      query.createdAt = { $gte: threshold };
-    }
+  const durationDays = parseDurationDays(params.duration);
+  if (durationDays > 0) {
+    const threshold = new Date(Date.now() - durationDays * 24 * 60 * 60 * 1000);
+    filterClauses.push({ createdAt: { $gte: threshold } });
   }
 
   if (params.card) {
     const last4 = params.card.replace(/\D/g, "");
     if (last4) {
-      const cardMatch = [
-        { "rampDetails.provider": "card" },
-        { "rampDetails.bankDetails.accountNumber": { $regex: last4 } },
-        { toAddress: { $regex: last4 } },
-        { fromAddress: { $regex: last4 } },
-      ];
-      if (query.$or) {
-        query.$and = [{ $or: query.$or }, { $or: cardMatch }];
-        delete query.$or;
-      } else {
-        query.$or = cardMatch;
-      }
+      filterClauses.push({
+        $or: [
+          { "rampDetails.provider": "card" },
+          { "rampDetails.bankDetails.accountNumber": { $regex: last4 } },
+          { toAddress: { $regex: last4 } },
+          { fromAddress: { $regex: last4 } },
+        ],
+      });
     }
   }
+
+  const query = filterClauses.length === 1 ? filterClauses[0] : { $and: filterClauses };
 
   const [rawTransactions, total] = await Promise.all([
     Transaction.find(query)
@@ -598,9 +787,8 @@ export async function queryUserTransactions(params: {
   return { transactions, total };
 }
 
-/**
- * Updates a transaction's status and optional txHash or error message.
- */
+// ── Status Updates & Lookups ─────────────────────────────────────────────────
+
 export async function updateTransactionStatus(params: {
   id: string;
   userId: string;
@@ -624,27 +812,15 @@ export async function updateTransactionStatus(params: {
   );
 }
 
-/**
- * Finds a transaction by its Switch ramp reference or blockchain txHash.
- * Used for querying status updates or webhook callbacks.
- */
 export async function findTransactionByReference(
   reference: string,
 ): Promise<ITransaction | null> {
   await connectDB();
-  const tx = await Transaction.findOne({
-    $or: [
-      { "rampDetails.reference": reference },
-      { txHash: reference },
-    ],
+  return Transaction.findOne({
+    $or: [{ "rampDetails.reference": reference }, { txHash: reference }],
   }).lean<ITransaction>();
-  return tx ?? null;
 }
 
-/**
- * Updates a transaction record matching a Switch reference or txHash.
- * Used during payment settlement checks.
- */
 export async function updateTransactionByReference(
   reference: string,
   data: Partial<ITransaction> | Record<string, any>,
@@ -652,20 +828,13 @@ export async function updateTransactionByReference(
   await connectDB();
   const res = await Transaction.updateOne(
     {
-      $or: [
-        { "rampDetails.reference": reference },
-        { txHash: reference },
-      ],
+      $or: [{ "rampDetails.reference": reference }, { txHash: reference }],
     },
     { $set: data },
   );
   return res.matchedCount > 0;
 }
 
-/**
- * Finds confirmed transactions matching any of the provided references or txHashes for a user.
- * Used for syncing chat card statuses with settled transactions.
- */
 export async function findConfirmedTransactionsByReferences(
   userId: string,
   references: string[],
@@ -681,27 +850,18 @@ export async function findConfirmedTransactionsByReferences(
   }).lean();
 }
 
-/**
- * Updates a transaction record by its ID.
- * Use for updating status, metadata, blockchain hashes, or settlement details.
- */
 export async function updateTransactionRecord(
   id: string,
   data: Partial<ITransaction> | Record<string, any>,
 ): Promise<ITransaction | null> {
   await connectDB();
-  const updated = await Transaction.findByIdAndUpdate(
+  return Transaction.findByIdAndUpdate(
     id,
     { $set: data },
     { returnDocument: "after" },
   ).lean<ITransaction>();
-  return updated ?? null;
 }
 
-/**
- * Finds recent transactions for a user after a specified cutoff date, filtered by type.
- * Used in chat history and context generation.
- */
 export async function findRecentUserTransactions(
   userId: string,
   cutoff: Date,
@@ -715,33 +875,9 @@ export async function findRecentUserTransactions(
   }).lean();
 }
 
-export interface ResolveTransactionsResult {
-  totalChecked: number;
-  confirmed: number;
-  failed: number;
-  stillPending: number;
-  details: Array<{
-    id: string;
-    reference: string;
-    type: string;
-    amount: string;
-    token: string;
-    previousStatus: string;
-    newStatus: string;
-    providerStatus: string;
-    reason?: string;
-  }>;
-}
-
 /**
- * Iterates through all PENDING transactions that have a ramp reference (e.g. Switch onramp/offramp),
- * queries the Switch provider status API, and updates their status in the database.
- *
- * - COMPLETED / SUCCESSFUL / SETTLED -> CONFIRMED (txHash, explorerUrl set, cache invalidated, notifications created)
- * - FAILED / CANCELLED / REJECTED -> FAILED
- * - AWAITING_DEPOSIT / PENDING / PROCESSING:
- *     - If < staleHours old (default 24h): remains PENDING (active deposit window)
- *     - If >= staleHours old: marked FAILED ("Deposit window expired")
+ * Iterates through all PENDING transactions that have a ramp reference (e.g. Switch/Centiiv onramp/offramp),
+ * queries the provider API, and updates their status in the database.
  */
 export async function resolveAllPendingTransactions(options?: {
   staleHours?: number;
@@ -755,11 +891,8 @@ export async function resolveAllPendingTransactions(options?: {
     "rampDetails.reference": { $exists: true, $ne: null },
   }).lean();
 
-  const switchTxs = pendingTxs.filter((tx) => tx.rampDetails?.provider !== "centiiv");
-  const centiivTxs = pendingTxs.filter((tx) => tx.rampDetails?.provider === "centiiv");
-
   console.log(
-    `[ResolveTx] Starting resolution run... Found ${pendingTxs.length} pending tx(s) (Switch: ${switchTxs.length}, Centiiv: ${centiivTxs.length}) — stale threshold: ${staleHours}h`,
+    `[ResolveTx] Starting resolution run for ${pendingTxs.length} pending tx(s) — stale threshold: ${staleHours}h`,
   );
 
   const result: ResolveTransactionsResult = {
@@ -770,164 +903,18 @@ export async function resolveAllPendingTransactions(options?: {
     details: [],
   };
 
-  // ── Centiiv resolution ──────────────────────────────────────────────────
-  const { getCentiivRequestStatus } = await import("@/lib/functions/centiivFunctions");
-
-  for (const tx of centiivTxs) {
+  for (const tx of pendingTxs) {
     const reference = tx.rampDetails?.reference;
     if (!reference) continue;
 
-    try {
-      const centiivRes = await getCentiivRequestStatus(reference);
-      const rawStatus = (centiivRes?.status || "").toUpperCase();
-
-      const isCompleted = rawStatus === "FULFILLED";
-      const isFailed = ["FAILED", "EXPIRED", "REFUNDED"].includes(rawStatus);
-      const isStale = tx.createdAt && new Date(tx.createdAt) < cutoffTime;
-
-      if (isCompleted) {
-        if (tx.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" && tx.toAddress) {
-          const { settleOnrampTransferCustom } = await import("@/lib/chains/onramp-transfer-custom");
-          const settleRes = await settleOnrampTransferCustom({
-            transactionId: tx._id.toString(),
-            recipientAddress: tx.toAddress,
-            targetToken: tx.token || "XLM",
-            cryptoAmount: tx.amount,
-            centiivTxHash: centiivRes.txHash || reference,
-            expectedUsdcAmount: tx.rampDetails?.expectedUsdc,
-            userId: tx.userId,
-          });
-
-          if (settleRes.success) {
-            console.log(`[ResolveTx] ✅ Custom Onramp ${tx._id} fulfilled -> CONFIRMED (tx: ${settleRes.txHash})`);
-            result.confirmed++;
-            result.details.push({ id: tx._id, reference, type: tx.type, amount: tx.amount, token: tx.token, previousStatus: "PENDING", newStatus: "CONFIRMED", providerStatus: "FULFILLED" });
-          } else {
-            console.log(`[ResolveTx] ⏳ Custom Onramp ${tx._id} settlement pending or already processed: ${settleRes.error}`);
-            result.stillPending++;
-          }
-          continue;
-        }
-
-        const txHash = centiivRes.txHash || reference;
-        await Transaction.updateOne(
-          { _id: tx._id },
-          { $set: { status: "CONFIRMED", txHash, updatedAt: new Date() } },
-        );
-        console.log(`[ResolveTx] ✅ Centiiv tx ${tx._id} (ref: ${reference}) -> CONFIRMED`);
-        if (tx.userId) invalidateBalanceCache(tx.userId);
-        if (tx.userId) {
-          logUserActivity({ userId: tx.userId, action: "OFFRAMP_COMPLETED", details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash } }).catch(() => {});
-          createNotification({ userId: tx.userId, tab: "transactions", type: "OFFRAMP_COMPLETED", title: "Withdrawal Successful", body: `${tx.amount} ${tx.token} sent to your bank account`, metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token }, link: "/transactions" }).catch(() => {});
-        }
-        result.confirmed++;
-        result.details.push({ id: tx._id, reference, type: tx.type, amount: tx.amount, token: tx.token, previousStatus: "PENDING", newStatus: "CONFIRMED", providerStatus: "FULFILLED" });
-      } else if (isFailed || isStale) {
-        const reason = isFailed ? `Centiiv: ${rawStatus}` : `Centiiv order expired (> ${staleHours}h)`;
-        await Transaction.updateOne(
-          { _id: tx._id },
-          { $set: { status: "FAILED", errorMessage: reason, updatedAt: new Date() } },
-        );
-        console.log(`[ResolveTx] ❌ Centiiv tx ${tx._id} (ref: ${reference}) -> FAILED (${reason})`);
-        result.failed++;
-        result.details.push({ id: tx._id, reference, type: tx.type, amount: tx.amount, token: tx.token, previousStatus: "PENDING", newStatus: "FAILED", providerStatus: rawStatus || "EXPIRED", reason });
-      } else {
-        console.log(`[ResolveTx] ⏳ Centiiv tx ${tx._id} still PENDING (${rawStatus || "PROCESSING"})`);
-        result.stillPending++;
-        result.details.push({ id: tx._id, reference, type: tx.type, amount: tx.amount, token: tx.token, previousStatus: "PENDING", newStatus: "PENDING", providerStatus: rawStatus || "PROCESSING" });
-      }
-    } catch (err: any) {
-      console.error(`[ResolveTx] ⚠️ Error resolving Centiiv ref ${reference}:`, err?.message || err);
-      result.stillPending++;
-      result.details.push({ id: tx._id, reference, type: tx.type, amount: tx.amount, token: tx.token, previousStatus: "PENDING", newStatus: "PENDING", providerStatus: "ERROR", reason: err?.message });
-    }
-  }
-
-  // ── Switch resolution ────────────────────────────────────────────────────
-  for (const tx of switchTxs) {
-    const reference = tx.rampDetails?.reference;
-    if (!reference) continue;
+    const handler = getProviderHandler(tx.rampDetails?.provider);
+    const isStale = tx.createdAt && new Date(tx.createdAt) < cutoffTime;
 
     try {
-      const statusRes = await SwitchService.getTransactionStatus(reference);
-      const rawStatus = (statusRes?.data?.status || "").toUpperCase();
+      const syncRes = await handler.checkStatus(reference, tx);
 
-      const isCompleted = [
-        "COMPLETED",
-        "SUCCESS",
-        "SUCCESSFUL",
-        "DELIVERED",
-        "SETTLED",
-      ].includes(rawStatus);
-
-      const isExplicitFailed = [
-        "FAILED",
-        "CANCELLED",
-        "REJECTED",
-      ].includes(rawStatus);
-
-      const isStale = tx.createdAt && new Date(tx.createdAt) < cutoffTime;
-
-      if (isCompleted) {
-        const txHash = statusRes.data?.meta?.hash || reference;
-        const explorerUrl = statusRes.data?.meta?.explorer_url || null;
-
-        await Transaction.updateOne(
-          { _id: tx._id },
-          {
-            $set: {
-              status: "CONFIRMED",
-              txHash,
-              ...(explorerUrl ? { explorerUrl } : {}),
-              updatedAt: new Date(),
-            },
-          },
-        );
-
-        console.log(
-          `[ResolveTx] ✅ Confirmed tx ${tx._id} (${tx.amount} ${tx.token}, ref: ${reference}) -> CONFIRMED (hash: ${txHash})`,
-        );
-
-        if (tx.userId) invalidateBalanceCache(tx.userId);
-        if (tx.toAddress) invalidateBalanceCache(tx.toAddress);
-        if (tx.fromAddress) invalidateBalanceCache(tx.fromAddress);
-
-        if (tx.userId) {
-          if (tx.type === "ONRAMP" || tx.type === "DEPOSIT") {
-            logUserActivity({
-              userId: tx.userId,
-              action: "ONRAMP_COMPLETED",
-              details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
-            }).catch(() => {});
-
-            createNotification({
-              userId: tx.userId,
-              tab: "transactions",
-              type: "ONRAMP_COMPLETED",
-              title: "Deposit Successful",
-              body: `${tx.amount} ${tx.token} successfully deposited to your wallet`,
-              metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
-              link: "/transactions",
-            }).catch(() => {});
-          } else if (tx.type === "OFFRAMP" || tx.type === "WITHDRAW") {
-            logUserActivity({
-              userId: tx.userId,
-              action: "OFFRAMP_COMPLETED",
-              details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
-            }).catch(() => {});
-
-            createNotification({
-              userId: tx.userId,
-              tab: "transactions",
-              type: "OFFRAMP_COMPLETED",
-              title: "Withdrawal Successful",
-              body: `${tx.amount} ${tx.token} sent to your bank account`,
-              metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
-              link: "/transactions",
-            }).catch(() => {});
-          }
-        }
-
+      if (syncRes.status === "CONFIRMED") {
+        await _applySyncResult(tx, "CONFIRMED", syncRes.txHash, syncRes.explorerUrl);
         result.confirmed++;
         result.details.push({
           id: tx._id,
@@ -937,24 +924,15 @@ export async function resolveAllPendingTransactions(options?: {
           token: tx.token,
           previousStatus: "PENDING",
           newStatus: "CONFIRMED",
-          providerStatus: rawStatus || "COMPLETED",
+          providerStatus: syncRes.rawStatus,
         });
-      } else if (isExplicitFailed) {
-        await Transaction.updateOne(
-          { _id: tx._id },
-          {
-            $set: {
-              status: "FAILED",
-              errorMessage: statusRes?.message || "Transaction failed at provider",
-              updatedAt: new Date(),
-            },
-          },
-        );
+      } else if (syncRes.status === "FAILED" || isStale) {
+        const reason =
+          syncRes.status === "FAILED"
+            ? syncRes.reason || `Provider failed: ${syncRes.rawStatus}`
+            : `Order expired (> ${staleHours}h)`;
 
-        console.log(
-          `[ResolveTx] ❌ Failed tx ${tx._id} (${tx.amount} ${tx.token}, ref: ${reference}) -> FAILED (${statusRes?.message || "Failed at provider"})`,
-        );
-
+        await _applySyncResult(tx, "FAILED", undefined, undefined, reason);
         result.failed++;
         result.details.push({
           id: tx._id,
@@ -964,44 +942,10 @@ export async function resolveAllPendingTransactions(options?: {
           token: tx.token,
           previousStatus: "PENDING",
           newStatus: "FAILED",
-          providerStatus: rawStatus || "FAILED",
-          reason: statusRes?.message || "Failed at provider",
-        });
-      } else if (isStale) {
-        // Older than staleHours (24h) and not completed -> deposit window expired
-        await Transaction.updateOne(
-          { _id: tx._id },
-          {
-            $set: {
-              status: "FAILED",
-              errorMessage: "Deposit window expired",
-              updatedAt: new Date(),
-            },
-          },
-        );
-
-        console.log(
-          `[ResolveTx] ⌛ Expired tx ${tx._id} (${tx.amount} ${tx.token}, ref: ${reference}) -> FAILED (Deposit window expired > ${staleHours}h)`,
-        );
-
-        result.failed++;
-        result.details.push({
-          id: tx._id,
-          reference,
-          type: tx.type,
-          amount: tx.amount,
-          token: tx.token,
-          previousStatus: "PENDING",
-          newStatus: "FAILED",
-          providerStatus: rawStatus || "EXPIRED",
-          reason: `Deposit window expired (> ${staleHours}h)`,
+          providerStatus: syncRes.rawStatus || "EXPIRED",
+          reason,
         });
       } else {
-        // Recent transaction within active window (< 24h)
-        console.log(
-          `[ResolveTx] ⏳ Tx ${tx._id} (${tx.amount} ${tx.token}, ref: ${reference}) still PENDING (Switch: ${rawStatus || "AWAITING_DEPOSIT"})`,
-        );
-
         result.stillPending++;
         result.details.push({
           id: tx._id,
@@ -1011,12 +955,12 @@ export async function resolveAllPendingTransactions(options?: {
           token: tx.token,
           previousStatus: "PENDING",
           newStatus: "PENDING",
-          providerStatus: rawStatus || "AWAITING_DEPOSIT",
-          reason: "Within active deposit window (< 24h)",
+          providerStatus: syncRes.rawStatus,
+          reason: "Within active deposit window",
         });
       }
     } catch (err: any) {
-      console.error(`[ResolveTx] ⚠️ Error resolving reference ${reference}:`, err?.message || err);
+      console.error(`[ResolveTx] ⚠️ Error resolving ref ${reference}:`, err?.message || err);
       result.stillPending++;
       result.details.push({
         id: tx._id,
@@ -1027,7 +971,7 @@ export async function resolveAllPendingTransactions(options?: {
         previousStatus: "PENDING",
         newStatus: "PENDING",
         providerStatus: "ERROR",
-        reason: err?.message || "Error contacting Switch provider",
+        reason: err?.message || "Error contacting provider",
       });
     }
   }
@@ -1038,5 +982,3 @@ export async function resolveAllPendingTransactions(options?: {
 
   return result;
 }
-
-

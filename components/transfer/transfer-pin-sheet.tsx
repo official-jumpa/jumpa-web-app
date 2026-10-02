@@ -50,15 +50,18 @@ export function TransferPinSheet({
   }, [pin.complete, pin.value, onComplete]);
 
   useEffect(() => {
-    if (error) rejected.current = true;
+    if (error) {
+      rejected.current = true;
+      submitted.current = null;
+      pin.clear();
+    }
   }, [error]);
 
-  // The rejected PIN stays on screen in red; the next keypress starts it over.
+  // If the user starts typing after an error, reset the error state.
   const restart = () => {
     if (!rejected.current) return false;
     rejected.current = false;
     submitted.current = null;
-    pin.clear();
     onRetry?.();
     return true;
   };

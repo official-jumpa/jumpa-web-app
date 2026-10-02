@@ -8,6 +8,9 @@ export const SUPPORT_EMAIL = "support@usejumpa.com";
 
 export const SUPPORT_SUBJECT = "Jumpa support request";
 
+export const JUMPA_COMMUNITY_WHATSAPP_URL =
+  "https://chat.whatsapp.com/KExp42DN6gr9yPkSUpIa6L?mode=gi_t";
+
 /** `mailto:` for the Email Us row. */
 export function supportMailto(): string {
   return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(SUPPORT_SUBJECT)}`;

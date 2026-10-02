@@ -7,6 +7,8 @@ import { ChatComposer } from "@/components/chat/chat-composer";
 import { MessageBubble } from "@/components/chat/message-bubble";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { SupportHeader } from "@/components/support/support-header";
+import { WhatsappIcon } from "@/components/ui/icons/whatsapp";
+import { JUMPA_COMMUNITY_WHATSAPP_URL } from "@/lib/support";
 import type { ChatAttachment } from "@/lib/chat-attachments";
 
 interface SupportMessage {
@@ -134,7 +136,20 @@ export function SupportChat() {
 
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-      <SupportHeader>
+      <SupportHeader
+        action={
+          <a
+            href={JUMPA_COMMUNITY_WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Join Jumpa WhatsApp Community"
+            aria-label="Join Jumpa WhatsApp Community"
+            className="tap flex size-11 items-center justify-center rounded-full text-emerald-600 hover:bg-emerald-50 active:scale-95 transition-colors"
+          >
+            <WhatsappIcon className="size-6" />
+          </a>
+        }
+      >
         <span className="flex items-center gap-2">
           <AgentAvatar />
           <h1 className="text-[13px] leading-4 font-medium text-jumpa-black">

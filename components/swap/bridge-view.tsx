@@ -15,6 +15,7 @@ import { CaretDownIcon } from "@/components/ui/icons/caret-down";
 import { CheckIcon } from "@/components/ui/icons/check";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { WalletIcon } from "@/components/ui/icons/wallet";
+import { usePopoverBoundary } from "@/hooks/use-popover-boundary";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import { invalidateClientBalances } from "@/lib/client-events";
 import { sanitiseAmount } from "@/lib/transfer";
@@ -70,6 +71,8 @@ export function BridgeView({
   /** The receipt draws its own header, so the screen's chrome steps aside. */
   onDone?: (done: boolean) => void;
 }) {
+  const boundary = usePopoverBoundary();
+
   // ── Bridge Config ──
   const [direction, setDirection] = useState<Direction>("stellar-to-evm");
   const [evmChain, setEvmChain] = useState<EvmChain>("ethereum");
@@ -386,6 +389,8 @@ export function BridgeView({
           <Primitive.Content
             position="popper"
             sideOffset={6}
+            collisionBoundary={boundary}
+            collisionPadding={12}
             className="z-70 min-w-44 animate-drop-in overflow-hidden rounded-surface border border-jumpa-neutral-100 bg-jumpa-white p-1.5 shadow-jumpa-toast"
           >
             <Primitive.Viewport className="flex flex-col gap-1">

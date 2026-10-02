@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
+import { APP_COLUMN_ID } from "@/hooks/use-popover-boundary";
 import { recordVisit } from "@/lib/nav-history";
 
 /**
@@ -24,7 +25,10 @@ export function AppColumn({ children }: { children: ReactNode }) {
   useEffect(() => recordVisit(pathname), [pathname]);
 
   return (
-    <div className="mx-auto min-h-dvh w-full max-w-app bg-jumpa-white">
+    <div
+      id={APP_COLUMN_ID}
+      className="mx-auto min-h-dvh w-full max-w-app bg-jumpa-white"
+    >
       {children}
     </div>
   );

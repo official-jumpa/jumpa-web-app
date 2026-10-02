@@ -5,6 +5,7 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 import { CaretDownIcon } from "@/components/ui/icons/caret-down";
 import { CheckIcon } from "@/components/ui/icons/check";
+import { usePopoverBoundary } from "@/hooks/use-popover-boundary";
 import { cn } from "@/lib/cn";
 
 export type SelectOption = {
@@ -59,6 +60,7 @@ export function Select({
 }) {
   const selected = options.find((option) => option.value === value);
   const size = LOGO[variant];
+  const boundary = usePopoverBoundary();
 
   return (
     <Primitive.Root value={value} onValueChange={onValueChange}>
@@ -95,6 +97,8 @@ export function Select({
         <Primitive.Content
           position="popper"
           sideOffset={6}
+          collisionBoundary={boundary}
+          collisionPadding={12}
           className="z-70 max-h-72 w-[var(--radix-select-trigger-width)] min-w-40 animate-drop-in overflow-hidden rounded-surface border border-jumpa-neutral-100 bg-jumpa-white shadow-[0_12px_32px_rgba(0,0,0,0.12)]"
         >
           <Primitive.Viewport className="p-1.5">

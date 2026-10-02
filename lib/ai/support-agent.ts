@@ -114,75 +114,118 @@ export async function runSupportAgentCompletion(
   messages: SupportChatMessage[],
   context?: SupportAgentContext,
 ): Promise<string> {
+  const deepseekApiKey = process.env.DEEPSEEK_API;
   const openRouterKey =
     process.env.OPENROUTER_API_KEY || environment.OPENROUTER_API_KEY;
-  const deepseekApiKey = process.env.DEEPSEEK_API;
-  const apiKey = openRouterKey || deepseekApiKey;
 
-  if (!apiKey) {
+  if (!deepseekApiKey && !openRouterKey) {
     console.warn("[SupportAgent] API key missing");
     return "Our support assistant is temporarily unavailable. Please email us at support@usejumpa.com and our team will assist you immediately.";
   }
 
-  const model = openRouterKey
-    ? process.env.OPENROUTER_CHAT_MODEL || "deepseek/deepseek-chat"
-    : process.env.DEEPSEEK_MODEL || "deepseek-chat";
-
-  const endpoint = openRouterKey
-    ? "https://openrouter.ai/api/v1/chat/completions"
-    : "https://api.deepseek.com/chat/completions";
-
   const systemPrompt = buildSupportSystemPrompt(context);
-
   const fullMessages: SupportChatMessage[] = [
     { role: "system", content: systemPrompt },
     ...messages,
   ];
 
-  try {
+  // 1. Direct DeepSeek Primary
+  const callDirectDeepSeek = async (): Promise<string | null> => {
+    if (!deepseekApiKey) return null;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000); // timeout after 20 secs
-
-    let response: Response;
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
     try {
-      response = await fetch(endpoint, {
+      const res = await fetch("https://api.deepseek.com/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-          ...(openRouterKey
-            ? {
-                "HTTP-Referer": "https://usejumpa.com",
-                "X-Title": "Jumpa",
-              }
-            : {}),
+          Authorization: `Bearer ${deepseekApiKey}`,
         },
         body: JSON.stringify({
-          model,
+          model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
           messages: fullMessages,
           temperature: 0.2,
           max_tokens: 1024,
         }),
         signal: controller.signal,
       });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.warn("[SupportAgent] Primary DeepSeek returned status:", res.status, errText);
+        return null;
+      }
+
+      const data = await res.json();
+      const rawReply = data.choices?.[0]?.message?.content || "";
+      const cleanReply = sanitizeDSML(rawReply).trim();
+      return cleanReply || null;
+    } catch (err: any) {
+      console.warn("[SupportAgent] Primary DeepSeek failed or timed out (10s):", err.message);
+      return null;
     } finally {
       clearTimeout(timeoutId);
     }
+  };
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("[SupportAgent API Error]", response.status, errText);
-      return "I'm having a little trouble connecting to our support network right now. Please try again in a moment, or reach out to us at support@usejumpa.com.";
+  // 2. OpenRouter Fallback
+  const callOpenRouter = async (): Promise<string | null> => {
+    if (!openRouterKey) return null;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openRouterKey}`,
+          "HTTP-Referer": "https://usejumpa.com",
+          "X-Title": "Jumpa",
+        },
+        body: JSON.stringify({
+          model: process.env.OPENROUTER_CHAT_MODEL || "deepseek/deepseek-chat",
+          messages: fullMessages,
+          temperature: 0.2,
+          max_tokens: 1024,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error("[SupportAgent] OpenRouter fallback returned status:", res.status, errText);
+        return null;
+      }
+
+      const data = await res.json();
+      const rawReply = data.choices?.[0]?.message?.content || "";
+      const cleanReply = sanitizeDSML(rawReply).trim();
+      return cleanReply || null;
+    } catch (err: any) {
+      console.error("[SupportAgent] OpenRouter fallback error:", err.message);
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
+  try {
+    if (deepseekApiKey) {
+      const primaryRes = await callDirectDeepSeek();
+      if (primaryRes) {
+        return primaryRes;
+      }
     }
 
-    const data = await response.json();
-    const rawReply = data.choices?.[0]?.message?.content || "";
-    const cleanReply = sanitizeDSML(rawReply).trim();
+    if (openRouterKey) {
+      console.log("[SupportAgent] Falling back to OpenRouter...");
+      const fallbackRes = await callOpenRouter();
+      if (fallbackRes) {
+        return fallbackRes;
+      }
+    }
 
-    return (
-      cleanReply ||
-      "I received your message. How else can I assist you with Jumpa today?"
-    );
+    return "I'm having a little trouble connecting to our support network right now. Please try again in a moment, or reach out to us at support@usejumpa.com.";
   } catch (err) {
     console.error("[SupportAgent Network Error]", err);
     return "I couldn't complete your request due to a connection issue. Please check your network and try again, or write to support@usejumpa.com.";

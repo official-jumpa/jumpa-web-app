@@ -150,15 +150,19 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    // A standalone numerical amount (e.g. "50", "10.5", "$25", "₦5000"), excluding phone/account numbers (10+ digits)
-    const sanitizedMsg = message.replace(/(?:\+?234|\b0)\d{9,11}\b/g, "").replace(/\b\d{10,}\b/g, "");
-    const hasNumericalAmount = /(?:\$|₦|£|€)?\b\d+(\.\d+)?\b/.test(sanitizedMsg);
+    // A standalone numerical amount (e.g. "50", "10.5", "$25", "₦5000", "5k", "10k", "1.5m"), excluding phone/account numbers (10+ digits)
+    const sanitizedMsg = message
+      .replace(/(?:\+?234|\b0)\d{9,11}\b/g, "")
+      .replace(/\b\d{10,}\b/g, "");
+    const hasNumericalAmount =
+      /(?:\$|₦|£|€)?\b\d+(\.\d+)?\s*(k|m|thousand|million)?\b/i.test(sanitizedMsg) ||
+      /\b\d+(\.\d+)?\s*(usdc|usdt|xlm|sol|eth|naira|ngn)\b/i.test(sanitizedMsg);
     const isLookupAction =
       /\b(balance|balances|portfolio|holdings|net worth|history)\b/i.test(
         message,
       );
     const isTransactionalAction =
-      /\b(send|transfer|pay|swap|convert|trade|exchange|buy|deposit|withdraw|onramp|offramp)\b/i.test(
+      /\b(send|transfer|pay|swap|convert|trade|exchange|buy|deposit|withdraw|onramp|offramp|cash\s*out)\b/i.test(
         message,
       );
 
@@ -170,11 +174,40 @@ export async function POST(req: NextRequest) {
     const isChooserReply =
       lastAssistantCard === "options" || lastAssistantCard === "plans";
 
-    // Only force tool execution if it's a pure lookup OR a transaction with a specific amount
+    // Force tool execution if it's a lookup, chooser response, or transaction prompt
     const isActionPrompt =
       isLookupAction ||
       isChooserReply ||
-      (isTransactionalAction && hasNumericalAmount);
+      (isTransactionalAction && (hasNumericalAmount || /\b(opay|palmpay|kuda|gtbank|access|zenith|bank|\d{10})\b/i.test(sanitizedMsg)));
+
+    // If user replies with affirmative text like "yes", "confirm", "proceed" while a pending transaction card is waiting
+    const isAffirmativeReply = /^(yes|yeah|yep|confirm|approved|proceed|send it|ok|okay)\b/i.test(message.trim());
+    const lastPendingTxMsg = [...(chatLog.messages || [])]
+      .reverse()
+      .find((m: IChatMessage) => m.isTransaction && m.status === "pending");
+
+    if (isAffirmativeReply && lastPendingTxMsg) {
+      // Don't let AI hallucinate that it sent money in text without PIN!
+      const reminderContent =
+        "Please review the card above and confirm to enter your PIN to complete this transaction.";
+      const assistantMessage: IChatMessage = {
+        id: generateId("msg"),
+        role: "assistant",
+        content: reminderContent,
+        cardType: "text",
+        timestamp: new Date(),
+      };
+      chatLog.messages.push(userMessage);
+      chatLog.messages.push(assistantMessage);
+      await chatLog.save();
+
+      return NextResponse.json({
+        sessionId: chatLog.sessionId,
+        title: chatLog.title,
+        userMessage,
+        assistantMessage,
+      });
+    }
 
     const MAX_TURNS = 4;
     let turn = 0;

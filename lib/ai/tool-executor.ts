@@ -1828,12 +1828,18 @@ export async function executeTool(
           `[ToolExecutor] [User: ${userId}] Matched Switch Bank: "${switchBank.name}" (${switchBank.code})`,
         );
 
-        const cleanCrypto = cryptoAmount
-          ? Number(String(cryptoAmount).replace(/[^\d.]/g, ""))
-          : 0;
-        const cleanFiat = fiatAmount
-          ? Number(String(fiatAmount).replace(/[^\d.]/g, ""))
-          : 0;
+        const parseFlexibleAmount = (val?: string | number): number => {
+          if (!val) return 0;
+          const str = String(val).trim().toLowerCase();
+          const kMatch = str.match(/^([\d.]+)\s*k$/);
+          if (kMatch) return Number(kMatch[1]) * 1000;
+          const mMatch = str.match(/^([\d.]+)\s*m$/);
+          if (mMatch) return Number(mMatch[1]) * 1000000;
+          return Number(str.replace(/[^\d.]/g, "")) || 0;
+        };
+
+        const cleanCrypto = parseFlexibleAmount(cryptoAmount);
+        const cleanFiat = parseFlexibleAmount(fiatAmount);
 
         let amount: number;
         let appliedRate: number | undefined;

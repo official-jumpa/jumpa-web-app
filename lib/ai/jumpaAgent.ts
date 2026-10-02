@@ -148,11 +148,18 @@ You ask clarifying questions when details are missing. You never assume, guess, 
    - Bridging is strictly cross-chain USDC. If both sides sit on the same chain, it is a swap — use the swap tools instead.
 14. If the user asks for multiple pieces of information (e.g., "What's my balance on mainnet and testnet"), call all relevant tools needed to answer.
 
+15. TRANSACTION CONFIRMATION & EXECUTION SAFEGUARDS:
+   - YOU CANNOT EXECUTE OR BROADCAST TRANSACTIONS DIRECTLY. Only user confirmation via the secure PIN sheet executes blockchain and offramp transfers.
+   - NEVER say "✓ Withdrawal sent...", "Transaction completed", "I have sent your money", or claim a transfer has occurred in chat text!
+   - If a user sends a confirmation text message (e.g. "Yes", "Confirm", "Withdrawal approved", "Proceed", "Send it", "Okay"):
+     * If a pending transaction proposal card is already visible, direct them to use the interactive card's Confirm button to enter their PIN.
+     * If NO transaction card was generated yet, you MUST immediately call the transaction tool (e.g. 'offramp_ngn', 'stellar_mainnet_swap_quote', 'transfer_tokens') to generate the live confirmation card. NEVER answer with a fake confirmation!
+
 ### FORMATTING & TONE:
 - NEVER use emojis in any response (no 🚀, 😄, 👍, etc.).
 - Keep responses short, direct, and concise (1-2 sentences max for follow-ups).
 - For follow-ups after a transaction tool call (quote, bridge, send, offramp, onramp), DIRECT the user to review the quote/card and confirm to proceed (e.g. "Here is your quote. Please review the details and confirm to proceed."). DO NOT retype, repeat, or list out the rates, fees, slippage, provider, or amounts that are already displayed inside the card!
-- DO NOT mention UI buttons, PINs, or clicking (do NOT say "tap Confirm", "click", or "enter your PIN").
+- DO NOT mention PINs or clicking (do NOT say "click", or "enter your PIN").
 - When figures are mentioned in conversational answers, put EVERY figure in **bold** — amounts, balances, fiat values, rates, fees, percentages, durations — with its unit inside the bold ("**0.18 USDC**", "**₦250**", "**0.00 USDC**", "**30 days**"). Token and network names stay bold too.
 - Never render raw JSON, code blocks, or raw markup/DSML tags in your responses.`;
 }
@@ -324,76 +331,128 @@ export async function runAgentStep(options: {
     maxTokens = 1024,
   } = options;
 
+  const deepseekApiKey = process.env.DEEPSEEK_API;
   const openRouterKey =
     process.env.OPENROUTER_API_KEY || environment.OPENROUTER_API_KEY;
-  const deepseekApiKey = process.env.DEEPSEEK_API;
-  const apiKey = openRouterKey || deepseekApiKey;
 
-  if (!apiKey) {
-    console.warn("[AI AGENT] API key missing");
+  if (!deepseekApiKey && !openRouterKey) {
+    console.warn("[AI AGENT] API_KEY is configured");
     return {
       mode: "chat",
       message: "An error occurred. Please try again in a moment.",
     };
   }
 
-  const model = openRouterKey
-    ? process.env.OPENROUTER_CHAT_MODEL || "deepseek/deepseek-chat"
-    : process.env.DEEPSEEK_MODEL || "deepseek-chat";
-
-  try {
-    const requestBody: Record<string, any> = {
-      model,
-      messages,
-      temperature,
-      max_tokens: maxTokens,
-    };
-
-    if (toolChoice !== "none") {
-      requestBody.tools = JUMPA_TOOLS;
-      requestBody.tool_choice = toolChoice;
-    }
-
-    const endpoint = openRouterKey
-      ? "https://openrouter.ai/api/v1/chat/completions"
-      : "https://api.deepseek.com/chat/completions";
-
+  // 1. Helper to call direct DeepSeek
+  const callDirectDeepSeek = async (): Promise<AIStepResponse | null> => {
+    if (!deepseekApiKey) return null;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
-
-    let response: Response;
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
     try {
-      response = await fetch(endpoint, {
+      const body: Record<string, any> = {
+        model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+      };
+      if (toolChoice !== "none") {
+        body.tools = JUMPA_TOOLS;
+        body.tool_choice = toolChoice;
+      }
+
+      const res = await fetch("https://api.deepseek.com/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-          ...(openRouterKey
-            ? {
-                "HTTP-Referer": "https://usejumpa.com",
-                "X-Title": "Jumpa",
-              }
-            : {}),
+          Authorization: `Bearer ${deepseekApiKey}`,
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.warn("[JumpaAgent] Primary DeepSeek returned status:", res.status, errText);
+        return null;
+      }
+
+      const data = await res.json();
+      return handleChoiceResponse(data.choices?.[0]);
+    } catch (err: any) {
+      console.warn("[JumpaAgent] Primary DeepSeek call failed or timed out (10s):", err.message);
+      return null;
     } finally {
       clearTimeout(timeoutId);
     }
+  };
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("[AI Gateway API Error]", response.status, errText);
-      return {
-        mode: "chat",
-        message: "An error occurred. Please try again.",
+  // 2. Helper to call OpenRouter fallback
+  const callOpenRouter = async (): Promise<AIStepResponse | null> => {
+    if (!openRouterKey) return null;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+    try {
+      const body: Record<string, any> = {
+        model: process.env.OPENROUTER_CHAT_MODEL || "deepseek/deepseek-chat",
+        messages,
+        temperature,
+        max_tokens: maxTokens,
       };
+      if (toolChoice !== "none") {
+        body.tools = JUMPA_TOOLS;
+        body.tool_choice = toolChoice;
+      }
+
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openRouterKey}`,
+          "HTTP-Referer": "https://usejumpa.com",
+          "X-Title": "Jumpa",
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error("[JumpaAgent] OpenRouter fallback returned status:", res.status, errText);
+        return null;
+      }
+
+      const data = await res.json();
+      return handleChoiceResponse(data.choices?.[0]);
+    } catch (err: any) {
+      console.error("[JumpaAgent] OpenRouter fallback error:", err.message);
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
+  try {
+    // Attempt Primary: Direct DeepSeek
+    if (deepseekApiKey) {
+      const primaryRes = await callDirectDeepSeek();
+      if (primaryRes) {
+        return primaryRes;
+      }
     }
 
-    const data = await response.json();
-    const choice = data.choices?.[0];
-    return handleChoiceResponse(choice);
+    // Attempt Fallback: OpenRouter
+    if (openRouterKey) {
+      console.log("[JumpaAgent] Falling back to OpenRouter...");
+      const fallbackRes = await callOpenRouter();
+      if (fallbackRes) {
+        return fallbackRes;
+      }
+    }
+
+    return {
+      mode: "chat",
+      message: "An error occurred. Please try again in a moment.",
+    };
   } catch (err) {
     console.error("[JumpaAgent Fetch Error]", err);
     return {

@@ -1,5 +1,6 @@
 // No "use client": the directive makes Next's TS plugin read the options as props.
 import { useEffect } from "react";
+import { triggerHaptic } from "@/lib/haptics";
 
 /** Physical keyboard for the on-screen pad. Window-level, so nothing needs focus. */
 export function useKeypadKeys({
@@ -26,11 +27,13 @@ export function useKeypadKeys({
 
       if (/^\d$/.test(event.key)) {
         event.preventDefault();
+        triggerHaptic("light");
         push(event.key);
         return;
       }
       if (event.key === "Backspace" || event.key === "Delete") {
         event.preventDefault();
+        triggerHaptic("light");
         backspace();
       }
     };

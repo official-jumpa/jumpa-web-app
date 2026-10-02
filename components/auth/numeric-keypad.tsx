@@ -1,4 +1,5 @@
 import { BackspaceIcon } from "@/components/ui/icons/backspace";
+import { triggerHaptic } from "@/lib/haptics";
 
 /** Reading order; the blank cell keeps "0" centred. */
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"];
@@ -54,7 +55,10 @@ export function NumericKeypad({
             <button
               key={key}
               type="button"
-              onClick={onBackspace}
+              onClick={() => {
+                triggerHaptic("light");
+                onBackspace();
+              }}
               disabled={disabled}
               aria-label="Delete"
               className={KEY_CLASS}
@@ -65,7 +69,10 @@ export function NumericKeypad({
             <button
               key={key}
               type="button"
-              onClick={() => onDigit(key)}
+              onClick={() => {
+                triggerHaptic("light");
+                onDigit(key);
+              }}
               disabled={disabled}
               className={KEY_CLASS}
             >

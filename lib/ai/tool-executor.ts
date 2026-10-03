@@ -374,31 +374,31 @@ async function getBridgeSourceChainOptions(
     logo: string;
     reply: string;
   }[] = [
-    {
-      id: "stellar",
-      label: "Stellar",
-      description: "Circle CCTP v2",
-      amount: `${stellarUsdc} USDC`,
-      logo: "/coins/xlm.webp",
-      reply: "Bridge from Stellar",
-    },
-    {
-      id: "base",
-      label: "Base",
-      description: "Circle CCTP v2",
-      amount: `${baseUsdc} USDC`,
-      logo: "/coins/base.webp",
-      reply: "Bridge from Base",
-    },
-    {
-      id: "ethereum",
-      label: "Ethereum",
-      description: "Circle CCTP v2",
-      amount: `${ethUsdc} USDC`,
-      logo: "/coins/eth.webp",
-      reply: "Bridge from Ethereum",
-    },
-  ];
+      {
+        id: "stellar",
+        label: "Stellar",
+        description: "Circle CCTP v2",
+        amount: `${stellarUsdc} USDC`,
+        logo: "/coins/xlm.webp",
+        reply: "Bridge from Stellar",
+      },
+      {
+        id: "base",
+        label: "Base",
+        description: "Circle CCTP v2",
+        amount: `${baseUsdc} USDC`,
+        logo: "/coins/base.webp",
+        reply: "Bridge from Base",
+      },
+      {
+        id: "ethereum",
+        label: "Ethereum",
+        description: "Circle CCTP v2",
+        amount: `${ethUsdc} USDC`,
+        logo: "/coins/eth.webp",
+        reply: "Bridge from Ethereum",
+      },
+    ];
 
   return all
     .filter((c) => !toChain || c.id !== toChain)
@@ -421,28 +421,28 @@ function bridgeDestChains(
     logo: string;
     reply: string;
   }[] = [
-    {
-      id: "stellar",
-      label: "Stellar",
-      description: "Circle CCTP v2",
-      logo: "/coins/xlm.webp",
-      reply: "Bridge to Stellar",
-    },
-    {
-      id: "base",
-      label: "Base",
-      description: "Circle CCTP v2",
-      logo: "/coins/base.webp",
-      reply: "Bridge to Base",
-    },
-    {
-      id: "ethereum",
-      label: "Ethereum",
-      description: "Circle CCTP v2",
-      logo: "/coins/eth.webp",
-      reply: "Bridge to Ethereum",
-    },
-  ];
+      {
+        id: "stellar",
+        label: "Stellar",
+        description: "Circle CCTP v2",
+        logo: "/coins/xlm.webp",
+        reply: "Bridge to Stellar",
+      },
+      {
+        id: "base",
+        label: "Base",
+        description: "Circle CCTP v2",
+        logo: "/coins/base.webp",
+        reply: "Bridge to Base",
+      },
+      {
+        id: "ethereum",
+        label: "Ethereum",
+        description: "Circle CCTP v2",
+        logo: "/coins/eth.webp",
+        reply: "Bridge to Ethereum",
+      },
+    ];
   return all
     .filter((c) => c.id !== fromChain)
     .map((c) => ({
@@ -817,15 +817,15 @@ export async function executeTool(
                     options:
                       avail > 0
                         ? [
-                            {
-                              label: `Swap all (${formattedAvail} ${from})`,
-                              reply: `Swap ${formattedAvail} ${from} to ${to} on Stellar ${chosen}`,
-                            },
-                            {
-                              label: `Swap half (${(avail / 2).toFixed(2)} ${from})`,
-                              reply: `Swap ${(avail / 2).toFixed(2)} ${from} to ${to} on Stellar ${chosen}`,
-                            },
-                          ]
+                          {
+                            label: `Swap all (${formattedAvail} ${from})`,
+                            reply: `Swap ${formattedAvail} ${from} to ${to} on Stellar ${chosen}`,
+                          },
+                          {
+                            label: `Swap half (${(avail / 2).toFixed(2)} ${from})`,
+                            reply: `Swap ${(avail / 2).toFixed(2)} ${from} to ${to} on Stellar ${chosen}`,
+                          },
+                        ]
                         : [],
                   },
                 },
@@ -880,15 +880,15 @@ export async function executeTool(
                     options:
                       avail > 0
                         ? [
-                            {
-                              label: `Swap all (${formattedAvail} ${fromToken})`,
-                              reply: `Swap ${formattedAvail} ${fromToken} to ${toToken} on Stellar ${network}`,
-                            },
-                            {
-                              label: `Swap half (${(avail / 2).toFixed(2)} ${fromToken})`,
-                              reply: `Swap ${(avail / 2).toFixed(2)} ${fromToken} to ${toToken} on Stellar ${network}`,
-                            },
-                          ]
+                          {
+                            label: `Swap all (${formattedAvail} ${fromToken})`,
+                            reply: `Swap ${formattedAvail} ${fromToken} to ${toToken} on Stellar ${network}`,
+                          },
+                          {
+                            label: `Swap half (${(avail / 2).toFixed(2)} ${fromToken})`,
+                            reply: `Swap ${(avail / 2).toFixed(2)} ${fromToken} to ${toToken} on Stellar ${network}`,
+                          },
+                        ]
                         : [],
                   },
                 },
@@ -914,7 +914,7 @@ export async function executeTool(
       } catch (err: any) {
         const msg =
           err?.message?.includes("liquidity") ||
-          err?.message?.includes("few_offers")
+            err?.message?.includes("few_offers")
             ? `There isn't enough liquidity in the Stellar ${network} orderbook for **${fromAmount} ${fromToken} → ${toToken}**. Try a smaller amount like **5–10 ${fromToken}**.`
             : `Failed to fetch a swap quote on Stellar ${network}: ${err?.message || "Unknown error"}. The pair may not be tradeable right now.`;
         return {
@@ -1224,20 +1224,20 @@ export async function executeTool(
             senderPhone: "0000000000",
             userId,
           });
-          
+
           reference = res.id;
-          deposit = {
-            bank_name: res.temporaryWallet.virtualBankName,
-            account_name: res.temporaryWallet.virtualAccountName,
-            account_number: res.temporaryWallet.virtualAccountNumber,
+          deposit = { //centiiv returns accountNumber and not virtualAccountNumber..
+            bank_name: res.temporaryWallet?.bankName || "",
+            account_name: res.temporaryWallet?.accountName || "",
+            account_number: res.temporaryWallet?.accountNumber || "",
             note: "Transfer the exact amount from a bank account in your own name.",
           };
-          
+
           if (cleanFiat > 0) {
             const quote = await getCentiivQuote({ fromAsset: "NGN", toAsset: "USDC", amount: cleanFiat });
             destinationAmount = quote.estimatedReceivableAmount || "0";
           } else {
-             destinationAmount = String(cleanCrypto);
+            destinationAmount = String(cleanCrypto);
           }
         } else {
           providerName = "switch";
@@ -1253,7 +1253,7 @@ export async function executeTool(
           if (!result.success || !result.data) {
             throw new Error(result.message || "Switch onramp failed");
           }
-          
+
           deposit = result.data.deposit;
           reference = result.data.reference;
           destinationAmount = String(result.data.destination.amount);
@@ -1457,11 +1457,10 @@ export async function executeTool(
         );
 
         const reference = res.id;
-        const tw = (res as any).temporaryWallet || (res as any).temporary_wallet || {};
         const deposit = {
-          bank_name: tw.virtualBankName || tw.virtual_bank_name || tw.bankName || tw.bank_name || "",
-          account_name: tw.virtualAccountName || tw.virtual_account_name || tw.accountName || tw.account_name || "",
-          account_number: tw.virtualAccountNumber || tw.virtual_account_number || tw.accountNumber || tw.account_number || "",
+          bank_name: res.temporaryWallet?.bankName || "",
+          account_name: res.temporaryWallet?.accountName || "",
+          account_number: res.temporaryWallet?.accountNumber || "",
         };
 
         // 5. Record Transaction in MongoDB
@@ -1628,8 +1627,8 @@ export async function executeTool(
         const allTokens = balances?.tokens || [];
         const relevantTokens = effectiveToken
           ? allTokens.filter(
-              (t) => t.symbol.toUpperCase() === effectiveToken!.toUpperCase(),
-            )
+            (t) => t.symbol.toUpperCase() === effectiveToken!.toUpperCase(),
+          )
           : allTokens;
         const sources = fundingOptions(
           relevantTokens.length > 0 ? relevantTokens : allTokens,
@@ -1963,10 +1962,10 @@ export async function executeTool(
             accountName: verifiedHolderName,
             userId: userId,
           });
-          
+
           reference = res.id;
           deposit = { amount: res.amount, address: res.temporaryWallet.publicAddress };
-          const quoteRate = appliedRate || Number((await getCentiivQuote({fromAsset: "USDC", toAsset: "NGN", amount: 1})).rate);
+          const quoteRate = appliedRate || Number((await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 })).rate);
           destinationAmount = amount * quoteRate;
         } else {
           providerName = "switch";
@@ -1987,7 +1986,7 @@ export async function executeTool(
           if (!result.success || !result.data) {
             throw new Error(result.message || "Switch offramp failed");
           }
-          
+
           deposit = result.data.deposit;
           reference = result.data.reference;
           destinationAmount = result.data.destination.amount;
@@ -2219,7 +2218,7 @@ export async function executeTool(
         userId,
         action: "FAUCET_REQUESTED",
         details: { targetAddress, chain: "stellar", network: "testnet" },
-      }).catch(() => {});
+      }).catch(() => { });
 
       // Fetch fresh testnet balance
       let newBalanceText = "10,000 XLM";
@@ -2519,11 +2518,11 @@ export async function executeTool(
         ? activePlans.find((p) => String(p._id) === planId)
         : planName
           ? activePlans.find(
-              (p) => p.name.toLowerCase() === planName.toLowerCase(),
-            ) ||
-            activePlans.find((p) =>
-              p.name.toLowerCase().includes(planName.toLowerCase()),
-            )
+            (p) => p.name.toLowerCase() === planName.toLowerCase(),
+          ) ||
+          activePlans.find((p) =>
+            p.name.toLowerCase().includes(planName.toLowerCase()),
+          )
           : undefined;
 
       // If multiple plans and none explicitly matched, present chooser
@@ -2650,11 +2649,11 @@ export async function executeTool(
         ? fundedPlans.find((p) => String(p._id) === planId)
         : planName
           ? fundedPlans.find(
-              (p) => p.name.toLowerCase() === planName.toLowerCase(),
-            ) ||
-            fundedPlans.find((p) =>
-              p.name.toLowerCase().includes(planName.toLowerCase()),
-            )
+            (p) => p.name.toLowerCase() === planName.toLowerCase(),
+          ) ||
+          fundedPlans.find((p) =>
+            p.name.toLowerCase().includes(planName.toLowerCase()),
+          )
           : undefined;
 
       if (!targetPlan) {

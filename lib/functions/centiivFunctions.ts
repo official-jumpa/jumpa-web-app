@@ -135,11 +135,11 @@ export async function createCentiivOnramp(params: {
     id: string;
     status: string;
     type: string;
-    temporaryWallet: {
-      virtualAccountNumber: string;
-      virtualAccountName: string;
-      virtualBankName: string;
-      virtualBankCode: string;
+    temporaryWallet: { //centiiv returns accountNumber and not virtualAccountNumber...
+      accountNumber: string;
+      accountName: string;
+      bankName: string;
+      bankCode: string;
     };
   }>("/requests", {
     method: "POST",

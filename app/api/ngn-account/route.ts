@@ -191,7 +191,7 @@ export async function POST(req: Request) {
           currency: "NGN",
           provider: "bellmonie",
           status: "active",
-          bankName: "Bell MFB",
+          bankName: "Bloc MFB",
           accountNumber: clientData.accountNumber,
           accountName: clientData.accountName,
           providerCustomerId: String(clientData.id),

@@ -70,7 +70,7 @@ export async function getUserNgnAccountDetails(
 
   // Format all active accounts
   const formattedAccounts: FormattedNgnAccountDetails[] = allAccounts.map((a) => ({
-    bankName: a.bankName || (a.provider === "bellmonie" ? "Bell MFB" : "Sterling MFB"),
+    bankName: a.bankName || (a.provider === "bellmonie" ? "Bloc MFB" : "Sterling MFB"),
     accountNumber: a.accountNumber || "",
     accountName: a.accountName || fallbackAccountName,
     status: a.status || "active",
@@ -119,7 +119,7 @@ export async function getUserNgnAccountDetails(
 
   const rawBal = Number(selectedDoc.balance ?? 0);
   const account: FormattedNgnAccountDetails = {
-    bankName: selectedDoc.bankName || (selectedDoc.provider === "bellmonie" ? "Bell MFB" : "Sterling MFB"),
+    bankName: selectedDoc.bankName || (selectedDoc.provider === "bellmonie" ? "Bloc MFB" : "Sterling MFB"),
     accountNumber: selectedDoc.accountNumber || "",
     accountName: selectedDoc.accountName || fallbackAccountName,
     status: selectedDoc.status || "active",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "@/lib/auth-client";
 
 interface OnboardingStatus {
@@ -21,7 +21,6 @@ interface OnboardingStatus {
 export function AuthStepGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { data: session, isPending } = useSession();
 
   const user = session?.user;
@@ -41,7 +40,9 @@ export function AuthStepGuard({ children }: { children: ReactNode }) {
 
         // 0. Already has verified phone -> redirect away from /sign-up/phone (unless coming from bank flow)
         const onPhonePage = pathname?.startsWith("/sign-up/phone");
-        const fromBank = searchParams?.get("from") === "bank";
+        const fromBank =
+          typeof window !== "undefined" &&
+          new URLSearchParams(window.location.search).get("from") === "bank";
         if (onPhonePage && status.hasPhone && !fromBank) {
           router.replace(status.nextRoute || "/home");
           return;

@@ -56,7 +56,7 @@ export function AuthHeading({
         {title}
       </h1>
       {children ? (
-        <p className="text-sm leading-4 text-jumpa-neutral-800">{children}</p>
+        <div className="text-sm leading-4 text-jumpa-neutral-800">{children}</div>
       ) : null}
     </div>
   );

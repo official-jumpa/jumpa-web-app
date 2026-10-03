@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
 import { supportedBanks } from "@/lib/constants/banks";
+import { findBellmonieBank } from "@/lib/constants/bellmonie-banks";
+import { bellmonieBankNameEnquiry } from "@/lib/functions/bellmonieFunctions";
 import { findFossaPayBank } from "@/lib/constants/fossapay-banks";
 import { fossapayBankNameEnquiry } from "@/lib/functions/fossapayFunctions";
 import { resolveAccountQuerySchema } from "@/lib/validations/bank.validation";
@@ -12,7 +14,7 @@ import { environment } from "@/lib/environment";
 
 /**
  * GET /api/bank/resolve?accountNumber=...&bank=...
- * Live bank name enquiry via FossaPay (with Paystack fallback) and internal wallet detection.
+ * Live bank name enquiry prioritizing Bellmonie (with FossaPay & Paystack fallbacks) and internal wallet detection.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -39,7 +41,7 @@ export async function GET(req: NextRequest) {
 
     const { accountNumber: cleanAccount, bank: bankParam } = validation.data;
 
-    // Check if the destination account is an internal FossaPay wallet
+    // Check if the destination account is an internal Jumpa / Bellmonie / FossaPay wallet
     await connectDB();
     const internalAccount = await NgnAccount.findOne({
       accountNumber: cleanAccount,
@@ -48,7 +50,37 @@ export async function GET(req: NextRequest) {
     const jumpaMasterAccount =
       environment.JUMPA_ACCOUNT_NUMBER || process.env.JUMPA_ACCOUNT_NUMBER;
 
-    // 1. Check FossaPay supported banks first
+    // 1. Primary: Bellmonie Name Enquiry
+    const bellmonieBank = findBellmonieBank(bankParam);
+    if (bellmonieBank) {
+      try {
+        const bmRes = await bellmonieBankNameEnquiry({
+          accountNumber: cleanAccount,
+          bankCode: bellmonieBank.code,
+        });
+        if (bmRes?.accountName) {
+          const isBmInternal =
+            Boolean(internalAccount) ||
+            cleanAccount === jumpaMasterAccount;
+
+          return NextResponse.json({
+            success: true,
+            accountName: bmRes.accountName.trim(),
+            accountNumber: bmRes.accountNumber || cleanAccount,
+            bankName: bellmonieBank.name,
+            bankCode: bellmonieBank.code,
+            isInternal: isBmInternal,
+          });
+        }
+      } catch (bmErr: any) {
+        console.warn(
+          `Bellmonie resolution attempt for ${bellmonieBank.name} failed:`,
+          bmErr.message,
+        );
+      }
+    }
+
+    // 2. Secondary: Check FossaPay supported banks
     const fossapayBank = findFossaPayBank(bankParam);
     if (fossapayBank) {
       try {

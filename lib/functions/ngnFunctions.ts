@@ -6,6 +6,7 @@ export interface FormattedNgnAccountDetails {
   accountNumber: string;
   accountName: string;
   status: string;
+  provider?: "bellmonie" | "fossapay" | string;
 }
 
 export interface FormattedNgnBalance {
@@ -15,75 +16,129 @@ export interface FormattedNgnBalance {
 }
 
 /**
- * Finds the active NGN account for a user, prioritizing FossaPay and falling back to any provider.
+ * Finds an active NGN account for a user, prioritizing Bellmonie and falling back to FossaPay / any provider.
  */
 export async function getUserNgnAccount(
   userId: string,
-  provider = "fossapay",
+  preferredProvider?: string,
 ): Promise<INgnAccount | null> {
   await connectDB();
-  const account =
-    (await NgnAccount.findOne({ userId, provider }).lean<INgnAccount>()) ||
-    (await NgnAccount.findOne({ userId }).lean<INgnAccount>());
-  return account;
+  if (preferredProvider) {
+    const specific = await NgnAccount.findOne({ userId, provider: preferredProvider }).lean<INgnAccount>();
+    if (specific) return specific;
+  }
+
+  // Prioritize Bellmonie, fallback to FossaPay, then any
+  const bellmonieAcc = await NgnAccount.findOne({ userId, provider: "bellmonie" }).lean<INgnAccount>();
+  if (bellmonieAcc) return bellmonieAcc;
+
+  const fossapayAcc = await NgnAccount.findOne({ userId, provider: "fossapay" }).lean<INgnAccount>();
+  if (fossapayAcc) return fossapayAcc;
+
+  const anyAcc = await NgnAccount.findOne({ userId }).lean<INgnAccount>();
+  return anyAcc;
 }
 
 /**
- * Retrieves the user's NGN account formatted for UI display, including bank details and ledger balance.
+ * Retrieves all NGN accounts belonging to a user.
+ */
+export async function getAllUserNgnAccounts(userId: string): Promise<INgnAccount[]> {
+  await connectDB();
+  return NgnAccount.find({ userId, status: "active" }).lean<INgnAccount[]>();
+}
+
+/**
+ * Retrieves the user's primary or requested NGN account formatted for UI display.
  */
 export async function getUserNgnAccountDetails(
   userId: string,
   fallbackAccountName = "Jumpa User",
-  options?: { force?: boolean },
+  options?: { force?: boolean; provider?: "bellmonie" | "fossapay" },
 ): Promise<{
   account: FormattedNgnAccountDetails | null;
   balance: FormattedNgnBalance | null;
+  accounts?: FormattedNgnAccountDetails[];
+  activeProvider?: string;
+  canCreateBellmonie?: boolean;
 }> {
-  try {
-    const { refreshUserNgnAccountBalance } = await import(
-      "@/lib/functions/fossapayFunctions"
-    );
-    const refreshed = await refreshUserNgnAccountBalance(userId, options);
-    if (refreshed.hasAccount && refreshed.account && refreshed.balance) {
-      return {
-        account: {
-          ...refreshed.account,
-          accountName: refreshed.account.accountName || fallbackAccountName,
-        },
-        balance: refreshed.balance,
-      };
-    }
-    if (!refreshed.hasAccount) {
-      return { account: null, balance: null };
-    }
-  } catch (err: any) {
-    console.warn(
-      "[getUserNgnAccountDetails] Live refresh error, falling back to local DB:",
-      err.message,
-    );
+  await connectDB();
+  const allAccounts = await getAllUserNgnAccounts(userId);
+  const hasBellmonie = allAccounts.some((a) => a.provider === "bellmonie");
+  const hasFossapay = allAccounts.some((a) => a.provider === "fossapay");
+
+  const requestedProvider = options?.provider || (hasBellmonie ? "bellmonie" : "fossapay");
+
+  // Format all active accounts
+  const formattedAccounts: FormattedNgnAccountDetails[] = allAccounts.map((a) => ({
+    bankName: a.bankName || (a.provider === "bellmonie" ? "Bell MFB" : "Sterling MFB"),
+    accountNumber: a.accountNumber || "",
+    accountName: a.accountName || fallbackAccountName,
+    status: a.status || "active",
+    provider: a.provider || "bellmonie",
+  }));
+
+  // Selected account
+  const selectedDoc = options?.provider
+    ? allAccounts.find((a) => a.provider === options.provider)
+    : (allAccounts.find((a) => a.provider === requestedProvider) || allAccounts[0]);
+
+  if (!selectedDoc) {
+    return {
+      account: null,
+      balance: null,
+      accounts: formattedAccounts,
+      activeProvider: options?.provider || undefined,
+      canCreateBellmonie: !hasBellmonie,
+    };
   }
 
-  const accountDoc = await getUserNgnAccount(userId);
-
-  if (!accountDoc) {
-    return { account: null, balance: null };
+  // Live balance for FossaPay if requested
+  if (selectedDoc.provider === "fossapay") {
+    try {
+      const { refreshUserNgnAccountBalance } = await import(
+        "@/lib/functions/fossapayFunctions"
+      );
+      const refreshed = await refreshUserNgnAccountBalance(userId, { force: options?.force });
+      if (refreshed.hasAccount && refreshed.account && refreshed.balance) {
+        return {
+          account: {
+            ...refreshed.account,
+            accountName: refreshed.account.accountName || fallbackAccountName,
+            provider: "fossapay",
+          },
+          balance: refreshed.balance,
+          accounts: formattedAccounts,
+          activeProvider: "fossapay",
+          canCreateBellmonie: !hasBellmonie,
+        };
+      }
+    } catch (err: any) {
+      console.warn("[getUserNgnAccountDetails] FossaPay live balance refresh warning:", err.message);
+    }
   }
 
+  const rawBal = Number(selectedDoc.balance ?? 0);
   const account: FormattedNgnAccountDetails = {
-    bankName: accountDoc.bankName || "Sterling MFB",
-    accountNumber: accountDoc.accountNumber || "",
-    accountName: accountDoc.accountName || fallbackAccountName,
-    status: accountDoc.status || "active",
+    bankName: selectedDoc.bankName || (selectedDoc.provider === "bellmonie" ? "Bell MFB" : "Sterling MFB"),
+    accountNumber: selectedDoc.accountNumber || "",
+    accountName: selectedDoc.accountName || fallbackAccountName,
+    status: selectedDoc.status || "active",
+    provider: selectedDoc.provider || "bellmonie",
   };
 
-  const rawBal = Number(accountDoc.balance ?? 0);
   const balance: FormattedNgnBalance = {
     availableBalance: rawBal,
     ledgerBalance: rawBal,
-    currency: accountDoc.currency || "NGN",
+    currency: selectedDoc.currency || "NGN",
   };
 
-  return { account, balance };
+  return {
+    account,
+    balance,
+    accounts: formattedAccounts,
+    activeProvider: selectedDoc.provider || "bellmonie",
+    canCreateBellmonie: !hasBellmonie,
+  };
 }
 
 /**

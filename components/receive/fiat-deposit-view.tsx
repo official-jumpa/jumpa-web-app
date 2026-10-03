@@ -10,16 +10,18 @@ import { Button } from "@/components/ui/button";
 import { BankIcon } from "@/components/ui/icons/bank";
 import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { NairaSignIcon } from "@/components/ui/icons/naira-sign";
+import { FlashIcon } from "@/components/ui/icons/flash";
 import { JumpaLoader } from "@/components/ui/jumpa-loader";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { ShareDetailsButton } from "@/components/ngn/share-details-button";
 import { cn } from "@/lib/cn";
 
-interface NgnAccountData {
+export interface NgnAccountData {
   bankName: string;
   accountNumber: string;
   accountName: string;
   status: string;
+  provider?: "bellmonie" | "fossapay" | string;
 }
 
 const HERO =
@@ -48,43 +50,48 @@ export function FiatDepositView({
 }: {
   initialAccount?: NgnAccountData | null;
 } = {}) {
-  const [loading, setLoading] = useState(() => !initialAccount);
-  const [account, setAccount] = useState<NgnAccountData | null>(initialAccount);
+  const [loading, setLoading] = useState(() => !initialAccount || initialAccount.provider !== "bellmonie");
+  const [account, setAccount] = useState<NgnAccountData | null>(
+    initialAccount?.provider === "bellmonie" ? initialAccount : null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [showFeeTiers, setShowFeeTiers] = useState(false);
 
-  useEffect(() => {
-    if (initialAccount) return;
-    let isMounted = true;
-
-    async function loadAccount() {
-      try {
-        const res = await fetch("/api/ngn-account");
-        if (!res.ok) {
-          if (res.status === 404) {
-            if (isMounted) setAccount(null);
-            return;
-          }
-          throw new Error("Failed to load account details");
+  const loadAccount = async () => {
+    try {
+      const res = await fetch("/api/ngn-account?provider=bellmonie");
+      if (!res.ok) {
+        if (res.status === 404) {
+          setAccount(null);
+          return;
         }
-
-        const data = await res.json();
-        if (isMounted && data.hasAccount && data.account) {
-          setAccount(data.account);
-        }
-      } catch (err: any) {
-        console.error("Failed to fetch NGN deposit account:", err);
-        if (isMounted) setError(err.message || "Failed to load account");
-      } finally {
-        if (isMounted) setLoading(false);
+        throw new Error("Failed to load account details");
       }
+
+      const data = await res.json();
+      if (data.hasAccount && data.account) {
+        // Ensure only bellmonie account is used for deposits
+        const bellAcc =
+          data.account.provider === "bellmonie"
+            ? data.account
+            : (Array.isArray(data.accounts)
+                ? data.accounts.find((a: any) => a.provider === "bellmonie")
+                : null);
+
+        setAccount(bellAcc || null);
+      } else {
+        setAccount(null);
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch NGN deposit account:", err);
+      setError(err.message || "Failed to load account");
+    } finally {
+      setLoading(false);
     }
+  };
 
+  useEffect(() => {
     loadAccount();
-
-    return () => {
-      isMounted = false;
-    };
   }, []);
 
   if (loading) {
@@ -114,7 +121,7 @@ export function FiatDepositView({
           </p>
           <div className="mt-6 w-full max-w-xs">
             <Button variant="gradient" size="lg" href="/ngn-account">
-              Open Naira Account
+              Open NGN Account
             </Button>
           </div>
         </div>
@@ -137,12 +144,14 @@ export function FiatDepositView({
         <section className={HERO}>
           <HeroGrid />
 
-          <span className={HERO_LABEL}>
-            <span className="flex size-4 items-center justify-center rounded-full bg-jumpa-primary-950 text-jumpa-white">
-              <NairaSignIcon className="size-2.5" />
+          <div className="flex items-center gap-2">
+            <span className={HERO_LABEL}>
+              <span className="flex size-4 items-center justify-center rounded-full bg-jumpa-primary-950 text-jumpa-white">
+                <NairaSignIcon className="size-2.5" />
+              </span>
+              Account Number
             </span>
-            Account Number
-          </span>
+          </div>
 
           <span className="flex items-center justify-between gap-3">
             <span className={ACCOUNT_TEXT}>{account.accountNumber}</span>
@@ -197,7 +206,7 @@ export function FiatDepositView({
                 className="tap flex items-center gap-1 text-jumpa-neutral-500 hover:text-jumpa-black"
                 title="View fee schedule"
               >
-                <span>From ₦60</span>
+                <span>Free under ₦10k</span>
                 <ChevronDownIcon
                   className={cn(
                     "size-3 text-jumpa-neutral-400 transition-transform duration-200",
@@ -210,24 +219,12 @@ export function FiatDepositView({
             {showFeeTiers && (
               <div className="flex flex-col gap-1.5 rounded-md bg-jumpa-neutral-80/40 p-2.5 text-[11px] leading-3.5 text-jumpa-neutral-400 animate-in fade-in duration-150">
                 <div className="flex justify-between">
-                  <span>₦0 – ₦4,999</span>
-                  <span className="font-semibold text-jumpa-black">₦60</span>
+                  <span>Below ₦10,000</span>
+                  <span className="font-semibold text-emerald-600">Free</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>₦5,000 – ₦9,999</span>
-                  <span className="font-semibold text-jumpa-black">₦100</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>₦10,000 – ₦14,999</span>
-                  <span className="font-semibold text-jumpa-black">₦150</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>₦15,000 – ₦24,999</span>
-                  <span className="font-semibold text-jumpa-black">₦200</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>₦25,000 and above</span>
-                  <span className="font-semibold text-jumpa-black">1.2% (capped at ₦1,000)</span>
+                  <span>₦10,000 and above</span>
+                  <span className="font-semibold text-jumpa-black">1%</span>
                 </div>
               </div>
             )}

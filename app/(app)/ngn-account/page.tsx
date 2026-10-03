@@ -14,7 +14,7 @@ import {
 } from "@/lib/functions/transactionFunctions";
 
 interface NgnAccountPageProps {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; action?: string }>;
 }
 
 export async function generateMetadata({
@@ -28,7 +28,7 @@ export async function generateMetadata({
 export default async function NgnAccountPage({
   searchParams,
 }: NgnAccountPageProps) {
-  const { view } = await searchParams;
+  const { view, action } = await searchParams;
 
   if (view === "details") {
     let initialAccount: any = null;
@@ -68,9 +68,12 @@ export default async function NgnAccountPage({
 
   const session = await getCachedAuthSession();
   if (session?.user?.id) {
-    const hasAccount = await hasActiveNgnAccount(session.user.id);
-    if (hasAccount) {
-      redirect("/ngn-account?view=details");
+    // If not explicitly requesting to create a new account, redirect if already has account
+    if (action !== "create") {
+      const hasAccount = await hasActiveNgnAccount(session.user.id);
+      if (hasAccount) {
+        redirect("/ngn-account?view=details");
+      }
     }
     const isKycDone = await isUserKycVerified(session.user.id);
     if (!isKycDone) {

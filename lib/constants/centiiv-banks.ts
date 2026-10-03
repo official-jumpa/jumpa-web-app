@@ -2830,6 +2830,9 @@ const CENTIIV_BANK_ALIASES: Record<string, string> = {
   providus: "000023",
   jaiz: "000006",
   taj: "000026",
+  bloc: "090977",
+  blocmfb: "090977",
+  blocbank: "090977",
 };
 
 /**

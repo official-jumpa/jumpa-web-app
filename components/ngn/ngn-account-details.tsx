@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState, useRef } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { onNgnRefresh, onBalanceRefresh } from "@/lib/client-events";
@@ -10,10 +10,16 @@ import { JumpaLoader } from "@/components/ui/jumpa-loader";
 import { BankIcon } from "@/components/ui/icons/bank";
 import { ArrowDownRightIcon } from "@/components/ui/icons/arrow-down-right";
 import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
+import { ArrowRightIcon } from "@/components/ui/icons/arrow-right";
 import { EyeIcon } from "@/components/ui/icons/eye";
 import { EyeOffIcon } from "@/components/ui/icons/eye-off";
 import { NairaSignIcon } from "@/components/ui/icons/naira-sign";
 import { RefreshIcon } from "@/components/ui/icons/refresh";
+import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
+import { WalletPlusIcon } from "@/components/ui/icons/wallet-plus";
+import { PlusIcon } from "@/components/ui/icons/plus";
+import { FlashIcon } from "@/components/ui/icons/flash";
+import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { toast } from "@/components/ui/toast";
 import { CopyButton } from "@/components/auth/copy-button";
 import { SettingRow } from "@/components/settings/setting-row";
@@ -29,16 +35,18 @@ import {
   TransactionRow,
   TransactionRule,
 } from "@/components/transactions/transaction-row";
+import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import type { Transaction } from "@/lib/wallet";
 
-interface NgnAccountData {
+export interface NgnAccountData {
   bankName: string;
   accountNumber: string;
   accountName: string;
   status: string;
+  provider?: "bellmonie" | "fossapay" | string;
 }
 
-interface NgnBalanceData {
+export interface NgnBalanceData {
   availableBalance: number;
   ledgerBalance: number;
   currency: string;
@@ -53,7 +61,7 @@ interface NgnAccountDetailsProps {
   initialTransactions?: Transaction[];
 }
 
-/** Upgraded NGN account details screen with balance card, action buttons, and live NGN transaction history. */
+/** Upgraded NGN account details screen with  dual-account toggling. */
 export function NgnAccountDetails({
   initialAccount = null,
   initialBalance = null,
@@ -61,6 +69,10 @@ export function NgnAccountDetails({
 }: NgnAccountDetailsProps = {}) {
   const [loading, setLoading] = useState(() => !initialAccount);
   const [account, setAccount] = useState<NgnAccountData | null>(initialAccount);
+  const [accounts, setAccounts] = useState<NgnAccountData[]>([]);
+  const [activeProvider, setActiveProvider] = useState<string>("bellmonie");
+  const [canCreateBellmonie, setCanCreateBellmonie] = useState<boolean>(false);
+
   const [balance, setBalance] = useState<NgnBalanceData | null>(() => {
     if (initialBalance && initialBalance.availableBalance > 0) {
       return initialBalance;
@@ -101,52 +113,61 @@ export function NgnAccountDetails({
     } catch {}
   }, []);
 
-  // Fetch and synchronize live account details and balance on mount, on event, and on focus
+  // Fetch accounts and balance
+  const fetchAccount = async (targetProvider?: string) => {
+    try {
+      const qs = targetProvider ? `?provider=${targetProvider}` : "";
+      const res = await fetch(`/api/ngn-account${qs}`, { cache: "no-store" });
+      if (!res.ok) {
+        if (res.status === 404 && !initialAccount) {
+          setAccount(null);
+        }
+        return;
+      }
+
+      const data = await res.json();
+      if (data.hasAccount && data.account) {
+        setAccount(data.account);
+        if (Array.isArray(data.accounts)) {
+          setAccounts(data.accounts);
+        }
+        if (data.activeProvider) {
+          setActiveProvider(data.activeProvider);
+        }
+        setCanCreateBellmonie(Boolean(data.canCreateBellmonie));
+
+        if (data.balance) {
+          setBalance(data.balance);
+          const rawBal = Number(data.balance.availableBalance ?? 0);
+          const formatted = `₦${rawBal.toLocaleString("en-NG", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`;
+          try {
+            localStorage.setItem(
+              "jumpa_ngn_account_cache",
+              JSON.stringify({
+                hasAccount: true,
+                balance: formatted,
+                rawBalance: rawBal,
+              }),
+            );
+          } catch {}
+        }
+      }
+    } catch (err: any) {
+      console.warn("[NgnAccountDetails] Mount balance sync error:", err);
+      if (!initialAccount) {
+        setError(err.message || "Failed to load account");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
     let lastFetchTime = Date.now();
-
-    async function fetchAccount() {
-      try {
-        const res = await fetch("/api/ngn-account", { cache: "no-store" });
-        if (!res.ok) {
-          if (res.status === 404 && !initialAccount) {
-            if (isMounted) setAccount(null);
-          }
-          return;
-        }
-
-        const data = await res.json();
-        if (isMounted && data.hasAccount && data.account) {
-          setAccount(data.account);
-          if (data.balance) {
-            setBalance(data.balance);
-            const rawBal = Number(data.balance.availableBalance ?? 0);
-            const formatted = `₦${rawBal.toLocaleString("en-NG", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}`;
-            try {
-              localStorage.setItem(
-                "jumpa_ngn_account_cache",
-                JSON.stringify({
-                  hasAccount: true,
-                  balance: formatted,
-                  rawBalance: rawBal,
-                }),
-              );
-            } catch {}
-          }
-        }
-      } catch (err: any) {
-        console.warn("[NgnAccountDetails] Mount balance sync error:", err);
-        if (isMounted && !initialAccount) {
-          setError(err.message || "Failed to load account");
-        }
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    }
 
     async function fetchNgnTransactions() {
       try {
@@ -179,11 +200,10 @@ export function NgnAccountDetails({
       fetchNgnTransactions();
     });
 
-    // Revalidate on tab focus or visibility change (e.g. user returns from banking app)
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
         const now = Date.now();
-        if (now - lastFetchTime > 3000) {
+        if (now - lastFetchTime > 10000) {
           lastFetchTime = now;
           fetchAccount();
           fetchNgnTransactions();
@@ -204,14 +224,15 @@ export function NgnAccountDetails({
   }, [initialAccount, initialTransactions.length]);
 
   /**
-   * Refreshes the NGN account live balance directly from FossaPay,
-   * updates the local cache for the home screen, and reloads transactions.
+   * Refreshes the NGN account live balance.
    */
   const handleRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
     try {
-      const res = await fetch("/api/ngn-account", { cache: "no-store" });
+      const res = await fetch(`/api/ngn-account?provider=${activeProvider}&refresh=true`, {
+        cache: "no-store",
+      });
       if (!res.ok) throw new Error("Failed to refresh balance");
       const data = await res.json();
 
@@ -236,10 +257,9 @@ export function NgnAccountDetails({
           );
         } catch {}
 
-        toast.success("Balance updated", formatted);
+        toast.success("Balance updated");
       }
 
-      // Re-fetch transactions so newly deposited funds appear in history
       const txRes = await fetch("/api/transactions?chain=fiat&limit=10", {
         cache: "no-store",
       });
@@ -255,6 +275,14 @@ export function NgnAccountDetails({
     } finally {
       setRefreshing(false);
     }
+  };
+
+  /**
+   * Handles user switching between Bellmonie and FossaPay accounts.
+   */
+  const handleProviderSwitch = (provider: string) => {
+    setActiveProvider(provider);
+    fetchAccount(provider);
   };
 
   const ToggleIcon = visible ? EyeOffIcon : EyeIcon;
@@ -282,7 +310,7 @@ export function NgnAccountDetails({
             No NGN Account Found
           </h2>
           <p className="mt-2 max-w-xs text-sm text-jumpa-neutral-500">
-            You have not opened an NGN virtual bank account yet.
+            Open a virtual account to deposit and withdraw Naira seamlessly.
           </p>
           <div className="mt-6 w-full max-w-xs">
             <Button variant="gradient" size="lg" href="/ngn-account">
@@ -309,24 +337,62 @@ export function NgnAccountDetails({
 
   const shareText = fields.map((f) => `${f.label}: ${f.value}`).join("\n");
 
+  const isBellmonie = (account.provider || activeProvider) === "bellmonie";
+
   const actions = [
-    {
-      label: "Deposit",
-      href: "/receive?rail=fiat",
-      Icon: ArrowDownRightIcon,
-    },
+    ...(isBellmonie
+      ? [
+          {
+            label: "Deposit",
+            href: "/receive?rail=fiat",
+            Icon: ArrowDownRightIcon,
+          },
+        ]
+      : []),
     {
       label: "Withdraw",
-      href: "/send/bank?network=Nigeria%20Bank&asset=NGN",
+      href: `/send/bank?network=Nigeria%20Bank&asset=NGN&sourceProvider=${activeProvider}`,
       Icon: ArrowUpRightIcon,
     },
   ];
 
+  const nextProvider = () => {
+    if (accounts.length <= 1) return;
+    const currentIndex = accounts.findIndex((a) => (a.provider || "bellmonie") === activeProvider);
+    const nextIndex = (currentIndex + 1) % accounts.length;
+    const next = accounts[nextIndex]?.provider || "bellmonie";
+    handleProviderSwitch(next);
+  };
+
+  const prevProvider = () => {
+    if (accounts.length <= 1) return;
+    const currentIndex = accounts.findIndex((a) => (a.provider || "bellmonie") === activeProvider);
+    const prevIndex = (currentIndex - 1 + accounts.length) % accounts.length;
+    const prev = accounts[prevIndex]?.provider || "bellmonie";
+    handleProviderSwitch(prev);
+  };
+
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-      <ScreenHeader back="/home" title="NGN Account" round />
+      <ScreenHeader
+        back="/home"
+        title="NGN Account"
+        round
+        action={
+          canCreateBellmonie ? (
+            <Link
+              href="/ngn-account?action=create"
+              aria-label="Open NGN Account"
+              title="Open NGN Account"
+              className="tap flex size-8 items-center justify-center rounded-full bg-jumpa-primary-50 text-jumpa-primary-600 hover:bg-jumpa-primary-100 active:scale-95 transition"
+            >
+              <PlusIcon className="size-4" />
+            </Link>
+          ) : undefined
+        }
+      />
 
-      {/* Hero Balance Card */}
+      {/* Hero Balance Card (Carousel) */}
       <section className="relative isolate mt-4 flex h-30 flex-col items-center justify-center gap-3 overflow-hidden rounded-key bg-[image:var(--gradient-jumpa-hero)]">
         <Image
           src="/images/home/hero-grid.svg"
@@ -337,12 +403,37 @@ export function NgnAccountDetails({
           className="pointer-events-none absolute -top-8 left-1/2 -z-10 max-w-none -translate-x-1/2"
         />
 
-        <span className="flex items-center gap-1.5 rounded-pill bg-jumpa-white py-1.5 pr-3 pl-2 text-[10px] leading-3 font-bold text-jumpa-primary-950">
-          <span className="flex size-4 items-center justify-center rounded-full bg-jumpa-primary-950 text-jumpa-white">
-            <NairaSignIcon className="size-2.5" />
+        {/* Carousel controls if user has multiple accounts */}
+        {/* Remove once migration is complete */}
+        {accounts.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={prevProvider}
+              aria-label="Previous account"
+              className="tap absolute left-2.5 top-1/2 -translate-y-1/2 z-10 flex size-7 items-center justify-center rounded-full bg-jumpa-white/15 text-jumpa-white hover:bg-jumpa-white/25 active:scale-90 transition"
+            >
+              <ChevronDownIcon className="size-4 rotate-90" />
+            </button>
+            <button
+              type="button"
+              onClick={nextProvider}
+              aria-label="Next account"
+              className="tap absolute right-2.5 top-1/2 -translate-y-1/2 z-10 flex size-7 items-center justify-center rounded-full bg-jumpa-white/15 text-jumpa-white hover:bg-jumpa-white/25 active:scale-90 transition"
+            >
+              <ChevronDownIcon className="size-4 -rotate-90" />
+            </button>
+          </>
+        )}
+
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 rounded-pill bg-jumpa-white py-1.5 pr-3 pl-2 text-[10px] leading-3 font-bold text-jumpa-primary-950">
+            <span className="flex size-4 items-center justify-center rounded-full bg-jumpa-primary-950 text-jumpa-white">
+              <NairaSignIcon className="size-2.5" />
+            </span>
+            {account.bankName ? `${account.bankName.toUpperCase()} BALANCE` : "NAIRA BALANCE"}
           </span>
-          NGN BALANCE
-        </span>
+        </div>
 
         <p className="flex items-center gap-2 text-2xl leading-7 font-semibold text-jumpa-white">
           {visible ? formattedBalance : MASK}
@@ -364,8 +455,26 @@ export function NgnAccountDetails({
           </button>
         </p>
 
-        {/* Refresh acts on the card, not on the figure, so it sits in the corner
-            and leaves the amount optically centred with its one eye toggle. */}
+        {/* Carousel indicator dots */}
+        {accounts.length > 1 && (
+          <div className="absolute bottom-2 flex items-center gap-1.5">
+            {accounts.map((a) => {
+              const isSelected = (a.provider || "bellmonie") === activeProvider;
+              return (
+                <button
+                  key={a.provider || a.accountNumber}
+                  type="button"
+                  onClick={() => handleProviderSwitch(a.provider || "bellmonie")}
+                  className={`h-1.5 rounded-full transition-all ${
+                    isSelected ? "w-4 bg-jumpa-white" : "w-1.5 bg-jumpa-white/40"
+                  }`}
+                  aria-label={`Switch to ${a.bankName}`}
+                />
+              );
+            })}
+          </div>
+        )}
+
         <button
           type="button"
           onClick={handleRefresh}
@@ -380,7 +489,6 @@ export function NgnAccountDetails({
           />
         </button>
       </section>
-
 
       {/* Action Buttons: Deposit & Withdraw */}
       <nav className="mt-6 flex items-start justify-center gap-10">
@@ -420,9 +528,31 @@ export function NgnAccountDetails({
         </SettingSection>
       </div>
 
-      <div className="mt-4">
-        <ShareDetailsButton text={shareText} />
-      </div>
+      {isBellmonie ? (
+        <div className="mt-4">
+          <ShareDetailsButton text={shareText} />
+        </div>
+      ) : (
+        <div className="mt-4 rounded-surface border border-amber-500/20 bg-amber-500/10 p-3.5 text-xs leading-4.5 text-amber-900">
+          <p className="font-semibold">Deposits unavailable for this account</p>
+          {canCreateBellmonie ? (
+            <Link
+              href="/ngn-account?action=create"
+              className="mt-2 inline-flex items-center text-xs font-bold text-jumpa-primary-600 underline"
+            >
+              Open New Account
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleProviderSwitch("bellmonie")}
+              className="mt-2 inline-flex items-center text-xs font-bold text-jumpa-primary-600 underline"
+            >
+              Switch Account
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Transaction History specific to Naira Account */}
       <div className="mt-8 flex items-center justify-between text-sm leading-4.5 font-medium text-jumpa-black">
@@ -436,8 +566,6 @@ export function NgnAccountDetails({
         </Link>
       </div>
 
-      {/* `gap-4` is the approved 72px row pitch from the home card — without it
-          the rules are `-mb-px` and the rows sit flush against each other. */}
       <div className="mt-3 flex flex-col gap-4 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-5 py-5">
         {loadingTransactions ? (
           <div className="flex flex-col gap-4 animate-pulse">
@@ -450,7 +578,6 @@ export function NgnAccountDetails({
           transactions.map((transaction, index) => (
             <Fragment key={transaction.id || (transaction as any)._id || index}>
               {index > 0 ? <TransactionRule /> : null}
-              {/* No chain mark here — this account only ever holds naira. */}
               <TransactionRow transaction={transaction} badge={false} />
             </Fragment>
           ))

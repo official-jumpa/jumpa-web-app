@@ -149,7 +149,7 @@ export function PhoneForm({ nextHref }: { nextHref: string }) {
           name="phone"
           inputMode="tel"
           autoComplete="tel"
-          placeholder="08134623456 or +1234..."
+          placeholder="08134623456 or +234..."
           value={phone}
           disabled={submitting || skipping}
           onChange={(event) => {

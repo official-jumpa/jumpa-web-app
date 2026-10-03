@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuthContext } from "@/components/auth/AuthGuard";
 import { SettingRow } from "@/components/settings/setting-row";
@@ -11,15 +12,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { DateField } from "@/components/ui/date-field";
 import { FieldError } from "@/components/ui/field-error";
+import { CalendarIcon } from "@/components/ui/icons/calendar";
 import { CheckIcon } from "@/components/ui/icons/check";
+import { CircleUserIcon } from "@/components/ui/icons/circle-user";
+import { CreditCardNavIcon } from "@/components/ui/icons/credit-card-nav";
 import { GlobeIcon } from "@/components/ui/icons/globe";
 import { IdCardIcon } from "@/components/ui/icons/id-card";
+import { MobileIcon } from "@/components/ui/icons/mobile";
+import { PhoneAltIcon } from "@/components/ui/icons/phone-alt";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
 import { mapCountryCodeToName } from "@/lib/ngn-account";
 import {
-  type CreateNgnAccountInput,
-  createNgnAccountSchema,
-} from "@/lib/validations/fossapay.validation";
+  type CreateBellmonieAccountInput,
+  createBellmonieAccountSchema,
+} from "@/lib/validations/bellmonie.validation";
 
 function VerifiedBadge() {
   return (
@@ -41,19 +47,32 @@ function getMaxDob(): string {
 const MIN_DOB = `${new Date().getFullYear() - 100}-01-01`;
 
 interface NgnConfirmProps {
-  onContinue: (formData: CreateNgnAccountInput) => void;
+  onContinue: (formData: CreateBellmonieAccountInput) => void;
   isLoading?: boolean;
   serverError?: string | null;
 }
 
-/** Form for confirming and collecting details required by FossaPay for NGN virtual bank accounts */
+/** Form for confirming and collecting details required by Bellmonie for NGN virtual bank accounts */
 export function NgnConfirm({
   onContinue,
   isLoading = false,
   serverError = null,
 }: NgnConfirmProps) {
+  const router = useRouter();
   const auth = useAuthContext();
   const user = auth?.user;
+
+  const handleVerifyPhoneClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      fetch("/api/auth/verify-phone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset-skip" }),
+      }).catch(() => {});
+    } catch {}
+    router.push("/sign-up/phone?from=bank");
+  };
 
   // Split user name into firstName / lastName defaults
   const rawName = (user?.name || "").trim();
@@ -65,15 +84,30 @@ export function NgnConfirm({
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState(defaultLast);
   const [dateOfBirth, setDateOfBirth] = useState("");
-  const [mobileNumber, setMobileNumber] = useState("+234");
+  const [mobileNumber, setMobileNumber] = useState(user?.phoneNumber || "");
   const [address, setAddress] = useState("");
-  const [city, setCity] = useState("");
+  const [bvn, setBvn] = useState("");
+  const [nin, setNin] = useState("");
+  const [gender, setGender] = useState<"male" | "female">("male");
+
+  // Track which fields are locked from verified DB / KYC
+  const [lockedFields, setLockedFields] = useState<Record<string, boolean>>({
+    firstName: Boolean(defaultFirst),
+    lastName: Boolean(defaultLast),
+    phone: Boolean(user?.phoneNumber),
+    email: Boolean(user?.email),
+  });
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [verified, setVerified] = useState<boolean>(false);
 
   const countryName = mapCountryCodeToName(user?.country || "NG");
   const maxDob = getMaxDob();
+
+  const fullNameDisplay =
+    lastName || firstName || middleName
+      ? [lastName ? `${lastName},` : "", firstName, middleName].filter(Boolean).join(" ")
+      : user?.name || "Full Name";
 
   useEffect(() => {
     let isMounted = true;
@@ -82,65 +116,138 @@ export function NgnConfirm({
       if (savedKyc !== null) {
         setVerified(savedKyc === "true");
       }
-    } catch {}
+    } catch { }
 
-    async function checkKyc() {
+    async function checkKycAndProfile() {
       try {
-        const res = await fetch("/api/kyc");
-        if (res.ok && isMounted) {
-          const data = await res.json();
+        const [kycRes, profileRes] = await Promise.all([
+          fetch("/api/kyc"),
+          fetch("/api/user/profile"),
+        ]);
+
+        let freshPhone = user?.phoneNumber || "";
+        if (profileRes.ok && isMounted) {
+          const profileData = await profileRes.json();
+          if (profileData?.profile?.phoneNumber) {
+            freshPhone = profileData.profile.phoneNumber;
+            setMobileNumber(freshPhone);
+          }
+        }
+
+        if (kycRes.ok && isMounted) {
+          const data = await kycRes.json();
           const isDone = Boolean(
             data?.isCompleted ||
-              data?.status === "approved" ||
-              data?.stage === "completed",
+            data?.status === "approved" ||
+            data?.stage === "completed",
           );
           setVerified(isDone);
           try {
             localStorage.setItem("jumpa_kyc_completed", String(isDone));
-          } catch {}
+          } catch { }
+
+          const details = data?.details;
+          const newLocked: Record<string, boolean> = {
+            firstName: Boolean(defaultFirst || details?.firstName),
+            lastName: Boolean(defaultLast || details?.lastName),
+            middleName: Boolean(details?.middleName),
+            phone: Boolean(freshPhone),
+            email: Boolean(user?.email),
+            dateOfBirth: Boolean(details?.dateOfBirth),
+            gender: Boolean(details?.gender),
+            address: Boolean(details?.address?.street),
+            bvn: Boolean(data?.idType === "bvn" && data?.idNumber),
+          };
+          setLockedFields(newLocked);
+
+          if (details) {
+            if (details.firstName) setFirstName(details.firstName);
+            if (details.middleName) setMiddleName(details.middleName);
+            if (details.lastName) setLastName(details.lastName);
+            if (details.dateOfBirth) {
+              setDateOfBirth(String(details.dateOfBirth).replace(/\//g, "-"));
+            }
+            if (details.gender) {
+              const g = String(details.gender).toLowerCase();
+              if (g === "female" || g === "f") setGender("female");
+              else setGender("male");
+            }
+            if (details.address?.street) {
+              const street = [details.address.street, details.address.city, details.address.state]
+                .filter(Boolean)
+                .join(", ");
+              setAddress(street);
+            }
+          }
+
+          if (data?.idType === "bvn" && data?.idNumber) {
+            setBvn(data.idNumber);
+          }
         }
       } catch (err) {
-        console.warn("Error checking KYC:", err);
+        console.warn("Error checking KYC/profile:", err);
       }
     }
 
-    checkKyc();
+    checkKycAndProfile();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [defaultFirst, defaultLast, user?.phoneNumber, user?.email]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFieldErrors({});
 
-    if (!verified) {
-      setFieldErrors({
-        kyc: "Please complete identity verification (KYC) before opening a Naira account.",
-      });
+    const phoneStr = String(mobileNumber || user?.phoneNumber || "").trim();
+    const errors: Record<string, string> = {};
+
+    if (!firstName.trim()) {
+      errors.form = "First name is missing from your verified profile.";
+    } else if (!lastName.trim()) {
+      errors.form = "Last name is missing from your verified profile.";
+    } else if (!phoneStr) {
+      errors.form = "Please verify your phone number first.";
+    } else if (!user?.email?.trim()) {
+      errors.form = "Email address is missing from your account.";
+    } else if (!dateOfBirth.trim()) {
+      errors.form = "Date of birth is missing from your profile.";
+    } else if (!address.trim()) {
+      errors.form = "Residential address is required.";
+      errors.address = "Address is required";
+    } else if (!bvn.trim()) {
+      errors.form = "Bank Verification Number (BVN) is required.";
+      errors.bvn = "BVN is required";
+    }
+
+    if (errors.form) {
+      setFieldErrors(errors);
       return;
     }
 
     const formData = {
-      firstName,
-      middleName: middleName || undefined,
-      lastName,
-      dateOfBirth,
-      mobileNumber,
-      address,
-      city,
+      firstName: firstName.trim(),
+      middleName: middleName.trim() || undefined,
+      lastName: lastName.trim(),
+      phoneNumber: phoneStr,
+      emailAddress: user?.email.trim(),
+      address: address.trim(),
+      bvn: bvn.trim(),
+      gender: gender || "male",
+      dateOfBirth: dateOfBirth.replace(/-/g, "/").trim(),
     };
 
-    const validation = createNgnAccountSchema.safeParse(formData);
+    const validation = createBellmonieAccountSchema.safeParse(formData);
 
     if (!validation.success) {
-      const errors: Record<string, string> = {};
+      const firstIssue = validation.error.issues[0];
       for (const issue of validation.error.issues) {
         const key = issue.path[0] as string;
         if (key && !errors[key]) {
           errors[key] = issue.message;
         }
       }
+      errors.form = firstIssue?.message || "Please complete all required fields.";
       setFieldErrors(errors);
       return;
     }
@@ -155,151 +262,99 @@ export function NgnConfirm({
           Confirm your details
         </h1>
         <p className="mt-2 text-sm leading-4 text-jumpa-black">
-          Please verify your identity details. These are required by our banking
-          partner to issue your dedicated Nigerian account.
+          Please verify your identity details. These are required by our banking partner to issue your dedicated Nigerian account.
         </p>
       </div>
 
-      {serverError ? (
-        <div className="rounded-2xl border border-jumpa-warning/20 bg-jumpa-warning/10 p-4 text-xs font-medium text-jumpa-warning">
-          {serverError}
+      {/* Auto-filled Profile Details matching reference */}
+      <SettingCard className="mt-2">
+        {/* Full Name: Surname, First Middle */}
+        <div className="flex items-center gap-3">
+          <CircleUserIcon className="size-6 shrink-0 text-jumpa-primary-600" />
+          <span className="truncate text-sm font-medium text-jumpa-black">
+            {fullNameDisplay}
+          </span>
         </div>
-      ) : null}
+        <SettingRule />
 
-      {/* Auto-filled Profile Details */}
-      <div>
-        <span className="text-xs font-semibold tracking-wide text-jumpa-primary-950/60 uppercase">
-          Verified Profile Info
-        </span>
-        <SettingCard className="mt-2">
-          <SettingRow
-            icon={ShieldCheckIcon}
-            label="Email"
-            value={user?.email || "Account email"}
-          />
-          <SettingRule />
-          <SettingRow icon={GlobeIcon} label="Country" value={countryName} />
-          <SettingRule />
-          <SettingRow
-            icon={IdCardIcon}
-            label="KYC verified"
-            action={
-              verified ? (
-                <VerifiedBadge />
-              ) : (
-                <Link
-                  href="/kyc"
-                  className="rounded-pill bg-jumpa-primary-50 px-2.5 py-1 text-xs font-semibold text-jumpa-primary-600 underline underline-offset-2 hover:opacity-80"
+        {/* Email */}
+        <div className="flex items-center gap-3">
+          <ShieldCheckIcon className="size-6 shrink-0 text-jumpa-primary-600" />
+          <span className="truncate text-sm font-medium text-jumpa-black">
+            {user?.email || "Account email"}
+          </span>
+        </div>
+        <SettingRule />
+
+        {/* Phone */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <MobileIcon className="size-6 shrink-0 text-jumpa-primary-600" />
+            <span className="truncate text-sm font-medium text-jumpa-black">
+              {user?.phoneNumber || mobileNumber || (
+                <button
+                  type="button"
+                  onClick={handleVerifyPhoneClick}
+                  className="cursor-pointer text-jumpa-primary-600 underline underline-offset-2 hover:opacity-80"
                 >
-                  Verify Now
-                </Link>
-              )
-            }
-          />
-        </SettingCard>
-      </div>
+                  Verify Phone Number
+                </button>
+              )}
+            </span>
+          </div>
+          {(user?.phoneNumber || mobileNumber) ? (
+            <VerifiedBadge />
+          ) : (
+            <button
+              type="button"
+              onClick={handleVerifyPhoneClick}
+              className="cursor-pointer rounded-pill bg-jumpa-primary-50 px-2.5 py-1 text-xs font-semibold text-jumpa-primary-600 underline underline-offset-2 hover:opacity-80"
+            >
+              Verify Now
+            </button>
+          )}
+        </div>
+        <SettingRule />
+
+        {/* Date of Birth */}
+        <div className="flex items-center gap-3">
+          <CalendarIcon className="size-6 shrink-0 text-jumpa-primary-600" />
+          <span className="truncate text-sm font-medium text-jumpa-black">
+            {dateOfBirth || "Verified DOB"}
+          </span>
+        </div>
+        <SettingRule />
+
+        {/* KYC Verification */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <CreditCardNavIcon className="size-6 shrink-0 text-jumpa-primary-600" />
+            <span className="truncate text-sm font-medium text-jumpa-black">
+              KYC Verification
+            </span>
+          </div>
+          {verified ? (
+            <VerifiedBadge />
+          ) : (
+            <Link
+              href="/kyc"
+              className="rounded-pill bg-jumpa-primary-50 px-2.5 py-1 text-xs font-semibold text-jumpa-primary-600 underline underline-offset-2 hover:opacity-80"
+            >
+              Verify Now
+            </Link>
+          )}
+        </div>
+      </SettingCard>
 
       {/* Required Banking Partner Details */}
       <div className="flex flex-col gap-4">
-        <span className="text-xs font-semibold tracking-wide text-jumpa-primary-950/60 uppercase">
-          Account Information
-        </span>
-
-        {/* First & Middle Names */}
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-jumpa-primary-950">
-              First Name <span className="text-jumpa-danger">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              placeholder="e.g. John"
-              className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
-            />
-            <FieldError>{fieldErrors.firstName}</FieldError>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-jumpa-primary-950">
-              Middle Name{" "}
-              <span className="text-jumpa-neutral-400">(Optional)</span>
-            </label>
-            <input
-              type="text"
-              value={middleName}
-              onChange={(e) => setMiddleName(e.target.value)}
-              placeholder="e.g. Michael"
-              className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
-            />
-            <FieldError>{fieldErrors.middleName}</FieldError>
-          </div>
-        </div>
-
-        {/* Last Name */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-jumpa-primary-950">
-            Last Name <span className="text-jumpa-danger">*</span>
-          </label>
-          <input
-            type="text"
-            required
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            placeholder="e.g. Doe"
-            className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
-          />
-          <FieldError>{fieldErrors.lastName}</FieldError>
-        </div>
-
-        {/* Date of Birth */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-medium text-jumpa-primary-950">
-              Date of Birth <span className="text-jumpa-danger">*</span>
-            </label>
-            <span className="text-[11px] text-jumpa-neutral-500">
-              Must be at least 16 years old
-            </span>
-          </div>
-          {/* Our own calendar, not the native control: `input[type=date]` sizes
-              itself to its widget rather than to `w-full`, which pushed the page
-              wider than the column and let it scroll off the white. */}
-          <DateField
-            label="Date of Birth"
-            variant="account"
-            placeholder="Select your date of birth"
-            value={dateOfBirth}
-            min={MIN_DOB}
-            max={maxDob}
-            dropdown
-            invalid={Boolean(fieldErrors.dateOfBirth)}
-            onChange={setDateOfBirth}
-          />
-          <FieldError>{fieldErrors.dateOfBirth}</FieldError>
-        </div>
-
-        {/* Phone Number */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-medium text-jumpa-primary-950">
-              Phone Number <span className="text-jumpa-danger">*</span>
-            </label>
-            <span className="text-[11px] text-jumpa-neutral-500">
-              Include country code (+234...)
-            </span>
-          </div>
-          <input
-            type="tel"
-            required
-            value={mobileNumber}
-            onChange={(e) => setMobileNumber(e.target.value)}
-            placeholder="+2348012345678"
-            className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
-          />
-          <FieldError>{fieldErrors.mobileNumber}</FieldError>
+        <div>
+          <span className="text-xs font-semibold tracking-wide text-jumpa-primary-950/60 uppercase">
+            Account Information
+          </span>
+          <p className="mt-1 text-xs text-jumpa-neutral-500 leading-relaxed">
+            The details above are from your verified ID. Please enter your residential address and BVN to proceed.
+          </p>
         </div>
 
         {/* Residential Address */}
@@ -312,42 +367,43 @@ export function NgnConfirm({
             required
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            placeholder="e.g. 14 Adeola Odeku Street, Victoria Island"
+            placeholder="e.g. 14 Adeola Odeku Street, Victoria Island, Lagos"
             className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
           />
           <FieldError>{fieldErrors.address}</FieldError>
         </div>
 
-        {/* City */}
+        {/* Bank Verification Number (BVN) */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-jumpa-primary-950">
-            City <span className="text-jumpa-danger">*</span>
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-jumpa-primary-950">
+              Bank Verification Number (BVN) <span className="text-jumpa-danger">*</span>
+            </label>
+            <span className="text-[11px] text-jumpa-neutral-500">
+              11-digit BVN
+            </span>
+          </div>
           <input
             type="text"
+            inputMode="numeric"
+            maxLength={11}
             required
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            placeholder="e.g. Lagos"
-            className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
+            value={bvn}
+            onChange={(e) => setBvn(e.target.value.replace(/\D/g, "").slice(0, 11))}
+            placeholder="e.g. 22233344455"
+            className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium tracking-wide text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
           />
-          <FieldError>{fieldErrors.city}</FieldError>
+          <FieldError>{fieldErrors.bvn}</FieldError>
         </div>
       </div>
 
-      {fieldErrors.kyc && (
-        <div className="flex items-center justify-between gap-3 rounded-tile border border-jumpa-warning/30 bg-jumpa-warning/10 px-4 py-3 text-xs leading-4 font-medium text-jumpa-warning">
-          <span>{fieldErrors.kyc}</span>
-          <Link
-            href="/kyc"
-            className="shrink-0 font-semibold underline underline-offset-2 hover:opacity-80"
-          >
-            Complete KYC
-          </Link>
+      {serverError || fieldErrors.form ? (
+        <div className="rounded-2xl border border-jumpa-warning/20 bg-jumpa-warning/10 p-4 text-xs font-medium text-jumpa-warning">
+          {serverError || fieldErrors.form}
         </div>
-      )}
+      ) : null}
 
-      <div className="pt-4 pb-2">
+      <div className="pt-2 pb-2">
         <Button
           variant="gradient"
           size="lg"

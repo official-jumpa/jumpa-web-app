@@ -1817,15 +1817,21 @@ export async function executeTool(
         const switchBank =
           resolveBankCode(bankName) || resolveBankCode(paystackBank.name);
 
-        if (!switchBank) {
+        const targetAsset = effectiveAsset || asset || "base:usdc";
+        const cleanTargetAsset = targetAsset.toLowerCase();
+        const isStellar = cleanTargetAsset.includes("stellar");
+
+        if (!isStellar && !switchBank) {
           throw new Error(
             `Bank "${paystackBank.name}" could not be matched with our settlement partner (Switch). Please check bank name.`,
           );
         }
 
-        console.log(
-          `[ToolExecutor] [User: ${userId}] Matched Switch Bank: "${switchBank.name}" (${switchBank.code})`,
-        );
+        if (switchBank) {
+          console.log(
+            `[ToolExecutor] [User: ${userId}] Matched Switch Bank: "${switchBank.name}" (${switchBank.code})`,
+          );
+        }
 
         const parseFlexibleAmount = (val?: string | number): number => {
           if (!val) return 0;
@@ -1843,12 +1849,9 @@ export async function executeTool(
         let amount: number;
         let appliedRate: number | undefined;
 
-        const targetAsset = effectiveAsset || asset || "base:usdc";
         const targetToken =
           effectiveToken || cryptoToken || targetAsset.split(":")[1]?.toUpperCase() || "USDC";
 
-        const cleanTargetAsset = targetAsset.toLowerCase();
-        const isStellar = cleanTargetAsset.includes("stellar");
         if (cleanTargetAsset.includes("base") && cleanTargetAsset.includes("usdt")) {
           throw new Error("USDT is not supported on Base. Please choose Solana or Ethereum for USDT.");
         }
@@ -1969,6 +1972,9 @@ export async function executeTool(
           destinationAmount = amount * quoteRate;
         } else {
           providerName = "switch";
+          if (!switchBank) {
+            throw new Error(`Bank "${paystackBank.name}" could not be matched with our settlement partner. Please check bank name.`);
+          }
           const result = await SwitchService.initiateOfframp(
             amount,
             targetAsset,

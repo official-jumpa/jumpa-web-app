@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { JumpaLoaderScreen } from "@/components/ui/jumpa-loader";
 import { useSession } from "@/lib/auth-client";
 
@@ -77,6 +77,7 @@ export function AuthGuard({
 }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { data: clientSession, isPending: clientPending } = useSession();
 
   const session = clientSession || initialSession;
@@ -129,8 +130,9 @@ export function AuthGuard({
       setCheckingStatus(false);
 
       // If user is on an onboarding step they have ALREADY completed, forward them to the next required step
+      const fromBank = searchParams?.get("from") === "bank";
       if (
-        (pathname?.startsWith("/sign-up/phone") && data.hasPhone) ||
+        (pathname?.startsWith("/sign-up/phone") && data.hasPhone && !fromBank) ||
         (pathname?.startsWith("/sign-up/password") && data.hasPassword) ||
         (pathname?.startsWith("/sign-up/tag") && data.hasTag) ||
         (pathname?.startsWith("/sign-up/pin") && data.hasPin)

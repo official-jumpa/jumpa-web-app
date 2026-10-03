@@ -7,7 +7,6 @@ import { NgnIntro } from "@/components/ngn/ngn-intro";
 import { NgnReady } from "@/components/ngn/ngn-ready";
 import { LoadingModal } from "@/components/ui/loading-modal";
 import { ScreenHeader } from "@/components/ui/screen-header";
-import type { CreateNgnAccountInput } from "@/lib/validations/fossapay.validation";
 
 type Stage = "intro" | "confirm" | "ready";
 
@@ -36,7 +35,14 @@ export function NgnAccountView() {
 
         if (ngnRes.ok && isMounted) {
           const data = await ngnRes.json();
-          if (data.hasAccount && data.account?.status === "active") {
+          // If user already has an active Bellmonie account, they are fully setup
+          const hasActiveBellmonie =
+            data.hasAccount &&
+            (data.account?.provider === "bellmonie" ||
+              (Array.isArray(data.accounts) &&
+                data.accounts.some((a: any) => a.provider === "bellmonie")));
+
+          if (hasActiveBellmonie) {
             console.log(
               "[NgnAccountView] Active account found, redirecting to details",
             );
@@ -73,11 +79,11 @@ export function NgnAccountView() {
     };
   }, [router]);
 
-  const handleCreateAccount = async (formData: CreateNgnAccountInput) => {
+  const handleCreateAccount = async (formData: any) => {
     setOpening(true);
     setServerError(null);
 
-    console.log("Creating FossaPay NGN account...", {
+    console.log("Creating Bellmonie NGN account...", {
       firstName: formData.firstName,
       lastName: formData.lastName,
     });

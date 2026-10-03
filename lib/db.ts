@@ -2,12 +2,6 @@ import mongoose from "mongoose";
 import type { Db } from "mongodb";
 import { environment } from "./environment";
 
-const MONGO_URI = environment.MONGO_URI;
-
-if (!MONGO_URI) {
-  throw new Error("MONGO_URI is not defined in environment variables");
-}
-
 // Global safety net: prevent Mongoose from auto-generating ObjectId _id fields.
 mongoose.set("id", false);
 
@@ -19,6 +13,11 @@ declare global {
 let cached = global._mongooseConn ?? null;
 
 export async function connectDB(): Promise<mongoose.Connection> {
+  const MONGO_URI = environment.MONGO_URI;
+  if (!MONGO_URI) {
+    throw new Error("DB URL is not defined");
+  }
+
   if (cached && cached.readyState === 1) return cached;
 
   const conn = await mongoose.connect(MONGO_URI);

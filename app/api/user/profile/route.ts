@@ -30,6 +30,8 @@ export async function GET() {
         nickname: user.nickname ?? null,
         jumpaTag: user.jumpaTag ?? null,
         email: user.email,
+        phoneNumber: user.phoneNumber ?? null,
+        phoneNumberVerified: Boolean(user.phoneNumberVerified),
         image: user.image ?? null,
         country: user.country ?? null,
         status: user.status,

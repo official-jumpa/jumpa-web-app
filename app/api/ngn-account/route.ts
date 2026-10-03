@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  createFossapayCustomer,
-  createFossapayNgnWallet,
-  createNgnAccountRecord,
-  getNgnAccountByUserId,
-  mapCountryCodeToName,
-  refreshUserNgnAccountBalance,
-  updateNgnAccountCustomerId,
-  updateNgnAccountWallet,
-} from "@/lib/functions/fossapayFunctions";
-import { isUserKycVerified } from "@/lib/functions/kycFunctions";
+import { isUserKycVerified, getKycRecordByUserId } from "@/lib/functions/kycFunctions";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
-import { generateId } from "@/lib/schema-ids";
-import { createNgnAccountSchema } from "@/lib/validations/fossapay.validation";
+import { createBellmonieAccountSchema } from "@/lib/validations/bellmonie.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import {
+  getUserNgnAccountDetails,
+  getUserNgnAccount,
+} from "@/lib/functions/ngnFunctions";
+import {
+  createBellmonieIndividualAccount,
+  getOrCreateUserBellmonieAccount,
+} from "@/lib/functions/bellmonieFunctions";
+import { connectDB } from "@/lib/db";
+import { NgnAccount } from "@/models/NgnAccount";
+import { User } from "@/models/User";
 
 /**
  * GET /api/ngn-account
- * Returns the authenticated user's active FossaPay NGN account and live balance.
+ * Returns the authenticated user's active NGN account, live balance, and all accounts.
+ * Defaults to primary provider "bellmonie" (falling back to "fossapay"), or accepts ?provider=bellmonie|fossapay
  */
 export async function GET(req: NextRequest) {
   try {
@@ -28,16 +29,35 @@ export async function GET(req: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const force = req.nextUrl?.searchParams?.get("refresh") === "true";
-    const result = await refreshUserNgnAccountBalance(auth.userId, { force });
+    const requestedProvider = req.nextUrl?.searchParams?.get("provider") as
+      | "bellmonie"
+      | "fossapay"
+      | undefined;
 
-    if (!result.hasAccount) {
+    const result = await getUserNgnAccountDetails(
+      auth.userId,
+      auth.user.name || "Jumpa User",
+      { force, provider: requestedProvider },
+    );
+
+    if (!result.account) {
       return NextResponse.json(
-        { hasAccount: false, message: "No NGN account found" },
+        { hasAccount: false, message: "No NGN account found", canCreateBellmonie: true },
         { status: 404 },
       );
     }
 
-    return NextResponse.json(result, { status: 200 });
+    return NextResponse.json(
+      {
+        hasAccount: true,
+        account: result.account,
+        balance: result.balance,
+        accounts: result.accounts || [],
+        activeProvider: result.activeProvider,
+        canCreateBellmonie: result.canCreateBellmonie,
+      },
+      { status: 200 },
+    );
   } catch (error: any) {
     console.error("[NGN Account API] GET Error:", error);
     return NextResponse.json(
@@ -49,7 +69,8 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/ngn-account
- * Safely creates a FossaPay customer + dedicated NGN virtual bank account
+ * Exclusively creates a Bellmonie individual virtual account.
+ * Enforces strictly 1 Bellmonie account per user.
  */
 export async function POST(req: Request) {
   try {
@@ -59,7 +80,7 @@ export async function POST(req: Request) {
     });
     if (!auth.ok) return auth.response;
 
-    // Verify user has completed KYC
+    // 1. Verify user has completed KYC
     const kycVerified = await isUserKycVerified(auth.userId);
     if (!kycVerified) {
       return NextResponse.json(
@@ -71,201 +92,138 @@ export async function POST(req: Request) {
       );
     }
 
-    let body: any;
-    try {
-      body = await req.json();
-    } catch {
-      return NextResponse.json(
-        { error: "Invalid JSON in request body" },
-        { status: 400 },
-      );
-    }
+    await connectDB();
 
-    // 1. Validate form fields
-    const parsed = createNgnAccountSchema.safeParse(body);
-    if (!parsed.success) {
-      const formatted = formatZodError(parsed.error);
-      console.warn("Validation error:", formatted);
-      return NextResponse.json(formatted, { status: 422 });
-    }
-
-    const {
-      firstName,
-      middleName,
-      lastName,
-      dateOfBirth,
-      mobileNumber,
-      address,
-      city,
-    } = parsed.data;
-
-    // 2. Check for existing active NgnAccount via helper function
-    let existingAccount: any = await getNgnAccountByUserId(
-      auth.userId,
-      "fossapay",
-    );
+    // 2. Enforce strict single Bellmonie account rule
+    const existingBellmonie = await NgnAccount.findOne({
+      userId: auth.userId,
+      provider: "bellmonie",
+    }).lean();
 
     if (
-      existingAccount &&
-      existingAccount.status === "active" &&
-      existingAccount.accountNumber
+      existingBellmonie &&
+      existingBellmonie.status === "active" &&
+      existingBellmonie.accountNumber
     ) {
-      console.log(
-        "User already has active NGN account:",
-        existingAccount.accountNumber,
-      );
       return NextResponse.json(
         {
           success: true,
-          account: existingAccount,
-          message: "You already have an active NGN account",
+          account: existingBellmonie,
+          message: "You already have an active Naira account",
         },
         { status: 200 },
       );
     }
 
-    // Country mapped from user profile (fallback to Nigeria)
-    const countryName = mapCountryCodeToName(auth.user.country || "NG");
-    const userEmail = auth.user.email;
-
-    if (!userEmail) {
-      console.error("Authenticated user has no email address");
-      return NextResponse.json(
-        { error: "A verified email address is required on your profile" },
-        { status: 400 },
-      );
-    }
-
-    // 3. Step 1: Create FossaPay Customer (or reuse if previous attempt was recorded)
-    let customerId = existingAccount?.providerCustomerId;
-
-    if (!customerId) {
-      console.log("Creating FossaPay customer...");
-      try {
-        const customer = await createFossapayCustomer({
-          firstName,
-          middleName,
-          lastName,
-          emailAddress: userEmail,
-          mobileNumber,
-          dateOfBirth,
-          address,
-          city,
-          country: countryName,
-        });
-
-        customerId = customer.id;
-        console.log("customer created:", customerId);
-
-        if (!existingAccount) {
-          existingAccount = await createNgnAccountRecord({
-            userId: auth.userId,
-            currency: "NGN",
-            provider: "fossapay",
-            status: "pending",
-            providerCustomerId: customerId,
-            providerMetadata: {
-              firstName,
-              middleName,
-              lastName,
-              emailAddress: userEmail,
-              mobileNumber,
-              dateOfBirth,
-              address,
-              city,
-              country: countryName,
-            },
-          });
-        } else {
-          existingAccount = await updateNgnAccountCustomerId(
-            existingAccount._id.toString(),
-            customerId,
-          );
-        }
-      } catch (custError: any) {
-        console.error(
-          "Failed during customer creation:",
-          custError.message,
-          custError.data || "",
-        );
-        return NextResponse.json(
-          {
-            error:
-              custError.data?.message ||
-              custError.message ||
-              "Failed to register customer profile",
-            details: custError.data || null,
-          },
-          { status: custError.status || 500 },
-        );
-      }
-    } else {
-      console.log("Existing customer found, reusing ID:", customerId);
-    }
-
-    // 4. Step 2: Create FossaPay NGN Wallet
-    console.log("Provisioning NGN wallet for customer:", customerId);
-
-    const walletReference = generateId("ngn");
-    const walletDisplayName = [firstName, middleName, lastName]
-      .filter(Boolean)
-      .join(" ");
-
+    // 3. Parse and validate payload
+    let body: any = {};
     try {
-      const wallet = await createFossapayNgnWallet({
-        customerId,
-        walletName: walletDisplayName,
-        walletReference,
-      });
-
-      console.log("Wallet created. Updating DB record:", existingAccount._id);
-
-      const updatedAccount = await updateNgnAccountWallet(
-        existingAccount._id.toString(),
-        {
-          providerAccountId: wallet.walletId,
-          bankName: wallet.bankName,
-          bankCode: wallet.bankCode,
-          accountNumber: wallet.accountNumber,
-          accountName: wallet.accountName,
-          providerReference: walletReference,
-        },
-      );
-
-      console.log("Account successfully activated:", {
-        accountNumber: wallet.accountNumber,
-        bankName: wallet.bankName,
-      });
-
-      return NextResponse.json(
-        {
-          success: true,
-          account: updatedAccount,
-          message: "NGN account activated successfully",
-        },
-        { status: 201 },
-      );
-    } catch (walletError: any) {
-      console.error(
-        "Failed during wallet provisioning:",
-        walletError.message,
-        walletError.data || "",
-      );
-      return NextResponse.json(
-        {
-          error:
-            walletError.data?.message ||
-            walletError.message ||
-            "Customer registered, but failed to provision virtual bank account. Please retry.",
-          details: walletError.data || null,
-        },
-        { status: walletError.status || 500 },
-      );
+      body = await req.json();
+    } catch {
+      body = {};
     }
-  } catch (error: any) {
-    console.error("Unexpected unhandled error:", error);
+
+    // Retrieve fresh user and KYC details directly from DB
+    const [freshUser, kycRecord] = await Promise.all([
+      User.findById(auth.userId).lean(),
+      getKycRecordByUserId(auth.userId),
+    ]);
+    const kycDetails = kycRecord?.details || {};
+
+    // DB / KYC verified values take strict precedence over any user client-side edits
+    const verifiedFirstName = String(kycDetails.firstName || freshUser?.name?.split(" ")[0] || auth.user.name?.split(" ")[0] || body.firstName || "").trim();
+    const verifiedLastName = String(kycDetails.lastName || freshUser?.name?.split(" ").slice(1).join(" ") || auth.user.name?.split(" ").slice(1).join(" ") || body.lastName || "").trim();
+    const verifiedMiddleName = (kycDetails.middleName || body.middleName || undefined) ? String(kycDetails.middleName || body.middleName).trim() : undefined;
+    const verifiedPhone = String(freshUser?.phoneNumber || auth.user.phoneNumber || body.phoneNumber || "").trim();
+    const verifiedEmail = String(freshUser?.email || auth.user.email || body.emailAddress || "").trim();
+    const verifiedBvn = String(body.bvn || "").trim();
+    const rawDob = kycDetails.dateOfBirth || body.dateOfBirth || "";
+    const normalizedDob = String(rawDob).replace(/-/g, "/").trim();
+    const verifiedGender = ((kycDetails.gender ? String(kycDetails.gender).toLowerCase() : String(body.gender || "").toLowerCase()) === "female" ? "female" : "male") as "male" | "female";
+
+    const kycAddress = typeof kycDetails.address === "object"
+      ? [kycDetails.address?.street, kycDetails.address?.city, kycDetails.address?.state].filter(Boolean).join(", ")
+      : (typeof kycDetails.address === "string" ? kycDetails.address : "");
+    const verifiedAddress = String(kycAddress || body.address || "").trim();
+
+    const registrationData = {
+      firstName: verifiedFirstName,
+      lastName: verifiedLastName,
+      middleName: verifiedMiddleName,
+      phoneNumber: verifiedPhone,
+      emailAddress: verifiedEmail,
+      address: verifiedAddress,
+      bvn: verifiedBvn,
+      gender: verifiedGender,
+      dateOfBirth: normalizedDob,
+    };
+
+    const parsed = createBellmonieAccountSchema.safeParse(registrationData);
+    if (!parsed.success) {
+      const formatted = formatZodError(parsed.error);
+      console.warn("[Bellmonie Creation] Validation error:", formatted);
+      return NextResponse.json(formatted, { status: 422 });
+    }
+
+    const validData = parsed.data;
+
+    console.log(` ✅[Bellmonie Provision] Creating virtual account for user ${auth.userId} (${validData.emailAddress}) phone no (${validData.phoneNumber})`);
+
+    // 4. Create individual virtual account via Bellmonie API (using only BVN)
+    const clientData = await createBellmonieIndividualAccount({
+      firstname: validData.firstName,
+      lastname: validData.lastName,
+      middlename: validData.middleName,
+      phoneNumber: validData.phoneNumber,
+      emailAddress: validData.emailAddress,
+      address: validData.address,
+      bvn: validData.bvn,
+      gender: validData.gender,
+      dateOfBirth: validData.dateOfBirth,
+      metadata: { userId: auth.userId },
+    });
+
+    // 5. Store / update in MongoDB
+    const updatedAccount = await NgnAccount.findOneAndUpdate(
+      { userId: auth.userId, provider: "bellmonie" },
+      {
+        $set: {
+          currency: "NGN",
+          provider: "bellmonie",
+          status: "active",
+          bankName: "Bell MFB",
+          accountNumber: clientData.accountNumber,
+          accountName: clientData.accountName,
+          providerCustomerId: String(clientData.id),
+          providerReference: clientData.externalReference,
+          providerMetadata: {
+            bvn: clientData.bvn,
+            gender: clientData.gender,
+            validityType: clientData.validityType,
+            clientCreatedAt: clientData.createdAt,
+          },
+        },
+        $setOnInsert: {
+          balance: 0,
+        },
+      },
+      { returnDocument: "after", upsert: true },
+    );
+
+    console.log(`[Bellmonie Provision] ✅ Account activated successfully for ${auth.userId}: ${clientData.accountNumber}`);
+
     return NextResponse.json(
-      { error: error.message || "An unexpected error occurred" },
+      {
+        success: true,
+        account: updatedAccount,
+        message: "Bellmonie virtual account opened successfully",
+      },
+      { status: 201 },
+    );
+  } catch (error: any) {
+    console.error("[Bellmonie Account API] Unexpected unhandled error:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to create Bellmonie account" },
       { status: 500 },
     );
   }

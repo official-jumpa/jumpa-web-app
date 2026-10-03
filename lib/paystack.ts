@@ -95,6 +95,11 @@ export function findPaystackBank(bankName: string): { name: string; code: string
     "aella mfb": "Aella MFB",
     "aella microfinance bank": "Aella MFB",
     "aella microfinance": "Aella MFB",
+    "bloc": "BLOC MFB",
+    "bloc bank": "BLOC MFB",
+    "bloc mfb": "BLOC MFB",
+    "bloc microfinance": "BLOC MFB",
+    "bloc microfinance bank": "BLOC MFB",
   };
 
   const aliasMatch = aliases[searchTerm];

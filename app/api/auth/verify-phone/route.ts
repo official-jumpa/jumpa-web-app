@@ -58,8 +58,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(result, { status: 200 });
     }
 
+    if (action === "reset-skip") {
+      const { connectDB } = await import("@/lib/db");
+      const { User } = await import("@/models/User");
+      await connectDB();
+      await User.findByIdAndUpdate(auth.userId, { $set: { phoneSkipped: false } });
+      return NextResponse.json({ success: true }, { status: 200 });
+    }
+
     return NextResponse.json(
-      { error: "Invalid action. Supported actions: 'send', 'verify', 'skip'" },
+      { error: "Invalid action. Supported actions: 'send', 'verify', 'skip', 'reset-skip'" },
       { status: 400 },
     );
   } catch (error: any) {

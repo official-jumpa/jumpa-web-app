@@ -54,34 +54,23 @@ export function mapCountryCodeToName(codeOrName: string): string {
 }
 
 /**
- * Calculates FossaPay deposit (virtual account collection) fee based on official tier schedule:
- * - ₦0 – ₦4,999.99: ₦60
- * - ₦5,000 – ₦9,999.99: ₦100
- * - ₦10,000 – ₦14,999.99: ₦150
- * - ₦15,000 – ₦24,999.99: ₦200
- * - ₦25,000 and above: 1.2% (capped at ₦1,000)
+ * Calculates NGN deposit (virtual account collection) fee:
+ * - Below ₦10,000: Free (₦0)
+ * - ₦10,000 and above: 1%
  */
 export function calculateFossaPayDepositFee(amount: number): number {
-  if (amount <= 0) return 0;
-  if (amount < 5000) return 60;
-  if (amount < 10000) return 100;
-  if (amount < 15000) return 150;
-  if (amount < 25000) return 200;
-  return Math.min(amount * 0.012, 1000);
+  if (amount < 10000) return 0;
+  return amount * 0.01;
 }
 
 /**
- * Calculates FossaPay withdrawal (bank payout) fee based on official tier schedule:
- * - ₦0 – ₦5,000: ₦30
- * - ₦5,001 – ₦9,999: ₦50
- * - ₦10,000 – ₦50,000: ₦100
- * - Above ₦50,000: ₦150
+ * Calculates NGN withdrawal (bank payout) fee based on official tier schedule:
+ * - ₦0 – ₦50,000: ₦25
+ * - Above ₦50,000: ₦50
  */
 export function calculateFossaPayWithdrawalFee(amount: number): number {
   if (amount <= 0) return 0;
-  if (amount <= 5000) return 30;
-  if (amount <= 9999) return 50;
-  if (amount <= 50000) return 100;
-  return 150;
+  if (amount <= 50000) return 25;
+  return 50;
 }
 

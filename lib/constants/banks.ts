@@ -146,6 +146,10 @@ export const supportedBanks = [
     "code": "50123"
   },
   {
+    "name": "BLOC MFB",
+    "code": "51411"
+  },
+  {
     "name": "BOLD MFB",
     "code": "50725"
   },

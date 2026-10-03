@@ -1458,6 +1458,11 @@ export const SwitchBanks = [
     "icon": "https://res.cloudinary.com/dyedbeksr/image/upload/v1763964534/Group_1000003624_nrunnu.png"
   },
   {
+    "code": "090977",
+    "name": "BLOC MFB",
+    "icon": "https://res.cloudinary.com/dyedbeksr/image/upload/v1763964534/Group_1000003624_nrunnu.png"
+  },
+  {
     "code": "090269",
     "name": "GREENVILLE MICROFINANCE BANK",
     "icon": "https://res.cloudinary.com/dyedbeksr/image/upload/v1763964534/Group_1000003624_nrunnu.png"
@@ -3460,6 +3465,11 @@ const SWITCH_BANK_ALIASES: Record<string, string> = {
   "aella mfb": "090614",
   "aella microfinance bank": "090614",
   "aella microfinance": "090614",
+  "bloc": "090977",
+  "bloc mfb": "090977",
+  "bloc bank": "090977",
+  "bloc microfinance": "090977",
+  "bloc microfinance bank": "090977",
 };
 
 /**
@@ -3501,6 +3511,7 @@ export function resolveBankCode(
     "kuda",
     "moniepoint",
     "aella",
+    "bloc",
     "zenith",
     "gtbank",
     "access",

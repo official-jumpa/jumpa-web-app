@@ -673,7 +673,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
   createNotification({
     userId: params.userId,
     tab: "transactions",
-    type: "OFFRAMP_COMPLETED",
+    type: "WITHDRAWAL_COMPLETED",
     title: "Transfer Sent",
     body: `₦${params.amount.toLocaleString()} has been sent to ${params.accountName} (${resolvedBankName})`,
     metadata: {
@@ -815,12 +815,15 @@ export async function atomicCreditNgnBalance(params: {
     },
   }).catch(() => {});
 
+  const isRefund = Boolean(params.memo?.toLowerCase().includes("refund"));
   createNotification({
     userId: params.userId,
     tab: "transactions",
-    type: "ONRAMP_COMPLETED",
-    title: "Naira Deposit Received",
-    body: `₦${params.amount.toLocaleString()} has been credited to your Naira wallet`,
+    type: isRefund ? "SECURITY_ALERT" : "DEPOSIT_COMPLETED",
+    title: isRefund ? "Refund Credited" : "Naira Deposit Received",
+    body: isRefund
+      ? `₦${params.amount.toLocaleString()} has been refunded to your Naira balance.`
+      : params.memo || `₦${params.amount.toLocaleString()} has been credited to your Naira wallet`,
     metadata: {
       amount: params.amount,
       token: "NGN",

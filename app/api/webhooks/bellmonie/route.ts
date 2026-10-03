@@ -9,6 +9,7 @@ import {
 } from "@/lib/functions/bellmonieFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { enforceRateLimit } from "@/lib/functions/rateLimitFunctions";
+import { createNotification } from "@/lib/functions/notificationFunctions";
 
 /**
  * POST /api/webhooks/bellmonie
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
       status: payload.status,
     });
 
-    if (event === "collection") {
+    if (event === "collection" || event?.startsWith("collection")) {
       const {
         reference,
         virtualAccount,
@@ -123,6 +124,131 @@ export async function POST(req: NextRequest) {
       console.log(
         `[Bellmonie Webhook] ✅ Credited ₦${creditAmount} to user ${account.userId}. New Balance: ₦${creditRes.newBalance}`,
       );
+    } else if (
+      event === "payout" ||
+      event === "transfer" ||
+      event?.startsWith("payout") ||
+      event?.startsWith("transfer")
+    ) {
+      const reference = payload.reference || payload.data?.reference;
+      const rawStatus = (
+        payload.status ||
+        payload.data?.status ||
+        (event?.includes("success") ? "successful" : "") ||
+        (event?.includes("fail") ? "failed" : "") ||
+        (event?.includes("reverse") ? "reversed" : "") ||
+        ""
+      ).toLowerCase();
+
+      if (!reference) {
+        return NextResponse.json(
+          { error: "Missing required reference for payout event" },
+          { status: 400 },
+        );
+      }
+
+      await connectDB();
+
+      const existingTx = await Transaction.findOne({
+        $or: [
+          { "bankDetails.reference": reference },
+          { txHash: reference },
+        ],
+      });
+
+      if (!existingTx) {
+        console.warn(
+          `[Bellmonie Webhook] No matching transaction found for payout reference: ${reference}`,
+        );
+        return NextResponse.json({ received: true });
+      }
+
+      if (rawStatus === "successful" || rawStatus === "success") {
+        if (existingTx.status !== "CONFIRMED") {
+          existingTx.status = "CONFIRMED";
+          existingTx.executedAt = new Date();
+          await existingTx.save();
+        }
+
+        invalidateBalanceCache(existingTx.userId);
+        invalidateBellmonieNgnBalanceCache(existingTx.userId);
+
+        createNotification({
+          userId: existingTx.userId,
+          tab: "transactions",
+          type: "WITHDRAWAL_COMPLETED",
+          title: "Withdrawal Successful",
+          body: `₦${Number(existingTx.amount).toLocaleString()} transfer to ${existingTx.bankDetails?.accountName || "beneficiary"} (${existingTx.bankDetails?.bankName || "Bank"}) has been completed successfully.`,
+          metadata: {
+            reference,
+            amount: existingTx.amount,
+            bankName: existingTx.bankDetails?.bankName,
+            accountNumber: existingTx.bankDetails?.accountNumber,
+          },
+          link: "/transactions",
+        }).catch(() => {});
+
+        console.log(
+          `[Bellmonie Webhook] ✅ Payout ${reference} confirmed successful for user ${existingTx.userId}`,
+        );
+      } else if (
+        rawStatus === "failed" ||
+        rawStatus === "reversed" ||
+        rawStatus === "rejected"
+      ) {
+        if (existingTx.status === "FAILED") {
+          console.log(`[Bellmonie Webhook] Payout ${reference} already marked FAILED.`);
+          return NextResponse.json({ received: true });
+        }
+
+        // Refund debited withdrawal amount + fee back to user's Bellmonie atomic balance
+        const refundAmount =
+          Number(existingTx.amount || 0) + Number(existingTx.feePaid || 0);
+
+        if (refundAmount > 0) {
+          await atomicCreditNgnBalance({
+            userId: existingTx.userId,
+            amount: refundAmount,
+            reference: `${reference}-refund`,
+            memo: `Refund for failed transfer to ${existingTx.bankDetails?.accountName || "beneficiary"} (${existingTx.bankDetails?.bankName || "Bank"})`,
+            eventId: `${reference}-refund`,
+          });
+        }
+
+        existingTx.status = "FAILED";
+        const failureReason =
+          payload.failureReason ||
+          payload.message ||
+          payload.data?.failureReason ||
+          "Transfer declined by destination bank";
+        existingTx.memo = `${existingTx.memo || "Withdrawal"} - Failed: ${failureReason}`;
+        await existingTx.save();
+
+        createNotification({
+          userId: existingTx.userId,
+          tab: "transactions",
+          type: "SECURITY_ALERT",
+          title: "Transfer Failed & Refunded",
+          body: `Your withdrawal of ₦${Number(existingTx.amount).toLocaleString()} could not be completed and has been refunded to your Naira balance.`,
+          metadata: {
+            reference,
+            refundAmount,
+            reason: failureReason,
+          },
+          link: "/transactions",
+        }).catch(() => {});
+
+        invalidateBalanceCache(existingTx.userId);
+        invalidateBellmonieNgnBalanceCache(existingTx.userId);
+
+        console.log(
+          `[Bellmonie Webhook] ❌ Payout ${reference} failed (${failureReason}). Refunded ₦${refundAmount} to user ${existingTx.userId}.`,
+        );
+      } else {
+        console.log(
+          `[Bellmonie Webhook] Payout ${reference} status update: "${rawStatus}"`,
+        );
+      }
     } else {
       console.log(`[Bellmonie Webhook] Unhandled event type: "${event}"`);
     }

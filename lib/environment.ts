@@ -23,9 +23,10 @@ export const environment = {
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
 
-  // Resend Email Transport
-  RESEND_API_KEY: process.env.RESEND_API_KEY || "",
-  RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
+  // SendByte Email Transport
+  SENDBYTE_API_KEY: process.env.SENDBYTE_API_KEY || "",
+  SENDBYTE_FROM_EMAIL:
+    process.env.SENDBYTE_FROM_EMAIL || "Jumpa <onboarding@mail.usejumpa.com>",
 
   // Solana Network RPCs
   NEXT_PUBLIC_SOLANA_RPC:

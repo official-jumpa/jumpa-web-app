@@ -16,6 +16,7 @@
     "@radix-ui/react-select": "^2.3.7",
     "@scure/bip32": "^2.3.0",
     "@scure/bip39": "^2.3.0",
+    "@sendbyte/node": "^0.2.1",
     "@solana/spl-token": "^0.4.15",
     "@solana/web3.js": "^1.98.4",
     "@stellar/stellar-sdk": "^16.2.0",
@@ -35,7 +36,6 @@
     "react-day-picker": "^10.0.1",
     "react-dom": "19.2.8",
     "react-icons": "^5.7.0",
-    "resend": "^6.28.1",
     "tsx": "^4.23.13",
     "viem": "^2.56.8",
     "zod": "^4.6.5"

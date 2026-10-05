@@ -117,8 +117,8 @@ cp .env.example .env
 | `STELLAR_MAINNET` | **Yes** | Stellar Mainnet Horizon RPC endpoint | `https://horizon.stellar.org` |
 | `SOROSWAP_API_URL` | **Yes** | Soroswap REST API base URL | `https://api.soroswap.finance` |
 | `SOROSWAP_API_KEY` | **Yes** | Soroswap API key for quote routing and building XDR | Your Soroswap API Key |
-| `RESEND_API_KEY` | Optional | Resend API key for sending email OTP codes | `re_123456789` |
-| `RESEND_FROM_EMAIL` | Optional | Sender email address for OTP transport | `onboarding@resend.dev` |
+| `SENDBYTE_API_KEY` | Optional | SendByte API key for sending email OTP codes and notifications | `sk_live_...` |
+| `SENDBYTE_FROM_EMAIL` | Optional | Sender email address for SendByte transport | `Jumpa <onboarding@mail.usejumpa.com>` |
 | `GOOGLE_CLIENT_ID` | Optional | Google OAuth client ID for social sign-in | `your_google_client_id` |
 | `GOOGLE_CLIENT_SECRET` | Optional | Google OAuth client secret | `your_google_client_secret` |
 | `SWITCH_SANDBOX_URL` | Optional | Sandbox base URL for Switch fiat ramps | `https://switch-3.gitbook.io/api` |

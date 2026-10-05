@@ -1,4 +1,5 @@
 import { environment } from "./environment";
+import { getSendByteClient, DEFAULT_SENDBYTE_FROM, SendByteError } from "./sendbyte";
 
 export interface TransferEmailData {
   customerName: string;
@@ -246,12 +247,11 @@ export async function sendTransferConfirmedEmail(
   toEmail: string,
   data: TransferEmailData,
 ): Promise<void> {
-  const key = environment.RESEND_API_KEY.trim();
-  const from =
-    environment.RESEND_FROM_EMAIL.trim() || "Jumpa <onboarding@resend.dev>";
+  const sendbyte = getSendByteClient();
+  const from = DEFAULT_SENDBYTE_FROM;
 
-  if (!key) {
-    console.warn("[email-notifications] API_KEY missing");
+  if (!sendbyte) {
+    console.warn("API_KEY missing");
     return;
   }
 
@@ -260,35 +260,27 @@ export async function sendTransferConfirmedEmail(
   const htmlContent = generateTransferEmailHtml(data);
 
   try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from,
-        to: [toEmail],
-        subject: `Payment Sent: ${amount} ${displayToken} to ${recipientAddress.slice(0, 6)}...`,
-        html: htmlContent,
-      }),
+    const res = await sendbyte.emails.send({
+      from,
+      to: toEmail,
+      subject: `Payment Sent: ${amount} ${displayToken} to ${recipientAddress.slice(0, 6)}...`,
+      html: htmlContent,
     });
 
-    if (!res.ok) {
-      const text = await res.text();
+    console.log(
+      `[email-notifications] Transfer confirmation email sent to ${toEmail} (ID: ${res.id})`,
+    );
+  } catch (err: any) {
+    if (err instanceof SendByteError) {
       console.error(
-        `[email-notifications] Resend API failed: ${res.status} ${text}`,
+        `[email-notifications] Error [${err.code}] (${err.status}): ${err.message}`,
       );
     } else {
-      console.log(
-        `[email-notifications] Transfer confirmation email sent to ${toEmail}`,
+      console.error(
+        "[email-notifications] Error dispatching email via SendByte:",
+        err,
       );
     }
-  } catch (err: any) {
-    console.error(
-      "[email-notifications] Error dispatching email via Resend:",
-      err,
-    );
   }
 }
 
@@ -524,47 +516,38 @@ export async function sendLoginAlertEmail(
   toEmail: string,
   data: LoginAlertEmailData,
 ): Promise<void> {
-  const key = environment.RESEND_API_KEY.trim();
-  const from =
-    environment.RESEND_FROM_EMAIL.trim() || "Jumpa <onboarding@resend.dev>";
+  const sendbyte = getSendByteClient();
+  const from = DEFAULT_SENDBYTE_FROM;
 
-  if (!key) {
-    console.warn("[email-notifications] RESEND_API_KEY missing — skipping login email alert");
+  if (!sendbyte) {
+    console.warn("[email-notifications] SENDBYTE_API_KEY missing — skipping login email alert");
     return;
   }
 
   const htmlContent = generateLoginAlertEmailHtml(data);
 
   try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from,
-        to: [toEmail],
-        subject: `Security Alert: New Sign-in on ${data.device || "a new device"}`,
-        html: htmlContent,
-      }),
+    const res = await sendbyte.emails.send({
+      from,
+      to: toEmail,
+      subject: `Security Alert: New Sign-in on ${data.device || "a new device"}`,
+      html: htmlContent,
     });
 
-    if (!res.ok) {
-      const text = await res.text();
+    console.log(
+      `[email-notifications] Login alert email sent to ${toEmail} (ID: ${res.id})`,
+    );
+  } catch (err: any) {
+    if (err instanceof SendByteError) {
       console.error(
-        `[email-notifications] Resend API failed for login alert: ${res.status} ${text}`,
+        `[email-notifications] SendByte API error for login alert [${err.code}] (${err.status}): ${err.message}`,
       );
     } else {
-      console.log(
-        `[email-notifications] Login alert email sent to ${toEmail}`,
+      console.error(
+        "[email-notifications] Error dispatching login alert via SendByte:",
+        err,
       );
     }
-  } catch (err: any) {
-    console.error(
-      "[email-notifications] Error dispatching login alert via Resend:",
-      err,
-    );
   }
 }
 
@@ -799,20 +782,18 @@ export function generateWaitlistEmailHtml(data: WaitlistEmailData): string {
 }
 
 /**
- * Sends the waitlist private beta welcome email via Resend.
+ * Sends the waitlist private beta welcome email via SendByte.
  */
 export async function sendWaitlistWelcomeEmail(
   toEmail: string,
   data?: Partial<WaitlistEmailData>,
 ): Promise<{ success: boolean; id?: string; error?: string }> {
-  const key = environment.RESEND_API_KEY.trim();
-  const configuredFrom = environment.RESEND_FROM_EMAIL.trim();
-  const fallbackFrom = "Jumpa <onboarding@resend.dev>";
-  const from = configuredFrom || fallbackFrom;
+  const sendbyte = getSendByteClient();
+  const from = DEFAULT_SENDBYTE_FROM;
 
-  if (!key) {
-    console.warn("[email-notifications] RESEND_API_KEY missing — skipping waitlist welcome email");
-    return { success: false, error: "RESEND_API_KEY is not configured" };
+  if (!sendbyte) {
+    console.warn("[email-notifications] SENDBYTE_API_KEY missing — skipping waitlist welcome email");
+    return { success: false, error: "SENDBYTE_API_KEY is not configured" };
   }
 
   const subject = data?.subject || WAITLIST_DEFAULT_SUBJECT;
@@ -822,50 +803,27 @@ export async function sendWaitlistWelcomeEmail(
     whatsappUrl: data?.whatsappUrl,
   });
 
-  const sendRequest = async (senderEmail: string) => {
-    return fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: senderEmail,
-        to: [toEmail],
-        subject,
-        html: htmlContent,
-      }),
-    });
-  };
-
   try {
-    let res = await sendRequest(from);
+    const res = await sendbyte.emails.send({
+      from,
+      to: toEmail,
+      subject,
+      html: htmlContent,
+    });
 
-    // If primary sender failed due to domain authorization on Resend, retry with onboarding@resend.dev
-    if (!res.ok && configuredFrom && configuredFrom !== fallbackFrom) {
-      const errText = await res.text();
-      console.warn(
-        `[email-notifications] Primary sender ${from} failed (${res.status}: ${errText}). Retrying with ${fallbackFrom}...`,
-      );
-      res = await sendRequest(fallbackFrom);
-    }
-
-    if (!res.ok) {
-      const text = await res.text();
-      console.error(
-        `[email-notifications] Resend API failed for waitlist email: ${res.status} ${text}`,
-      );
-      return { success: false, error: `Resend error: ${res.status} ${text}` };
-    }
-
-    const json = (await res.json().catch(() => ({}))) as { id?: string };
     console.log(
-      `[email-notifications] Waitlist welcome email sent to ${toEmail} (ID: ${json.id || "ok"})`,
+      `[email-notifications] Waitlist welcome email sent to ${toEmail} (ID: ${res.id})`,
     );
-    return { success: true, id: json.id };
+    return { success: true, id: res.id };
   } catch (err: any) {
+    if (err instanceof SendByteError) {
+      console.error(
+        `[email-notifications] SendByte API error for waitlist email [${err.code}] (${err.status}): ${err.message}`,
+      );
+      return { success: false, error: `SendByte error: [${err.code}] ${err.message}` };
+    }
     console.error(
-      "[email-notifications] Error dispatching waitlist welcome email via Resend:",
+      "[email-notifications] Error dispatching waitlist welcome email via SendByte:",
       err,
     );
     return { success: false, error: err.message || "Failed to dispatch email" };

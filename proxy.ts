@@ -33,7 +33,6 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/home") ||
     pathname.startsWith("/cards") ||
     pathname.startsWith("/transactions") ||
-    pathname.startsWith("/send") ||
     pathname.startsWith("/receive") ||
     pathname.startsWith("/swap") ||
     pathname.startsWith("/savings") ||
@@ -68,7 +67,6 @@ export const config = {
     "/home(.*)",
     "/cards(.*)",
     "/transactions(.*)",
-    "/send(.*)",
     "/receive(.*)",
     "/swap(.*)",
     "/savings(.*)",

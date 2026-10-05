@@ -11,7 +11,6 @@ const PRIVATE_ROUTES = [
   "/home",
   "/cards",
   "/transactions",
-  "/send",
   "/receive",
   "/swap",
   "/savings",

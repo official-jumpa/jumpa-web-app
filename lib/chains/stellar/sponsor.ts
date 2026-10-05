@@ -208,73 +208,80 @@ export async function activateStellarAccount(
   startingBalance = "1.6",
   network: "mainnet" | "testnet" = "mainnet",
 ): Promise<ActivationResult> {
-  const sponsorKey = getSponsorKeypair();
-  if (!sponsorKey) {
-    return {
-      success: false,
-      alreadyActive: false,
-      txHash: null,
-      error: "SPONSORED_FEE_STELLAR_KEY not configured or invalid",
-    };
-  }
+  console.log("activation paused for new accounts");
+  return {
+    success: false,
+    alreadyActive: false,
+    txHash: null,
+    error: "Stellar account activation is paused for new accounts. Please try again later.",
+  };
+  // const sponsorKey = getSponsorKeypair();
+  // if (!sponsorKey) {
+  //   return {
+  //     success: false,
+  //     alreadyActive: false,
+  //     txHash: null,
+  //     error: "SPONSORED_FEE_STELLAR_KEY not configured or invalid",
+  //   };
+  // }
 
-  const server = getHorizonServer(network);
+  // const server = getHorizonServer(network);
 
-  try {
-    // 1. Check if destination account already exists on ledger
-    try {
-      await server.loadAccount(destinationAddress);
-      return { success: true, alreadyActive: true, txHash: null };
-    } catch (loadErr: any) {
-      if (loadErr?.response?.status !== 404 && loadErr?.status !== 404) {
-        throw loadErr;
-      }
-      // Account does not exist yet (404) -> proceed to create
-    }
+  // try {
+  //   // 1. Check if destination account already exists on ledger
+  //   try {
+  //     await server.loadAccount(destinationAddress);
+  //     return { success: true, alreadyActive: true, txHash: null };
+  //   } catch (loadErr: any) {
+  //     if (loadErr?.response?.status !== 404 && loadErr?.status !== 404) {
+  //       throw loadErr;
+  //     }
+  //     // Account does not exist yet (404) -> proceed to create
+  //   }
 
-    // 2. Load sponsor account sequence
-    const sponsorAccount = await server.loadAccount(sponsorKey.publicKey());
+  //   // 2. Load sponsor account sequence
+  //   const sponsorAccount = await server.loadAccount(sponsorKey.publicKey());
 
-    const passphrase =
-      network === "mainnet"
-        ? StellarSdk.Networks.PUBLIC
-        : StellarSdk.Networks.TESTNET;
+  //   const passphrase =
+  //     network === "mainnet"
+  //       ? StellarSdk.Networks.PUBLIC
+  //       : StellarSdk.Networks.TESTNET;
 
-    const baseFeeNum = Number(StellarSdk.BASE_FEE) || 100;
+  //   const baseFeeNum = Number(StellarSdk.BASE_FEE) || 100;
 
-    // 3. Build createAccount operation
-    const tx = new StellarSdk.TransactionBuilder(sponsorAccount, {
-      fee: (baseFeeNum * 2).toString(), // 200 stroops for fast execution
-      networkPassphrase: passphrase,
-    })
-      .addOperation(
-        StellarSdk.Operation.createAccount({
-          destination: destinationAddress,
-          startingBalance,
-        }),
-      )
-      .setTimeout(60)
-      .build();
+  //   // 3. Build createAccount operation
+  //   const tx = new StellarSdk.TransactionBuilder(sponsorAccount, {
+  //     fee: (baseFeeNum * 2).toString(), // 200 stroops for fast execution
+  //     networkPassphrase: passphrase,
+  //   })
+  //     .addOperation(
+  //       StellarSdk.Operation.createAccount({
+  //         destination: destinationAddress,
+  //         startingBalance,
+  //       }),
+  //     )
+  //     .setTimeout(60)
+  //     .build();
 
-    tx.sign(sponsorKey);
+  //   tx.sign(sponsorKey);
 
-    const res = await server.submitTransaction(tx);
-    return {
-      success: true,
-      alreadyActive: false,
-      txHash: res.hash,
-    };
-  } catch (err: any) {
-    const detail =
-      err?.response?.data?.extras?.result_codes || err?.message || String(err);
-    console.error(`[Stellar Sponsor] Failed to activate ${destinationAddress}:`, detail);
-    return {
-      success: false,
-      alreadyActive: false,
-      txHash: null,
-      error: typeof detail === "object" ? JSON.stringify(detail) : String(detail),
-    };
-  }
+  //   const res = await server.submitTransaction(tx);
+  //   return {
+  //     success: true,
+  //     alreadyActive: false,
+  //     txHash: res.hash,
+  //   };
+  // } catch (err: any) {
+  //   const detail =
+  //     err?.response?.data?.extras?.result_codes || err?.message || String(err);
+  //   console.error(`[Stellar Sponsor] Failed to activate ${destinationAddress}:`, detail);
+  //   return {
+  //     success: false,
+  //     alreadyActive: false,
+  //     txHash: null,
+  //     error: typeof detail === "object" ? JSON.stringify(detail) : String(detail),
+  //   };
+  // }
 }
 
 /**

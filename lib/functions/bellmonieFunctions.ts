@@ -895,3 +895,84 @@ export async function getBellmonieTransactions(
     { method: "GET" },
   );
 }
+
+/**
+ * Verifies Jumpa official Bloc MFB master account, checks user's active Bellmonie/Bloc MFB account & balance,
+ * and atomically debits user's ledger before vending bill services (airtime/data).
+ */
+export async function transferToOfficialJumpaBlocAccount(params: {
+  userId: string;
+  amount: number;
+  narration: string;
+  reference?: string;
+}): Promise<{ success: boolean; reference: string; fromAccount: string }> {
+  await connectDB();
+
+  // 1. Verify Jumpa's official master Bloc MFB account (hard error if unconfigured)
+  const jumpaAccountNumber = environment.JUMPA_ACCOUNT_NUMBER?.trim();
+  const jumpaBankName = environment.JUMPA_BANK_NAME?.trim();
+  const jumpaAccountName = environment.JUMPA_ACCOUNT_NAME?.trim();
+
+  if (!jumpaAccountNumber || !jumpaBankName || !jumpaAccountName) {
+    console.error("[Bellmonie] Missing Jumpa official account details");
+    throw new Error("Incomplete configuration");
+  }
+
+  // 2. Verify user has an active Bellmonie / Bloc MFB account
+  const userAccount = await NgnAccount.findOne({
+    userId: params.userId,
+    provider: "bellmonie",
+    status: "active",
+  }).lean<INgnAccount>();
+
+  if (!userAccount || !userAccount.accountNumber) {
+    throw new Error("Please create a Naira account first");
+  }
+
+  // 3. Verify user balance
+  const currentBalance = Number(userAccount.balance ?? 0);
+  if (currentBalance < params.amount) {
+    throw new Error("Insufficient NGN wallet balance");
+  }
+
+  const reference = params.reference || generateId("bill");
+
+  // 4. Atomically debit user balance in Bellmonie ledger
+  await atomicDebitNgnBalance({
+    userId: params.userId,
+    amount: params.amount,
+    memo: params.narration,
+  });
+
+  return {
+    success: true,
+    reference,
+    fromAccount: userAccount.accountNumber,
+  };
+}
+
+/**
+ * Refunds funds back to the user's Bellmonie/Bloc MFB virtual account
+ * if a downstream provider fails to deliver a bill purchase.
+ */
+export async function refundFromOfficialJumpaBlocAccount(params: {
+  userId: string;
+  amount: number;
+  narration: string;
+  reference?: string;
+}): Promise<boolean> {
+  await connectDB();
+  try {
+    await atomicCreditNgnBalance({
+      userId: params.userId,
+      amount: params.amount,
+      memo: params.narration,
+      reference: params.reference || generateId("bill"),
+    });
+    return true;
+  } catch (err: any) {
+    console.error("[Bellmonie] Failed to refund user Bloc MFB balance:", err);
+    return false;
+  }
+}
+

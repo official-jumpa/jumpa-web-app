@@ -12,10 +12,10 @@ import {
   type DataPlanPeriod,
 } from "@/lib/bills";
 import {
-  transferToOfficialJumpaWallet,
-  refundFromOfficialJumpaWallet,
-  atomicCreditNgnBalance,
-} from "@/lib/functions/fossapayFunctions";
+  transferToOfficialJumpaBlocAccount,
+  refundFromOfficialJumpaBlocAccount,
+} from "@/lib/functions/bellmonieFunctions";
+import { generateId } from "@/lib/schema-ids";
 import { hasActiveNgnAccount } from "@/lib/functions/ngnFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 
@@ -125,6 +125,13 @@ export async function getCarrierDataPlans(phone: string): Promise<{
   };
 }
 
+export {
+  transferToOfficialJumpaBlocAccount,
+  refundFromOfficialJumpaBlocAccount,
+  transferToOfficialJumpaBlocAccount as transferToOfficialJumpaWallet,
+  refundFromOfficialJumpaBlocAccount as refundFromOfficialJumpaWallet,
+};
+
 /**
  * Executes an airtime purchase.
  * Pre-creates a BillPayment record in PENDING state, passes its _id as ref_id, and updates status upon completion.
@@ -151,15 +158,19 @@ export async function purchaseAirtime(params: {
     throw new Error("Please create a Naira account first");
   }
 
-  // 2. Transfer equivalent funds from user's FossaPay virtual account to official Jumpa account
-  const transfer = await transferToOfficialJumpaWallet({
+  const billRef = generateId("bill");
+
+  // 2. Transfer equivalent funds from user's Bloc MFB account to official Jumpa account
+  const transfer = await transferToOfficialJumpaBlocAccount({
     userId: params.userId,
     amount: params.amount,
     narration: `Airtime: ${normalizedPhone} (${params.network || "VTU"})`,
+    reference: billRef,
   });
 
-  // 3. Create pre-flight record in MongoDB in PENDING status
+  // 2. Create pre-flight record in MongoDB in PENDING status
   const order = await BillPayment.create({
+    _id: billRef,
     userId: params.userId,
     walletAddress: params.walletAddress,
     kind: "AIRTIME",
@@ -222,10 +233,16 @@ export async function purchaseAirtime(params: {
       chain: "fiat",
       network: "mainnet",
       carrier,
-      fromAddress: params.walletAddress,
+      fromAddress: transfer.fromAccount,
       toAddress: normalizedPhone,
       amount: params.amount.toString(),
       token: "NGN",
+      bankDetails: {
+        bankName: environment.JUMPA_BANK_NAME,
+        accountNumber: environment.JUMPA_ACCOUNT_NUMBER,
+        accountName: environment.JUMPA_ACCOUNT_NAME,
+        reference: billRef,
+      },
       memo: `Airtime: ${normalizedPhone} (${carrier ? carrier.toUpperCase() : "VTU"})`,
       txHash: data.data?.id || refId,
       executedAt: new Date(),
@@ -258,12 +275,12 @@ export async function purchaseAirtime(params: {
       { _id: order._id },
       { status: "FAILED", errorMessage: err.message },
     );
-    // Refund debited amount from official Jumpa wallet back to user's account on downstream failure
-    await refundFromOfficialJumpaWallet({
+    // Refund debited amount from official Jumpa wallet back to user's Bloc MFB account on downstream failure
+    await refundFromOfficialJumpaBlocAccount({
       userId: params.userId,
       amount: params.amount,
-      userAccountNumber: transfer?.fromAccount,
       narration: `Refund for failed airtime (${normalizedPhone})`,
+      reference: `ref_${refId}`,
     }).catch((refundErr) => console.error("Airtime refund failed:", refundErr));
     throw err;
   }
@@ -299,15 +316,19 @@ export async function purchaseData(params: {
     throw new Error("Please create a Naira account first");
   }
 
-  // 2. Transfer equivalent funds from user's FossaPay virtual account to official Jumpa account
-  const transfer = await transferToOfficialJumpaWallet({
+  const billRef = generateId("bill");
+
+  // 2. Transfer equivalent funds from user's Bloc MFB account to official Jumpa account
+  const transfer = await transferToOfficialJumpaBlocAccount({
     userId: params.userId,
     amount: params.amount,
     narration: `Data: ${params.productName} (${normalizedPhone})`,
+    reference: billRef,
   });
 
-  // 3. Create pre-flight record in MongoDB in PENDING status
+  // 2. Create pre-flight record in MongoDB in PENDING status
   const order = await BillPayment.create({
+    _id: billRef,
     userId: params.userId,
     walletAddress: params.walletAddress,
     kind: "DATA",
@@ -376,10 +397,16 @@ export async function purchaseData(params: {
       chain: "fiat",
       network: "mainnet",
       carrier,
-      fromAddress: params.walletAddress,
+      fromAddress: transfer.fromAccount,
       toAddress: normalizedPhone,
       amount: params.amount.toString(),
       token: "NGN",
+      bankDetails: {
+        bankName: environment.JUMPA_BANK_NAME,
+        accountNumber: environment.JUMPA_ACCOUNT_NUMBER,
+        accountName: environment.JUMPA_ACCOUNT_NAME,
+        reference: billRef,
+      },
       memo: `Data: ${params.productName}${carrier ? ` (${carrier.toUpperCase()})` : ""}`,
       txHash: data.data?.id || refId,
       executedAt: new Date(),
@@ -415,12 +442,12 @@ export async function purchaseData(params: {
       { _id: order._id },
       { status: "FAILED", errorMessage: err.message },
     );
-    // Refund debited amount from official Jumpa wallet back to user's account on downstream failure
-    await refundFromOfficialJumpaWallet({
+    // Refund debited amount from official Jumpa wallet back to user's Bloc MFB account on downstream failure
+    await refundFromOfficialJumpaBlocAccount({
       userId: params.userId,
       amount: params.amount,
-      userAccountNumber: transfer?.fromAccount,
       narration: `Refund for failed data (${params.productName})`,
+      reference: `ref_${refId}`,
     }).catch((refundErr) => console.error("Data refund failed:", refundErr));
     throw err;
   }

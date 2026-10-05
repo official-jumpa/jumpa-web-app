@@ -8,6 +8,11 @@ import { MailIcon } from "@/components/ui/icons/mail";
 import { TextField } from "@/components/ui/text-field";
 import { emailOtp } from "@/lib/auth-client";
 import { writeSignUpEmail } from "@/lib/sign-up";
+import {
+  normalizeEmail,
+  hasPlusAlias,
+  isEmailBlacklisted,
+} from "@/lib/utils/email-policy";
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -31,14 +36,26 @@ export function EmailAuthForm({
       return;
     }
 
+    if (hasPlusAlias(trimmed)) {
+      setError("Email aliases are not allowed");
+      return;
+    }
+
+    if (isEmailBlacklisted(trimmed)) {
+      setError("This account has been suspended");
+      return;
+    }
+
+    const cleanEmail = normalizeEmail(trimmed);
+
     setLoading(true);
     setError(null);
 
     try {
-      writeSignUpEmail(trimmed);
+      writeSignUpEmail(cleanEmail);
 
       const res = await emailOtp.sendVerificationOtp({
-        email: trimmed,
+        email: cleanEmail,
         type: "sign-in",
       });
 

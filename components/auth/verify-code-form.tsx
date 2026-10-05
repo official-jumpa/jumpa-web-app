@@ -10,6 +10,7 @@ import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 import { emailOtp, signIn } from "@/lib/auth-client";
 import { clearSignUpEmail, readSignUpEmail, SIGN_UP_FLOW } from "@/lib/sign-up";
+import { normalizeEmail } from "@/lib/utils/email-policy";
 
 const CODE_LENGTH = 6;
 
@@ -60,11 +61,12 @@ export function VerifyCodeForm({
 
   const handleVerify = useCallback(
     async (otpValue: string) => {
-      const targetEmail = email || readSignUpEmail();
-      if (!targetEmail) {
+      const rawTarget = email || readSignUpEmail();
+      if (!rawTarget) {
         setLostEmail(true);
         return;
       }
+      const targetEmail = normalizeEmail(rawTarget);
 
       setVerifying(true);
       setError(null);
@@ -140,11 +142,12 @@ export function VerifyCodeForm({
 
   const handleResend = async () => {
     if (resending) return;
-    const targetEmail = email || readSignUpEmail();
-    if (!targetEmail) {
+    const rawTarget = email || readSignUpEmail();
+    if (!rawTarget) {
       setLostEmail(true);
       return;
     }
+    const targetEmail = normalizeEmail(rawTarget);
 
     setResending(true);
     setError(null);

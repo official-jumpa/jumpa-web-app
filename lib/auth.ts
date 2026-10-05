@@ -1,10 +1,12 @@
 import { betterAuth } from "better-auth";
+import { createAuthMiddleware, APIError } from "better-auth/api";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { emailOTP } from "better-auth/plugins";
 import { connectDB, getDb } from "./db";
 import { sendOtpEmail } from "./email-otp-mail";
 import { environment } from "./environment";
 import { generateId } from "./schema-ids";
+import { normalizeEmail, hasPlusAlias, isEmailBlacklisted } from "./utils/email-policy";
 
 import { generateUniqueReferralCode, ensureUserJumpaFields } from "./user-profile";
 import { User } from "@/models/User";
@@ -51,6 +53,31 @@ export const auth = betterAuth({
         required: false,
       },
     },
+  },
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      // Normalize and validate email for any incoming auth endpoints
+      if (ctx.body && typeof ctx.body === "object" && "email" in ctx.body) {
+        const raw = (ctx.body as Record<string, any>).email;
+        if (typeof raw === "string" && raw.trim()) {
+          const trimmed = raw.trim();
+
+          if (isEmailBlacklisted(trimmed)) {
+            throw new APIError("FORBIDDEN", {
+              message: "This account has been suspended",
+            });
+          }
+
+          if (hasPlusAlias(trimmed)) {
+            throw new APIError("BAD_REQUEST", {
+              message: "Email aliases are not allowed.",
+            });
+          }
+
+          (ctx.body as Record<string, any>).email = normalizeEmail(trimmed);
+        }
+      }
+    }),
   },
   databaseHooks: {
     session: {
@@ -140,9 +167,12 @@ export const auth = betterAuth({
               ? rawTag.toLowerCase().trim()
               : undefined;
 
+          const email = user.email ? normalizeEmail(user.email) : user.email;
+
           return {
             data: {
               ...user,
+              email,
               status: (user as any).status || "active",
               country: (user as any).country || country,
               ...(tag ? { jumpaTag: tag } : {}),

@@ -10,6 +10,12 @@ import { MailBoldIcon } from "@/components/ui/icons/mail-bold";
 import { triggerHaptic } from "@/lib/haptics";
 import { BETA_CTA, CTA_LABEL, EMAIL_PLACEHOLDER } from "@/lib/landing";
 
+import {
+  hasPlusAlias,
+  isEmailBlacklisted,
+  normalizeEmail,
+} from "@/lib/utils/email-policy";
+
 type Status = "idle" | "pending" | "success" | "error";
 
 interface UseWaitlistReturn {
@@ -83,6 +89,22 @@ function useWaitlist(source: string): UseWaitlistReturn {
       return;
     }
 
+    if (hasPlusAlias(trimmed)) {
+      setStatus("error");
+      setMessage("Email aliases are not allowed");
+      triggerHaptic("medium");
+      return;
+    }
+
+    if (isEmailBlacklisted(trimmed)) {
+      setStatus("error");
+      setMessage("This account has been suspended");
+      triggerHaptic("medium");
+      return;
+    }
+
+    const cleanEmail = normalizeEmail(trimmed);
+
     setStatus("pending");
     setMessage(null);
 
@@ -92,7 +114,7 @@ function useWaitlist(source: string): UseWaitlistReturn {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: trimmed,
+          email: cleanEmail,
           source,
           ...attribution,
         }),

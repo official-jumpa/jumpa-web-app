@@ -1,13 +1,25 @@
 import { z } from "zod";
+import {
+  hasPlusAlias,
+  isEmailBlacklisted,
+  normalizeEmail,
+} from "@/lib/utils/email-policy";
 
 /**
  * Validation schema for joining the waitlist.
  */
 export const joinWaitlistSchema = z.object({
   email: z
-    .email("Please provide a valid email address")
+    .string()
     .trim()
-    .toLowerCase(),
+    .email("Please provide a valid email address")
+    .refine((val) => !hasPlusAlias(val), {
+      message: "Email aliases are not allowed.",
+    })
+    .refine((val) => !isEmailBlacklisted(val), {
+      message: "This account has been suspended",
+    })
+    .transform((val) => normalizeEmail(val)),
   name: z
     .string()
     .trim()

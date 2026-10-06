@@ -2,6 +2,7 @@ import { connectDB } from "@/lib/db";
 import { Waitlist, type IWaitlist } from "@/models/Waitlist";
 import { generateId } from "@/lib/schema-ids";
 import type { JoinWaitlistInput } from "@/lib/validations/waitlist.validation";
+import { normalizeEmail } from "@/lib/utils/email-policy";
 
 export interface JoinWaitlistResult {
   isNew: boolean;
@@ -35,7 +36,7 @@ export async function joinWaitlist(
 ): Promise<JoinWaitlistResult> {
   await connectDB();
 
-  const normalizedEmail = input.email.trim().toLowerCase();
+  const normalizedEmail = normalizeEmail(input.email);
 
   // Check for existing entry
   const existing = await Waitlist.findOne({ email: normalizedEmail }).lean<IWaitlist>();

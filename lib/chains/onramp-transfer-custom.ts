@@ -96,8 +96,8 @@ export async function verifyCentiivDepositOnChain(params: {
     if (expectedUsdcAmount) {
       const paidNum = matchedAmount;
       const expectedNum = parseFloat(String(expectedUsdcAmount));
-      // Allow minor 0.5% tolerance for provider fee rounding
-      if (paidNum < expectedNum * 0.995) {
+      // Allow 1.5% tolerance for provider fee deductions and precision rounding
+      if (paidNum < expectedNum * 0.985) {
         console.warn(
           `[OnrampCustom] Inbound amount mismatch: expected ~${expectedNum} USDC, found ${paidNum} USDC`,
         );

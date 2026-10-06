@@ -108,11 +108,14 @@ export const isValidCleanId = (prefix: IdPrefix, slug: string): boolean => {
   return getCleanIdRegex(prefix).test(slug);
 };
 
+const referralAlphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
+const nanoidReferral5 = customAlphabet(referralAlphabet, 5);
+
 /**
- * Generates a 10-char referral code (ref- + 6 random string)
+ * Generates a clean 6-character uppercase referral code starting with 'R' (e.g. 'R7K9WZ')
  */
 export const generateReferralCode = (): string => {
-  return `ref-${nanoid6()}`;
+  return `R${nanoidReferral5()}`;
 };
 
 /**

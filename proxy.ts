@@ -56,8 +56,25 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/onboarding", request.url));
   }
 
-  // All other onboarding, wallet setup, and setup flow routing is handled by AuthGuard
-  return NextResponse.next();
+  // 4. Capture referral code from URL into a 7-day cookie for unauthenticated users
+  const response = NextResponse.next();
+  const refParam = request.nextUrl.searchParams.get("ref");
+  const existingRefCookie = request.cookies.get("jumpa_ref")?.value;
+
+  if (!isAuthenticated && refParam && !existingRefCookie) {
+    const cleanRef = refParam.trim().toUpperCase();
+    if (cleanRef) {
+      response.cookies.set("jumpa_ref", cleanRef, {
+        path: "/",
+        maxAge: 7 * 24 * 60 * 60, // 7 days
+        httpOnly: false, // Accessible to client-side form prefill as well
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+      });
+    }
+  }
+
+  return response;
 }
 
 export const config = {

@@ -11,10 +11,10 @@ export async function getReferralStatsForUser(userId: string) {
   await connectDB();
 
   const user = await ensureUserJumpaFields(userId);
-  const referralCode = user?.referralCode || "";
+  const referralCode = (user?.referralCode || "").toUpperCase();
 
   const origin = environment.BETTER_AUTH_URL;
-  const referralLink = `${origin}/signup?ref=${referralCode}`;
+  const referralLink = `${origin}/sign-up?ref=${referralCode}`;
 
   // Fetch all referrals where this user is the referrer
   const referrals = await Referral.find({ referrerId: userId })
@@ -45,6 +45,7 @@ export async function getReferralStatsForUser(userId: string) {
       name: u?.name || "Jumpa Member",
       joinedAt: r.createdAt,
       points: r.points || 1,
+      status: r.status || "joined",
     };
   });
 

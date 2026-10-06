@@ -140,7 +140,7 @@ export function ProfileView({
     currentNickname || profile?.name || user?.name || profile?.jumpaTag || user?.jumpaTag || ACCOUNT.firstName;
   const displayEmail = profile?.email || user?.email || "";
   const jumpaTag = profile?.jumpaTag || user?.jumpaTag || "user@jumpa";
-  const referralCode = user?.referralCode || "JUMPA";
+  const referralCode = (user?.referralCode || "JUMPA").toUpperCase();
 
   const handleSaveNickname = async (nextNickname: string) => {
     await updateProfile({ nickname: nextNickname });

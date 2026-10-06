@@ -17,7 +17,7 @@ export interface IUser {
   referralCode?: string | null;
   referredBy?: string | null;
   lastLoginAt?: Date | null;
-  loginMethod?: "google" | "email" | "anonymous";
+  loginMethod?: "google" | "email";
   activeWalletId?: string | null;
   hasCreatedSavings?: boolean;
   seenSavingsIntros?: {
@@ -62,15 +62,16 @@ const UserSchema = new Schema<IUser>(
     loginPasswordHash: { type: String, default: null },
     referralCode: {
       type: String,
-      lowercase: true,
+      uppercase: true,
+      trim: true,
       index: {
         unique: true,
         partialFilterExpression: { referralCode: { $type: "string" } },
       },
     },
-    referredBy: { type: String, default: null },
+    referredBy: { type: String, uppercase: true, trim: true, default: null },
     lastLoginAt: { type: Date, default: null },
-    loginMethod: { type: String, enum: ["google", "email", "anonymous"], default: "email" },
+    loginMethod: { type: String, enum: ["google", "email"], default: "email" },
     activeWalletId: { type: String, default: null },
     hasCreatedSavings: { type: Boolean, default: false },
     seenSavingsIntros: {

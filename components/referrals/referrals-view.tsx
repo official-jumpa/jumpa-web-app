@@ -14,6 +14,7 @@ import { SettingsHeader } from "@/components/settings/settings-header";
 import { Button } from "@/components/ui/button";
 import { PartyBellIcon } from "@/components/ui/icons/party-bell";
 import { UsersIcon } from "@/components/ui/icons/users";
+import { cn } from "@/lib/cn";
 import { PROMOTIONS } from "@/lib/wallet";
 
 export interface ReferralHistoryItem {
@@ -21,6 +22,7 @@ export interface ReferralHistoryItem {
   name: string;
   joinedAt: string;
   points: number;
+  status?: "joined" | "active";
 }
 
 export interface ReferralData {
@@ -63,7 +65,7 @@ export function ReferralsView({
   const points = data?.points ?? 0;
   const invited = data?.invited ?? 0;
   const target = data?.target ?? 40;
-  const referralCode = data?.referralCode ?? "";
+  const referralCode = (data?.referralCode ?? "").toUpperCase();
   const referralLink = data?.referralLink ?? "";
   const history = data?.history ?? [];
 
@@ -172,9 +174,21 @@ export function ReferralsView({
                       })}
                     </span>
                   </div>
-                  <span className="rounded-pill bg-jumpa-primary-100 px-2 py-0.5 text-xs font-bold text-jumpa-primary-600">
-                    +{item.points} pt
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "rounded-pill px-2 py-0.5 text-[10px] font-semibold capitalize",
+                        item.status === "active"
+                          ? "bg-emerald-50 text-emerald-600"
+                          : "bg-jumpa-neutral-100 text-jumpa-neutral-500",
+                      )}
+                    >
+                      {item.status === "active" ? "Active" : "Joined"}
+                    </span>
+                    <span className="rounded-pill bg-jumpa-primary-100 px-2 py-0.5 text-xs font-bold text-jumpa-primary-600">
+                      +{item.points} pt
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

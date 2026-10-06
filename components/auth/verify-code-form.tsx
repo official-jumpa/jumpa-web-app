@@ -9,7 +9,12 @@ import { SuccessSheet } from "@/components/auth/success-sheet";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 import { emailOtp, signIn } from "@/lib/auth-client";
-import { clearSignUpEmail, readSignUpEmail, SIGN_UP_FLOW } from "@/lib/sign-up";
+import {
+  clearSignUpEmail,
+  readSignUpEmail,
+  clearSignUpReferral,
+  SIGN_UP_FLOW,
+} from "@/lib/sign-up";
 import { normalizeEmail } from "@/lib/utils/email-policy";
 
 const CODE_LENGTH = 6;
@@ -84,8 +89,9 @@ export function VerifyCodeForm({
           return;
         }
 
-        // The address has done its job; don't leave it on the device.
+        // The address and referral have done their job; don't leave them on the device.
         clearSignUpEmail();
+        clearSignUpReferral();
 
         // Resolve user onboarding / destination route
         try {

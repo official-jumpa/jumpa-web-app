@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { EmailAuthForm } from "@/components/auth/email-auth-form";
@@ -25,7 +26,9 @@ export default function SignUpPage() {
             Get started with Jumpa in minutes
           </AuthHeading>
 
-          <EmailAuthForm nextHref="/sign-up/verify-code" />
+          <Suspense fallback={<div className="h-28 w-full animate-pulse rounded-card bg-jumpa-neutral-50" />}>
+            <EmailAuthForm nextHref="/sign-up/verify-code" showReferralField />
+          </Suspense>
         </div>
 
         <SocialSignUp />

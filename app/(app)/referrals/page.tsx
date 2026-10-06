@@ -31,6 +31,7 @@ export default async function ReferralsPage() {
               ? h.joinedAt.toISOString()
               : String(h.joinedAt),
           points: h.points,
+          status: h.status || "joined",
         })),
       };
     }

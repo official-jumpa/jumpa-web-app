@@ -14,7 +14,6 @@ export const SIGN_UP_FLOW = {
   done: "/sign-up/done",
 } as const;
 
-/** What each step leaves for the next, in `sessionStorage` like `setupPin`. */
 export const SIGN_UP_KEYS = {
   email: "onboardingEmail",
   phone: "signupPhone",
@@ -23,6 +22,7 @@ export const SIGN_UP_KEYS = {
   password: "signupPassword",
   tag: "signupTag",
   pin: "setupPin",
+  referralCode: "signupReferralCode",
 } as const;
 
 type SignUpKey = (typeof SIGN_UP_KEYS)[keyof typeof SIGN_UP_KEYS];
@@ -67,6 +67,27 @@ export function clearSignUpEmail() {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(SIGN_UP_KEYS.email);
   localStorage.removeItem(SIGN_UP_KEYS.email);
+}
+
+export function writeSignUpReferral(code: string) {
+  if (typeof window === "undefined") return;
+  const clean = code.trim().toUpperCase();
+  sessionStorage.setItem(SIGN_UP_KEYS.referralCode, clean);
+  localStorage.setItem(SIGN_UP_KEYS.referralCode, clean);
+}
+
+export function readSignUpReferral() {
+  if (typeof window === "undefined") return null;
+  return (
+    sessionStorage.getItem(SIGN_UP_KEYS.referralCode) ||
+    localStorage.getItem(SIGN_UP_KEYS.referralCode)
+  );
+}
+
+export function clearSignUpReferral() {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(SIGN_UP_KEYS.referralCode);
+  localStorage.removeItem(SIGN_UP_KEYS.referralCode);
 }
 
 /** Digits only, so a number typed with spaces or dashes stores the same way. */

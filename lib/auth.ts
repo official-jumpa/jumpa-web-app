@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { createAuthMiddleware, APIError } from "better-auth/api";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { emailOTP } from "better-auth/plugins";
+import { cookies } from "next/headers";
 import { connectDB, getDb } from "./db";
 import { sendOtpEmail } from "./email-otp-mail";
 import { environment } from "./environment";
@@ -180,6 +181,19 @@ export const auth = betterAuth({
 
           const email = user.email ? normalizeEmail(user.email) : user.email;
 
+          let referredBy = (user as any).referredBy;
+          if (!referredBy || typeof referredBy !== "string" || !referredBy.trim()) {
+            try {
+              const cookieStore = await cookies();
+              const refCookie = cookieStore.get("jumpa_ref")?.value;
+              if (refCookie && refCookie.trim()) {
+                referredBy = refCookie.trim().toUpperCase();
+              }
+            } catch {
+              // cookies() may throw in non-request contexts; ignore
+            }
+          }
+
           return {
             data: {
               ...user,
@@ -188,20 +202,26 @@ export const auth = betterAuth({
               country: (user as any).country || country,
               ...(tag ? { jumpaTag: tag } : {}),
               referralCode: (user as any).referralCode || referralCode,
+              ...(referredBy ? { referredBy: String(referredBy).trim().toUpperCase() } : {}),
             },
           };
         },
         after: async (user) => {
           const referredBy = (user as any).referredBy;
-          if (referredBy) {
+          if (referredBy && typeof referredBy === "string" && referredBy.trim()) {
+            const cleanReferrerCode = referredBy.trim().toUpperCase();
             try {
+              // Match uppercase directly, or fallback to case-insensitive for legacy ref- codes
               const referrer = await User.findOne({
-                referralCode: String(referredBy).toLowerCase(),
+                $or: [
+                  { referralCode: cleanReferrerCode },
+                  { referralCode: new RegExp(`^${cleanReferrerCode}$`, "i") },
+                ],
               });
               if (referrer && referrer._id !== user.id) {
                 await Referral.create({
                   referrerId: referrer._id,
-                  referrerCode: String(referredBy).toLowerCase(),
+                  referrerCode: cleanReferrerCode,
                   referredUserId: user.id,
                   points: 1,
                   status: "joined",

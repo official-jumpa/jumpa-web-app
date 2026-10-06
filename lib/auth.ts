@@ -6,7 +6,11 @@ import { connectDB, getDb } from "./db";
 import { sendOtpEmail } from "./email-otp-mail";
 import { environment } from "./environment";
 import { generateId } from "./schema-ids";
-import { normalizeEmail, hasPlusAlias, isEmailBlacklisted } from "./utils/email-policy";
+import {
+  normalizeEmail,
+  hasPlusAlias,
+  isEmailBlacklisted,
+} from "./utils/email-policy";
 
 import { generateUniqueReferralCode, ensureUserJumpaFields } from "./user-profile";
 import { User } from "@/models/User";
@@ -159,6 +163,13 @@ export const auth = betterAuth({
     user: {
       create: {
         before: async (user) => {
+          const rawEmail = user.email || "";
+          if (hasPlusAlias(rawEmail)) {
+            throw new APIError("BAD_REQUEST", {
+              message: "Email aliases are not allowed.",
+            });
+          }
+
           const referralCode = await generateUniqueReferralCode();
           const country = await detectUserCountry();
           const rawTag = (user as any).jumpaTag;

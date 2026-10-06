@@ -128,6 +128,7 @@ export async function checkUserStatus(user: {
   }
 
   if (status === "banned") {
+    console.log("banned user- ", user)
     return {
       allowed: false,
       status: "banned",
@@ -138,6 +139,7 @@ export async function checkUserStatus(user: {
   }
 
   if (status === "suspended") {
+    console.log("suspended user- ", user)
     return {
       allowed: false,
       status: "suspended",
@@ -148,6 +150,7 @@ export async function checkUserStatus(user: {
   }
 
   if (status === "deleted") {
+    console.log("deleted user- ", user)
     return {
       allowed: false,
       status: "deleted",

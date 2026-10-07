@@ -273,7 +273,10 @@ export function formatToCanonicalNigerianPhone(input: string): string {
 /**
  * Sends a phone verification SMS OTP via Myaza Trust KYC REST API.
  */
-export async function sendMyazaPhoneOtp(params: { phone: string }): Promise<{
+export async function sendMyazaPhoneOtp(params: {
+  phone: string;
+  userId?: string;
+}): Promise<{
   success: boolean;
   challengeId: string;
   expiresAt?: string;
@@ -288,6 +291,13 @@ export async function sendMyazaPhoneOtp(params: { phone: string }): Promise<{
   }
 
   const canonicalPhone = formatToCanonicalNigerianPhone(rawPhone);
+
+  await connectDB();
+  const existingUser = await User.findOne({ phoneNumber: canonicalPhone });
+  if (existingUser && (!params.userId || existingUser._id.toString() !== params.userId)) {
+    throw new Error("This phone number is already registered to another user");
+  }
+
   const apiKey =
     process.env.MYAZA_TRUST_SECRET_KEY || process.env.MYAZA_TRUST_SANDBOX_KEY;
   const baseUrl =
@@ -400,11 +410,18 @@ export async function verifyMyazaPhoneOtp(params: {
 
   await connectDB();
 
+  // Pre-check for duplicate phone before attempting update to prevent Mongo E11000 crash
+  const existingUser = await User.findOne({ phoneNumber: canonicalPhone });
+  if (existingUser && existingUser._id.toString() !== userId) {
+    throw new Error("This phone number is already registered to another user");
+  }
+
   // Update primary User record
   await User.findByIdAndUpdate(userId, {
     $set: {
       phoneNumber: canonicalPhone,
       phoneNumberVerified: true,
+      phoneSkipped: false,
     },
   });
 
@@ -460,6 +477,10 @@ export async function skipPhoneVerification(params: {
   if (rawPhone) {
     const cleaned = rawPhone.replace(/[^\d+]/g, "");
     if (cleaned.length >= 7) {
+      const existingUser = await User.findOne({ phoneNumber: cleaned });
+      if (existingUser && existingUser._id.toString() !== userId) {
+        throw new Error("This phone number is already registered to another user");
+      }
       updateFields.phoneNumber = cleaned;
       updateFields.phoneNumberVerified = false;
     }

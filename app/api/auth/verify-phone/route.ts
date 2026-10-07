@@ -25,7 +25,10 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const result = await sendMyazaPhoneOtp({ phone });
+      const result = await sendMyazaPhoneOtp({
+        phone,
+        userId: auth.userId,
+      });
       return NextResponse.json(result, { status: 200 });
     }
 

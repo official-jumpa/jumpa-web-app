@@ -493,8 +493,7 @@ export function generateLoginAlertEmailHtml(data: LoginAlertEmailData): string {
 
       <div class="warning-box">
         <p class="warning-text">
-          <strong>Didn't recognize this activity?</strong> Someone else may have accessed your account.
-          Please terminate this session immediately or update your password
+          If this was you, no action is needed. If you did not sign in recently, please review your active sessions in your account settings.
         </p>
       </div>
       
@@ -530,7 +529,7 @@ export async function sendLoginAlertEmail(
     const res = await sendbyte.emails.send({
       from,
       to: toEmail,
-      subject: `Security Alert: New Sign-in on ${data.device || "a new device"}`,
+      subject: `New sign-in to your Jumpa account${data.device ? ` on ${data.device}` : ""}`,
       html: htmlContent,
     });
 

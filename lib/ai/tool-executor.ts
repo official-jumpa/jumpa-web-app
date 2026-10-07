@@ -2086,6 +2086,16 @@ export async function executeTool(
         console.error(
           `[ToolExecutor] [User: ${userId}] offramp_ngn ✗ Error:`,
           err.message,
+          JSON.stringify(
+            {
+              message: err.message,
+              status: err.status,
+              response: err.response,
+              stack: err.stack,
+            },
+            null,
+            2,
+          ),
         );
         return {
           toolName: name,

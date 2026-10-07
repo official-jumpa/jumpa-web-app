@@ -95,7 +95,7 @@ export const SWITCH_ASSET_LABELS: Record<string, string> = {
 };
 
 function parseSwitchError(errorMsg: string): string {
-  if (!errorMsg) return "An unexpected error occurred with the provider. Please try again.";
+  if (!errorMsg) return "This service is not available at the moment. Please try again later.";
 
   const lowerError = errorMsg.toLowerCase();
 

@@ -7,6 +7,7 @@ import { MoneyWithdrawalIcon } from "@/components/ui/icons/money-withdrawal";
 import { PhoneAltOutlineIcon } from "@/components/ui/icons/phone-alt-outline";
 import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
 import { WifiIcon } from "@/components/ui/icons/wifi";
+import { LocalTime } from "@/components/ui/local-time";
 import { getAssetLogo } from "@/lib/assets";
 import { getCarrierLogo } from "@/lib/bills";
 import { cn } from "@/lib/cn";
@@ -91,11 +92,16 @@ export function TransactionRow({
           <span className="truncate text-sm leading-4 font-semibold text-jumpa-black">
             {title}
           </span>
-          <span
-            suppressHydrationWarning
-            className="truncate text-xs leading-3.5 font-medium text-jumpa-neutral-700"
-          >
-            {displayDate}
+          <span className="truncate text-xs leading-3.5 font-medium text-jumpa-neutral-700">
+            {createdAt ? (
+              <LocalTime
+                at={createdAt}
+                fallback={displayDate}
+                format="history"
+              />
+            ) : (
+              displayDate
+            )}
           </span>
         </span>
       </div>

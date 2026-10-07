@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { createPublicClient, http, erc20Abi, formatUnits } from "viem";
 import { mainnet, base } from "viem/chains";
-import { SwapView } from "@/components/swap/swap-view";
+import { type StellarBalances, SwapView } from "@/components/swap/swap-view";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import { getCachedWalletBalances } from "@/lib/wallet-balances";
 import { CONTRACT_ADDRESSES, getRpcUrl } from "@/lib/blockchain";
@@ -9,7 +9,7 @@ import { CONTRACT_ADDRESSES, getRpcUrl } from "@/lib/blockchain";
 export const metadata: Metadata = { title: "Swap" };
 
 export default async function SwapPage() {
-  let stellarBalances = { xlm: "0.00", usdc: "0.00" };
+  let stellarBalances: StellarBalances = { xlm: "0.00", usdc: "0.00" };
   let solanaBalances = { sol: "0.00", usdc: "0.00", usdt: "0.00" };
   let bridgeBalances = {
     stellarUsdc: "0.00",
@@ -45,6 +45,7 @@ export default async function SwapPage() {
         stellarBalances = {
           xlm: xlmToken?.balance || "0.00",
           usdc: usdcStellarToken?.balance || "0.00",
+          xlmSpendable: xlmToken?.spendable,
         };
 
         const solToken = balances.tokens.find(

@@ -18,6 +18,13 @@ export interface StellarAssetBalances {
 export interface StellarMultiNetBalances {
   mainnet: StellarAssetBalances;
   testnet: StellarAssetBalances;
+  /** Mainnet XLM above the account's minimum reserve — the most a swap or payment can move. */
+  spendableXlm?: string;
+}
+
+/** What Stellar holds back: two base reserves plus one per subentry, 0.5 XLM each. */
+export function stellarMinReserve(subentryCount = 0): number {
+  return (2 + subentryCount) * 0.5;
 }
 
 async function safeHorizonCall<T>(
@@ -105,14 +112,28 @@ export async function fetchStellarBalances(
       if (!data) return fallback;
       return parseBalancesFromHorizonAccount(data.balances, true);
     }, fallback, 15000),
-    safeHorizonCall(async () => {
-      const data = await loadHorizonAccount(STELLAR_MAINNET_HORIZON, publicKey);
-      if (!data) return fallback;
-      return parseBalancesFromHorizonAccount(data.balances, false);
-    }, fallback, 3500),
+    safeHorizonCall<{ balances: StellarAssetBalances; spendableXlm?: string }>(
+      async () => {
+        const data = await loadHorizonAccount(
+          STELLAR_MAINNET_HORIZON,
+          publicKey,
+        );
+        if (!data) return { balances: fallback };
+        const balances = parseBalancesFromHorizonAccount(data.balances, false);
+        const spendable =
+          Number(balances.native) - stellarMinReserve(data.subentry_count);
+        return { balances, spendableXlm: Math.max(0, spendable).toFixed(7) };
+      },
+      { balances: fallback },
+      3500,
+    ),
   ]);
 
-  return { mainnet, testnet };
+  return {
+    mainnet: mainnet.balances,
+    testnet,
+    spendableXlm: mainnet.spendableXlm,
+  };
 }
 
 /**

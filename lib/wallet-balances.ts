@@ -5,7 +5,10 @@ import { environment } from "@/lib/environment";
 import { Wallet } from "@/models/Wallet";
 import { connectDB } from "@/lib/db";
 import { getAssetLogo } from "@/lib/assets";
-import { fetchStellarBalances } from "@/lib/chains/stellar";
+import {
+  fetchStellarBalances,
+  type StellarMultiNetBalances,
+} from "@/lib/chains/stellar";
 
 // Solana Mainnet Connection (Mainnet only)
 const solMainnetConnection = new Connection(
@@ -23,6 +26,8 @@ export interface TokenBalanceInfo {
   priceUsd: string;
   network?: string;
   isTestnet?: boolean;
+  /** Mainnet XLM only: the balance less Stellar's account reserve, i.e. what can actually move. */
+  spendable?: string;
 }
 
 export interface WalletBalancesResult {
@@ -162,7 +167,7 @@ export async function fetchWalletBalances(
   const [
     evmResults,
     solMainnetBal,
-    { mainnet: xlmMainnet, testnet: xlmTestnet },
+    { mainnet: xlmMainnet, testnet: xlmTestnet, spendableXlm },
   ] = await Promise.all([
     // 1. EVM Chains (Mainnet only)
     fetchEvm
@@ -293,7 +298,7 @@ export async function fetchWalletBalances(
           testnet: { native: "0.00", usdc: "0.00", usdt: "0.00" },
         },
       )
-      : Promise.resolve({
+      : Promise.resolve<StellarMultiNetBalances>({
         mainnet: { native: "0.00", usdc: "0.00", usdt: "0.00" },
         testnet: { native: "0.00", usdc: "0.00", usdt: "0.00" },
       }),
@@ -317,6 +322,7 @@ export async function fetchWalletBalances(
       priceUsd: xlmCached.priceUsd,
       network: "Stellar",
       isTestnet: false,
+      spendable: spendableXlm,
     });
     tokens.push({
       symbol: "USDC",

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { CloseButton } from "@/components/transfer/close-button";
 import { Button } from "@/components/ui/button";
+import { LocalTime } from "@/components/ui/local-time";
 import { SheetPortal } from "@/components/ui/sheet-portal";
 import type { Notification } from "@/lib/notifications";
 
@@ -39,7 +40,11 @@ export function NotificationDetail({
             {item.title}
           </h2>
           <p className="text-[10px] leading-3.5 font-medium text-jumpa-neutral-265">
-            {item.time}
+            <LocalTime
+              at={item.createdAt}
+              fallback={item.time}
+              format="notification"
+            />
           </p>
         </div>
 

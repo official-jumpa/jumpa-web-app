@@ -52,7 +52,21 @@ interface TxResult {
 export interface StellarBalances {
   xlm: string;
   usdc: string;
+  /** XLM less the account reserve, from Horizon. Absent when the lookup failed. */
+  xlmSpendable?: string;
 }
+
+/**
+ * A native token can't be swapped to zero: XLM keeps a fee on top of its
+ * reserve, SOL keeps fees plus rent for the account and the output token's.
+ */
+const NATIVE_HOLDBACK: Record<string, { amount: number; reason: string }> = {
+  XLM: { amount: 0.01, reason: "Stellar's account reserve and fees" },
+  SOL: { amount: 0.005, reason: "network fees and account rent" },
+};
+
+/** The reserve when Horizon gave no figure: two base reserves plus a USDC trustline. */
+const FALLBACK_XLM_RESERVE = 1.5;
 
 export interface SolanaBalances {
   sol: string;
@@ -161,6 +175,33 @@ export function SwapView({
 
   function balanceFor(token: string): string {
     return formatBalance(getRawBalance(token));
+  }
+
+  /** The most that can actually leave the wallet — what MAX fills and Review allows. */
+  function spendableFor(token: string): number {
+    const t = token.toUpperCase();
+    let spendable = getRawBalance(token);
+    if (network === "stellar" && t === "XLM") {
+      const net = Number.parseFloat(stellarBalances.xlmSpendable ?? "");
+      spendable = Number.isFinite(net) ? net : spendable - FALLBACK_XLM_RESERVE;
+    }
+    return Math.max(0, spendable - (NATIVE_HOLDBACK[t]?.amount ?? 0));
+  }
+
+  function fillMax() {
+    const max = spendableFor(fromToken);
+    if (max <= 0) {
+      const holdback = NATIVE_HOLDBACK[fromToken.toUpperCase()];
+      setError(
+        holdback
+          ? `No ${fromToken} available to swap — your balance covers ${holdback.reason}.`
+          : `You have no ${fromToken} to swap.`,
+      );
+      return;
+    }
+    setError(undefined);
+    // Floors to the field's 4 decimals, so MAX never asks for more than is there.
+    setAmount(sanitiseSwapAmount(formatBalance(max.toFixed(7))));
   }
 
   /**
@@ -374,6 +415,7 @@ export function SwapView({
                   label="You send"
                   symbol={fromToken}
                   balance={balanceFor(fromToken)}
+                  onMax={fillMax}
                   options={tokenOptions}
                   onSymbolChange={(s) => {
                     if (s === toToken) flipPair();
@@ -465,13 +507,16 @@ export function SwapView({
                 size="lg"
                 onClick={() => {
                   const numAmount = Number(amount);
-                  const available = getRawBalance(fromToken);
+                  const available = spendableFor(fromToken);
+                  const holdback = NATIVE_HOLDBACK[fromToken.toUpperCase()];
 
                   if (!numAmount || numAmount <= 0) {
                     setError("Enter an amount to swap");
                   } else if (numAmount > available) {
                     setError(
-                      `Insufficient balance. You have ${formatBalance(available)} ${fromToken}`,
+                      holdback && numAmount <= getRawBalance(fromToken)
+                        ? `You can swap up to ${formatBalance(available.toFixed(7))} ${fromToken} — the rest covers ${holdback.reason}.`
+                        : `Insufficient balance. You have ${formatBalance(getRawBalance(fromToken))} ${fromToken}`,
                     );
                   } else if (!quote) {
                     setError(

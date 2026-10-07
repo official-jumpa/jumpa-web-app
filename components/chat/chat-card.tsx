@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { type ReactNode, useEffect, useState } from "react";
 import { NairaSignIcon } from "@/components/ui/icons/naira-sign";
+import { LocalTime } from "@/components/ui/local-time";
 import { getAssetLogo } from "@/lib/assets";
 import type { CardRow, CardStatus, Stat } from "@/lib/chat";
 import { copyText } from "@/lib/clipboard";
@@ -79,6 +80,15 @@ export function CardRule() {
 }
 
 /** Muted lead-in plus an emphasised value, e.g. "Fee **0.3 XLM**", or with asset & chain badge. */
+/** A timestamp stat carries `at`, so it reads in the viewer's zone rather than the server's. */
+function StatValue({ stat }: { stat: Stat }) {
+  return stat.at ? (
+    <LocalTime at={stat.at} fallback={stat.value} format="clock" />
+  ) : (
+    <span>{stat.value}</span>
+  );
+}
+
 export function StatText({
   stat,
   className,
@@ -89,7 +99,9 @@ export function StatText({
   return (
     <div className={cn("flex items-center gap-1.5 text-[11px] leading-4 text-jumpa-black/50", className)}>
       <span>{stat.lead}</span>
-      <span className="font-bold text-jumpa-black">{stat.value}</span>
+      <span className="font-bold text-jumpa-black">
+        <StatValue stat={stat} />
+      </span>
       {stat.badge ? (
         <span className="inline-flex items-center gap-1 font-semibold text-jumpa-black">
           <Image
@@ -149,7 +161,7 @@ export function CardStats({ stats = [] }: { stats?: Stat[] }) {
             {stat.lead?.trim()}
           </span>
           <span className="inline-flex items-center gap-1 min-w-0 text-right font-bold text-jumpa-black">
-            <span>{stat.value}</span>
+            <StatValue stat={stat} />
             {stat.badge ? (
               <span className="inline-flex items-center gap-1 font-semibold text-jumpa-black">
                 <Image

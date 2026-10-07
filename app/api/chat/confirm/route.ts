@@ -963,7 +963,13 @@ export async function POST(req: NextRequest) {
           },
           {
             lead: "Date ",
-            value: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            // The server runs in UTC; `at` lets the card render on the viewer's clock.
+            value: new Date().toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: "Africa/Lagos",
+            }),
+            at: new Date().toISOString(),
           },
         ],
       };

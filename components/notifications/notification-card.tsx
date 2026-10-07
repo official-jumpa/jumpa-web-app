@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { LocalTime } from "@/components/ui/local-time";
 import type { Notification } from "@/lib/notifications";
 
 // inset-ring, not border: a CSS border sits outside the box and would add 2px
@@ -44,7 +45,12 @@ export function NotificationCard({
       </p>
 
       <div className="flex items-center justify-between text-[10px] leading-3.5 font-medium">
-        <span className="text-jumpa-neutral-265">{item.time}</span>
+        <LocalTime
+          at={item.createdAt}
+          fallback={item.time}
+          format="notification"
+          className="text-jumpa-neutral-265"
+        />
         <span className={read ? "text-jumpa-neutral-265" : "text-jumpa-black"}>
           {read ? "Read" : "Unread"}
         </span>

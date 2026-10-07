@@ -45,6 +45,7 @@ export function QuoteLeg({
   options,
   tone = "white",
   onSymbolChange,
+  onMax,
   children,
 }: {
   label: string;
@@ -54,6 +55,8 @@ export function QuoteLeg({
   options: SelectOption[];
   tone?: keyof typeof TONE;
   onSymbolChange: (next: string) => void;
+  /** Draws a MAX chip beside the balance; the caller decides what "max" leaves behind. */
+  onMax?: () => void;
   /** The value — an input on the send leg, plain text on the receive leg. */
   children: ReactNode;
 }) {
@@ -78,8 +81,19 @@ export function QuoteLeg({
         />
 
         {balance === undefined ? null : (
-          <span className="flex items-center gap-1 text-[10px] leading-3 font-bold text-jumpa-primary-400">
+          <span className="flex items-center gap-1.5 text-[10px] leading-3 font-bold text-jumpa-primary-400">
             Balance: {formatBalance(balance)}
+            {onMax ? (
+              // -my-0.5 keeps the 16px chip inside the 12px line; the after: layer widens the tap target.
+              <button
+                type="button"
+                onClick={onMax}
+                aria-label={`Use maximum ${symbol}`}
+                className="tap relative -my-0.5 rounded-pill bg-jumpa-primary-525 px-1.5 py-0.5 text-[10px] leading-3 font-bold text-jumpa-alt-400 after:absolute after:-inset-2 after:content-[''] active:scale-95"
+              >
+                MAX
+              </button>
+            ) : null}
           </span>
         )}
       </span>

@@ -2,7 +2,22 @@
 import type { ChatAttachment } from "@/lib/chat-attachments";
 
 /** Muted lead-in followed by an emphasised value, e.g. "Fee **0.3 XLM**". */
-export type Stat = { lead?: string; value: string; badge?: string; chain?: string };
+export type Stat = {
+  lead?: string;
+  value: string;
+  badge?: string;
+  chain?: string;
+  /** ISO instant. When set, the value is rendered on the viewer's clock, not the server's UTC one. */
+  at?: string;
+};
+
+/** "09:11 AM" — the receipt's time, in whatever zone it is formatted in. */
+export function formatClock(date: Date | string): string {
+  return new Date(date).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 /** White row inside a card: caption above a value, with an optional badge. */
 export type CardRow = {

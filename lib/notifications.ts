@@ -7,6 +7,8 @@ export type Notification = {
   body: string;
   time: string;
   read: boolean;
+  /** Rendered on the device's clock; `time` is the server's UTC formatting of it. */
+  createdAt?: string | Date;
 };
 
 /**

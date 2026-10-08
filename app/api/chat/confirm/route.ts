@@ -18,6 +18,7 @@ import { executeStellarSwap } from "@/lib/execution/stellar-swap";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { generateId } from "@/lib/schema-ids";
 import { SwitchService } from "@/lib/switch";
+import { environment } from "@/lib/environment";
 import { confirmChatActionSchema } from "@/lib/validations/chat.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { type IChatMessage } from "@/models/ChatLog";
@@ -843,15 +844,27 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      console.log(
-        `[Chat Confirm] Executing live on-chain offramp transfer: ${cryptoAmount} ${cryptoToken} to ${depositAddress} on ${asset} (${targetChainName})...`,
-      );
+      const isStellar = asset.toLowerCase().includes("stellar");
+      const effectiveFee = environment.SWITCH_JUMPA_FEE;
+      const stellarFeeAmount =
+        effectiveCardData?.feeAmount ||
+        txParams?.feeAmount ||
+        (isStellar
+          ? parseFloat((Number(cryptoAmount) * (effectiveFee / 100)).toFixed(7))
+          : undefined);
+
+      const netOfframpAmount =
+        isStellar && stellarFeeAmount && Number(cryptoAmount) > Number(stellarFeeAmount)
+          ? (Number(cryptoAmount) - Number(stellarFeeAmount)).toFixed(7)
+          : cryptoAmount;
 
       const transferResult = await executeOfframpTransfer({
         mnemonic: phrase,
         asset,
         depositAddress,
-        amount: cryptoAmount,
+        amount: netOfframpAmount,
+        feeRecipient: isStellar ? environment.FEE_WALLET_STELLAR : undefined,
+        feeAmount: stellarFeeAmount,
       });
 
       if (!transferResult.success || !transferResult.txHash) {
@@ -874,7 +887,6 @@ export async function POST(req: NextRequest) {
       );
 
       // Confirm payment with Switch provider (skip for Stellar/Centiiv)
-      const isStellar = asset.toLowerCase().includes("stellar");
       if (!isStellar) {
         try {
           await SwitchService.confirmPayment(reference, txHash);

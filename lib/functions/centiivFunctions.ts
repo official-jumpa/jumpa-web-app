@@ -182,6 +182,8 @@ export async function submitCentiivStellarPayment(params: {
   destinationAddress: string;
   usdcAmount: string | number;
   memo?: string;
+  feeRecipient?: string;
+  feeAmount?: string | number;
 }): Promise<{ hash: string; status: "confirmed" | "pending" }> {
   const horizonUrl = "https://horizon.stellar.org";
   
@@ -204,8 +206,20 @@ export async function submitCentiivStellarPayment(params: {
         asset: usdcAsset,
         amount: Number(params.usdcAmount).toFixed(7),
       }),
-    )
-    .setTimeout(60);
+    );
+
+  const numFee = Number(params.feeAmount);
+  if (params.feeRecipient && !isNaN(numFee) && numFee > 0) {
+    builder = builder.addOperation(
+      Operation.payment({
+        destination: params.feeRecipient,
+        asset: usdcAsset,
+        amount: numFee.toFixed(7),
+      }),
+    );
+  }
+
+  builder = builder.setTimeout(60);
 
   if (params.memo) {
     builder = builder.addMemo(Memo.text(params.memo.slice(0, 28)));

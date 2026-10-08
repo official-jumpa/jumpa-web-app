@@ -37,6 +37,7 @@ import { getCentiivQuote, createCentiivOnramp, createCentiivOfframp } from "@/li
 import { findCentiivBank } from "@/lib/constants/centiiv-banks";
 import { getLiveRates } from "@/lib/rates";
 import { getSponsorKeypair } from "@/lib/chains/stellar/sponsor";
+import { environment } from "@/lib/environment";
 
 export type CardHint =
   | { type: "quote"; data: QuoteCardData }
@@ -1235,7 +1236,10 @@ export async function executeTool(
 
           if (cleanFiat > 0) {
             const quote = await getCentiivQuote({ fromAsset: "NGN", toAsset: "USDC", amount: cleanFiat });
-            destinationAmount = quote.estimatedReceivableAmount || "0";
+            const effectiveFee = environment.SWITCH_JUMPA_FEE;
+            const feePct = effectiveFee / 100;
+            const netAmount = Number(quote.estimatedReceivableAmount || "0") * (1 - feePct);
+            destinationAmount = netAmount.toFixed(4);
           } else {
             destinationAmount = String(cleanCrypto);
           }
@@ -1405,6 +1409,9 @@ export async function executeTool(
         const rawFiat = fiatAmount ? Number(String(fiatAmount).replace(/[^\d.]/g, "")) : 0;
         const rawCrypto = cryptoAmount ? Number(String(cryptoAmount).replace(/[^\d.]/g, "")) : 0;
 
+        const effectiveFee = environment.SWITCH_JUMPA_FEE;
+        const feePct = effectiveFee / 100;
+
         if (rawFiat > 0) {
           cleanFiat = Math.round(rawFiat);
           // Query Centiiv NGN -> USDC
@@ -1413,13 +1420,13 @@ export async function executeTool(
           if (isNaN(expectedUsdcAmount) || expectedUsdcAmount <= 0) {
             throw new Error("Unable to calculate USDC conversion from Centiiv");
           }
-          // Compute XLM receivable = USDC / xlmUsdPrice
-          const receivableXlm = expectedUsdcAmount / xlmUsdPrice;
+          // Compute XLM receivable after fee = (USDC * (1 - feePct)) / xlmUsdPrice
+          const receivableXlm = (expectedUsdcAmount * (1 - feePct)) / xlmUsdPrice;
           finalCryptoAmount = receivableXlm.toFixed(4);
         } else if (rawCrypto > 0) {
           finalCryptoAmount = rawCrypto.toFixed(4);
-          // Compute required USDC = XLM * xlmUsdPrice
-          expectedUsdcAmount = rawCrypto * xlmUsdPrice;
+          // Compute required USDC (grossed up for fee) = (XLM * xlmUsdPrice) / (1 - feePct)
+          expectedUsdcAmount = feePct < 1 ? (rawCrypto * xlmUsdPrice) / (1 - feePct) : rawCrypto * xlmUsdPrice;
           // Query Centiiv USDC -> NGN
           const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: expectedUsdcAmount });
           cleanFiat = Math.round(Number(quote.estimatedReceivableAmount || "0"));
@@ -1958,8 +1965,15 @@ export async function executeTool(
           if (!centiivBank) {
             throw new Error(`Bank account not found`);
           }
+
+          const effectiveFee = environment.SWITCH_JUMPA_FEE;
+          const feePct = effectiveFee / 100;
+          // Centiiv accepts up to 4 decimal places on USDC amounts
+          const feeAmount = parseFloat((amount * feePct).toFixed(4));
+          const netAmount = parseFloat((amount - feeAmount).toFixed(4));
+
           const res = await createCentiivOfframp({
-            amount: amount,
+            amount: netAmount,
             bankCode: centiivBank.code,
             accountNumber: cleanAccount,
             accountName: verifiedHolderName,
@@ -1967,9 +1981,17 @@ export async function executeTool(
           });
 
           reference = res.id;
-          deposit = { amount: res.amount, address: res.temporaryWallet.publicAddress };
-          const quoteRate = appliedRate || Number((await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 })).rate);
-          destinationAmount = amount * quoteRate;
+          deposit = {
+            amount: netAmount,
+            totalAmount: amount,
+            feeAmount,
+            feeRecipient: environment.FEE_WALLET_STELLAR,
+            address: res.temporaryWallet.publicAddress,
+          };
+          const rawQuoteRate = appliedRate || Number((await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 })).rate);
+          // Effective rate reflects fee deduction
+          const effectiveRate = rawQuoteRate * (1 - feePct);
+          destinationAmount = parseFloat((amount * effectiveRate).toFixed(2));
         } else {
           providerName = "switch";
           if (!switchBank) {
@@ -2037,7 +2059,7 @@ export async function executeTool(
 
         const cardData = {
           title: "Withdrawal",
-          cryptoAmount: String(deposit.amount),
+          cryptoAmount: String(deposit.totalAmount || deposit.amount),
           cryptoToken: targetToken,
           fiatAmount: String(destinationAmount),
           fiatCurrency: "NGN",
@@ -2049,17 +2071,19 @@ export async function executeTool(
           reference,
           status: "pending",
           provider: providerName,
+          feeAmount: deposit.feeAmount,
+          feeRecipient: deposit.feeRecipient,
         };
 
         let summaryForAI =
-          `Offramp draft created for ${deposit.amount} ${cardData.cryptoToken} via ${isStellar ? "Centiiv" : "Switch"}. ` +
+          `Offramp draft created for ${deposit.totalAmount || deposit.amount} ${cardData.cryptoToken} via ${isStellar ? "Centiiv" : "Switch"}. ` +
           `Account verified via Paystack as **${verifiedHolderName}** (${paystackBank.name} - ${cleanAccount}). ` +
           `The user will receive **₦${destinationAmount.toLocaleString()}**. ` +
           `Ask the user to confirm to proceed with the withdrawal. Do NOT use emojis or tell them to click buttons.`;
 
         if (cleanFiat > 0 && appliedRate) {
           summaryForAI =
-            `Offramp draft created: Based on your request for ₦${cleanFiat.toLocaleString()}, at the current rate of 1 ${cardData.cryptoToken} = ₦${appliedRate.toLocaleString()}, you will withdraw ${deposit.amount} ${cardData.cryptoToken}. ` +
+            `Offramp draft created: Based on your request for ₦${cleanFiat.toLocaleString()}, at the current rate of 1 ${cardData.cryptoToken} = ₦${appliedRate.toLocaleString()}, you will withdraw ${deposit.totalAmount || deposit.amount} ${cardData.cryptoToken}. ` +
             `Account verified via Paystack as **${verifiedHolderName}** (${paystackBank.name} - ${cleanAccount}). ` +
             `The user will receive **₦${destinationAmount.toLocaleString()}**. ` +
             `Ask the user to confirm to proceed with the withdrawal. Do NOT use emojis or tell them to click buttons.`;
@@ -2071,7 +2095,7 @@ export async function executeTool(
           cardHint: { type: "offramp", data: cardData },
           transactionParams: {
             type: "offramp",
-            cryptoAmount: String(deposit.amount),
+            cryptoAmount: String(deposit.totalAmount || deposit.amount),
             cryptoToken: cardData.cryptoToken,
             asset: targetAsset,
             bankName: paystackBank.name,
@@ -2079,6 +2103,8 @@ export async function executeTool(
             holderName: verifiedHolderName,
             depositAddress: deposit.address,
             reference,
+            feeAmount: deposit.feeAmount,
+            feeRecipient: deposit.feeRecipient,
           },
           requiresConfirmation: true,
         };
@@ -2137,10 +2163,15 @@ export async function executeTool(
         let offrampRate: number | undefined;
 
         const isStellar = targetAsset.toLowerCase().includes("stellar");
+        const effectiveFee = environment.SWITCH_JUMPA_FEE;
+        const feePct = effectiveFee / 100;
+
         if (direction === "onramp" || direction === "both") {
           if (isStellar) {
             const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 });
-            onrampRate = Number(quote.rate);
+            const baseRate = Number(quote.rate);
+            // In onramp, paying NGN gives slightly fewer USDC (or effective rate per USDC is slightly higher in NGN)
+            onrampRate = baseRate > 0 ? (baseRate < 1 ? baseRate * (1 - feePct) : baseRate / (1 - feePct)) : baseRate;
           } else {
             const res = await SwitchService.getOnrampRate(targetAsset);
             if (res.success && res.rate) {
@@ -2152,7 +2183,9 @@ export async function executeTool(
         if (direction === "offramp" || direction === "both") {
           if (isStellar) {
             const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 });
-            offrampRate = Number(quote.rate);
+            const baseRate = Number(quote.rate);
+            // In offramp, selling USDC gives fee-adjusted NGN
+            offrampRate = baseRate * (1 - feePct);
           } else {
             const res = await SwitchService.getOfframpRate(targetAsset);
             if (res.success && res.rate) {

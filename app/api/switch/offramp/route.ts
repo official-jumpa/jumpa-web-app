@@ -154,10 +154,17 @@ export async function POST(req: NextRequest) {
 
       // Get temporary wallet from Centiiv
       const { createCentiivOfframp } = await import("@/lib/functions/centiivFunctions");
+      const { environment } = await import("@/lib/environment");
+      const effectiveFee = environment.SWITCH_JUMPA_FEE;
+      const feePct = effectiveFee / 100;
+      // Centiiv accepts up to 4 decimal places on USDC amounts
+      const feeAmount = parseFloat((cryptoAmount * feePct).toFixed(4));
+      const netCrypto = parseFloat((cryptoAmount - feeAmount).toFixed(4));
+
       try {
         t = performance.now();
         const centiivOrder = await createCentiivOfframp({
-          amount: cryptoAmount,
+          amount: netCrypto,
           bankCode: centiivBank.code,
           accountNumber: accountNumber.trim(),
           accountName: holderName.trim(),
@@ -169,7 +176,10 @@ export async function POST(req: NextRequest) {
           provider: "centiiv",
           reference: centiivOrder.id,
           deposit: {
-            amount: cryptoAmount,
+            amount: netCrypto,
+            totalAmount: cryptoAmount,
+            feeAmount,
+            feeRecipient: environment.FEE_WALLET_STELLAR,
             address: centiivOrder.temporaryWallet.publicAddress,
             asset: "USDC",
           },
@@ -177,7 +187,7 @@ export async function POST(req: NextRequest) {
             amount: fiatAmount,
             currency: "NGN",
           },
-          rate: (fiatAmount || 0) / cryptoAmount, // Approximate rate
+          rate: (fiatAmount || 0) / cryptoAmount, // Effective rate after fee
         };
       } catch (err: any) {
         return NextResponse.json({ success: false, error: err.message || "Centiiv offramp initiation failed" }, { status: 500 });
@@ -326,6 +336,8 @@ export async function POST(req: NextRequest) {
         asset,
         depositAddress: deposit.address,
         amount: deposit.amount,
+        feeRecipient: deposit.feeRecipient,
+        feeAmount: deposit.feeAmount,
       });
       console.log(`[Offramp] executeOfframpTransfer (${txChain} tx): ${elapsed(t)}`);
 

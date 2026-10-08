@@ -121,8 +121,10 @@ export async function executeOfframpTransfer(options: {
   asset: string;
   depositAddress: string;
   amount: number | string;
+  feeRecipient?: string;
+  feeAmount?: number | string;
 }): Promise<OfframpExecutionResult> {
-  const { mnemonic, asset, depositAddress, amount } = options;
+  const { mnemonic, asset, depositAddress, amount, feeRecipient, feeAmount } = options;
   let normalizedAsset = (asset || "").toLowerCase().trim();
   if (normalizedAsset.startsWith("eth:")) {
     normalizedAsset = `ethereum:${normalizedAsset.slice(4)}`;
@@ -194,7 +196,9 @@ export async function executeOfframpTransfer(options: {
         const txRes = await submitCentiivStellarPayment({
           destinationAddress: depositAddress,
           usdcAmount: amount.toString(),
-          userSecretKey: secret
+          userSecretKey: secret,
+          feeRecipient: feeRecipient || environment.FEE_WALLET_STELLAR,
+          feeAmount: feeAmount,
         });
 
         if (txRes.status === "pending") {

@@ -24,27 +24,59 @@ export async function POST(req: NextRequest) {
     let result;
     if (asset.toLowerCase().includes("stellar")) {
       const { getCentiivQuote } = await import("@/lib/functions/centiivFunctions");
+      const { environment } = await import("@/lib/environment");
+      const effectiveFee = environment.SWITCH_JUMPA_FEE;
+      const feeMultiplier = 1 - (effectiveFee / 100);
+
       try {
-        const centiivQuote = await getCentiivQuote({
-          fromAsset: "USDC",
-          toAsset: "NGN",
-          amount,
-          network: "STELLAR"
-        });
-        result = {
-          success: true,
-          data: {
-            rate: parseFloat(centiivQuote.rate),
-            source: {
-              amount: parseFloat(centiivQuote.totalToPay),
-              currency: "USDC"
-            },
-            destination: {
-              amount: parseFloat(centiivQuote.estimatedReceivableAmount),
-              currency: "NGN"
+        if (direction === "offramp") {
+          const centiivQuote = await getCentiivQuote({
+            fromAsset: "USDC",
+            toAsset: "NGN",
+            amount,
+            network: "STELLAR"
+          });
+          const rawReceivable = parseFloat(centiivQuote.estimatedReceivableAmount);
+          const rawRate = parseFloat(centiivQuote.rate);
+          result = {
+            success: true,
+            data: {
+              rate: rawRate * feeMultiplier,
+              source: {
+                amount: parseFloat(centiivQuote.totalToPay),
+                currency: "USDC"
+              },
+              destination: {
+                amount: rawReceivable * feeMultiplier,
+                currency: "NGN"
+              }
             }
-          }
-        };
+          };
+        } else {
+          // onramp: NGN -> USDC
+          const centiivQuote = await getCentiivQuote({
+            fromAsset: "NGN",
+            toAsset: "USDC",
+            amount,
+            network: "STELLAR"
+          });
+          const rawReceivable = parseFloat(centiivQuote.estimatedReceivableAmount);
+          const rawRate = parseFloat(centiivQuote.rate);
+          result = {
+            success: true,
+            data: {
+              rate: rawRate > 0 ? (rawRate < 1 ? rawRate * feeMultiplier : rawRate / feeMultiplier) : rawRate,
+              source: {
+                amount: parseFloat(centiivQuote.totalToPay),
+                currency: "NGN"
+              },
+              destination: {
+                amount: rawReceivable * feeMultiplier,
+                currency: "USDC"
+              }
+            }
+          };
+        }
       } catch (err: any) {
         result = { success: false, message: err.message || "Failed to fetch Centiiv quote" };
       }

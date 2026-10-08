@@ -202,6 +202,7 @@ export function KycCaptureScreen({
   documentType,
   defaultIdNumber,
   initialMediaId,
+  initialPreview,
   onDone,
 }: {
   title: string;
@@ -211,10 +212,12 @@ export function KycCaptureScreen({
   documentType?: string;
   defaultIdNumber?: string;
   initialMediaId?: string;
+  /** The parent's object URL for the selfie already taken; owned and revoked there. */
+  initialPreview?: string;
   onDone: (data: { file?: File; idNumber?: string; mediaId?: string }) => void;
 }) {
   const isSelfie = shape === "oval";
-  const [preview, setPreview] = useState<string | null>(null);
+  const [preview, setPreview] = useState<string | null>(initialPreview ?? null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [idNumber, setIdNumber] = useState(
     formatIdInput(defaultIdNumber || "", documentType),
@@ -264,9 +267,9 @@ export function KycCaptureScreen({
   // Clean up object URL on unmount or preview reset
   useEffect(() => {
     return () => {
-      if (preview) URL.revokeObjectURL(preview);
+      if (preview && preview !== initialPreview) URL.revokeObjectURL(preview);
     };
-  }, [preview]);
+  }, [preview, initialPreview]);
 
   // Stop camera tracks cleanly
   const stopCamera = () => {
@@ -813,7 +816,7 @@ export function KycCaptureScreen({
 
   // Retake selfie: restarts the live camera and liveness detection
   const handleRetakeSelfie = () => {
-    if (preview) URL.revokeObjectURL(preview);
+    if (preview && preview !== initialPreview) URL.revokeObjectURL(preview);
     setPreview(null);
     setSelectedFile(null);
     setUploadedMediaId(null);
@@ -892,7 +895,7 @@ export function KycCaptureScreen({
   const blocked = cameraState === "denied" || cameraState === "unsupported";
   const tone =
     TONE[
-    preview
+    preview || (isSelfie && uploadedMediaId)
       ? "good"
       : isSelfie && blocked
         ? "danger"
@@ -983,6 +986,23 @@ export function KycCaptureScreen({
                 alt="Captured selfie preview"
                 className="size-full object-cover"
               />
+            ) : uploadedMediaId ? (
+              // Stored on the server, but the photo did not survive a reload. The
+              // spacer sizes the frame the way the camera feed's own width does.
+              <>
+                <span
+                  aria-hidden="true"
+                  className="block h-px w-160 max-w-full"
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center">
+                  <span className="flex size-12 items-center justify-center rounded-full bg-jumpa-success/10 text-jumpa-success">
+                    <CheckIcon aria-hidden="true" className="size-6" />
+                  </span>
+                  <span className="text-sm leading-5 font-semibold text-jumpa-black">
+                    Selfie saved
+                  </span>
+                </div>
+              </>
             ) : blocked ? (
               <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
                 <span className="flex size-12 items-center justify-center rounded-full bg-jumpa-danger-50 text-jumpa-danger">
@@ -1085,23 +1105,23 @@ export function KycCaptureScreen({
               </span>
             )}
           </div>
-
-          {/* Retake Selfie */}
-          {preview && (
-            <div className="mt-3 flex justify-end">
-              <button
-                type="button"
-                onClick={handleRetakeSelfie}
-                className="tap flex items-center gap-1.5 rounded-pill bg-jumpa-neutral-50 px-3.5 py-2 text-xs leading-4 font-semibold text-jumpa-neutral-700 active:scale-95"
-              >
-                <RefreshIcon aria-hidden="true" className="size-3.5 shrink-0" />
-                Retake selfie
-              </button>
-            </div>
-          )}
         </div>
       ) : (
         <></>
+      )}
+
+      {/* Under the oval, not in its row: a sibling there squeezes the frame to its minimum. */}
+      {isSelfie && (preview || uploadedMediaId) && !uploading && (
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            onClick={handleRetakeSelfie}
+            className="tap flex items-center gap-1.5 rounded-pill bg-jumpa-neutral-50 px-3.5 py-2 text-xs leading-4 font-semibold text-jumpa-neutral-700 active:scale-95"
+          >
+            <RefreshIcon aria-hidden="true" className="size-3.5 shrink-0" />
+            Retake selfie
+          </button>
+        </div>
       )}
 
       {/* Liveness rail and status */}
@@ -1185,7 +1205,7 @@ export function KycCaptureScreen({
               Uploading selfie
             </span>
           </Button>
-        ) : !preview ? (
+        ) : !preview && !uploadedMediaId ? (
           blocked ? (
             <Button variant="gradient" size="lg" onClick={startCamera}>
               <span className="flex items-center gap-2">

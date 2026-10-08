@@ -77,6 +77,14 @@ export function KycView({
   const [selfieMediaId, setSelfieMediaId] = useState<string | null>(
     isFailedInitial ? null : (initialKycData?.selfieMediaId ?? null),
   );
+  // Kept so reopening the selfie step shows the photo instead of an empty oval.
+  const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (selfiePreview) URL.revokeObjectURL(selfiePreview);
+    };
+  }, [selfiePreview]);
 
   // API Submission state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -230,10 +238,29 @@ export function KycView({
     if (data.mediaId) {
       setSelfieMediaId(data.mediaId);
     }
+    if (data.file) {
+      setSelfiePreview(URL.createObjectURL(data.file));
+    }
     setDone((tasks) =>
       tasks.includes("selfie") ? tasks : [...tasks, "selfie"],
     );
     setStage("tasks");
+  };
+
+  // A failed attempt wipes the selfie server-side and the provider won't take it
+  // again, so follow the record rather than resubmit a dead media ID.
+  const dropStaleSelfie = async () => {
+    try {
+      const res = await fetch("/api/kyc");
+      if (!res.ok) return;
+      const record = (await res.json()) as { selfieMediaId?: string | null };
+      if (record.selfieMediaId) return;
+      setSelfieMediaId(null);
+      setSelfiePreview(null);
+      setDone((tasks) => tasks.filter((task) => task !== "selfie"));
+    } catch {
+      // Leave the selfie as it is; the next attempt reports its own error.
+    }
   };
 
   const handleExecuteVerification = async () => {
@@ -249,6 +276,7 @@ export function KycView({
 
     setIsSubmitting(true);
     setApiError(null);
+    let succeeded = false;
 
     const payload = {
       idType: document.id,
@@ -267,6 +295,7 @@ export function KycView({
       const data = (await res.json()) as Record<string, unknown>;
 
       if (res.ok && (data.success || data.status === "approved")) {
+        succeeded = true;
         if (data.verificationId) {
           setLastVerificationId(String(data.verificationId));
         }
@@ -304,6 +333,7 @@ export function KycView({
       console.error("[KYC View] Submission network error:", err);
       setApiError("Unable to reach the verification service. Please check your internet connection and try again.");
     } finally {
+      if (!succeeded) await dropStaleSelfie();
       setIsSubmitting(false);
     }
   };
@@ -367,6 +397,7 @@ export function KycView({
           shape="oval"
           mode="camera"
           initialMediaId={selfieMediaId || undefined}
+          initialPreview={selfiePreview || undefined}
           onDone={completeSelfieTask}
         />
       ) : null}

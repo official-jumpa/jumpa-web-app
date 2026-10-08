@@ -115,6 +115,24 @@ function parseSwitchError(errorMsg: string): string {
   return errorMsg;
 }
 
+/**
+ * Returns the appropriate treasury fee recipient wallet for a given asset network.
+ * Uses environment configuration for EVM, Solana, and Stellar.
+ */
+export function getSwitchFeeRecipient(asset: string): string | undefined {
+  const normAsset = normalizeSwitchAsset(asset);
+  if (normAsset.startsWith("solana:")) {
+    return environment.FEE_WALLET_SOLANA?.trim() || undefined;
+  }
+  if (normAsset.startsWith("stellar:")) {
+    return environment.FEE_WALLET_STELLAR?.trim() || undefined;
+  }
+  if (normAsset.startsWith("base:") || normAsset.startsWith("ethereum:")) {
+    return environment.FEE_WALLET_EVM?.trim() || undefined;
+  }
+  return undefined;
+}
+
 export class SwitchService {
   private static readonly BASE_URL = "https://api.onswitch.xyz";
 
@@ -140,7 +158,8 @@ export class SwitchService {
     }
 
     try {
-      const payload = {
+      const feeRecipient = getSwitchFeeRecipient(normAsset);
+      const payload: Record<string, any> = {
         amount: amount,
         country: "NG",
         currency: "NGN",
@@ -154,6 +173,10 @@ export class SwitchService {
         developer_fee: environment.SWITCH_JUMPA_FEE,
         rail: "NIBSS"
       };
+
+      if (environment.SWITCH_JUMPA_FEE > 0 && feeRecipient) {
+        payload.developer_recipient = feeRecipient;
+      }
 
       console.log("[SwitchService] Initiating onramp:", JSON.stringify(payload, null, 2));
 
@@ -199,7 +222,8 @@ export class SwitchService {
     }
 
     try {
-      const payload = {
+      const feeRecipient = getSwitchFeeRecipient(normAsset);
+      const payload: Record<string, any> = {
         amount: amount,
         country: "NG",
         currency: "NGN",
@@ -208,6 +232,10 @@ export class SwitchService {
         exact_output: false, 
         developer_fee: environment.SWITCH_JUMPA_FEE
       };
+
+      if (environment.SWITCH_JUMPA_FEE > 0 && feeRecipient) {
+        payload.developer_recipient = feeRecipient;
+      }
 
       const response = await fetch(`${this.BASE_URL}/onramp/quote`, {
         method: "POST",
@@ -313,7 +341,8 @@ export class SwitchService {
     }
 
     try {
-      const payload = {
+      const feeRecipient = getSwitchFeeRecipient(normAsset);
+      const payload: Record<string, any> = {
         amount,
         country: "NG",
         currency: "NGN",
@@ -322,6 +351,10 @@ export class SwitchService {
         exact_output: false, 
         developer_fee: environment.SWITCH_JUMPA_FEE
       };
+
+      if (environment.SWITCH_JUMPA_FEE > 0 && feeRecipient) {
+        payload.developer_recipient = feeRecipient;
+      }
 
       const response = await fetch(`${this.BASE_URL}/offramp/quote`, {
         method: "POST",
@@ -370,7 +403,8 @@ export class SwitchService {
     }
 
     try {
-      const payload = {
+      const feeRecipient = getSwitchFeeRecipient(normAsset);
+      const payload: Record<string, any> = {
         amount,
         country: "NG",
         currency: "NGN",
@@ -385,8 +419,11 @@ export class SwitchService {
         reason: "REMITTANCES",
         exact_output: false,
         developer_fee: environment.SWITCH_JUMPA_FEE
-
       };
+
+      if (environment.SWITCH_JUMPA_FEE > 0 && feeRecipient) {
+        payload.developer_recipient = feeRecipient;
+      }
 
       console.log("[SwitchService] Initiating offramp:", payload);
 

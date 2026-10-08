@@ -59,6 +59,7 @@ export const environment = {
     "https://api.devnet.solana.com",
 
   // EVM & Alchemy Config
+  FEE_WALLET_EVM: process.env.FEE_WALLET_EVM || "",
   EVM_RPC_URL:
     (process.env.EVM_RPC_URL && !process.env.EVM_RPC_URL.includes("solana")
       ? process.env.EVM_RPC_URL

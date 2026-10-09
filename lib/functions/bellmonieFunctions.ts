@@ -621,45 +621,49 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
     memo: `Withdrawal to ${resolvedBankName} (${params.accountNumber})`,
   });
 
-  let transferRes;
-  try {
-    // 6. Execute downstream transfer on Bellmonie from Jumpa master pool
-    transferRes = await bellmonieBankTransfer({
-      beneficiaryBankCode: resolvedBankCode || "010",
-      beneficiaryAccountNumber: params.accountNumber,
-      amount: params.amount,
-      narration: params.narration || `Withdrawal to ${params.accountName}`,
-      reference,
-      senderName: userAccount.accountName || "Jumpa User",
-    });
-  } catch (transferErr: any) {
-    console.error("[Bellmonie Withdrawal] bank transfer failed. Rolling back pre-debit:", transferErr.message);
-    // Automatic rollback / refund
-    await atomicCreditNgnBalance({
-      userId: params.userId,
-      amount: totalDebited,
-      reference: `${reference}-rollback`,
-      memo: `Refund for failed transfer attempt: ${transferErr.message}`,
-      eventId: `${reference}-rollback`,
-    }).catch((rollbackErr) => {
-      console.error("[Bellmonie Withdrawal CRITICAL] Rollback credit failed:", rollbackErr);
-    });
-    throw transferErr;
-  }
+  let transferRes: { status: string; sessionId?: string } = { status: "success" };
 
-  // Credit recipient if internal Jumpa user
-  if (internalRecipient && internalRecipient.userId !== params.userId) {
-    await atomicCreditNgnBalance({
-      userId: internalRecipient.userId,
-      amount: params.amount,
-      reference,
-      memo: `Transfer from ${userAccount.accountName || "Jumpa User"}`,
-      senderName: userAccount.accountName || "Jumpa User",
-      senderAccountNumber: userAccount.accountNumber,
-      senderBank: "Bloc MFB",
-    }).catch((err) => {
-      console.error("[Bellmonie P2P] Internal credit error:", err);
-    });
+  if (isInternal) {
+    // INTERNAL BLOC-TO-BLOC TRANSFER (Database-Only)
+    if (internalRecipient && internalRecipient.userId !== params.userId) {
+      await atomicCreditNgnBalance({
+        userId: internalRecipient.userId,
+        amount: params.amount,
+        reference,
+        memo: `Transfer from ${userAccount.accountName || "Jumpa User"}`,
+        senderName: userAccount.accountName || "Jumpa User",
+        senderAccountNumber: userAccount.accountNumber,
+        senderBank: "Bloc MFB",
+      }).catch((err) => {
+        console.error("[Bellmonie P2P] Internal credit error:", err);
+      });
+    }
+  } else {
+    // EXTERNAL TRANSFER (Bellmonie API Payout)
+    try {
+      // Execute downstream transfer on Bellmonie from Jumpa master pool
+      transferRes = await bellmonieBankTransfer({
+        beneficiaryBankCode: resolvedBankCode || "010",
+        beneficiaryAccountNumber: params.accountNumber,
+        amount: params.amount,
+        narration: params.narration || `Withdrawal to ${params.accountName}`,
+        reference,
+        senderName: userAccount.accountName || "Jumpa User",
+      });
+    } catch (transferErr: any) {
+      console.error("[Bellmonie Withdrawal] bank transfer failed. Rolling back pre-debit:", transferErr.message);
+      // Automatic rollback / refund
+      await atomicCreditNgnBalance({
+        userId: params.userId,
+        amount: totalDebited,
+        reference: `${reference}-rollback`,
+        memo: `Refund for failed transfer attempt: ${transferErr.message}`,
+        eventId: `${reference}-rollback`,
+      }).catch((rollbackErr) => {
+        console.error("[Bellmonie Withdrawal CRITICAL] Rollback credit failed:", rollbackErr);
+      });
+      throw transferErr;
+    }
   }
 
   // 7. Record confirmed Transaction
@@ -681,7 +685,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
       accountName: params.accountName,
       reference,
     },
-    memo: params.narration || `Withdrawal to ${params.accountName}`,
+    memo: params.narration || (isInternal ? `Transfer to ${params.accountName}` : `Withdrawal to ${params.accountName}`),
     txHash: transferRes.sessionId || reference,
     executedAt: new Date(),
   });

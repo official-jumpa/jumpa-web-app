@@ -1,9 +1,11 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { CreateGoalForm } from "@/components/savings/hub/create-goal-form";
 import { GoalDetail } from "@/components/savings/hub/goal-detail";
 import { HubOverview } from "@/components/savings/hub/hub-overview";
+import { MomentSheet } from "@/components/savings/hub/moments/moment-sheet";
+import { SavingStorySheet } from "@/components/savings/hub/moments/saving-story-sheet";
 import { SavingsIntroSheet } from "@/components/savings/savings-intro-sheet";
 import { SAVINGS_INTROS } from "@/components/savings/savings-intros";
 import type { SavingsKind } from "@/lib/savings";
@@ -19,12 +21,27 @@ import {
   slideDirection,
   withDeposit,
 } from "@/lib/savings-hub";
+import {
+  goalMoment,
+  type Moment,
+  newMoments,
+  weeklyStreak,
+} from "@/lib/savings-moments";
 
 /** The stages share one URL, so every Back is a handler, not history. */
 type Stage =
   | { screen: "hub" }
   | { screen: "detail"; id: string }
   | { screen: "create"; kind: SavingsKind };
+
+/** One sheet at a time over whichever stage is showing. */
+type Overlay =
+  | { type: "story" }
+  | { type: "moment"; moments: Moment[]; celebrate: boolean }
+  | null;
+
+/** Long enough for the progress bar to visibly move before anything covers it. */
+const CELEBRATE_AFTER_MS = 450;
 
 /**
  * Prototype of a single savings hub (`/savings-1`): every plan in one place,
@@ -40,6 +57,25 @@ export function SavingsOption1View() {
   const [intro, setIntro] = useState<SavingsKind | null>(null);
   // Only a switch slides the hub; arriving from another stage just fades.
   const [motion, setMotion] = useState<HubMotion | null>(null);
+  const [overlay, setOverlay] = useState<Overlay>(null);
+  const celebrateTimer = useRef<number>(undefined);
+  const streak = useMemo(() => weeklyStreak(goals), [goals]);
+
+  useEffect(() => () => window.clearTimeout(celebrateTimer.current), []);
+
+  /** Applies a change and, if it earned anything, celebrates it once the screen has caught up. */
+  const commit = (next: HubGoal[]) => {
+    const earned = newMoments(goals, next);
+    setGoals(next);
+    window.clearTimeout(celebrateTimer.current);
+    if (earned.length === 0) return;
+    celebrateTimer.current = window.setTimeout(
+      () => setOverlay({ type: "moment", moments: earned, celebrate: true }),
+      CELEBRATE_AFTER_MS,
+    );
+  };
+  const share = (moment: Moment) =>
+    setOverlay({ type: "moment", moments: [moment], celebrate: false });
 
   const go = (next: Stage) => {
     setStage(next);
@@ -73,8 +109,8 @@ export function SavingsOption1View() {
         goal={selected}
         onBack={toHub}
         onTopUp={(amount) =>
-          setGoals((all) =>
-            all.map((goal) =>
+          commit(
+            goals.map((goal) =>
               goal.id === selected.id ? withDeposit(goal, amount) : goal,
             ),
           )
@@ -89,6 +125,7 @@ export function SavingsOption1View() {
           window.scrollTo({ top: 0 });
         }}
         onSaveAgain={() => go({ screen: "create", kind: selected.kind })}
+        onShare={() => share(goalMoment(selected))}
       />
     );
   } else if (stage.screen === "create") {
@@ -98,7 +135,7 @@ export function SavingsOption1View() {
         currency={currency}
         onBack={toHub}
         onCreate={(goal) => {
-          setGoals((all) => [goal, ...all]);
+          commit([goal, ...goals]);
           setCurrency(goal.currency);
           setTab("active");
           go({ screen: "detail", id: goal.id });
@@ -112,9 +149,11 @@ export function SavingsOption1View() {
         currency={currency}
         tab={tab}
         motion={motion}
+        streak={streak}
         onCurrency={switchCurrency}
         onTab={switchTab}
         onNew={() => go({ screen: "create", kind: "individual" })}
+        onStory={() => setOverlay({ type: "story" })}
         onPick={setIntro}
         onOpen={(goal) => go({ screen: "detail", id: goal.id })}
       />
@@ -143,6 +182,27 @@ export function SavingsOption1View() {
           onContinue={() => {
             setIntro(null);
             go({ screen: "create", kind: intro });
+          }}
+        />
+      ) : null}
+
+      {overlay?.type === "story" ? (
+        <SavingStorySheet
+          goals={goals}
+          onClose={() => setOverlay(null)}
+          onShare={share}
+        />
+      ) : null}
+
+      {overlay?.type === "moment" ? (
+        <MomentSheet
+          moments={overlay.moments}
+          goals={goals}
+          celebrate={overlay.celebrate}
+          onClose={() => setOverlay(null)}
+          onNextGoal={(kind) => {
+            setOverlay(null);
+            go({ screen: "create", kind });
           }}
         />
       ) : null}

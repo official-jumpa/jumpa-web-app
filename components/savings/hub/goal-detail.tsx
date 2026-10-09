@@ -9,6 +9,7 @@ import { TransferHeader } from "@/components/transfer/transfer-header";
 import { ArrowUpFromArcIcon } from "@/components/ui/icons/arrow-up-from-arc";
 import { CheckIcon } from "@/components/ui/icons/check";
 import { PlusIcon } from "@/components/ui/icons/plus";
+import { ShareArrowIcon } from "@/components/ui/icons/share-arrow";
 import { WalletPlusIcon } from "@/components/ui/icons/wallet-plus";
 import { formatApy } from "@/lib/savings";
 import {
@@ -25,10 +26,11 @@ import {
   progressLabel,
   timeLeft,
 } from "@/lib/savings-hub";
+import { reachedMilestone } from "@/lib/savings-moments";
 import { Equivalent } from "./equivalent";
 import { GoalActivity } from "./goal-activity";
 import { HeroAmount, HeroNote, HeroStat, HubHero } from "./hub-hero";
-import { ProgressBar } from "./progress-bar";
+import { MilestoneTrack } from "./moments/milestone-track";
 import { TopUpSheet } from "./top-up-sheet";
 import { WithdrawSheet } from "./withdraw-sheet";
 
@@ -44,6 +46,7 @@ export function GoalDetail({
   onTopUp,
   onWithdraw,
   onSaveAgain,
+  onShare,
 }: {
   goal: HubGoal;
   onBack: () => void;
@@ -52,6 +55,8 @@ export function GoalDetail({
   onWithdraw: (forfeit: boolean) => void;
   /** A closed plan's one action: start another of the same kind. */
   onSaveAgain: () => void;
+  /** Opens this plan's share card: its latest milestone, or its start. */
+  onShare: () => void;
 }) {
   const [sheet, setSheet] = useState<Sheet>(null);
   const { closed } = goal;
@@ -68,15 +73,32 @@ export function GoalDetail({
         back="/home"
         onBack={onBack}
         title={HUB_KINDS[goal.kind].title}
+        action={
+          // A plan given up early has nothing to celebrate.
+          closed?.forfeited ? null : (
+            <button
+              type="button"
+              aria-label={`Share ${goal.name}`}
+              onClick={onShare}
+              className="tap flex size-9.5 items-center justify-center rounded-full border border-jumpa-primary-600 bg-jumpa-secondary-150 text-jumpa-primary-600 active:scale-95"
+            >
+              <ShareArrowIcon className="size-4.5" />
+            </button>
+          )
+        }
       />
 
       <HubHero
         badge={goal.name}
         aside={<StatusChip closed={closed} matured={matured} />}
         meter={
-          <span className="flex flex-col gap-2">
-            <ProgressBar value={goalProgress(goal)} tone="onBrand" />
-            <span className="flex justify-between text-[10px] leading-3 text-jumpa-primary-100">
+          <span className="flex flex-col gap-3">
+            <MilestoneTrack
+              progress={goalProgress(goal)}
+              reached={reachedMilestone(goal)}
+              kind={goal.kind}
+            />
+            <span className="flex justify-between border-t border-jumpa-white/15 pt-2.5 text-[10px] leading-3 text-jumpa-primary-100">
               <span>{progressLabel(goal)}</span>
               <span>{closed ? `Closed ${closed.date}` : timeLeft(goal)}</span>
             </span>
@@ -166,8 +188,8 @@ export function GoalDetail({
           <DetailRow
             label="How you save"
             value={
-              goal.kind === "circle" && goal.members
-                ? `${goal.members} members, one target`
+              goal.circle
+                ? `${goal.circle.members.length} of ${goal.circle.capacity} members, one target`
                 : HUB_KINDS[goal.kind].style
             }
           />

@@ -10,6 +10,7 @@ import {
   progressLabel,
   timeLeft,
 } from "@/lib/savings-hub";
+import { MILESTONES } from "@/lib/savings-moments";
 import { Equivalent } from "./equivalent";
 import { ProgressBar } from "./progress-bar";
 
@@ -86,6 +87,7 @@ export function GoalCard({
         <ProgressBar
           value={goalProgress(goal)}
           tone={closed ? "muted" : "plain"}
+          marks={MILESTONES}
         />
         <span className="flex items-center justify-between gap-3 text-[11px] leading-3.5">
           <span className="font-medium text-jumpa-neutral-500">

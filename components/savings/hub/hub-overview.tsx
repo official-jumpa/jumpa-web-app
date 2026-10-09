@@ -16,9 +16,11 @@ import {
   PLAN_TABS,
   type PlanTab,
 } from "@/lib/savings-hub";
+import type { Streak } from "@/lib/savings-moments";
 import { Equivalent } from "./equivalent";
 import { GoalCard } from "./goal-card";
 import { HeroAmount, HeroNote, HeroStat, HubHero } from "./hub-hero";
+import { StreakButton } from "./moments/streak-button";
 import { slideIn } from "./slide-in";
 
 const EMPTY: Record<
@@ -41,9 +43,11 @@ export function HubOverview({
   currency,
   tab,
   motion,
+  streak,
   onCurrency,
   onTab,
   onNew,
+  onStory,
   onPick,
   onOpen,
 }: {
@@ -53,10 +57,14 @@ export function HubOverview({
   tab: PlanTab;
   /** Set by either switch; whatever that switch changed slides in from its side. */
   motion: HubMotion | null;
+  /** Across every plan in every currency — a deposit is a deposit. */
+  streak: Streak;
   onCurrency: (next: HubCurrency) => void;
   onTab: (next: PlanTab) => void;
   /** The header's shortcut straight to a new flexible goal. */
   onNew: () => void;
+  /** Streak, badges and milestones, behind the header's flame. */
+  onStory: () => void;
   onPick: (kind: SavingsKind) => void;
   onOpen: (goal: HubGoal) => void;
 }) {
@@ -90,14 +98,17 @@ export function HubOverview({
         back="/home"
         title="Savings"
         action={
-          <button
-            type="button"
-            aria-label="New savings goal"
-            onClick={onNew}
-            className="tap flex size-9.5 items-center justify-center rounded-full border border-jumpa-primary-600 bg-jumpa-secondary-150 text-jumpa-primary-600 active:scale-95"
-          >
-            <PlusIcon className="size-3.5" />
-          </button>
+          <span className="flex items-center gap-2">
+            <StreakButton streak={streak} onClick={onStory} />
+            <button
+              type="button"
+              aria-label="New savings goal"
+              onClick={onNew}
+              className="tap flex size-9.5 items-center justify-center rounded-full border border-jumpa-primary-600 bg-jumpa-secondary-150 text-jumpa-primary-600 active:scale-95"
+            >
+              <PlusIcon className="size-3.5" />
+            </button>
+          </span>
         }
       />
 

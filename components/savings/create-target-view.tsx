@@ -295,6 +295,7 @@ export function CreateTargetView() {
           <div className="flex flex-col gap-3">
             <SavingsLabel>Duration</SavingsLabel>
             <ChoiceChips
+              slide
               options={TARGET_TERMS.map((option) => option.label)}
               value={term}
               onChange={handleTermChange}

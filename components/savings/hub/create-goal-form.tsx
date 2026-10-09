@@ -225,6 +225,7 @@ export function CreateGoalForm({
           <SavingsLabel>{form.termLabel}</SavingsLabel>
         </span>
         <ChoiceChips
+          slide
           options={form.terms.map((option) => option.label)}
           value={term}
           onChange={setTerm}

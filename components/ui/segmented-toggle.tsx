@@ -1,5 +1,5 @@
-import type { CSSProperties } from "react";
 import { cn } from "@/lib/cn";
+import { SLIDE_GLIDE, SLIDE_LAYER, slideSlot } from "./slide-slot";
 
 type Variant = {
   /** Track layout when each option carries its own background. */
@@ -74,23 +74,6 @@ const MUTED_LABEL = "opacity-70 blur-[0.6px]";
 const SOON =
   "rounded-pill bg-jumpa-neutral-95 px-1.5 py-0.5 text-[9px] leading-3 font-semibold tracking-jumpa-wide text-jumpa-neutral-400 uppercase";
 
-/** Moves on `translate` only, so the slide stays on the compositor. */
-const LAYER = "pointer-events-none absolute rounded-pill";
-const GLIDE = "transition-transform duration-300 ease-jumpa";
-
-/** Box and offset of slot `index` out of `count`, measured inside the frame's padding. */
-function slot(style: Variant, count: number, index: number): CSSProperties {
-  const gap = `calc(var(--spacing) * ${style.gap})`;
-  const pad = `calc(var(--spacing) * ${style.pad})`;
-  return {
-    top: pad,
-    bottom: pad,
-    left: pad,
-    width: `calc((100% - 2 * ${pad} - ${count - 1} * ${gap}) / ${count})`,
-    translate: `calc(${index} * (100% + ${gap})) 0`,
-  };
-}
-
 export function SegmentedToggle<T extends string>({
   options,
   value,
@@ -123,8 +106,8 @@ export function SegmentedToggle<T extends string>({
               <span
                 key={option.value}
                 aria-hidden="true"
-                className={cn(LAYER, style.well)}
-                style={slot(style, options.length, index)}
+                className={cn(SLIDE_LAYER, style.well)}
+                style={slideSlot(options.length, index, style.gap, style.pad)}
               />
             ) : null,
           )
@@ -132,8 +115,8 @@ export function SegmentedToggle<T extends string>({
       {slide && picked >= 0 ? (
         <span
           aria-hidden="true"
-          className={cn(LAYER, GLIDE, style.thumb)}
-          style={slot(style, options.length, picked)}
+          className={cn(SLIDE_LAYER, SLIDE_GLIDE, style.thumb)}
+          style={slideSlot(options.length, picked, style.gap, style.pad)}
         />
       ) : null}
 

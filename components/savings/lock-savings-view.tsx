@@ -209,6 +209,7 @@ export function LockSavingsView() {
           <div className="flex flex-col gap-3">
             <SavingsLabel>How long do you want to lock it?</SavingsLabel>
             <ChoiceChips
+              slide
               options={LOCK_TERMS.map((option) => option.label)}
               caption={(option) => rateForTerm("lock", LOCK_TERMS, option)}
               value={term}

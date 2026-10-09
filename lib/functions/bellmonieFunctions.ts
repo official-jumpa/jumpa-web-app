@@ -654,6 +654,9 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
       amount: params.amount,
       reference,
       memo: `Transfer from ${userAccount.accountName || "Jumpa User"}`,
+      senderName: userAccount.accountName || "Jumpa User",
+      senderAccountNumber: userAccount.accountNumber,
+      senderBank: "Bloc MFB",
     }).catch((err) => {
       console.error("[Bellmonie P2P] Internal credit error:", err);
     });
@@ -781,6 +784,9 @@ export async function atomicCreditNgnBalance(params: {
   eventId?: string;
   feePaid?: number;
   grossAmount?: number;
+  senderName?: string;
+  senderAccountNumber?: string;
+  senderBank?: string;
 }): Promise<{ success: boolean; newBalance: number }> {
   await connectDB();
 
@@ -828,14 +834,18 @@ export async function atomicCreditNgnBalance(params: {
       chain: "fiat",
       network: "mainnet",
       toAddress: updatedAccount.accountNumber || "Bloc MFB",
-      fromAddress: "NGN_BANK_TRANSFER",
+      fromAddress: params.senderName || params.senderAccountNumber || "NGN_BANK_TRANSFER",
       amount: params.amount.toString(),
       feePaid: params.feePaid !== undefined ? params.feePaid.toString() : "0",
       token: "NGN",
       bankDetails: {
         bankName: "Bloc MFB",
         accountNumber: updatedAccount.accountNumber,
+        accountName: updatedAccount.accountName,
         reference: params.reference,
+        senderName: params.senderName,
+        senderAccountNumber: params.senderAccountNumber,
+        senderBank: params.senderBank,
       },
       memo: params.memo || `Naira Deposit (₦${params.amount.toLocaleString()})`,
       txHash: dedupKey,

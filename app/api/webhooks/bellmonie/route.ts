@@ -159,6 +159,9 @@ export async function POST(req: NextRequest) {
         reference,
         memo,
         eventId: reference,
+        senderName: sourceAccountName,
+        senderAccountNumber: sourceAccountNumber,
+        senderBank: sourceBankName || "Bank",
       });
 
       invalidateBalanceCache(account.userId);

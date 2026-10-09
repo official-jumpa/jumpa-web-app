@@ -41,6 +41,9 @@ export interface ITransaction {
     accountName?: string;
     bankCode?: string;
     reference?: string;
+    senderName?: string;
+    senderAccountNumber?: string;
+    senderBank?: string;
   };
 
   // Swap Details (if type === "SWAP")
@@ -166,6 +169,9 @@ const TransactionSchema = new Schema<ITransaction>(
       accountName: { type: String },
       bankCode: { type: String },
       reference: { type: String },
+      senderName: { type: String },
+      senderAccountNumber: { type: String },
+      senderBank: { type: String },
     },
 
     swapDetails: {

@@ -450,21 +450,33 @@ const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
   DEPOSIT: {
     kind: "receive",
     isIncoming: () => true,
-    getTitle: (tx) => `Deposit ${tx.token}`,
+    getTitle: (tx) => {
+      const sender = tx.bankDetails?.senderName;
+      if (sender) return `Transfer from ${sender}`;
+      return `Deposit ${tx.token}`;
+    },
     getRows: (tx) => buildRampOrBankRows(tx),
   },
 
   OFFRAMP: {
     kind: "send",
     isIncoming: () => false,
-    getTitle: (tx) => `Withdraw ${tx.token}`,
+    getTitle: (tx) => {
+      const recipient = tx.bankDetails?.accountName || tx.rampDetails?.bankDetails?.accountName;
+      if (recipient) return `Transfer to ${recipient}`;
+      return `Withdraw ${tx.token}`;
+    },
     getRows: (tx) => buildRampOrBankRows(tx),
   },
 
   WITHDRAW: {
     kind: "send",
     isIncoming: () => false,
-    getTitle: (tx) => `Withdraw ${tx.token}`,
+    getTitle: (tx) => {
+      const recipient = tx.bankDetails?.accountName;
+      if (recipient) return `Transfer to ${recipient}`;
+      return `Withdraw ${tx.token}`;
+    },
     getRows: (tx) => buildRampOrBankRows(tx),
   },
 
@@ -529,16 +541,48 @@ const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
 };
 
 function buildRampOrBankRows(tx: any): Array<[string, unknown, string?]> {
+  const isWithdraw =
+    tx.type === "WITHDRAW" ||
+    tx.type === "OFFRAMP" ||
+    tx.kind === "send";
+
+  const numAmount = Number(tx.amount || 0);
+  const feePaidNum = Number(tx.feePaid || 0);
+
   const rows: [string, unknown, string?][] = [
     ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
   ];
+
+  if (isWithdraw && feePaidNum > 0) {
+    rows.push(["Withdrawal fee", `${formatDecimal(feePaidNum, 4)} ${tx.token || ""}`]);
+    const totalDebit = numAmount + feePaidNum;
+    rows.push(["Total debited", `${formatDecimal(totalDebit, 4)} ${tx.token || ""}`]);
+  } else if (!isWithdraw && feePaidNum > 0) {
+    rows.push(["Deposit fee", `${formatDecimal(feePaidNum, 4)} ${tx.token || ""}`]);
+  }
+
   const ramp = tx.rampDetails;
   const bank = tx.bankDetails || ramp?.bankDetails;
 
   if (bank) {
-    if (bank.bankName) rows.push(["Bank", bank.bankName]);
-    if (bank.accountNumber) rows.push(["Account Number", bank.accountNumber, bank.accountNumber]);
-    if (bank.accountName) rows.push(["Account Name", bank.accountName]);
+    if (isWithdraw) {
+      // Sender's view: show recipient info
+      if (bank.accountName) rows.push(["Recipient", bank.accountName]);
+      if (bank.bankName) rows.push(["Recipient Bank", bank.bankName]);
+      if (bank.accountNumber) rows.push(["Account Number", bank.accountNumber, bank.accountNumber]);
+    } else {
+      // Receiver's view: show sender info if available, plus beneficiary account
+      if (bank.senderName) {
+        rows.push(["Sender", bank.senderName]);
+      } else if (tx.fromAddress && tx.fromAddress !== "NGN_BANK_TRANSFER") {
+        rows.push(["Sender", tx.fromAddress]);
+      }
+      if (bank.senderBank) rows.push(["Sender Bank", bank.senderBank]);
+      if (bank.senderAccountNumber) rows.push(["Sender Account", bank.senderAccountNumber, bank.senderAccountNumber]);
+      if (bank.bankName) rows.push(["Bank", bank.bankName]);
+      if (bank.accountNumber) rows.push(["Account Number", bank.accountNumber, bank.accountNumber]);
+    }
+
     const ref = bank.reference || tx.txHash;
     if (ref) rows.push(["Reference", ref, ref]);
   } else if (ramp) {

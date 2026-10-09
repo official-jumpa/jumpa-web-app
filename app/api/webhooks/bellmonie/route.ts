@@ -6,7 +6,9 @@ import {
   atomicCreditNgnBalance,
   queryBellmonieTransactionByReference,
   invalidateBellmonieNgnBalanceCache,
+  getDailySubsidizedDepositCount,
 } from "@/lib/functions/bellmonieFunctions";
+import { calculateNgnDepositFee } from "@/lib/ngn-account";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { enforceRateLimit } from "@/lib/functions/rateLimitFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
@@ -48,9 +50,12 @@ export async function POST(req: NextRequest) {
         virtualAccount,
         amountReceived,
         netAmount,
+        transactionFee,
         status,
         sourceAccountName,
+        sourceAccountNumber,
         sourceBankName,
+        sourceBankCode,
       } = payload;
 
       if (!reference || !virtualAccount) {
@@ -103,18 +108,56 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Credit the net amount (or amountReceived fallback) to user's ledger
-      const creditAmount = Number(netAmount || amountReceived);
-      if (isNaN(creditAmount) || creditAmount <= 0) {
+      // Determine gross amount received from sender
+      const grossAmount = Number(amountReceived || netAmount);
+      if (isNaN(grossAmount) || grossAmount <= 0) {
         console.error(`[Bellmonie Webhook] Invalid credit amount: ${amountReceived}`);
         return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
+      }
+
+      // Check if deposit is an internal Bloc MFB to Bloc MFB transfer
+      const isBlocIntrabank =
+        sourceBankCode === "090977" ||
+        /bloc/i.test(sourceBankName || "") ||
+        Number(transactionFee || 0) === 0;
+
+      let creditAmount: number;
+      let feeCharged = 0;
+      let memo = "";
+
+      if (isBlocIntrabank) {
+        // Bloc-to-Bloc is completely free, ₦0 fee, doesn't consume daily quota
+        creditAmount = grossAmount;
+        feeCharged = 0;
+        memo = `Deposit: ₦${grossAmount.toLocaleString()} from ${sourceAccountName || "Bloc Account"}`;
+        console.log(`[Bellmonie Webhook] ⚡ Intrabank deposit for user ${account.userId}: ₦${grossAmount} credited free.`);
+      } else {
+        // External transfer: check user's daily subsidized deposit count
+        const subsidizedCountToday = await getDailySubsidizedDepositCount(account.userId);
+        const feeResult = calculateNgnDepositFee(grossAmount, subsidizedCountToday);
+        creditAmount = feeResult.netCreditToUser;
+        feeCharged = feeResult.feeChargedToUser;
+
+        console.log(`[Bellmonie Webhook] Deposit fee evaluation for user ${account.userId}:`, {
+          grossAmount,
+          subsidizedCountToday,
+          isSubsidized: feeResult.isSubsidizedByJumpa,
+          feeChargedToUser: feeResult.feeChargedToUser,
+          creditAmount,
+        });
+
+        memo = feeCharged > 0
+          ? `Deposit: ₦${grossAmount.toLocaleString()} (-₦${feeCharged.toLocaleString()} fee) from ${sourceAccountName || "External Bank"}`
+          : `Deposit: ₦${grossAmount.toLocaleString()} from ${sourceAccountName || "External Bank"} (${sourceBankName || "Bank"})`;
       }
 
       const creditRes = await atomicCreditNgnBalance({
         userId: account.userId,
         amount: creditAmount,
+        grossAmount,
+        feePaid: feeCharged,
         reference,
-        memo: `Bank Transfer Deposit from ${sourceAccountName || "External Bank"} (${sourceBankName || "Bank"})`,
+        memo,
         eventId: reference,
       });
 
@@ -122,7 +165,7 @@ export async function POST(req: NextRequest) {
       invalidateBellmonieNgnBalanceCache(account.userId);
 
       console.log(
-        `[Bellmonie Webhook] ✅ Credited ₦${creditAmount} to user ${account.userId}. New Balance: ₦${creditRes.newBalance}`,
+        `[Bellmonie Webhook] ✅ Credited ₦${creditAmount} (fee: ₦${feeCharged}) to user ${account.userId}. New Balance: ₦${creditRes.newBalance}`,
       );
     } else if (
       event === "payout" ||

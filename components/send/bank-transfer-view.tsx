@@ -21,7 +21,7 @@ import { ResultSheet } from "@/components/ui/result-sheet";
 import { getAssetLogo } from "@/lib/assets";
 import { FIAT_DECIMALS } from "@/lib/token-amount";
 import { COUNTRIES, titleCaseName } from "@/lib/transfer";
-import { calculateFossaPayWithdrawalFee } from "@/lib/ngn-account";
+import { calculateNgnWithdrawalFee } from "@/lib/ngn-account";
 import { invalidateClientBalances } from "@/lib/client-events";
 
 type Stage = "form" | "amount" | "done";
@@ -192,7 +192,7 @@ export function BankTransferView({
   const fiatFee = isFiatWithdrawal
     ? isInternal
       ? 0
-      : calculateFossaPayWithdrawalFee(rawTypedNumber)
+      : calculateNgnWithdrawalFee(rawTypedNumber)
     : 0;
   const fiatTotalDebit = isFiatWithdrawal ? rawTypedNumber + fiatFee : 0;
 
@@ -203,10 +203,10 @@ export function BankTransferView({
   ): number => {
     if (balance <= 0) return 0;
     if (isInternalAcc) return balance;
-    const feeCandidate = calculateFossaPayWithdrawalFee(balance);
+    const feeCandidate = calculateNgnWithdrawalFee(balance);
     const candidate = balance - feeCandidate;
     if (candidate <= 0) return 0;
-    const actualFee = calculateFossaPayWithdrawalFee(candidate);
+    const actualFee = calculateNgnWithdrawalFee(candidate);
     return Math.max(0, balance - actualFee);
   };
 

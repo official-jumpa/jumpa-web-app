@@ -4,8 +4,7 @@ import { NgnAccount, type INgnAccount } from "@/models/NgnAccount";
 import { Transaction } from "@/models/Transaction";
 import {
   mapCountryCodeToName,
-  calculateFossaPayDepositFee,
-  calculateFossaPayWithdrawalFee,
+  calculateNgnWithdrawalFee,
 } from "@/lib/ngn-account";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { logUserActivity, saveOrUpdateBeneficiary } from "@/lib/functions/userFunctions";
@@ -33,8 +32,7 @@ function getApiKey(): string {
 
 export {
   mapCountryCodeToName,
-  calculateFossaPayDepositFee,
-  calculateFossaPayWithdrawalFee,
+  calculateNgnWithdrawalFee,
 };
 
 // In-Memory Balance Cache & Coalescing Registry for FossaPay
@@ -548,7 +546,7 @@ export async function withdrawNgnFiat(params: WithdrawNgnFiatParams): Promise<{
   }).lean<INgnAccount>();
 
   const isInternal = Boolean(internalRecipient);
-  const fee = isInternal ? 0 : calculateFossaPayWithdrawalFee(params.amount);
+  const fee = isInternal ? 0 : calculateNgnWithdrawalFee(params.amount);
   const totalDebited = params.amount + fee;
 
   // 3. Balance verification

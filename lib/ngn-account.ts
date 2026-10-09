@@ -54,23 +54,81 @@ export function mapCountryCodeToName(codeOrName: string): string {
 }
 
 /**
- * Calculates NGN deposit (virtual account collection) fee:
- * - Below ₦10,000: Free (₦0)
- * - ₦10,000 and above: 1%
+ * Centralized NGN Account Configuration & Single Source of Truth
  */
-export function calculateFossaPayDepositFee(amount: number): number {
-  if (amount < 10000) return 0;
-  return amount * 0.01;
+export const NGN_FEE_CONFIG = {
+  /** Maximum number of deposits per calendar day subsidized (free) by Jumpa */
+  MAX_DAILY_FREE_DEPOSITS: 3,
+  /** Maximum deposit amount (in NGN) eligible for Jumpa fee subsidy */
+  FREE_DEPOSIT_THRESHOLD: 5000,
+  /** Provider deposit collection fee rate (1%) */
+  DEPOSIT_FEE_PERCENT: 0.01,
+  /** Provider maximum fee cap on deposits */
+  DEPOSIT_FEE_CAP: 1500,
+} as const;
+
+/**
+ * Calculates NGN deposit (virtual account collection) fee:
+ * - Free for deposits <= ₦5,000 up to 3 times per calendar day.
+ * - Otherwise 1% capped at ₦1,500.
+ */
+export function calculateNgnDepositFee(
+  amount: number,
+  subsidizedCountToday: number = 0
+): {
+  feeChargedToUser: number;
+  isSubsidizedByJumpa: boolean;
+  providerFee: number;
+  netCreditToUser: number;
+} {
+  if (amount <= 0) {
+    return {
+      feeChargedToUser: 0,
+      isSubsidizedByJumpa: false,
+      providerFee: 0,
+      netCreditToUser: 0,
+    };
+  }
+
+  const providerFee = Math.min(
+    Math.round(amount * NGN_FEE_CONFIG.DEPOSIT_FEE_PERCENT),
+    NGN_FEE_CONFIG.DEPOSIT_FEE_CAP
+  );
+
+  const eligibleForSubsidy =
+    amount <= NGN_FEE_CONFIG.FREE_DEPOSIT_THRESHOLD &&
+    subsidizedCountToday < NGN_FEE_CONFIG.MAX_DAILY_FREE_DEPOSITS;
+
+  const feeChargedToUser = eligibleForSubsidy ? 0 : providerFee;
+  const netCreditToUser = Math.max(0, amount - feeChargedToUser);
+
+  return {
+    feeChargedToUser,
+    isSubsidizedByJumpa: eligibleForSubsidy,
+    providerFee,
+    netCreditToUser,
+  };
 }
 
 /**
  * Calculates NGN withdrawal (bank payout) fee based on official tier schedule:
- * - ₦0 – ₦50,000: ₦25
- * - Above ₦50,000: ₦50
+ * - ₦0 – ₦5,000: ₦25
+ * - > ₦5,000 – ₦10,000: ₦50
+ * - > ₦10,000 – ₦20,000: ₦70
+ * - > ₦20,000 – ₦30,000: ₦100
+ * - > ₦30,000 – ₦50,000: ₦120
+ * - > ₦50,000 – ₦100,000: ₦150
+ * - > ₦100,000 – ₦150,000: ₦200
+ * - Above ₦150,000: ₦300
  */
-export function calculateFossaPayWithdrawalFee(amount: number): number {
+export function calculateNgnWithdrawalFee(amount: number): number {
   if (amount <= 0) return 0;
-  if (amount <= 50000) return 25;
-  return 50;
+  if (amount <= 5000) return 25;
+  if (amount <= 10000) return 50;
+  if (amount <= 20000) return 70;
+  if (amount <= 30000) return 100;
+  if (amount <= 50000) return 120;
+  if (amount <= 100000) return 150;
+  if (amount <= 150000) return 200;
+  return 300;
 }
-

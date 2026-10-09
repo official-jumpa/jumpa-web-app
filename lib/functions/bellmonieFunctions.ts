@@ -4,8 +4,8 @@ import { NgnAccount, type INgnAccount } from "@/models/NgnAccount";
 import { Transaction } from "@/models/Transaction";
 import {
   mapCountryCodeToName,
-  calculateFossaPayDepositFee as calculateBellmonieDepositFee,
-  calculateFossaPayWithdrawalFee as calculateBellmonieWithdrawalFee,
+  calculateNgnDepositFee,
+  calculateNgnWithdrawalFee,
 } from "@/lib/ngn-account";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { logUserActivity, saveOrUpdateBeneficiary } from "@/lib/functions/userFunctions";
@@ -15,11 +15,33 @@ import { BellmonieBanks, findBellmonieBank } from "@/lib/constants/bellmonie-ban
 
 export {
   mapCountryCodeToName,
-  calculateBellmonieDepositFee,
-  calculateBellmonieWithdrawalFee,
+  calculateNgnDepositFee,
+  calculateNgnWithdrawalFee,
 };
 
-// ── In-Memory Token & Balance Cache Registry ─────────────────────────────────
+/**
+ * Counts how many subsidized deposits (where fee was waived) the user has made today.
+ * Today is evaluated from 00:00:00 UTC.
+ */
+export async function getDailySubsidizedDepositCount(userId: string): Promise<number> {
+  await connectDB();
+
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+
+  const count = await Transaction.countDocuments({
+    userId,
+    type: "DEPOSIT",
+    status: "CONFIRMED",
+    $or: [{ feePaid: "0" }, { feePaid: null }, { feePaid: { $exists: false } }],
+    executedAt: { $gte: startOfDay },
+  });
+
+  return count;
+}
+
+
+// ── In-Memory Token & Balance Cache Registry
 
 declare global {
   var _bellmonieTokenData: { token: string; expiresAt: number } | undefined;
@@ -559,7 +581,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
   }).lean<INgnAccount>();
 
   const isInternal = Boolean(internalRecipient);
-  const fee = isInternal ? 0 : calculateBellmonieWithdrawalFee(params.amount);
+  const fee = isInternal ? 0 : calculateNgnWithdrawalFee(params.amount);
   const totalDebited = params.amount + fee;
 
   // 3. Balance verification
@@ -591,22 +613,39 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
   const prefix = getBusinessPrefix();
   const reference = `${prefix}-${generateId("tx")}`;
 
-  // 5. Execute downstream transfer on Bellmonie
-  const transferRes = await bellmonieBankTransfer({
-    beneficiaryBankCode: resolvedBankCode || "010",
-    beneficiaryAccountNumber: params.accountNumber,
-    amount: params.amount,
-    narration: params.narration || `Withdrawal to ${params.accountName}`,
-    reference,
-    senderName: userAccount.accountName || "Jumpa User",
-  });
-
-  // 6. Debit sender atomic balance
+  // 5. ATOMIC PRE-DEBIT: Debit user's balance BEFORE dispatching downstream bank transfer
+  // This unconditionally locks the funds and prevents double-spend race conditions.
   await atomicDebitNgnBalance({
     userId: params.userId,
     amount: totalDebited,
     memo: `Withdrawal to ${resolvedBankName} (${params.accountNumber})`,
   });
+
+  let transferRes;
+  try {
+    // 6. Execute downstream transfer on Bellmonie from Jumpa master pool
+    transferRes = await bellmonieBankTransfer({
+      beneficiaryBankCode: resolvedBankCode || "010",
+      beneficiaryAccountNumber: params.accountNumber,
+      amount: params.amount,
+      narration: params.narration || `Withdrawal to ${params.accountName}`,
+      reference,
+      senderName: userAccount.accountName || "Jumpa User",
+    });
+  } catch (transferErr: any) {
+    console.error("[Bellmonie Withdrawal] bank transfer failed. Rolling back pre-debit:", transferErr.message);
+    // Automatic rollback / refund
+    await atomicCreditNgnBalance({
+      userId: params.userId,
+      amount: totalDebited,
+      reference: `${reference}-rollback`,
+      memo: `Refund for failed transfer attempt: ${transferErr.message}`,
+      eventId: `${reference}-rollback`,
+    }).catch((rollbackErr) => {
+      console.error("[Bellmonie Withdrawal CRITICAL] Rollback credit failed:", rollbackErr);
+    });
+    throw transferErr;
+  }
 
   // Credit recipient if internal Jumpa user
   if (internalRecipient && internalRecipient.userId !== params.userId) {
@@ -740,6 +779,8 @@ export async function atomicCreditNgnBalance(params: {
   reference?: string;
   memo?: string;
   eventId?: string;
+  feePaid?: number;
+  grossAmount?: number;
 }): Promise<{ success: boolean; newBalance: number }> {
   await connectDB();
 
@@ -789,6 +830,7 @@ export async function atomicCreditNgnBalance(params: {
       toAddress: updatedAccount.accountNumber || "Bloc MFB",
       fromAddress: "NGN_BANK_TRANSFER",
       amount: params.amount.toString(),
+      feePaid: params.feePaid !== undefined ? params.feePaid.toString() : "0",
       token: "NGN",
       bankDetails: {
         bankName: "Bloc MFB",
@@ -809,6 +851,8 @@ export async function atomicCreditNgnBalance(params: {
     action: "DEPOSIT_COMPLETED",
     details: {
       amount: params.amount,
+      feePaid: params.feePaid ?? 0,
+      grossAmount: params.grossAmount ?? params.amount,
       token: "NGN",
       reference: params.reference,
       newBalance,

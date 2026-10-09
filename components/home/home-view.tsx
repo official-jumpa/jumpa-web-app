@@ -81,13 +81,24 @@ export function HomeView({
     } catch {}
   }, []);
 
-  // Update memory cache when server props change
+  // Update state and memory cache when server props change (e.g. after router navigation)
   useEffect(() => {
-    if (initialBalance) homeMemoryCache.balance = initialBalance;
-    if (initialAssets) homeMemoryCache.assets = initialAssets;
-    if (initialTransactions) homeMemoryCache.transactions = initialTransactions;
-    if (initialKycComplete !== undefined)
+    if (initialBalance) {
+      setTotalBalance(initialBalance);
+      homeMemoryCache.balance = initialBalance;
+    }
+    if (initialAssets) {
+      setAssets(initialAssets);
+      homeMemoryCache.assets = initialAssets;
+    }
+    if (initialTransactions) {
+      setTransactions(initialTransactions);
+      homeMemoryCache.transactions = initialTransactions;
+    }
+    if (initialKycComplete !== undefined) {
+      setKycComplete(initialKycComplete);
       homeMemoryCache.kycComplete = initialKycComplete;
+    }
   }, [initialBalance, initialAssets, initialTransactions, initialKycComplete]);
 
   // Background revalidation and live refresh listener
@@ -166,16 +177,10 @@ export function HomeView({
       }
     }
 
-    // Only skip network fetch on the very first render if full server props are present
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      if (!initialTransactions) fetchTransactions();
-      if (!initialBalance) fetchBalances(false);
-      if (initialKycComplete === undefined) fetchKycStatus();
-    } else {
-      fetchTransactions();
-      fetchBalances(false);
-    }
+    // Always fetch fresh transactions and balances to ensure updates after transactions show immediately
+    fetchTransactions();
+    fetchBalances(false);
+    if (initialKycComplete === undefined) fetchKycStatus();
 
     // Subscribe to balance refresh events triggered upon transaction completion
     const unsub = onBalanceRefresh(() => {

@@ -118,7 +118,10 @@ export function TransferSuccess({
           re-enter the form that was just submitted. */}
       <TransferHeader
         back={back}
-        onBack={() => router.replace(back)}
+        onBack={() => {
+          router.replace(back);
+          router.refresh();
+        }}
         action={
           <Image
             src="/logo/wordmark/purple.png"
@@ -169,7 +172,14 @@ export function TransferSuccess({
         {actionsFirst ? actions : slot}
         {actionsFirst ? slot : actions}
 
-        <Button variant="gradient" size="lg" href={ctaHref}>
+        <Button
+          variant="gradient"
+          size="lg"
+          onClick={() => {
+            router.replace(ctaHref);
+            router.refresh();
+          }}
+        >
           {ctaLabel}
         </Button>
       </div>

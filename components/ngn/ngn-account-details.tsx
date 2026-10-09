@@ -64,27 +64,7 @@ export function NgnAccountDetails({
   const [account, setAccount] = useState<NgnAccountData | null>(initialAccount);
   const [canCreateBellmonie, setCanCreateBellmonie] = useState<boolean>(false);
 
-  const [balance, setBalance] = useState<NgnBalanceData | null>(() => {
-    if (initialBalance && initialBalance.availableBalance > 0) {
-      return initialBalance;
-    }
-    if (typeof window !== "undefined") {
-      try {
-        const cached = localStorage.getItem("jumpa_ngn_account_cache");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (typeof parsed.rawBalance === "number" && parsed.rawBalance > 0) {
-            return {
-              availableBalance: parsed.rawBalance,
-              ledgerBalance: parsed.rawBalance,
-              currency: "NGN",
-            };
-          }
-        }
-      } catch {}
-    }
-    return initialBalance;
-  });
+  const [balance, setBalance] = useState<NgnBalanceData | null>(() => initialBalance);
   const [error, setError] = useState<string | null>(null);
 
   const [visible, setVisible] = useState(true);
@@ -170,9 +150,7 @@ export function NgnAccountDetails({
     }
 
     fetchAccount();
-    if (initialTransactions.length === 0) {
-      fetchNgnTransactions();
-    }
+    fetchNgnTransactions();
 
     // Subscribe to balance/ngn refresh events
     const unsubNgn = onNgnRefresh(() => {
@@ -187,7 +165,7 @@ export function NgnAccountDetails({
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
         const now = Date.now();
-        if (now - lastFetchTime > 10000) {
+        if (now - lastFetchTime > 3000) {
           lastFetchTime = now;
           fetchAccount();
           fetchNgnTransactions();
@@ -205,7 +183,7 @@ export function NgnAccountDetails({
       window.removeEventListener("focus", handleVisibility);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [initialAccount, initialTransactions.length]);
+  }, [initialAccount]);
 
   /**
    * Refreshes the NGN account live balance.

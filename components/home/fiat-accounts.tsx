@@ -52,21 +52,17 @@ export function FiatAccounts({
     return ngnMemoryCache.balance ?? null;
   });
 
-  // Restore cached NGN account info from localStorage if not provided
+  // Keep state in sync if parent passes fresh server props
   useEffect(() => {
-    if (initialHasNgnAccount !== undefined) return;
-    try {
-      const cached = localStorage.getItem("jumpa_ngn_account_cache");
-      if (cached && ngnMemoryCache.hasAccount === undefined) {
-        const parsed = JSON.parse(cached);
-        if (parsed && typeof parsed.hasAccount === "boolean") {
-          setHasNgnAccount(parsed.hasAccount);
-          setNgnBalance(parsed.balance ?? null);
-          ngnMemoryCache = parsed;
-        }
-      }
-    } catch {}
-  }, [initialHasNgnAccount]);
+    if (initialHasNgnAccount !== undefined) {
+      setHasNgnAccount(initialHasNgnAccount);
+      ngnMemoryCache.hasAccount = initialHasNgnAccount;
+    }
+    if (initialNgnBalance !== undefined) {
+      setNgnBalance(initialNgnBalance);
+      ngnMemoryCache.balance = initialNgnBalance;
+    }
+  }, [initialHasNgnAccount, initialNgnBalance]);
 
   // Fetch live NGN account status and balance from API in background (stale-while-revalidate)
   useEffect(() => {

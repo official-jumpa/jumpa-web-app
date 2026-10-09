@@ -681,7 +681,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
       accountName: params.accountName,
       reference,
     },
-    memo: params.narration || `Withdrawal to ${params.accountName} (${resolvedBankName})`,
+    memo: params.narration || `Withdrawal to ${params.accountName}`,
     txHash: transferRes.sessionId || reference,
     executedAt: new Date(),
   });

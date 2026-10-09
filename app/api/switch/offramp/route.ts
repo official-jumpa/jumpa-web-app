@@ -120,19 +120,18 @@ export async function POST(req: NextRequest) {
 
     if (isStellar) {
       const { centiivBanks } = await import("@/lib/constants/centiiv-banks");
-      const { fossapayBankNameEnquiry } = await import("@/lib/functions/fossapayFunctions");
+      const { bellmonieBankNameEnquiry } = await import("@/lib/functions/bellmonieFunctions");
       
       let centiivBank = centiivBanks.find((b) => b.name.toLowerCase() === bankName.toLowerCase() || b.code === bankName);
       
       // Revalidate: if bankName was preloaded from beneficiary (e.g. Paystack code), 
-      // normalize via Paystack then cross-reference with FossaPay (which shares NIBSS codes with Centiiv)
+      // normalize via Paystack then cross-reference with Centiiv
       if (!centiivBank) {
         const paystackBank = findPaystackBank(bankName);
         if (paystackBank) {
-          const { findFossaPayBank } = await import("@/lib/constants/fossapay-banks");
-          const fPayBank = findFossaPayBank(paystackBank.name);
-          if (fPayBank) {
-            centiivBank = { name: fPayBank.name, code: fPayBank.code };
+          const matchedCentiiv = centiivBanks.find((b) => b.name.toLowerCase() === paystackBank.name.toLowerCase());
+          if (matchedCentiiv) {
+            centiivBank = matchedCentiiv;
           }
         }
       }
@@ -143,9 +142,9 @@ export async function POST(req: NextRequest) {
       
       try {
         t = performance.now();
-        const fpRes = await fossapayBankNameEnquiry({ accountNumber, bankCode: centiivBank.code });
-        console.log(`[Offramp] fossapayBankNameEnquiry: ${elapsed(t)}`);
-        if (!fpRes?.accountName) throw new Error("Verification failed");
+        const bmRes = await bellmonieBankNameEnquiry({ accountNumber, bankCode: centiivBank.code });
+        console.log(`[Offramp] bellmonieBankNameEnquiry: ${elapsed(t)}`);
+        if (!bmRes?.accountName) throw new Error("Verification failed");
       } catch {
         return NextResponse.json({ success: false, error: `Account number "${accountNumber}" could not be verified for ${centiivBank.name}.` }, { status: 400 });
       }

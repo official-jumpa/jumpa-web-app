@@ -4,8 +4,6 @@ import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
 import { supportedBanks } from "@/lib/constants/banks";
 import { findBellmonieBank } from "@/lib/constants/bellmonie-banks";
 import { bellmonieBankNameEnquiry } from "@/lib/functions/bellmonieFunctions";
-import { findFossaPayBank } from "@/lib/constants/fossapay-banks";
-import { fossapayBankNameEnquiry } from "@/lib/functions/fossapayFunctions";
 import { resolveAccountQuerySchema } from "@/lib/validations/bank.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { connectDB } from "@/lib/db";
@@ -14,7 +12,7 @@ import { environment } from "@/lib/environment";
 
 /**
  * GET /api/bank/resolve?accountNumber=...&bank=...
- * Live bank name enquiry prioritizing Bellmonie (with FossaPay & Paystack fallbacks) and internal wallet detection.
+ * Live bank name enquiry prioritizing Bellmonie (with Paystack fallback) and internal wallet detection.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -80,71 +78,33 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 2. Secondary: Check FossaPay supported banks
-    const fossapayBank = findFossaPayBank(bankParam);
-    if (fossapayBank) {
-      try {
-        const fpRes = await fossapayBankNameEnquiry({
-          accountNumber: cleanAccount,
-          bankCode: fossapayBank.code,
-        });
-        if (fpRes?.accountName) {
-          const isFpInternal =
-            Boolean(internalAccount) ||
-            cleanAccount === jumpaMasterAccount ||
-            fpRes.accountName.toLowerCase().startsWith("fossapay/");
-          const cleanName = fpRes.accountName
-            .replace(/^fossapay\//i, "")
-            .trim();
-
-          return NextResponse.json({
-            success: true,
-            accountName: cleanName,
-            accountNumber: fpRes.accountNumber || cleanAccount,
-            bankName: fossapayBank.name,
-            bankCode: fossapayBank.code,
-            isInternal: isFpInternal,
-          });
-        }
-      } catch (fpErr: any) {
-        console.warn(
-          `FossaPay resolution failed for ${fossapayBank.name}:`,
-          fpErr.message
-        );
-      }
-    }
-
-    // 1.5. Check Centiiv banks (uses the exact same NIBSS codes as FossaPay)
+    // 1.5. Check Centiiv banks
     const { centiivBanks } = await import("@/lib/constants/centiiv-banks");
     const centiivBank = centiivBanks.find((b) => b.name.toLowerCase() === bankParam.toLowerCase() || b.code === bankParam);
     if (centiivBank) {
       try {
-        const fpRes = await fossapayBankNameEnquiry({
+        const bmRes = await bellmonieBankNameEnquiry({
           accountNumber: cleanAccount,
           bankCode: centiivBank.code,
         });
-        if (fpRes?.accountName) {
-          const isFpInternal =
+        if (bmRes?.accountName) {
+          const isInternal =
             Boolean(internalAccount) ||
-            cleanAccount === jumpaMasterAccount ||
-            fpRes.accountName.toLowerCase().startsWith("fossapay/");
-          const cleanName = fpRes.accountName
-            .replace(/^fossapay\//i, "")
-            .trim();
+            cleanAccount === jumpaMasterAccount;
 
           return NextResponse.json({
             success: true,
-            accountName: cleanName,
-            accountNumber: fpRes.accountNumber || cleanAccount,
+            accountName: bmRes.accountName.trim(),
+            accountNumber: bmRes.accountNumber || cleanAccount,
             bankName: centiivBank.name,
             bankCode: centiivBank.code,
-            isInternal: isFpInternal,
+            isInternal,
           });
         }
-      } catch (fpErr: any) {
+      } catch (bmErr: any) {
         console.warn(
           `Bank code resolution failed for ${centiivBank.name}:`,
-          fpErr.message
+          bmErr.message
         );
       }
     }

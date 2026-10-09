@@ -4,13 +4,25 @@ import type { ComponentType } from "react";
 import { CircleUserIcon } from "@/components/ui/icons/circle-user";
 import { LockIcon } from "@/components/ui/icons/lock";
 import { UsersIcon } from "@/components/ui/icons/users";
-import { rateRange, type SavingsKind } from "@/lib/savings";
+import { rateRange, type SavingsKind, topRate } from "@/lib/savings";
+
+type KindIcon = ComponentType<{ className?: string }>;
+
+/** One glyph per product, shared by every screen that names one. */
+export const KIND_ICON: Record<SavingsKind, KindIcon> = {
+  individual: CircleUserIcon,
+  lock: LockIcon,
+  circle: UsersIcon,
+};
 
 type SavingsType = {
   kind: SavingsKind;
   label: string;
   caption: string;
-  Icon: ComponentType<{ className?: string }>;
+  /** Name and one-line hint for the compact grid, where the full ones wrap. */
+  short: string;
+  hint: string;
+  Icon: KindIcon;
 };
 
 const TYPES: SavingsType[] = [
@@ -18,24 +30,31 @@ const TYPES: SavingsType[] = [
     kind: "individual",
     label: "Individual Savings",
     caption: "Save towards a personal goal at your own pace.",
-    Icon: CircleUserIcon,
+    short: "Individual",
+    hint: "Your own pace",
+    Icon: KIND_ICON.individual,
   },
   {
     kind: "lock",
     label: "Lock savings",
     caption: "Lock funds for a fixed term and earn a higher rate.",
-    Icon: LockIcon,
+    short: "Lock",
+    hint: "Fixed term",
+    Icon: KIND_ICON.lock,
   },
   {
     kind: "circle",
     label: "Circles (Group Savings)",
     caption: "Create or join a shared savings goal.",
-    Icon: UsersIcon,
+    short: "Circles",
+    hint: "With friends",
+    Icon: KIND_ICON.circle,
   },
 ];
 
-const CARD =
-  "tap flex rounded-surface bg-jumpa-primary-50 p-4 text-left active:scale-[0.99]";
+const CARD_BASE =
+  "tap flex rounded-surface bg-jumpa-primary-50 text-left active:scale-[0.99]";
+const CARD = `${CARD_BASE} p-4`;
 
 function TypeIcon({ Icon }: { Icon: SavingsType["Icon"] }) {
   return (
@@ -73,13 +92,56 @@ function TypeText({
   );
 }
 
+/** Three equal tiles: glyph, short name, best rate, one-line hint. */
+function TypeGrid({ onSelect }: { onSelect: (kind: SavingsKind) => void }) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {TYPES.map(({ kind, short, hint, Icon }) => (
+        <button
+          key={kind}
+          type="button"
+          onClick={() => onSelect(kind)}
+          className={`${CARD_BASE} min-w-0 flex-col gap-3 p-3`}
+        >
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-panel bg-jumpa-primary-950 text-jumpa-primary-50">
+            <Icon className="size-5" />
+          </span>
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-sm leading-4 font-semibold text-jumpa-black">
+              {short}
+            </span>
+            <span className="text-[11px] leading-4 font-semibold text-jumpa-primary-600">
+              Up to {topRate(kind)}
+            </span>
+            <span className="text-[10px] leading-3.5 text-jumpa-neutral-500">
+              {hint}
+            </span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** The three ways to save. Each one explains itself before it commits you. */
 export function SavingsTypes({
   onSelect,
+  layout = "stack",
 }: {
   onSelect: (kind: SavingsKind) => void;
+  /** `grid` is the compact row the savings hub uses. */
+  layout?: "stack" | "grid";
 }) {
   const [individual, lock, circles] = TYPES;
+
+  if (layout === "grid") {
+    return (
+      <section className="flex flex-col gap-3">
+        <h2 className="text-xs font-medium text-jumpa-black">Ways to save</h2>
+        <TypeGrid onSelect={onSelect} />
+      </section>
+    );
+  }
 
   return (
     <section className="flex flex-col gap-3">

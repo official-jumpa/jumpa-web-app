@@ -197,6 +197,10 @@
   --animate-sheet-up: sheet-up 520ms var(--ease-jumpa) both;
   --animate-drop-in: drop-in 300ms var(--ease-jumpa) both;
   --animate-pop-in: pop-in 300ms var(--ease-jumpa) both;
+  /* Content swapping sideways, e.g. a currency switch. `--slide-from` picks the side. */
+  --animate-slide-in: slide-in 520ms var(--ease-jumpa) both;
+  /* A meter filling from its start on first paint. */
+  --animate-meter-fill: meter-fill 900ms var(--ease-jumpa) both;
 
   /* One word of a chat reply. Staggered by `.stagger-word`. */
   --animate-word: word 460ms var(--ease-jumpa) both;
@@ -269,6 +273,18 @@
     from {
       opacity: 0;
       transform: scale(0.94);
+    }
+  }
+  @keyframes slide-in {
+    from {
+      opacity: 0;
+      transform: translateX(var(--slide-from, 24px));
+    }
+  }
+  /* Scale, not width — the bar's box never changes while it fills. */
+  @keyframes meter-fill {
+    from {
+      transform: scaleX(0);
     }
   }
   /* The blur is what makes a word arrive rather than blink on. */

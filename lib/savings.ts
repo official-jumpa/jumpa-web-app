@@ -262,6 +262,11 @@ export function rateRange(kind: SavingsKind): string {
   return `${formatApy(Math.min(...rates))} – ${formatApy(Math.max(...rates))}`;
 }
 
+/** "14.49%" — the best a product pays, for a card too narrow for the range. */
+export function topRate(kind: SavingsKind): string {
+  return formatApy(Math.max(...RATE_BANDS[kind].map((band) => band.apy)));
+}
+
 /** The rate a term chip prints under its label. */
 export function rateForTerm(
   kind: SavingsKind,

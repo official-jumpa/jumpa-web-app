@@ -25,6 +25,7 @@ export function SavingsIntroSheet({
 }: {
   intro: SavingsIntro;
   onClose: () => void;
+  /** Stays on the page instead of following `href` — the CTA becomes a button. */
   onContinue?: () => void;
 }) {
   return (
@@ -55,17 +56,20 @@ export function SavingsIntroSheet({
 
         {/* The design stacks the two actions 8px apart. */}
         <div className="flex w-full flex-col gap-2">
-          <Button
-            href={intro.href}
-            variant="gradientSheet"
-            size="lg"
-            onClick={() => {
-              onContinue?.();
-              onClose();
-            }}
-          >
-            {intro.cta}
-          </Button>
+          {onContinue ? (
+            <Button variant="gradientSheet" size="lg" onClick={onContinue}>
+              {intro.cta}
+            </Button>
+          ) : (
+            <Button
+              href={intro.href}
+              variant="gradientSheet"
+              size="lg"
+              onClick={onClose}
+            >
+              {intro.cta}
+            </Button>
+          )}
 
           {intro.secondary ? (
             <Button

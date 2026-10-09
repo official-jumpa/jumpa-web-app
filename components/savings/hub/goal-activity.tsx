@@ -5,6 +5,7 @@ import { ArrowUpFromArcIcon } from "@/components/ui/icons/arrow-up-from-arc";
 import { BadgePercentIcon } from "@/components/ui/icons/badge-percent";
 import {
   ACTIVITY_LABEL,
+  activityLabel,
   formatMoney,
   type HubActivity,
   type HubActivityKind,
@@ -73,7 +74,8 @@ function ActivityRow({
           {ACTIVITY_LABEL[entry.kind]}
         </span>
         <span className="text-xs leading-4 text-jumpa-neutral-500">
-          {entry.date}
+          {entry.by ? `${entry.by} · ` : ""}
+          {activityLabel(entry.at)}
         </span>
       </span>
       <span

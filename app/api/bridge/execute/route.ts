@@ -74,8 +74,8 @@ export async function POST(req: NextRequest) {
     // Invalidate cached balances
     invalidateBalanceCache(userId);
 
-    // Create user notification
-    await createNotification({
+    // Create user notification asynchronously in background
+    createNotification({
       userId,
       tab: "transactions",
       title: "Bridge Transfer Initiated",

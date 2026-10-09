@@ -886,16 +886,15 @@ export async function POST(req: NextRequest) {
         `[Chat Confirm] Offramp SUCCESS! TxHash: ${txHash}. Confirming with provider...`,
       );
 
-      // Confirm payment with Switch provider (skip for Stellar/Centiiv)
+      // Confirm payment with Switch provider asynchronously in background (skip for Stellar/Centiiv)
       if (!isStellar) {
-        try {
-          await SwitchService.confirmPayment(reference, txHash);
-          console.log(`[Chat Confirm] Switch payment confirmed for ${reference}`);
-        } catch (switchConfirmErr) {
-          console.warn(
-            `[Chat Confirm] Notice: Switch confirmPayment warning: ${switchConfirmErr}`,
-          );
-        }
+        SwitchService.confirmPayment(reference, txHash)
+          .then(() => console.log(`[Chat Confirm] Switch payment confirmed for ${reference}`))
+          .catch((switchConfirmErr) => {
+            console.warn(
+              `[Chat Confirm] Notice: Switch confirmPayment warning: ${switchConfirmErr}`,
+            );
+          });
       }
 
       const resolvedTxChain =

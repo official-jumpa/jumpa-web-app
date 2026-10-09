@@ -259,7 +259,8 @@ export async function POST(req: NextRequest) {
         network: "mainnet",
         fromAddress: userFromAddr || "USER_WALLET",
         toAddress: `${bankMatch.name} / ${accountNumber}`,
-        amount: String(deposit.amount),
+        amount: String(deposit.totalAmount || cryptoAmount),
+        feePaid: deposit.feeAmount ? String(deposit.feeAmount) : "0",
         token: tokenName,
         txHash: reference,
         rampDetails: {
@@ -356,18 +357,16 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Confirm payment with Switch
+      // Confirm payment with Switch asynchronously in the background so the user is not delayed
       if (provider === "switch") {
-        try {
-          t = performance.now();
-          await SwitchService.confirmPayment(reference, transferResult.txHash);
-          console.log(`[Offramp] SwitchService.confirmPayment: ${elapsed(t)}`);
-        } catch (switchConfirmErr) {
-          console.warn(
-            "[Switch Offramp] Switch confirmPayment notice:",
-            switchConfirmErr,
-          );
-        }
+        SwitchService.confirmPayment(reference, transferResult.txHash).catch(
+          (switchConfirmErr) => {
+            console.warn(
+              "[Switch Offramp] Switch confirmPayment notice:",
+              switchConfirmErr,
+            );
+          },
+        );
       }
 
       const isTxPending = transferResult.txStatus === "PENDING";
@@ -398,7 +397,7 @@ export async function POST(req: NextRequest) {
         explorerUrl: transferResult.explorerUrl,
         fiatAmount: destination.amount,
         fiatCurrency: destination.currency,
-        cryptoAmount: deposit.amount,
+        cryptoAmount: deposit.totalAmount || cryptoAmount,
         cryptoToken: tokenName,
         resolvedBank: bankMatch.name,
         resolvedBankCode: bankMatch.code,

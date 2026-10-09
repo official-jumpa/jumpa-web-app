@@ -2035,10 +2035,10 @@ export async function executeTool(
             network: "mainnet",
             fromAddress: "USER_WALLET",
             toAddress: `${paystackBank.name} / ${cleanAccount} (${verifiedHolderName})`,
-            amount: String(deposit.amount),
+            amount: String(deposit.totalAmount || deposit.amount),
             token: targetToken,
             txHash: reference,
-            feePaid: "0",
+            feePaid: deposit.feeAmount ? String(deposit.feeAmount) : "0",
             rampDetails: {
               provider: providerName,
               fiatCurrency: "NGN",

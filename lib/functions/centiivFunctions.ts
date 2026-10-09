@@ -228,7 +228,7 @@ export async function submitCentiivStellarPayment(params: {
   const transaction = builder.build();
   transaction.sign(userKeypair);
 
-  const result = await sponsoredSubmit(transaction as any, "mainnet");
+  const result = await sponsoredSubmit(transaction as any, "mainnet", { async: true });
 
   if (result.status === "pending") {
     return { hash: result.txHash, status: "pending" };

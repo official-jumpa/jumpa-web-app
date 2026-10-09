@@ -167,7 +167,7 @@ export const environment = {
   PAYSTACK_BEARER_KEY: process.env.PAYSTACK_BEARER_KEY || "",
 
   // FEES
-  SWITCH_JUMPA_FEE: process.env.SWITCH_JUMPA_FEE ? Number(process.env.SWITCH_JUMPA_FEE) : 1.2,
+  SWITCH_JUMPA_FEE: process.env.SWITCH_JUMPA_FEE ? Number(process.env.SWITCH_JUMPA_FEE) : 1,
 
   // (Airtime & Data)
   SMART_SMS_API: process.env.SMART_SMS_API || "",

@@ -260,56 +260,40 @@ export function BankTransferView({
 
   const rows = isFiatWithdrawal
     ? [
-        { label: "From", value: "Jumpa NGN Wallet" },
-        {
-          label: "Type",
-          value: isInternal ? "Internal Transfer" : "Bank transfer",
-        },
-        { label: "To", value: `${form.bank} - ${form.account}` },
         { label: "Recipient", value: form.name || "—" },
+        { label: "To", value: `${form.bank} - ${form.account}` },
         {
-          label: "Transfer amount",
+          label: "Amount",
           value: `₦${rawTypedNumber.toLocaleString()}`,
         },
-        {
-          label: "Withdrawal fee",
-          value: isInternal ? "₦0" : `₦${fiatFee}`,
-        },
-        {
-          label: "Total debit",
-          value: `₦${fiatTotalDebit.toLocaleString()}`,
-        },
-        { label: "Settlement", value: "Instant" },
+        ...(!isInternal && fiatFee > 0
+          ? [{ label: "Fee", value: `₦${fiatFee}` }]
+          : []),
         ...(form.note ? [{ label: "Narration", value: form.note }] : []),
       ]
     : momo
       ? [
-          { label: "From", value: `Jumpa wallet (${selectedNetwork})` },
-          { label: "Type", value: "Mobile money" },
-          { label: "To", value: `${form.network} - ${form.phone}` },
           { label: "Recipient", value: form.name || "—" },
+          { label: "To", value: `${form.network} - ${form.phone}` },
+          {
+            label: "Amount",
+            value:
+              currencyMode === "fiat"
+                ? `₦${targetFiatAmount.toLocaleString()} ${fiatCurrency}`
+                : `${numCryptoAmount} ${selectedAsset}`,
+          },
         ]
       : [
-          {
-            label: "From",
-            value: `Jumpa wallet (${selectedNetwork})`,
-          },
-          { label: "Type", value: country?.routing ? "ACH" : "Bank transfer" },
-          { label: "To", value: `${form.bank} - ${form.account}` },
           { label: "Recipient", value: form.name || "—" },
+          { label: "To", value: `${form.bank} - ${form.account}` },
           {
-            label: "You'll receive",
+            label: "You receive",
             value: `₦${targetFiatAmount.toLocaleString()} ${fiatCurrency}`,
           },
           {
-            label: "You'll pay",
-            value: `${numCryptoAmount} ${selectedAsset}`,
-          },
-          {
-            label: "Exchange rate",
+            label: "Rate",
             value: `1 ${selectedAsset} ≈ ₦${offrampRate.toLocaleString()}`,
           },
-          { label: "Settlement", value: "Within seconds" },
           ...(form.routing ? [{ label: "Routing", value: form.routing }] : []),
           ...(form.note ? [{ label: "Narration", value: form.note }] : []),
         ];

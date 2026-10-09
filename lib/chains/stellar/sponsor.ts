@@ -120,6 +120,7 @@ const OFFRAMP_FEE_MULTIPLIER = 10;
 export async function sponsoredSubmit(
   signedTx: StellarSdk.Transaction,
   network: "mainnet" | "testnet" = "mainnet",
+  options?: { async?: boolean },
 ): Promise<
   | { status: "confirmed"; response: any; sponsored: boolean }
   | { status: "pending"; txHash: string; sponsored: boolean }
@@ -128,6 +129,19 @@ export async function sponsoredSubmit(
   const higherFeeTx = rebuildWithHigherFee(signedTx, network);
   const { tx, sponsored } = wrapWithFeeBump(higherFeeTx, network);
   const server = getHorizonServer(network);
+  const hash = tx.hash().toString("hex");
+
+  // Fast-path: submit asynchronously to Horizon mempool without waiting 7s for ledger inclusion
+  if (options?.async) {
+    try {
+      const asyncRes = await (server as any).submitAsyncTransaction(tx);
+      console.log(`[Stellar Sponsor] Async broadcast accepted tx ${hash}:`, asyncRes?.tx_status || "PENDING");
+      return { status: "pending", txHash: hash, sponsored };
+    } catch (asyncErr: any) {
+      console.warn(`[Stellar Sponsor] Async submission fallback on tx ${hash}:`, asyncErr?.message || asyncErr);
+      // If async endpoint is unsupported by provider, fall through to synchronous submit
+    }
+  }
 
   try {
     const response = await server.submitTransaction(tx);
@@ -135,16 +149,16 @@ export async function sponsoredSubmit(
   } catch (err: any) {
     // Horizon timed out — the tx may still land. Extract the hash from extras.
     const httpStatus = err?.response?.status ?? err?.status;
-    const hash =
+    const finalHash =
       err?.response?.data?.extras?.hash ??
       err?.extras?.hash ??
-      signedTx.hash().toString("hex");
+      hash;
 
     if (httpStatus === 504 || httpStatus === 408) {
       console.warn(
-        `[Stellar Sponsor] Horizon 504 timeout on tx ${hash}. Returning PENDING — transaction may still land on-chain.`,
+        `[Stellar Sponsor] Horizon 504 timeout on tx ${finalHash}. Returning PENDING — transaction may still land on-chain.`,
       );
-      return { status: "pending", txHash: hash, sponsored };
+      return { status: "pending", txHash: finalHash, sponsored };
     }
 
     // Any other error — rethrow

@@ -204,15 +204,14 @@ export async function executeStellarSwap(
     const tx = StellarSdk.TransactionBuilder.fromXDR(builtXdr, passphrase) as StellarSdk.Transaction;
     tx.sign(sourceKeypair);
 
-    // sponsoredSubmit: bumps fee to 1000 stroops + catches 504 gracefully
-    const submitResult = await sponsoredSubmit(tx, network);
+    // sponsoredSubmit: bumps fee to 1000 stroops and submits asynchronously (returns mempool txHash immediately)
+    const submitResult = await sponsoredSubmit(tx, network, { async: true });
     feeSponsored = submitResult.sponsored;
 
     if (submitResult.status === "pending") {
-      // Horizon timed out — tx may still land on-chain
       txHash = submitResult.txHash;
       txStatus = "pending";
-      console.warn(`[executeSwap] Horizon 504 timeout — tx ${txHash} is PENDING. Will resolve via cron.`);
+      console.log(`[executeSwap] Tx ${txHash} broadcasted.`);
     } else {
       horizonRes = submitResult.response;
       txHash = horizonRes.hash;

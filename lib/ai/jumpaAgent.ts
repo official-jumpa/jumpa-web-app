@@ -165,21 +165,33 @@ You ask clarifying questions when details are missing. You never assume, guess, 
 }
 
 /**
- * Remove any leaked DSML tokens or XML-like tags from assistant text.
+ * Remove any leaked DSML tokens, XML-like tags, or broken parameter values from assistant text.
  */
 export function sanitizeDSML(content: string): string {
   if (!content) return "";
   return content
+    // Strip standard fullwidth DSML tool calls and invokes
     .replace(
-      /<｜(?:｜)?DSML(?:｜)?[\s\S]*?<\/｜(?:｜)?DSML(?:｜)?tool_calls>/gi,
+      /<[｜|]?(?:\s*[｜|])?\s*DSML[\s\S]*?<\/[｜|]?(?:\s*[｜|])?\s*DSML[\s\S]*?(?:tool_calls|calls)>/gi,
       "",
     )
     .replace(
-      /<｜(?:｜)?DSML(?:｜)?[\s\S]*?<\/｜(?:｜)?DSML(?:｜)?invoke>/gi,
+      /<[｜|]?(?:\s*[｜|])?\s*DSML[\s\S]*?<\/[｜|]?(?:\s*[｜|])?\s*DSML[\s\S]*?invoke>/gi,
       "",
     )
-    .replace(/<｜(?:｜)?DSML(?:｜)?[\s\S]*?>/gi, "")
-    .replace(/<｜[\s\S]*?｜>/gi, "")
+    // Strip loose broken parameter rows e.g. "value</ |  | DSML |  | parameter>"
+    .replace(
+      /[^\n<]*<\s*[/\\| ]*DSML[ /\\|]*parameter>/gi,
+      "",
+    )
+    // Strip any closing invoke or calls tags
+    .replace(
+      /<\s*[/\\| ]*DSML[ /\\|]*(?:invoke|calls|tool_calls)>/gi,
+      "",
+    )
+    // Strip any remaining DSML or pipe-bracketed tags
+    .replace(/<[｜|/\\ ]*DSML[\s\S]*?>/gi, "")
+    .replace(/<[｜|][\s\S]*?[｜|]>/gi, "")
     .trim();
 }
 
@@ -190,8 +202,10 @@ export function parseDSMLToolCalls(content: string): ParsedToolCall[] {
   if (!content || !content.includes("DSML")) return [];
 
   const toolCalls: ParsedToolCall[] = [];
+
+  // Pattern 1: Standard structured DSML invoke block
   const invokeRegex =
-    /<｜(?:｜)?DSML(?:｜)?invoke\s+name=["']([^"']+)["']>([\s\S]*?)<\/｜(?:｜)?DSML(?:｜)?invoke>/gi;
+    /<[｜|]?(?:\s*[｜|])?\s*DSML[｜|\s]*invoke\s+name=["']([^"']+)["']>([\s\S]*?)<\/[｜|]?(?:\s*[｜|])?\s*DSML[｜|\s]*invoke>/gi;
   let match: RegExpExecArray | null;
 
   while ((match = invokeRegex.exec(content)) !== null) {
@@ -204,7 +218,7 @@ export function parseDSMLToolCalls(content: string): ParsedToolCall[] {
         toolArgs = JSON.parse(rawBody);
       } else {
         const paramRegex =
-          /<｜(?:｜)?DSML(?:｜)?parameter\s+name=["']([^"']+)["']>([\s\S]*?)<\/｜(?:｜)?DSML(?:｜)?parameter>/gi;
+          /<[｜|]?(?:\s*[｜|])?\s*DSML[｜|\s]*parameter\s+name=["']([^"']+)["']>([\s\S]*?)<\/[｜|]?(?:\s*[｜|])?\s*DSML[｜|\s]*parameter>/gi;
         let paramMatch: RegExpExecArray | null;
         while ((paramMatch = paramRegex.exec(rawBody)) !== null) {
           const key = paramMatch[1];
@@ -225,6 +239,43 @@ export function parseDSMLToolCalls(content: string): ParsedToolCall[] {
       toolName,
       toolArgs,
     });
+  }
+
+  // Pattern 2: Degraded/Loose DSML blocks where opening invoke tag was truncated or missing
+  // (e.g. value</ |  | DSML |  | parameter> ... </ |  | DSML |  | invoke>)
+  if (toolCalls.length === 0 && (content.includes("invoke") || content.includes("parameter"))) {
+    const looseParams = [...content.matchAll(/([^\n<]+)<\s*[/\\| ]*DSML[ /\\|]*parameter>/gi)]
+      .map((m) => m[1]?.trim())
+      .filter((v): v is string => Boolean(v));
+
+    if (looseParams.length > 0) {
+      const recoveredArgs: Record<string, any> = {};
+      for (const val of looseParams) {
+        if (/^\d{10}$/.test(val)) {
+          recoveredArgs.accountNumber = val;
+        } else if (val.includes(":")) {
+          recoveredArgs.asset = val;
+        } else if (["USDC", "USDT", "CNGN", "XLM", "SOL", "ETH"].includes(val.toUpperCase())) {
+          recoveredArgs.cryptoToken = val.toUpperCase();
+        } else if (/^\d+(\.\d+)?$/.test(val)) {
+          recoveredArgs.fiatAmount = val;
+        } else {
+          recoveredArgs.bankName = val;
+        }
+      }
+
+      // Infer tool name from context
+      const toolName =
+        recoveredArgs.accountNumber || recoveredArgs.bankName || recoveredArgs.asset?.includes(":")
+          ? "offramp_ngn"
+          : "send_funds";
+
+      toolCalls.push({
+        toolCallId: `call_dsml_recovered_${Date.now()}`,
+        toolName,
+        toolArgs: recoveredArgs,
+      });
+    }
   }
 
   return toolCalls;

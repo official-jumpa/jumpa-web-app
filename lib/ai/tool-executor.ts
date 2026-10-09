@@ -1869,7 +1869,11 @@ export async function executeTool(
           if (isStellar) {
             const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 });
             appliedRate = Number(quote.rate);
-            amount = parseFloat((cleanFiat / appliedRate).toFixed(2));
+            const effectiveFee = environment.SWITCH_JUMPA_FEE;
+            const feePct = effectiveFee / 100;
+            // Gross up so that after feePct is deducted, net USDC * appliedRate equals cleanFiat
+            const netCryptoNeeded = cleanFiat / appliedRate;
+            amount = parseFloat((netCryptoNeeded / (1 - feePct)).toFixed(4));
           } else {
             const rateRes = await SwitchService.getOfframpRate(targetAsset);
             if (!rateRes.success || !rateRes.rate) {
@@ -1884,7 +1888,7 @@ export async function executeTool(
             throw new Error("Calculated crypto amount is too small. Please enter a higher amount.");
           }
           console.log(
-            `[ToolExecutor] [User: ${userId}] Computed offramp crypto amount: ${amount} ${targetToken} for ₦${cleanFiat.toLocaleString()} (Rate: ₦${appliedRate})`,
+            `[ToolExecutor] [User: ${userId}] Computed offramp crypto amount: ${amount} ${targetToken} for target ₦${cleanFiat.toLocaleString()} (Rate: ₦${appliedRate})`,
           );
         } else {
           throw new Error(
@@ -1991,7 +1995,7 @@ export async function executeTool(
           const rawQuoteRate = appliedRate || Number((await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 })).rate);
           // Effective rate reflects fee deduction
           const effectiveRate = rawQuoteRate * (1 - feePct);
-          destinationAmount = parseFloat((amount * effectiveRate).toFixed(2));
+          destinationAmount = cleanFiat > 0 ? cleanFiat : parseFloat((amount * effectiveRate).toFixed(2));
         } else {
           providerName = "switch";
           if (!switchBank) {

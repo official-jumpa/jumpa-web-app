@@ -180,13 +180,20 @@ export async function POST(req: NextRequest) {
       isChooserReply ||
       (isTransactionalAction && (hasNumericalAmount || /\b(opay|palmpay|kuda|gtbank|access|zenith|bank|\d{10})\b/i.test(sanitizedMsg)));
 
-    // If user replies with affirmative text like "yes", "confirm", "proceed" while a pending transaction card is waiting
-    const isAffirmativeReply = /^(yes|yeah|yep|confirm|approved|proceed|send it|ok|okay)\b/i.test(message.trim());
+    // If user replies with affirmative text like "yes", "confirm", "proceed" while a pending transaction card is waiting.
+    // Crucial: Only trigger if the user gave a pure confirmation without modifying intent (e.g. NOT "yes add the fees on top" or "proceed with kuda").
+    const trimmedMsg = message.trim();
+    const hasModifyingIntent =
+      /\b(add|change|modify|fee|fees|top|account|bank|instead|different|regenerate|redo|update)\b/i.test(trimmedMsg);
+    const isPureAffirmativeReply =
+      /^(yes|yeah|yep|confirm|approved|proceed|send it|ok|okay)[.!]?$/i.test(trimmedMsg) ||
+      (/^(yes|yeah|yep|confirm|approved|proceed|send it|ok|okay)\b/i.test(trimmedMsg) && !hasModifyingIntent);
+
     const lastPendingTxMsg = [...(chatLog.messages || [])]
       .reverse()
       .find((m: IChatMessage) => m.isTransaction && m.status === "pending");
 
-    if (isAffirmativeReply && lastPendingTxMsg) {
+    if (isPureAffirmativeReply && lastPendingTxMsg) {
       // Don't let AI hallucinate that it sent money in text without PIN!
       const reminderContent =
         "Please review the card above and confirm to enter your PIN to complete this transaction.";

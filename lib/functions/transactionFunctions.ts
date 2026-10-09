@@ -540,6 +540,16 @@ const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
   },
 };
 
+function cleanReference(ref?: string): string {
+  if (!ref) return "";
+  // Strip prefixes like "JUMPA-tx_", "JUMPA-", "Jumpa_", "tx_"
+  const stripped = ref.replace(/^(?:JUMPA-tx_|JUMPA-|Jumpa_|tx_)/i, "");
+  if (stripped.length > 20) {
+    return `${stripped.slice(0, 8)}…${stripped.slice(stripped.length - 6)}`;
+  }
+  return stripped;
+}
+
 function buildRampOrBankRows(tx: any): Array<[string, unknown, string?]> {
   const isWithdraw =
     tx.type === "WITHDRAW" ||
@@ -571,7 +581,7 @@ function buildRampOrBankRows(tx: any): Array<[string, unknown, string?]> {
       if (bank.bankName) rows.push(["Recipient Bank", bank.bankName]);
       if (bank.accountNumber) rows.push(["Recipient Account", bank.accountNumber, bank.accountNumber]);
     } else {
-      // Receiver's view: show sender info if available, plus receiving/destination account
+      // Receiver's view: show who sent the money and their details
       if (bank.senderName) {
         rows.push(["Sender", bank.senderName]);
       } else if (tx.fromAddress && tx.fromAddress !== "NGN_BANK_TRANSFER") {
@@ -579,18 +589,22 @@ function buildRampOrBankRows(tx: any): Array<[string, unknown, string?]> {
       }
       if (bank.senderBank) rows.push(["Sender Bank", bank.senderBank]);
       if (bank.senderAccountNumber) rows.push(["Sender Account", bank.senderAccountNumber, bank.senderAccountNumber]);
-      if (bank.bankName) rows.push(["Recipient Bank", bank.bankName]);
-      if (bank.accountNumber) rows.push(["Recipient Account", bank.accountNumber, bank.accountNumber]);
     }
 
     const ref = bank.reference || tx.txHash;
-    if (ref) rows.push(["Reference", ref, ref]);
+    if (ref) {
+      const displayRef = cleanReference(ref);
+      rows.push(["Reference", displayRef, ref]);
+    }
   } else if (ramp) {
     rows.push([
       "Fiat amount",
       ramp.fiatAmount ? `${ramp.fiatCurrency} ${ramp.fiatAmount}` : "",
     ]);
-    if (ramp.reference) rows.push(["Reference", ramp.reference, ramp.reference]);
+    if (ramp.reference) {
+      const displayRef = cleanReference(ramp.reference);
+      rows.push(["Reference", displayRef, ramp.reference]);
+    }
   }
 
   if (tx.memo) rows.push(["Description", tx.memo]);

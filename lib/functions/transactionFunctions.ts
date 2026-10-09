@@ -569,9 +569,9 @@ function buildRampOrBankRows(tx: any): Array<[string, unknown, string?]> {
       // Sender's view: show recipient info
       if (bank.accountName) rows.push(["Recipient", bank.accountName]);
       if (bank.bankName) rows.push(["Recipient Bank", bank.bankName]);
-      if (bank.accountNumber) rows.push(["Account Number", bank.accountNumber, bank.accountNumber]);
+      if (bank.accountNumber) rows.push(["Recipient Account", bank.accountNumber, bank.accountNumber]);
     } else {
-      // Receiver's view: show sender info if available, plus beneficiary account
+      // Receiver's view: show sender info if available, plus receiving/destination account
       if (bank.senderName) {
         rows.push(["Sender", bank.senderName]);
       } else if (tx.fromAddress && tx.fromAddress !== "NGN_BANK_TRANSFER") {
@@ -579,8 +579,8 @@ function buildRampOrBankRows(tx: any): Array<[string, unknown, string?]> {
       }
       if (bank.senderBank) rows.push(["Sender Bank", bank.senderBank]);
       if (bank.senderAccountNumber) rows.push(["Sender Account", bank.senderAccountNumber, bank.senderAccountNumber]);
-      if (bank.bankName) rows.push(["Bank", bank.bankName]);
-      if (bank.accountNumber) rows.push(["Account Number", bank.accountNumber, bank.accountNumber]);
+      if (bank.bankName) rows.push(["Recipient Bank", bank.bankName]);
+      if (bank.accountNumber) rows.push(["Recipient Account", bank.accountNumber, bank.accountNumber]);
     }
 
     const ref = bank.reference || tx.txHash;

@@ -206,7 +206,7 @@ export function FiatDepositView({
                 className="tap flex items-center gap-1 text-jumpa-neutral-500 hover:text-jumpa-black"
                 title="View fee schedule"
               >
-                <span>Free under ₦10k</span>
+                <span>Free under ₦5k</span>
                 <ChevronDownIcon
                   className={cn(
                     "size-3 text-jumpa-neutral-400 transition-transform duration-200",
@@ -219,11 +219,11 @@ export function FiatDepositView({
             {showFeeTiers && (
               <div className="flex flex-col gap-1.5 rounded-md bg-jumpa-neutral-80/40 p-2.5 text-[11px] leading-3.5 text-jumpa-neutral-400 animate-in fade-in duration-150">
                 <div className="flex justify-between">
-                  <span>Below ₦10,000</span>
+                  <span>Below ₦5,000</span>
                   <span className="font-semibold text-emerald-600">Free</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>₦10,000 and above</span>
+                  <span>₦5,001 and above</span>
                   <span className="font-semibold text-jumpa-black">1%</span>
                 </div>
               </div>

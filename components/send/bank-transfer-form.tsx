@@ -20,7 +20,6 @@ import { getAssetLogo } from "@/lib/assets";
 import { MOBILE_NETWORKS, PHONE_NUMBER_MIN } from "@/lib/bills";
 import { supportedBanks } from "@/lib/constants/banks";
 import { BellmonieBanks } from "@/lib/constants/bellmonie-banks";
-import { FossaPayBanks } from "@/lib/constants/fossapay-banks";
 import { centiivBanks } from "@/lib/constants/centiiv-banks";
 import {
   ACCOUNT_NUMBER_MIN,

@@ -6,7 +6,7 @@ export interface FormattedNgnAccountDetails {
   accountNumber: string;
   accountName: string;
   status: string;
-  provider?: "bellmonie" | "fossapay" | string;
+  provider?: "bellmonie" | string;
 }
 
 export interface FormattedNgnBalance {
@@ -16,27 +16,13 @@ export interface FormattedNgnBalance {
 }
 
 /**
- * Finds an active NGN account for a user, prioritizing Bellmonie and falling back to FossaPay / any provider.
+ * Finds an active NGN account for a user, returning exclusively their Bellmonie account.
  */
 export async function getUserNgnAccount(
   userId: string,
-  preferredProvider?: string,
 ): Promise<INgnAccount | null> {
   await connectDB();
-  if (preferredProvider) {
-    const specific = await NgnAccount.findOne({ userId, provider: preferredProvider }).lean<INgnAccount>();
-    if (specific) return specific;
-  }
-
-  // Prioritize Bellmonie, fallback to FossaPay, then any
-  const bellmonieAcc = await NgnAccount.findOne({ userId, provider: "bellmonie" }).lean<INgnAccount>();
-  if (bellmonieAcc) return bellmonieAcc;
-
-  const fossapayAcc = await NgnAccount.findOne({ userId, provider: "fossapay" }).lean<INgnAccount>();
-  if (fossapayAcc) return fossapayAcc;
-
-  const anyAcc = await NgnAccount.findOne({ userId }).lean<INgnAccount>();
-  return anyAcc;
+  return NgnAccount.findOne({ userId, provider: "bellmonie" }).lean<INgnAccount>();
 }
 
 /**
@@ -68,19 +54,21 @@ export async function getUserNgnAccountDetails(
 
   const requestedProvider = options?.provider || (hasBellmonie ? "bellmonie" : "fossapay");
 
-  // Format all active accounts
-  const formattedAccounts: FormattedNgnAccountDetails[] = allAccounts.map((a) => ({
-    bankName: a.bankName || (a.provider === "bellmonie" ? "Bloc MFB" : "Sterling MFB"),
-    accountNumber: a.accountNumber || "",
-    accountName: a.accountName || fallbackAccountName,
-    status: a.status || "active",
-    provider: a.provider || "bellmonie",
-  }));
+  // Format all active accounts (exclusively Bellmonie for UI display)
+  const formattedAccounts: FormattedNgnAccountDetails[] = allAccounts
+    .filter((a) => (a.provider || "bellmonie") === "bellmonie")
+    .map((a) => ({
+      bankName: a.bankName || "Bloc MFB",
+      accountNumber: a.accountNumber || "",
+      accountName: a.accountName || fallbackAccountName,
+      status: a.status || "active",
+      provider: "bellmonie",
+    }));
 
-  // Selected account
-  const selectedDoc = options?.provider
-    ? allAccounts.find((a) => a.provider === options.provider)
-    : (allAccounts.find((a) => a.provider === requestedProvider) || allAccounts[0]);
+  // Selected account (prioritize Bellmonie)
+  const selectedDoc =
+    allAccounts.find((a) => a.provider === "bellmonie") ||
+    (options?.provider ? allAccounts.find((a) => a.provider === options.provider) : allAccounts[0]);
 
   if (!selectedDoc) {
     return {
@@ -119,7 +107,7 @@ export async function getUserNgnAccountDetails(
 
   const rawBal = Number(selectedDoc.balance ?? 0);
   const account: FormattedNgnAccountDetails = {
-    bankName: selectedDoc.bankName || (selectedDoc.provider === "bellmonie" ? "Bloc MFB" : "Sterling MFB"),
+    bankName: selectedDoc.bankName || "Bloc MFB",
     accountNumber: selectedDoc.accountNumber || "",
     accountName: selectedDoc.accountName || fallbackAccountName,
     status: selectedDoc.status || "active",

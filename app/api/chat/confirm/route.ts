@@ -845,26 +845,12 @@ export async function POST(req: NextRequest) {
       }
 
       const isStellar = asset.toLowerCase().includes("stellar");
-      const effectiveFee = environment.SWITCH_JUMPA_FEE;
-      const stellarFeeAmount =
-        effectiveCardData?.feeAmount ||
-        txParams?.feeAmount ||
-        (isStellar
-          ? parseFloat((Number(cryptoAmount) * (effectiveFee / 100)).toFixed(7))
-          : undefined);
-
-      const netOfframpAmount =
-        isStellar && stellarFeeAmount && Number(cryptoAmount) > Number(stellarFeeAmount)
-          ? (Number(cryptoAmount) - Number(stellarFeeAmount)).toFixed(7)
-          : cryptoAmount;
 
       const transferResult = await executeOfframpTransfer({
         mnemonic: phrase,
         asset,
         depositAddress,
-        amount: netOfframpAmount,
-        feeRecipient: isStellar ? environment.FEE_WALLET_STELLAR : undefined,
-        feeAmount: stellarFeeAmount,
+        amount: cryptoAmount,
       });
 
       if (!transferResult.success || !transferResult.txHash) {

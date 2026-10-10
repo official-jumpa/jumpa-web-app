@@ -123,7 +123,7 @@ export async function GET(req: NextRequest) {
       const totalCount = latestChat.messages?.length || 0;
       const rawMessages = loadAll
         ? latestChat.messages || []
-        : (latestChat.messages || []).slice(-12);
+        : (latestChat.messages || []).slice(-20); //load recent 20 messages max
 
       const returnedMessages = await syncMessagesWithSettledTransactions(
         latestChat._id,

@@ -31,7 +31,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!res.ok) {
     let errorMsg = data.message || `Centiiv HTTP ${res.status}`;
-    
+
     // Custom error parsing
     if (errorMsg.toLowerCase().includes("below the minimum transaction amount")) {
       const match = errorMsg.match(/minimum transaction amount of ([\d.]+)/i);
@@ -114,7 +114,7 @@ export async function createCentiivOfframp(params: {
       description: "Jumpa Payout", // Jumpa name to show in bank transfers
       refundAddress: params.refundAddress,
       beneficiary: {
-        externalId: params.userId,
+        externalId: `${params.userId}_${params.accountNumber}`,
         destination: {
           type: "BANK",
           bankCode: params.bankCode,
@@ -216,16 +216,6 @@ export async function submitBulkCentiivStellarPayment(params: {
     );
   }
 
-  const numFee = Number(params.feeAmount);
-  if (params.feeRecipient && !isNaN(numFee) && numFee > 0) {
-    builder = builder.addOperation(
-      Operation.payment({
-        destination: params.feeRecipient,
-        asset: usdcAsset,
-        amount: numFee.toFixed(7),
-      }),
-    );
-  }
 
   builder = builder.setTimeout(60);
 

@@ -1971,14 +1971,8 @@ export async function executeTool(
             throw new Error(`Bank account not found`);
           }
 
-          const effectiveFee = environment.SWITCH_JUMPA_FEE;
-          const feePct = effectiveFee / 100;
-          // Centiiv accepts up to 4 decimal places on USDC amounts
-          const feeAmount = parseFloat((amount * feePct).toFixed(4));
-          const netAmount = parseFloat((amount - feeAmount).toFixed(4));
-
           const res = await createCentiivOfframp({
-            amount: netAmount,
+            amount: amount,
             bankCode: centiivBank.code,
             accountNumber: cleanAccount,
             accountName: verifiedHolderName,
@@ -1987,16 +1981,13 @@ export async function executeTool(
 
           reference = res.id;
           deposit = {
-            amount: netAmount,
+            amount: amount,
             totalAmount: amount,
-            feeAmount,
-            feeRecipient: environment.FEE_WALLET_STELLAR,
             address: res.temporaryWallet.publicAddress,
           };
-          const rawQuoteRate = appliedRate || Number((await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 })).rate);
-          // Effective rate reflects fee deduction
-          const effectiveRate = rawQuoteRate * (1 - feePct);
-          destinationAmount = cleanFiat > 0 ? cleanFiat : parseFloat((amount * effectiveRate).toFixed(2));
+          const quoteRes = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount });
+          const rawQuoteRate = appliedRate || Number(quoteRes.rate);
+          destinationAmount = cleanFiat > 0 ? cleanFiat : (quoteRes.estimatedReceivableAmount ? Number(quoteRes.estimatedReceivableAmount) : parseFloat((amount * rawQuoteRate).toFixed(2)));
         } else {
           providerName = "switch";
           if (!switchBank) {
@@ -2469,6 +2460,23 @@ export async function executeTool(
         });
       }
 
+      // Check for duplicate recipients in the same bulk transfer batch (same bank & account)
+      const seenAccounts = new Map<string, number>();
+      for (let i = 0; i < resolvedRecipients.length; i++) {
+        const rec = resolvedRecipients[i];
+        const key = `${rec.bankCode || rec.bankName}_${rec.accountNumber}`;
+        if (seenAccounts.has(key)) {
+          const firstIdx = seenAccounts.get(key)!;
+          return {
+            toolName: name,
+            summaryForAI: `You cannot send to the same recipient (${rec.bankName} - ${rec.accountNumber}) multiple times in a single bulk transfer (recipients #${firstIdx + 1} and #${i + 1}). Please combine the amounts into a single transfer.`,
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+        seenAccounts.set(key, i);
+      }
+
       const totalNgnAmount = resolvedRecipients.reduce((sum, r) => sum + r.numAmount, 0);
 
       // 4. Source-specific logic (NGN vs Crypto Offramp Option A)
@@ -2564,13 +2572,11 @@ export async function executeTool(
           const { generateId } = await import("@/lib/schema-ids");
           await Promise.all(
             resolvedRecipients.map(async (rec, idx) => {
-              const grossCrypto = parseFloat((rec.numAmount / currentRate).toFixed(4));
-              const feeAmount = parseFloat((grossCrypto * feePct).toFixed(4));
-              const netCrypto = parseFloat((grossCrypto - feeAmount).toFixed(4));
+              const cryptoAmount = parseFloat((rec.numAmount / currentRate).toFixed(4));
 
               const uniqueRef = `${generateId("idem")}`;
               const centiivOrder = await createCentiivOfframp({
-                amount: netCrypto,
+                amount: cryptoAmount,
                 bankCode: rec.bankCode,
                 accountNumber: rec.accountNumber,
                 accountName: rec.accountName,
@@ -2581,9 +2587,9 @@ export async function executeTool(
 
               rec.reference = centiivOrder.id;
               rec.depositAddress = centiivOrder.temporaryWallet.publicAddress;
-              rec.cryptoAmount = grossCrypto.toFixed(4);
+              rec.cryptoAmount = cryptoAmount.toFixed(4);
               rec.cryptoToken = "USDC";
-              totalCryptoRequired += grossCrypto;
+              totalCryptoRequired += cryptoAmount;
             }),
           );
         } else {

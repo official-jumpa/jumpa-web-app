@@ -1,7 +1,6 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { environment } from "@/lib/environment";
+import { isAdminRequest } from "@/lib/admin-api";
 import {
   RefundError,
   refundFailedNgnWithdrawal,
@@ -12,16 +11,6 @@ const bodySchema = z.object({
   transactionId: z.string().trim().min(1),
   refundedBy: z.email(),
 });
-
-// Hashing first gives equal-length buffers, so the compare leaks neither content nor length.
-const digest = (value: string) => createHash("sha256").update(value).digest();
-
-function isAdmin(req: NextRequest) {
-  const secret = environment.ADMIN_API_SECRET;
-  const key = req.headers.get("x-admin-key");
-  if (!secret || !key) return false;
-  return timingSafeEqual(digest(key), digest(secret));
-}
 
 /**
  * POST /api/admin/ngn-refunds — called by the admin dashboard, never by the app.
@@ -34,7 +23,7 @@ export async function POST(req: NextRequest) {
   });
   if (limited) return limited;
 
-  if (!isAdmin(req)) {
+  if (!isAdminRequest(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

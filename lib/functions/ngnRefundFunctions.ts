@@ -46,12 +46,42 @@ async function lookupBellmonie(reference: string) {
   }
 }
 
+/** What Bellmonie says happened to a payout. */
+export type BellmonieVerdict =
+  | "failed"
+  | "reversed"
+  | "sent"
+  | "pending"
+  | "not_found";
+
+const SENT_STATUSES = new Set(["successful", "success"]);
+
+/** Bellmonie's answer for one payout: the transfer itself first, then any reversal booked against it. */
+async function bellmonieVerdict(
+  reference: string,
+): Promise<{ verdict: BellmonieVerdict; status: string | null }> {
+  const original = await lookupBellmonie(reference);
+  const status = original?.status
+    ? String(original.status).toLowerCase()
+    : null;
+  if (original && isFailedStatus(original.status)) {
+    return { verdict: "failed", status };
+  }
+  const reversal = await lookupBellmonie(reversalReference(reference));
+  if (reversal && !isFailedStatus(reversal.status)) {
+    return { verdict: "reversed", status };
+  }
+  if (!original) return { verdict: "not_found", status: null };
+  return {
+    verdict: status && SENT_STATUSES.has(status) ? "sent" : "pending",
+    status,
+  };
+}
+
 /** True when Bellmonie shows the payout failed, or has a reversal booked against it. */
 async function bellmonieReportsFailure(reference: string): Promise<boolean> {
-  const original = await lookupBellmonie(reference);
-  if (original && isFailedStatus(original.status)) return true;
-  const reversal = await lookupBellmonie(reversalReference(reference));
-  return Boolean(reversal) && !isFailedStatus(reversal.status);
+  const { verdict } = await bellmonieVerdict(reference);
+  return verdict === "failed" || verdict === "reversed";
 }
 
 /**
@@ -222,4 +252,59 @@ export async function refundFailedNgnWithdrawal({
     `[NGN Refund] ✅ Refunded ₦${refundAmount} to user ${tx.userId} for ${transactionId} (by ${refundedBy}).`,
   );
   return { refundAmount, newBalance: credited.balance };
+}
+
+/** Each check costs Bellmonie up to two lookups, so a call covers this many withdrawals at most. */
+export const MAX_WITHDRAWAL_CHECKS = 25;
+const LOOKUP_CONCURRENCY = 5;
+
+export interface WithdrawalCheck {
+  /** `ineligible`: not a naira withdrawal with a bank reference. `unavailable`: Bellmonie could not answer. */
+  verdict: BellmonieVerdict | "ineligible" | "unavailable";
+  /** Bellmonie's own status for the transfer, when it has one. */
+  status: string | null;
+}
+
+/**
+ * Asks Bellmonie what happened to each naira withdrawal and changes nothing. The admin dashboard
+ * uses it to find payouts we recorded as sent that Bellmonie later failed or reversed.
+ */
+export async function checkNgnWithdrawals(
+  transactionIds: string[],
+): Promise<Record<string, WithdrawalCheck>> {
+  await connectDB();
+
+  const txs = await Transaction.find({ _id: { $in: transactionIds } })
+    .select("chain type bankDetails")
+    .lean<ITransaction[]>();
+  const references = new Map<string, string>();
+  for (const tx of txs) {
+    const reference = tx.bankDetails?.reference;
+    if (tx.chain === "fiat" && tx.type === "WITHDRAW" && reference) {
+      references.set(String(tx._id), reference);
+    }
+  }
+
+  const checks: Record<string, WithdrawalCheck> = {};
+  const queue = [...transactionIds];
+  const worker = async () => {
+    for (let id = queue.shift(); id; id = queue.shift()) {
+      const reference = references.get(id);
+      if (!reference) {
+        checks[id] = { verdict: "ineligible", status: null };
+        continue;
+      }
+      try {
+        checks[id] = await bellmonieVerdict(reference);
+      } catch (err) {
+        console.error(
+          `[NGN Refund] Bellmonie lookup failed for ${reference}:`,
+          err,
+        );
+        checks[id] = { verdict: "unavailable", status: null };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: LOOKUP_CONCURRENCY }, worker));
+  return checks;
 }

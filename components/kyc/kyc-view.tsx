@@ -97,14 +97,15 @@ export function KycView({
     initialKycData?.verificationId ?? null,
   );
 
-  // Sync existing user KYC status on initial mount if not provided by server
+  // Sync existing user KYC status on initial mount. Server data can be a prefetched snapshot from
+  // before verification finished, so re-check it too, or a verified user is sent through again.
   useEffect(() => {
-    if (initialKycData !== undefined) return;
+    if (initialKycData?.isCompleted) return;
 
     let isMounted = true;
     async function loadUserKycStatus() {
       try {
-        const res = await fetch("/api/kyc");
+        const res = await fetch("/api/kyc", { cache: "no-store" });
         if (!res.ok) return;
         const data = await res.json();
         if (!isMounted) return;
@@ -114,6 +115,9 @@ export function KycView({
           if (data.verificationId) setLastVerificationId(data.verificationId);
           return;
         }
+
+        // The server already rendered every other state.
+        if (initialKycData !== undefined) return;
 
         if (data.status === "failed" || data.status === "rejected") {
           setApiError(

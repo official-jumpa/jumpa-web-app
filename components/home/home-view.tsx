@@ -159,9 +159,12 @@ export function HomeView({
       }
     }
 
+    // The server prop can be a prefetched snapshot from before verification finished, so check
+    // until it reads complete; this call also settles a pending verification with the provider.
     async function fetchKycStatus() {
+      if (homeMemoryCache.kycComplete) return;
       try {
-        const res = await fetch("/api/kyc");
+        const res = await fetch("/api/kyc", { cache: "no-store" });
         if (res.ok && isMounted) {
           const data = await res.json();
           const isDone = Boolean(
@@ -180,7 +183,7 @@ export function HomeView({
     // Always fetch fresh transactions and balances to ensure updates after transactions show immediately
     fetchTransactions();
     fetchBalances(false);
-    if (initialKycComplete === undefined) fetchKycStatus();
+    fetchKycStatus();
 
     // Subscribe to balance refresh events triggered upon transaction completion
     const unsub = onBalanceRefresh(() => {
@@ -198,6 +201,7 @@ export function HomeView({
           lastFetchRef = now;
           fetchBalances(false);
           fetchTransactions();
+          fetchKycStatus();
         }
       }
     };

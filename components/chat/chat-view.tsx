@@ -127,16 +127,6 @@ function messagesToChatEntries(
       if (isPending) {
         items.push({ kind: "actions" });
       }
-    } else if (msg.cardType === "bulk_transfer" && msg.cardData) {
-      const isPending = msg.status === "pending";
-      items.push({
-        kind: "bulk_transfer",
-        card: msg.cardData as any,
-      });
-
-      if (isPending) {
-        items.push({ kind: "actions" });
-      }
     } else if (msg.cardType === "options" && msg.cardData) {
       items.push({ kind: "options", card: msg.cardData as any, answer });
     } else if (msg.cardType === "plans" && msg.cardData) {

@@ -202,8 +202,8 @@ export async function executeOfframpTransfer(options: {
         });
 
         if (txRes.status === "pending") {
-          console.warn(
-            `[OfframpTransfer] Stellar tx ${txRes.hash} is PENDING (Horizon 504). Centiiv will detect the payment on-chain.`,
+          console.log(
+            `[OfframpTransfer] Stellar tx ${txRes.hash} is PENDING onchain. Centiiv will detect the payment when its complete.`,
           );
           return {
             success: true,

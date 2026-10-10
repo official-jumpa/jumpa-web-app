@@ -128,8 +128,6 @@ export async function POST(req: NextRequest) {
         // Ensure the assistant has context of proposed transaction or options card data
         if (m.role === "assistant" && m.transactionParams) {
           text += `\n[Context: Pending ${m.transactionParams.type || m.cardType} with data: ${JSON.stringify(m.transactionParams)}]`;
-        } else if (m.role === "assistant" && m.cardType === "bulk_transfer" && m.cardData) {
-          text += `\n[Context: Bulk transfer proposal: ${JSON.stringify(m.cardData)}]`;
         }
         return {
           role: m.role as "user" | "assistant",
@@ -358,18 +356,6 @@ export async function POST(req: NextRequest) {
         content: finalAssistantContent,
         isTransaction: true,
         cardType: "offramp",
-        status: "pending",
-        transactionParams: primaryTransactionParams,
-        cardData: primaryCardHint.data,
-        timestamp: new Date(),
-      };
-    } else if (primaryCardHint.type === "bulk_transfer") {
-      assistantMessage = {
-        id: generateId("msg"),
-        role: "assistant",
-        content: finalAssistantContent,
-        isTransaction: true,
-        cardType: "bulk_transfer" as any,
         status: "pending",
         transactionParams: primaryTransactionParams,
         cardData: primaryCardHint.data,

@@ -108,6 +108,10 @@ export interface ITransaction {
   errorMessage?: string;
   executedAt?: Date;
 
+  // Set once a failed naira withdrawal is credited back; `refundedBy` is "system" or the operator.
+  refundedAt?: Date | null;
+  refundedBy?: string | null;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -223,6 +227,8 @@ const TransactionSchema = new Schema<ITransaction>(
     feePaid: { type: String, default: null },
     errorMessage: { type: String, default: null },
     executedAt: { type: Date, default: null },
+    refundedAt: { type: Date, default: null },
+    refundedBy: { type: String, default: null },
   },
   { timestamps: true, _id: false },
 );

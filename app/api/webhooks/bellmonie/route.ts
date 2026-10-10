@@ -8,6 +8,10 @@ import {
   invalidateBellmonieNgnBalanceCache,
   getDailySubsidizedDepositCount,
 } from "@/lib/functions/bellmonieFunctions";
+import {
+  RefundError,
+  refundFailedNgnWithdrawal,
+} from "@/lib/functions/ngnRefundFunctions";
 import { calculateNgnDepositFee } from "@/lib/ngn-account";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { enforceRateLimit } from "@/lib/functions/rateLimitFunctions";
@@ -174,24 +178,32 @@ export async function POST(req: NextRequest) {
       event === "payout" ||
       event === "transfer" ||
       event?.startsWith("payout") ||
-      event?.startsWith("transfer")
+      event?.startsWith("transfer") ||
+      event?.startsWith("revers")
     ) {
-      const reference = payload.reference || payload.data?.reference;
-      const rawStatus = (
-        payload.status ||
-        payload.data?.status ||
-        (event?.includes("success") ? "successful" : "") ||
-        (event?.includes("fail") ? "failed" : "") ||
-        (event?.includes("reverse") ? "reversed" : "") ||
-        ""
-      ).toLowerCase();
+      const payloadReference: string | undefined =
+        payload.reference || payload.data?.reference;
 
-      if (!reference) {
+      if (!payloadReference) {
         return NextResponse.json(
           { error: "Missing required reference for payout event" },
           { status: 400 },
         );
       }
+
+      // A reversal arrives as `R-<original reference>`; it is the original transfer that failed.
+      const isReversal = payloadReference.startsWith("R-");
+      const reference = isReversal ? payloadReference.slice(2) : payloadReference;
+      const rawStatus = isReversal
+        ? "reversed"
+        : (
+            payload.status ||
+            payload.data?.status ||
+            (event?.includes("success") ? "successful" : "") ||
+            (event?.includes("fail") ? "failed" : "") ||
+            (event?.includes("reverse") ? "reversed" : "") ||
+            ""
+          ).toLowerCase();
 
       await connectDB();
 
@@ -210,6 +222,13 @@ export async function POST(req: NextRequest) {
       }
 
       if (rawStatus === "successful" || rawStatus === "success") {
+        if (existingTx.refundedAt) {
+          console.error(
+            `[Bellmonie Webhook CRITICAL] Payout ${reference} reported successful after it was refunded.`,
+          );
+          return NextResponse.json({ received: true });
+        }
+
         if (existingTx.status !== "CONFIRMED") {
           existingTx.status = "CONFIRMED";
           existingTx.executedAt = new Date();
@@ -242,54 +261,32 @@ export async function POST(req: NextRequest) {
         rawStatus === "reversed" ||
         rawStatus === "rejected"
       ) {
-        if (existingTx.status === "FAILED") {
-          console.log(`[Bellmonie Webhook] Payout ${reference} already marked FAILED.`);
-          return NextResponse.json({ received: true });
-        }
-
-        // Refund debited withdrawal amount + fee back to user's Bellmonie atomic balance
-        const refundAmount =
-          Number(existingTx.amount || 0) + Number(existingTx.feePaid || 0);
-
-        if (refundAmount > 0) {
-          await atomicCreditNgnBalance({
-            userId: existingTx.userId,
-            amount: refundAmount,
-            reference: `${reference}-refund`,
-            memo: `Refund for failed transfer to ${existingTx.bankDetails?.accountName || "beneficiary"} (${existingTx.bankDetails?.bankName || "Bank"})`,
-            eventId: `${reference}-refund`,
-          });
-        }
-
-        existingTx.status = "FAILED";
         const failureReason =
           payload.failureReason ||
           payload.message ||
           payload.data?.failureReason ||
           "Transfer declined by destination bank";
-        existingTx.memo = `${existingTx.memo || "Withdrawal"} - Failed: ${failureReason}`;
-        await existingTx.save();
 
-        createNotification({
-          userId: existingTx.userId,
-          tab: "transactions",
-          type: "SECURITY_ALERT",
-          title: "Transfer Failed & Refunded",
-          body: `Your withdrawal of ₦${Number(existingTx.amount).toLocaleString()} could not be completed and has been refunded to your Naira balance.`,
-          metadata: {
-            reference,
-            refundAmount,
+        // This payload is unsigned, so the refund helper confirms the failure with Bellmonie itself.
+        try {
+          const { refundAmount } = await refundFailedNgnWithdrawal({
+            transactionId: existingTx._id,
+            refundedBy: "system",
             reason: failureReason,
-          },
-          link: "/transactions",
-        }).catch(() => {});
-
-        invalidateBalanceCache(existingTx.userId);
-        invalidateBellmonieNgnBalanceCache(existingTx.userId);
-
-        console.log(
-          `[Bellmonie Webhook] ❌ Payout ${reference} failed (${failureReason}). Refunded ₦${refundAmount} to user ${existingTx.userId}.`,
-        );
+          });
+          console.log(
+            `[Bellmonie Webhook] ❌ Payout ${reference} failed (${failureReason}). Refunded ₦${refundAmount} to user ${existingTx.userId}.`,
+          );
+        } catch (err) {
+          if (!(err instanceof RefundError)) throw err;
+          console.log(
+            `[Bellmonie Webhook] Payout ${reference} not refunded: ${err.message}`,
+          );
+          // Bellmonie could not be asked; a 5xx invites the webhook to be retried.
+          if (err.status === 502) {
+            return NextResponse.json({ error: err.message }, { status: 503 });
+          }
+        }
       } else {
         console.log(
           `[Bellmonie Webhook] Payout ${reference} status update: "${rawStatus}"`,

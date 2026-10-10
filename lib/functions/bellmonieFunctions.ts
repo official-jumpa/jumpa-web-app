@@ -11,6 +11,7 @@ import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { logUserActivity, saveOrUpdateBeneficiary } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { generateId } from "@/lib/schema-ids";
+import { refundFailedNgnWithdrawal } from "@/lib/functions/ngnRefundFunctions";
 import { BellmonieBanks, findBellmonieBank } from "@/lib/constants/bellmonie-banks";
 
 export {
@@ -666,11 +667,13 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
     }
   }
 
+  const declined = transferRes.status === "failed";
+
   // 7. Record confirmed Transaction
   const transaction: any = await Transaction.create({
     userId: params.userId,
     type: "WITHDRAW",
-    status: transferRes.status === "failed" ? "FAILED" : "CONFIRMED",
+    status: declined ? "FAILED" : "CONFIRMED",
     chain: "fiat",
     network: "mainnet",
     fromAddress: userAccount.accountNumber,
@@ -689,6 +692,25 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
     txHash: transferRes.sessionId || reference,
     executedAt: new Date(),
   });
+
+  // A declined payout is refunded here: the webhook skips a transfer already marked FAILED.
+  if (declined) {
+    const refunded = await refundFailedNgnWithdrawal({
+      transactionId: transaction._id.toString(),
+      refundedBy: "system",
+    }).then(
+      () => true,
+      (err) => {
+        console.error("[Bellmonie Withdrawal CRITICAL] Refund for declined transfer failed:", err);
+        return false;
+      },
+    );
+    throw new Error(
+      refunded
+        ? `The bank declined this transfer. ₦${totalDebited.toLocaleString()} has been refunded to your Naira balance.`
+        : "The bank declined this transfer. Your refund is being processed.",
+    );
+  }
 
   // 8. Save beneficiary for quick repeat transfers
   saveOrUpdateBeneficiary(params.userId, {

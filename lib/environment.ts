@@ -219,6 +219,9 @@ export const environment = {
   BELLMONIE_BUSINESS_PREFIX:
     process.env.BELLMONIE_BUSINESS_PREFIX || "JUMPA",
 
+  // Shared with the admin dashboard; empty disables every /api/admin route.
+  ADMIN_API_SECRET: process.env.ADMIN_API_SECRET || "",
+
 };
 
 export default environment;

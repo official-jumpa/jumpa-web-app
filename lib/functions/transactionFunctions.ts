@@ -451,6 +451,7 @@ const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
     kind: "receive",
     isIncoming: () => true,
     getTitle: (tx) => {
+      if (isNgnRefund(tx)) return "Transfer refund";
       const sender = tx.bankDetails?.senderName;
       if (sender) return `Transfer from ${sender}`;
       return `Deposit ${tx.token}`;
@@ -477,7 +478,14 @@ const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
       if (recipient) return `Transfer to ${recipient}`;
       return `Withdraw ${tx.token}`;
     },
-    getRows: (tx) => buildRampOrBankRows(tx),
+    getRows: (tx) => {
+      const rows = buildRampOrBankRows(tx);
+      if (tx.refundedAt) {
+        const total = Number(tx.amount || 0) + Number(tx.feePaid || 0);
+        rows.push(["Refunded", `${formatDecimal(total, 2)} ${tx.token || ""} to your balance`]);
+      }
+      return rows;
+    },
   },
 
   FAUCET: {
@@ -539,6 +547,11 @@ const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
     ],
   },
 };
+
+/** The receipt of a failed naira transfer's money coming back: a `-refund` credit or a `-rollback`. */
+function isNgnRefund(tx: { type?: string; txHash?: string | null }): boolean {
+  return tx.type === "DEPOSIT" && /-(refund|rollback)$/.test(tx.txHash || "");
+}
 
 function cleanReference(ref?: string): string {
   if (!ref) return "";
@@ -718,7 +731,7 @@ export function formatDbTransaction(tx: any) {
     headline: `${formatDecimal(tx.swapDetails?.fromAmount ?? rawAmount, 4)} ${
       tx.swapDetails?.fromToken || tokenPart
     }`.trim(),
-    heading: `${SUBJECT[kind] ?? "Transaction"} ${OUTCOME[status]}`,
+    heading: `${isNgnRefund(tx) ? "Refund" : (SUBJECT[kind] ?? "Transaction")} ${OUTCOME[status]}`,
     rows: detailRows(tx, status, descriptor),
   };
 }

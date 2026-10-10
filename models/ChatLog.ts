@@ -20,6 +20,7 @@ export interface IChatMessage {
     | "contacts"
     | "accounts"
     | "sep24"
+    | "bulk_transfer"
     | "text";
   cardData?: Record<string, any>;
   status?: "pending" | "confirmed" | "cancelled";
@@ -77,6 +78,7 @@ const ChatLogSchema = new Schema<IChatLog>(
             "contacts",
             "accounts",
             "sep24",
+            "bulk_transfer",
             "text",
           ],
           default: "text",

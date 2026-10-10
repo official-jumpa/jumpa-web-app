@@ -589,8 +589,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
   const currentBalance = userAccount.balance ?? 0;
   if (currentBalance < totalDebited) {
     throw new Error(
-      `Insufficient funds. Transfer of ₦${params.amount.toLocaleString()}${
-        fee > 0 ? ` + ₦${fee} withdrawal fee` : ""
+      `Insufficient funds. Transfer of ₦${params.amount.toLocaleString()}${fee > 0 ? ` + ₦${fee} withdrawal fee` : ""
       } requires ₦${totalDebited.toLocaleString()} (Available: ₦${currentBalance.toLocaleString()})`,
     );
   }
@@ -723,7 +722,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
       bankCode: resolvedBankCode,
       currency: "NGN",
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   logUserActivity({
     userId: params.userId,
@@ -736,7 +735,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
       accountNumber: params.accountNumber,
       reference,
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   createNotification({
     userId: params.userId,
@@ -750,7 +749,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
       bankName: resolvedBankName,
     },
     link: "/transactions",
-  }).catch(() => {});
+  }).catch(() => { });
 
   return {
     success: true,
@@ -893,7 +892,7 @@ export async function atomicCreditNgnBalance(params: {
       reference: params.reference,
       newBalance,
     },
-  }).catch(() => {});
+  }).catch(() => { });
 
   const isRefund = Boolean(params.memo?.toLowerCase().includes("refund"));
   createNotification({
@@ -910,11 +909,11 @@ export async function atomicCreditNgnBalance(params: {
       reference: params.reference,
     },
     link: "/transactions",
-  }).catch(() => {});
+  }).catch(() => { });
 
   console.log(`[Bellmonie Credit] ✅ Atomically credited ₦${params.amount} to user ${params.userId}. New Balance: ₦${newBalance}`);
   return { success: true, newBalance };
-} 
+}
 
 /**
  * Queries a transaction status by its reference on Bellmonie.

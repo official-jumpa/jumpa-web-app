@@ -347,9 +347,18 @@ export async function sendStellar(params: {
   console.log(
     `[Transfer Service] Submitting Stellar (${network}) transfer...${useGasAbstraction ? " (gas abstracted)" : " (user paid XLM gas)"}`,
   );
-  let horizonRes: any;
+  let txHash: string;
   try {
-    horizonRes = await server.submitTransaction(finalTx);
+    // Fast-path: optimistic async submission to Horizon mempool (~300ms)
+    try {
+      const asyncRes = await (server as any).submitAsyncTransaction(finalTx);
+      txHash = finalTx.hash().toString("hex");
+      console.log(`[Transfer Service] tx ${txHash}:`, asyncRes?.tx_status || "PENDING");
+    } catch (asyncErr: any) {
+      console.warn(`[Transfer Service] Async submission fallback to sync submit:`, asyncErr?.message || asyncErr);
+      const horizonRes = await server.submitTransaction(finalTx);
+      txHash = horizonRes.hash;
+    }
   } catch (err: any) {
     const extras = err?.response?.data?.extras;
     const resultCodes = extras?.result_codes;
@@ -383,7 +392,6 @@ export async function sendStellar(params: {
     );
   }
 
-  const txHash = horizonRes.hash;
   const explorerUrl = getExplorerTxUrl("stellar", txHash, network === "testnet");
 
   return {
@@ -391,6 +399,127 @@ export async function sendStellar(params: {
     txHash,
     explorerUrl,
     feePaid,
+    fromAddress,
+  };
+}
+
+/**
+ * 1b. Bulk Stellar Transfer (Atomic transaction with multiple payment operations)
+ */
+export async function sendBulkStellar(params: {
+  privateKey: string;
+  transfers: Array<{
+    destination: string;
+    amount: string;
+  }>;
+  asset: string;
+  network: "mainnet" | "testnet";
+  memo?: string;
+}): Promise<TransferResult> {
+  const { privateKey, transfers, asset, network, memo } = params;
+
+  const sourceKeypair = StellarSdk.Keypair.fromSecret(privateKey.trim());
+  const fromAddress = sourceKeypair.publicKey();
+  const server = getHorizonServer(network);
+
+  let sourceAccount: any;
+  try {
+    sourceAccount = await server.loadAccount(fromAddress);
+  } catch (err: any) {
+    if (err?.response?.status === 404 || err?.message?.includes("Not Found")) {
+      const advice =
+        network === "testnet"
+          ? "Your Stellar Testnet account is unfunded. Please use the faucet on the home page first."
+          : "Your Stellar account is not activated (minimum 1 XLM balance required).";
+      throw new Error(advice);
+    }
+    throw err;
+  }
+
+  const passphrase =
+    network === "testnet"
+      ? StellarSdk.Networks.TESTNET
+      : StellarSdk.Networks.PUBLIC;
+
+  const upperAsset = asset.toUpperCase();
+  const isXlm = upperAsset === "XLM" || upperAsset === "NATIVE";
+  const issuer = STELLAR_USDC_ISSUERS[network];
+  const usdcAsset = isXlm ? null : new StellarSdk.Asset("USDC", issuer);
+
+  const nativeBal = sourceAccount.balances.find((b: any) => b.asset_type === "native");
+  const availableXlm = nativeBal ? parseFloat(nativeBal.balance) - 1.5 : 0;
+  const totalAmount = transfers.reduce((sum, t) => sum + parseFloat(t.amount || "0"), 0);
+
+  if (isXlm && availableXlm < totalAmount + 0.0001) {
+    throw new Error(`Insufficient XLM balance for all transfers. Need at least ${totalAmount.toFixed(4)} XLM.`);
+  }
+
+  const baseFee = (Number(StellarSdk.BASE_FEE) * transfers.length).toString();
+  const txBuilder = new StellarSdk.TransactionBuilder(sourceAccount, {
+    fee: baseFee,
+    networkPassphrase: passphrase,
+  });
+
+  for (const item of transfers) {
+    let destAccount: any = null;
+    try {
+      destAccount = await server.loadAccount(item.destination);
+    } catch {
+      destAccount = null;
+    }
+
+    if (isXlm) {
+      const op = destAccount
+        ? StellarSdk.Operation.payment({
+            destination: item.destination,
+            asset: StellarSdk.Asset.native(),
+            amount: String(item.amount),
+          })
+        : StellarSdk.Operation.createAccount({
+            destination: item.destination,
+            startingBalance: String(item.amount),
+          });
+      txBuilder.addOperation(op);
+    } else {
+      if (!destAccount) {
+        throw new Error(`Destination account ${item.destination} is not activated.`);
+      }
+      txBuilder.addOperation(
+        StellarSdk.Operation.payment({
+          destination: item.destination,
+          asset: usdcAsset!,
+          amount: String(item.amount),
+        }),
+      );
+    }
+  }
+
+  if (memo && memo.trim()) {
+    txBuilder.addMemo(StellarSdk.Memo.text(memo.trim().slice(0, 28)));
+  } else {
+    txBuilder.addMemo(StellarSdk.Memo.text("Jumpa: Bulk Transfer"));
+  }
+
+  const tx = txBuilder.setTimeout(60).build();
+  tx.sign(sourceKeypair);
+
+  let txHash: string;
+  try {
+    const asyncRes = await (server as any).submitAsyncTransaction(tx);
+    txHash = tx.hash().toString("hex");
+    console.log(`[Transfer Service] tx ${txHash}:`, asyncRes?.tx_status || "PENDING");
+  } catch (asyncErr: any) {
+    console.warn(`[Transfer Service] Bulk async submission fallback to sync submit:`, asyncErr?.message || asyncErr);
+    const horizonRes: any = await server.submitTransaction(tx);
+    txHash = horizonRes.hash;
+  }
+  const explorerUrl = getExplorerTxUrl("stellar", txHash, network === "testnet");
+
+  return {
+    success: true,
+    txHash,
+    explorerUrl,
+    feePaid: `${(0.00001 * transfers.length).toFixed(5)} XLM`,
     fromAddress,
   };
 }

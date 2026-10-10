@@ -683,6 +683,71 @@ const analyzeImage: DeepSeekTool = {
   },
 };
 
+const bulkTransfer: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "bulk_transfer",
+    description:
+      "Prepare a bulk transfer of 2 to 3 transactions in a single action (e.g. sending different amounts to multiple Nigerian bank accounts or crypto recipients). " +
+      "Maximum 3 recipients per request. " +
+      "Call this whenever the user asks to send, transfer, or offramp money to multiple accounts, recipients, or numbers at once. " +
+      "Omit source if the user did not explicitly state where to pay from — the tool will automatically ask the user with an interactive options card.",
+    parameters: {
+      type: "object",
+      properties: {
+        transfers: {
+          type: "array",
+          description: "List of transfers to perform (between 2 and 3 items).",
+          items: {
+            type: "object",
+            properties: {
+              amount: {
+                type: "string",
+                description: "Amount for this recipient (e.g. '3000', '4000').",
+              },
+              accountNumber: {
+                type: "string",
+                description:
+                  "10-digit Nigerian bank account number or crypto address.",
+              },
+              bankName: {
+                type: "string",
+                description:
+                  "Bank name or alias (e.g. 'GTBank', 'OPay', 'Kuda', 'Access Bank').",
+              },
+              recipientName: {
+                type: "string",
+                description: "Optional recipient name provided by user.",
+              },
+              narration: {
+                type: "string",
+                description: "Optional memo or narration for this transfer.",
+              },
+            },
+            required: ["amount", "accountNumber"],
+          },
+        },
+        currency: {
+          type: "string",
+          enum: ["NGN", "USDC", "USDT"],
+          description: "Currency of amounts (defaults to 'NGN').",
+        },
+        source: {
+          type: "string",
+          description:
+            "Funding source explicitly chosen by user (e.g. 'ngn', 'stellar:usdc', 'base:usdc', 'solana:usdt', 'stellar:xlm'). Omit if not explicitly stated.",
+        },
+        network: {
+          type: "string",
+          enum: ["mainnet", "testnet"],
+          description: "Network to execute on (e.g. 'mainnet' or 'testnet' for Stellar). Defaults to 'mainnet'.",
+        },
+      },
+      required: ["transfers"],
+    },
+  },
+};
+
 export const JUMPA_TOOLS: DeepSeekTool[] = [
   swapTokens,
   stellarTestnetSwapQuote,
@@ -695,6 +760,7 @@ export const JUMPA_TOOLS: DeepSeekTool[] = [
   onrampNgn,
   onrampNgnCustom,
   offrampNgn,
+  bulkTransfer,
   getRampRate,
   claimFaucet,
   createSavingsGoal,
@@ -717,6 +783,7 @@ export type JumpaToolName =
   | "onramp_ngn"
   | "onramp_ngn_custom"
   | "offramp_ngn"
+  | "bulk_transfer"
   | "get_ramp_rate"
   | "claim_faucet"
   | "create_savings_goal"

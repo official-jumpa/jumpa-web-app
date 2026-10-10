@@ -189,6 +189,33 @@ export type AccountsCard = {
   options?: ChatOption[];
 };
 
+export type BulkTransferRecipient = {
+  accountNumber: string;
+  bankName: string;
+  accountName: string;
+  bankCode?: string;
+  amount: string;
+  currency: string;
+  narration?: string;
+  reference?: string;
+  depositAddress?: string;
+  cryptoAmount?: string;
+  cryptoToken?: string;
+};
+
+export type BulkTransferCard = {
+  title: string;
+  totalAmount: string;
+  currency: string;
+  source: string;
+  sourceLabel: string;
+  feeAmount?: string;
+  totalDebited?: string;
+  recipients: BulkTransferRecipient[];
+  status: string;
+  rate?: number;
+};
+
 export type ChatItem =
   /**
    * `paragraph` renders the wider, squared-off bubble the design uses for prose.
@@ -203,6 +230,7 @@ export type ChatItem =
   | { kind: "transfer"; card: TransferCard }
   | { kind: "onramp"; card: OnrampCard }
   | { kind: "offramp"; card: OfframpCard }
+  | { kind: "bulk_transfer"; card: BulkTransferCard }
   /**
    * A chooser. `answer` is the reply it already got, which is what lets a
    * reload light the row that was picked — see lib/chat-answer.

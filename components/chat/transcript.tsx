@@ -14,6 +14,7 @@ import { QuoteCard } from "@/components/chat/quote-card";
 import { ReceiptCard } from "@/components/chat/receipt-card";
 import { Sep24Card } from "@/components/chat/sep24-card";
 import { TransferCard } from "@/components/chat/transfer-card";
+import { BulkTransferCard } from "@/components/chat/bulk-transfer-card";
 import { ChatErrorBoundary } from "@/components/chat/chat-error-boundary";
 import type { ChatEntry, ChatItem, QuoteCard as Quote } from "@/lib/chat";
 import { cn } from "@/lib/cn";
@@ -165,6 +166,12 @@ function Item({
       return (
         <ChatErrorBoundary fallbackTitle="Withdrawal card preview unavailable">
           <OfframpCheckoutCard card={item.card} onReply={onReply} />
+        </ChatErrorBoundary>
+      );
+    case "bulk_transfer":
+      return (
+        <ChatErrorBoundary fallbackTitle="Bulk transfer preview unavailable">
+          <BulkTransferCard card={item.card} onReply={onReply} />
         </ChatErrorBoundary>
       );
     case "options":

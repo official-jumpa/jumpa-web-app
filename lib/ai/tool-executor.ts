@@ -45,6 +45,7 @@ export type CardHint =
   | { type: "transfer"; data: Record<string, any> }
   | { type: "onramp"; data: Record<string, any> }
   | { type: "offramp"; data: Record<string, any> }
+  | { type: "bulk_transfer"; data: Record<string, any> }
   | { type: "sep24"; data: Record<string, any> }
   | { type: "options"; data: { options: ChatOption[] } }
   | { type: "plans"; data: PlansCard }
@@ -2134,6 +2135,550 @@ export async function executeTool(
           requiresConfirmation: false,
         };
       }
+    }
+
+    // ── Bulk Transfers (Up to 3 Transactions)
+    case "bulk_transfer": {
+      const {
+        transfers = [],
+        currency = "NGN",
+        source,
+      } = toolArgs as {
+        transfers?: Array<{
+          amount: string;
+          accountNumber: string;
+          bankName?: string;
+          recipientName?: string;
+          narration?: string;
+        }>;
+        currency?: string;
+        source?: string;
+      };
+
+      console.log(
+        `[ToolExecutor] [User: ${userId}] bulk_transfer →`,
+        JSON.stringify({ transfers, currency, source }),
+      );
+
+      // 1. Validate count (2 to 3)
+      if (!Array.isArray(transfers) || transfers.length < 2) {
+        return {
+          toolName: name,
+          summaryForAI:
+            "Please provide at least 2 recipients with their amounts and account numbers for a bulk transfer.",
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      if (transfers.length > 3) {
+        return {
+          toolName: name,
+          summaryForAI:
+            "Jumpa supports up to 3 recipients in a single bulk transfer for security and safety. Please choose up to 3 recipients to proceed.",
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      // 2. ZERO-ASSUMPTION FUNDING SOURCE CHECK
+      // If user did not explicitly specify a source, present interactive options card with their actual balances
+      let effectiveSource = (source || "").trim().toLowerCase();
+
+      if (!effectiveSource) {
+        const { getUserNgnAccountDetails } = await import(
+          "@/lib/functions/ngnFunctions"
+        );
+        const ngnDetails = await getUserNgnAccountDetails(userId);
+        const ngnAvailable = ngnDetails?.balance?.availableBalance ?? 0;
+
+        const balances = await getCachedWalletBalances(userId);
+        const allTokens = balances?.tokens || [];
+        const cryptoOptions = fundingOptions(allTokens);
+
+        const options: ChatOption[] = [];
+
+        // Option 1: Jumpa NGN Wallet
+        if (ngnDetails?.account) {
+          options.push({
+            label: `NGN Wallet (${ngnDetails.account.bankName})`,
+            amount: `₦${ngnAvailable.toLocaleString()}`,
+            icon: "wallet",
+            reply: "Fund bulk transfer with NGN wallet",
+          });
+        }
+
+        // Option 2+: Sellable crypto balances
+        const bulkCryptoOptions: ChatOption[] = allTokens
+          .filter((token) => isSellable(token) && Number(token.balance) > 0)
+          .map((token) => ({
+            label: token.network
+              ? `${token.symbol} on ${token.network}`
+              : token.symbol,
+            amount: formatBalance(token.balance),
+            logo: getAssetLogo(token.symbol),
+            reply: token.network
+              ? `Fund bulk transfer with ${token.symbol} on ${token.network}`
+              : `Fund bulk transfer with ${token.symbol}`,
+          }));
+
+        options.push(...bulkCryptoOptions);
+
+        if (options.length === 0) {
+          return {
+            toolName: name,
+            summaryForAI:
+              "You don't have sufficient funds in your NGN wallet or crypto balances to complete these transfers.",
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+
+        return {
+          toolName: name,
+          summaryForAI:
+            "Where would you like to fund these bulk transfers from? Please choose your payment source.",
+          cardHint: { type: "options", data: { options } },
+          requiresConfirmation: false,
+        };
+      }
+
+      const isNgnSource =
+        effectiveSource === "ngn" ||
+        effectiveSource.includes("ngn wallet") ||
+        effectiveSource === "ngn_balance";
+
+      // 3. Pre-flight verification for each beneficiary
+      const { findPaystackBank, validateAccountNumber } = await import(
+        "@/lib/paystack"
+      );
+      const { findBellmonieBank } = await import(
+        "@/lib/constants/bellmonie-banks"
+      );
+      const { bellmonieBankNameEnquiry } = await import(
+        "@/lib/functions/bellmonieFunctions"
+      );
+
+      type ResolvedRecipient = {
+        amount: string;
+        numAmount: number;
+        accountNumber: string;
+        bankName: string;
+        bankCode: string;
+        accountName: string;
+        narration?: string;
+        reference?: string;
+        depositAddress?: string;
+        cryptoAmount?: string;
+        cryptoToken?: string;
+      };
+
+      const resolvedRecipients: ResolvedRecipient[] = [];
+
+      // Check if recipients are on-chain crypto addresses rather than Nigerian bank accounts
+      const isFirstRecipientCrypto =
+        transfers[0]?.accountNumber?.startsWith("G") ||
+        transfers[0]?.accountNumber?.startsWith("0x") ||
+        (transfers[0]?.accountNumber?.length || 0) > 20;
+
+      if (isFirstRecipientCrypto) {
+        const cryptoCurrency = (currency || "XLM").toUpperCase();
+        const network = (toolArgs as any).network || (effectiveSource.includes("testnet") ? "testnet" : "mainnet");
+        const chain = effectiveSource.includes("solana")
+          ? "solana"
+          : effectiveSource.includes("base")
+            ? "base"
+            : effectiveSource.includes("eth")
+              ? "ethereum"
+              : "stellar";
+
+        let totalCryptoAmount = 0;
+        const cryptoRecipients: ResolvedRecipient[] = [];
+
+        for (let i = 0; i < transfers.length; i++) {
+          const item = transfers[i];
+          const rawAmount = parseFloat(String(item.amount || "").replace(/[^0-9.]/g, ""));
+          if (isNaN(rawAmount) || rawAmount <= 0) {
+            return {
+              toolName: name,
+              summaryForAI: `Invalid amount "${item.amount}" for recipient #${i + 1}.`,
+              cardHint: { type: "none" },
+              requiresConfirmation: false,
+            };
+          }
+
+          const targetAddress = String(item.accountNumber || "").trim();
+          if (chain === "stellar" && (!targetAddress.startsWith("G") || targetAddress.length !== 56)) {
+            return {
+              toolName: name,
+              summaryForAI: `Invalid Stellar address "${targetAddress}" for recipient #${i + 1}.`,
+              cardHint: { type: "none" },
+              requiresConfirmation: false,
+            };
+          }
+
+          totalCryptoAmount += rawAmount;
+          cryptoRecipients.push({
+            amount: String(rawAmount),
+            numAmount: rawAmount,
+            accountNumber: targetAddress,
+            bankName: chain === "stellar" ? `Stellar (${network})` : chain.toUpperCase(),
+            bankCode: "",
+            accountName: `${targetAddress.slice(0, 6)}...${targetAddress.slice(-4)}`,
+            cryptoAmount: String(rawAmount),
+            cryptoToken: cryptoCurrency,
+            narration: item.narration,
+          });
+        }
+
+        const cardData = {
+          title: `Bulk Transfer (${cryptoRecipients.length} Recipients)`,
+          totalAmount: `${totalCryptoAmount} ${cryptoCurrency}`,
+          currency: cryptoCurrency,
+          source: chain,
+          sourceLabel: `${chain.toUpperCase()} (${network})`,
+          recipients: cryptoRecipients,
+          status: "pending",
+        };
+
+        return {
+          toolName: name,
+          summaryForAI:
+            `Bulk transfer ready: Sending a total of **${totalCryptoAmount} ${cryptoCurrency}** across ` +
+            `${cryptoRecipients.length} recipients on ${chain} (${network}). Please review the details and confirm to proceed.`,
+          cardHint: {
+            type: "bulk_transfer",
+            data: cardData,
+          },
+          transactionParams: {
+            type: "bulk_transfer",
+            source: chain,
+            chain,
+            network,
+            currency: cryptoCurrency,
+            totalAmount: totalCryptoAmount,
+            recipients: cryptoRecipients,
+          },
+          requiresConfirmation: true,
+        };
+      }
+
+      for (let i = 0; i < transfers.length; i++) {
+        const item = transfers[i];
+        const rawAmount = parseFloat(String(item.amount || "").replace(/[^0-9.]/g, ""));
+        if (isNaN(rawAmount) || rawAmount <= 0) {
+          return {
+            toolName: name,
+            summaryForAI: `Invalid amount "${item.amount}" for recipient #${i + 1}.`,
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+
+        let cleanAccount = String(item.accountNumber || "")
+          .trim()
+          .replace(/\D/g, "");
+        if (cleanAccount.startsWith("234") && cleanAccount.length === 13) {
+          cleanAccount = cleanAccount.slice(3);
+        }
+
+        if (cleanAccount.length !== 10) {
+          return {
+            toolName: name,
+            summaryForAI: `Account number "${item.accountNumber}" for recipient #${i + 1} must be exactly 10 digits.`,
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+
+        if (!item.bankName) {
+          return {
+            toolName: name,
+            summaryForAI: `Please specify the bank name for account ${cleanAccount} (recipient #${i + 1}).`,
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+
+        // Resolve bank
+        let bankMatchName = item.bankName;
+        let bankMatchCode = "";
+
+        const bmBank = findBellmonieBank(item.bankName);
+        const psBank = findPaystackBank(item.bankName);
+
+        if (bmBank) {
+          bankMatchName = bmBank.name;
+          bankMatchCode = bmBank.code;
+        } else if (psBank) {
+          bankMatchName = psBank.name;
+          bankMatchCode = psBank.code;
+        } else {
+          return {
+            toolName: name,
+            summaryForAI: `Could not find bank "${item.bankName}" for recipient #${i + 1}. Please verify the bank name.`,
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+
+        // Verify account name via Bellmonie/Paystack enquiry
+        let verifiedName = item.recipientName?.trim() || "";
+
+        try {
+          if (bankMatchCode) {
+            const bmRes = await bellmonieBankNameEnquiry({
+              accountNumber: cleanAccount,
+              bankCode: bankMatchCode,
+            });
+            if (bmRes?.accountName) {
+              verifiedName = bmRes.accountName;
+            }
+          }
+        } catch {
+          // Fallback to Paystack
+          try {
+            if (psBank?.code) {
+              const psOk = await validateAccountNumber(cleanAccount, psBank.code);
+              if (psOk?.status && psOk.data?.account_name) {
+                verifiedName = psOk.data.account_name;
+              }
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        if (!verifiedName) {
+          return {
+            toolName: name,
+            summaryForAI: `Could not verify account "${cleanAccount}" at ${bankMatchName} (recipient #${i + 1}). Please check the account number and bank.`,
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+
+        resolvedRecipients.push({
+          amount: rawAmount.toLocaleString(),
+          numAmount: rawAmount,
+          accountNumber: cleanAccount,
+          bankName: bankMatchName,
+          bankCode: bankMatchCode,
+          accountName: verifiedName,
+          narration: item.narration,
+        });
+      }
+
+      const totalNgnAmount = resolvedRecipients.reduce((sum, r) => sum + r.numAmount, 0);
+
+      // 4. Source-specific logic (NGN vs Crypto Offramp Option A)
+      if (isNgnSource) {
+        const { getUserNgnAccountDetails } = await import(
+          "@/lib/functions/ngnFunctions"
+        );
+        const ngnDetails = await getUserNgnAccountDetails(userId);
+        const ngnAvailable = ngnDetails?.balance?.availableBalance ?? 0;
+
+        // Calculate standard withdrawal fees (₦25 per external bank transfer)
+        const fiatFeePerTx = 25;
+        const totalFee = resolvedRecipients.length * fiatFeePerTx;
+        const totalRequired = totalNgnAmount + totalFee;
+
+        if (ngnAvailable < totalRequired) {
+          return {
+            toolName: name,
+            summaryForAI: `Insufficient balance in your NGN wallet. You need **₦${totalRequired.toLocaleString()}** (including ₦${totalFee} transfer fees), but your available balance is **₦${ngnAvailable.toLocaleString()}**.`,
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+
+        const cardData = {
+          title: `Bulk Bank Transfer (${resolvedRecipients.length} Recipients)`,
+          totalAmount: totalNgnAmount.toLocaleString(),
+          currency: "NGN",
+          source: "ngn_wallet",
+          sourceLabel: `Jumpa NGN Wallet (₦${ngnAvailable.toLocaleString()} available)`,
+          feeAmount: `₦${totalFee}`,
+          totalDebited: `₦${totalRequired.toLocaleString()}`,
+          recipients: resolvedRecipients,
+          status: "pending",
+        };
+
+        return {
+          toolName: name,
+          summaryForAI:
+            `Bulk transfer ready: Transferring ₦${totalNgnAmount.toLocaleString()} across ` +
+            `${resolvedRecipients.length} recipients from your Jumpa NGN Wallet. Please review the details and confirm to proceed.`,
+          cardHint: {
+            type: "bulk_transfer",
+            data: cardData,
+          },
+          transactionParams: {
+            type: "bulk_transfer",
+            source: "ngn_wallet",
+            currency: "NGN",
+            totalAmount: totalNgnAmount,
+            totalFee,
+            totalDebited: totalRequired,
+            recipients: resolvedRecipients,
+          },
+          requiresConfirmation: true,
+        };
+      }
+
+      // ── Crypto Offramp (Option A: 3 Distinct Provider Orders)
+      let cryptoToken = "USDC";
+      let assetIdentifier = "stellar:usdc";
+
+      if (effectiveSource.includes("stellar")) {
+        assetIdentifier = "stellar:usdc";
+        cryptoToken = "USDC";
+      } else if (effectiveSource.includes("base")) {
+        assetIdentifier = "base:usdc";
+        cryptoToken = "USDC";
+      } else if (effectiveSource.includes("solana")) {
+        assetIdentifier = effectiveSource.includes("usdt") ? "solana:usdt" : "solana:usdc";
+        cryptoToken = effectiveSource.includes("usdt") ? "USDT" : "USDC";
+      } else if (effectiveSource.includes("usdt")) {
+        assetIdentifier = "solana:usdt";
+        cryptoToken = "USDT";
+      }
+
+      const isStellar = assetIdentifier.startsWith("stellar");
+      const { environment } = await import("@/lib/environment");
+      const { createCentiivOfframp } = await import("@/lib/functions/centiivFunctions");
+      const { SwitchService } = await import("@/lib/switch");
+      const { getLiveRates } = await import("@/lib/rates");
+      const rates = (await getLiveRates()) as unknown as Record<string, number>;
+      const currentRate = rates[cryptoToken] || 1350;
+
+      const effectiveFee = environment.SWITCH_JUMPA_FEE;
+      const feePct = effectiveFee / 100;
+
+      // Generate distinct offramp orders for each recipient in parallel
+      let totalCryptoRequired = 0;
+
+      try {
+        if (isStellar) {
+          const { generateId } = await import("@/lib/schema-ids");
+          await Promise.all(
+            resolvedRecipients.map(async (rec, idx) => {
+              const grossCrypto = parseFloat((rec.numAmount / currentRate).toFixed(4));
+              const feeAmount = parseFloat((grossCrypto * feePct).toFixed(4));
+              const netCrypto = parseFloat((grossCrypto - feeAmount).toFixed(4));
+
+              const uniqueRef = `${generateId("idem")}`;
+              const centiivOrder = await createCentiivOfframp({
+                amount: netCrypto,
+                bankCode: rec.bankCode,
+                accountNumber: rec.accountNumber,
+                accountName: rec.accountName,
+                userId,
+                reference: uniqueRef,
+                description: "Jumpa Payout",
+              });
+
+              rec.reference = centiivOrder.id;
+              rec.depositAddress = centiivOrder.temporaryWallet.publicAddress;
+              rec.cryptoAmount = grossCrypto.toFixed(4);
+              rec.cryptoToken = "USDC";
+              totalCryptoRequired += grossCrypto;
+            }),
+          );
+        } else {
+          // Switch offramp calls can run concurrently
+          await Promise.all(
+            resolvedRecipients.map(async (rec) => {
+              const grossCrypto = parseFloat((rec.numAmount / currentRate).toFixed(4));
+              const switchRes = await SwitchService.initiateOfframp(
+                grossCrypto,
+                assetIdentifier,
+                {
+                  holder_name: rec.accountName,
+                  account_number: rec.accountNumber,
+                  bank_code: rec.bankCode,
+                },
+              );
+
+              if (!switchRes.success || !switchRes.data) {
+                throw new Error(switchRes.message || "Switch order initiation failed");
+              }
+
+              rec.reference = switchRes.data.reference;
+              rec.depositAddress = switchRes.data.deposit.address;
+              rec.cryptoAmount = grossCrypto.toFixed(4);
+              rec.cryptoToken = cryptoToken;
+              totalCryptoRequired += grossCrypto;
+            }),
+          );
+        }
+      } catch (orderErr: any) {
+        console.error("[Bulk Transfer] Offramp order creation error:", orderErr);
+        return {
+          toolName: name,
+          summaryForAI: `Failed to initiate offramp orders: ${orderErr.message}`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      // Check user crypto balance
+      const balances = await getCachedWalletBalances(userId);
+      const heldToken = (balances?.tokens || []).find(
+        (t) =>
+          t.symbol.toUpperCase() === cryptoToken.toUpperCase() &&
+          (isStellar
+            ? t.network?.toLowerCase().includes("stellar")
+            : t.network?.toLowerCase().includes(assetIdentifier.split(":")[0])),
+      );
+
+      const availableCrypto = heldToken ? Number(heldToken.balance) : 0;
+      if (availableCrypto < totalCryptoRequired) {
+        return {
+          toolName: name,
+          summaryForAI:
+            `Insufficient ${cryptoToken} balance. These transfers require **${totalCryptoRequired.toFixed(4)} ${cryptoToken}**, ` +
+            `but you only have **${availableCrypto.toFixed(4)} ${cryptoToken}**.`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      const cardData = {
+        title: `Bulk Offramp (${resolvedRecipients.length} Recipients)`,
+        totalAmount: totalNgnAmount.toLocaleString(),
+        currency: "NGN",
+        source: assetIdentifier,
+        sourceLabel: `${cryptoToken} on ${isStellar ? "Stellar" : assetIdentifier.split(":")[0].toUpperCase()}`,
+        feeAmount: `${(totalCryptoRequired * feePct).toFixed(4)} ${cryptoToken}`,
+        totalDebited: `${totalCryptoRequired.toFixed(4)} ${cryptoToken}`,
+        recipients: resolvedRecipients,
+        status: "pending",
+        rate: currentRate,
+      };
+
+      return {
+        toolName: name,
+        summaryForAI:
+          `Bulk offramp ready: Sending ₦${totalNgnAmount.toLocaleString()} across ` +
+          `${resolvedRecipients.length} recipients funded by ${totalCryptoRequired.toFixed(4)} ${cryptoToken}. ` +
+          `Please review the details and confirm to proceed.`,
+        cardHint: {
+          type: "bulk_transfer",
+          data: cardData,
+        },
+        transactionParams: {
+          type: "bulk_transfer",
+          source: assetIdentifier,
+          currency: "NGN",
+          cryptoToken,
+          totalAmount: totalNgnAmount,
+          totalCrypto: totalCryptoRequired,
+          recipients: resolvedRecipients,
+        },
+        requiresConfirmation: true,
+      };
     }
 
     // Live Exchange Rate for NGN Ramps (Switch)

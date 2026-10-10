@@ -87,7 +87,10 @@ export async function createCentiivOfframp(params: {
   accountNumber: string;
   accountName: string;
   userId: string;
+  reference?: string;
+  description?: string;
 }) {
+  const idemKey = params.reference || generateId("idem");
   return request<{
     id: string;
     status: string;
@@ -101,14 +104,14 @@ export async function createCentiivOfframp(params: {
   }>("/requests", {
     method: "POST",
     headers: {
-      "idempotency-key": generateId("idem"),
+      "Idempotency-Key": idemKey,
     },
     body: JSON.stringify({
       fromAsset: "USDC",
       toAsset: "NGN",
       amount: params.amount,
       network: "STELLAR",
-      description: "Jumpa", // Add jumpa name to the description while making offramps
+      description: "Jumpa Payout", // Jumpa name to show in bank transfers
       refundAddress: params.refundAddress,
       beneficiary: {
         externalId: params.userId,
@@ -177,16 +180,17 @@ export async function getCentiivRequestStatus(requestId: string) {
   };
 }
 
-export async function submitCentiivStellarPayment(params: {
+export async function submitBulkCentiivStellarPayment(params: {
   userSecretKey: string;
-  destinationAddress: string;
-  usdcAmount: string | number;
+  payments: Array<{
+    destinationAddress: string;
+    usdcAmount: string | number;
+  }>;
   memo?: string;
   feeRecipient?: string;
   feeAmount?: string | number;
 }): Promise<{ hash: string; status: "confirmed" | "pending" }> {
   const horizonUrl = "https://horizon.stellar.org";
-  
   const server = new Horizon.Server(horizonUrl);
   const networkPassphrase = Networks.PUBLIC;
   // move this later to a centralised file
@@ -196,17 +200,21 @@ export async function submitCentiivStellarPayment(params: {
   const sourceAccount = await server.loadAccount(userKeypair.publicKey());
   const usdcAsset = new Asset("USDC", usdcIssuer);
 
+  const baseFee = (Number(BASE_FEE) * (params.payments.length + 1)).toString();
   let builder = new TransactionBuilder(sourceAccount, {
-    fee: BASE_FEE,
+    fee: baseFee,
     networkPassphrase,
-  })
-    .addOperation(
+  });
+
+  for (const pay of params.payments) {
+    builder = builder.addOperation(
       Operation.payment({
-        destination: params.destinationAddress,
+        destination: pay.destinationAddress,
         asset: usdcAsset,
-        amount: Number(params.usdcAmount).toFixed(7),
+        amount: Number(pay.usdcAmount).toFixed(7),
       }),
     );
+  }
 
   const numFee = Number(params.feeAmount);
   if (params.feeRecipient && !isNaN(numFee) && numFee > 0) {
@@ -235,4 +243,21 @@ export async function submitCentiivStellarPayment(params: {
   }
 
   return { hash: result.response.hash, status: "confirmed" };
+}
+
+export async function submitCentiivStellarPayment(params: {
+  userSecretKey: string;
+  destinationAddress: string;
+  usdcAmount: string | number;
+  memo?: string;
+  feeRecipient?: string;
+  feeAmount?: string | number;
+}): Promise<{ hash: string; status: "confirmed" | "pending" }> {
+  return submitBulkCentiivStellarPayment({
+    userSecretKey: params.userSecretKey,
+    payments: [{ destinationAddress: params.destinationAddress, usdcAmount: params.usdcAmount }],
+    memo: params.memo,
+    feeRecipient: params.feeRecipient,
+    feeAmount: params.feeAmount,
+  });
 }

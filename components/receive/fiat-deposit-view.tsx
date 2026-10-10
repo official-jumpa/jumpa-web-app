@@ -193,7 +193,7 @@ export function FiatDepositView({
         </DetailList>
 
         <InfoNote tone="brand">
-          Transfer any amount from any Nigerian bank app to this account. Your balance updates instantly.
+          Transfer any amount from any Nigerian bank app to this account
         </InfoNote>
 
         <div className={CARD}>

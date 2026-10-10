@@ -121,13 +121,21 @@ export async function POST(req: NextRequest) {
     // Build conversation history for the AI (last 10 messages)
     const history: ChatHistoryMessage[] = (chatLog.messages || [])
       .slice(-10)
-      .map((m: any) => ({
-        role: m.role as "user" | "assistant",
-        content:
-          [m.content || "", describeAttachments(m.attachments)]
-            .filter(Boolean)
-            .join("\n\n") || "",
-      }));
+      .map((m: any) => {
+        let text = [m.content || "", describeAttachments(m.attachments)]
+          .filter(Boolean)
+          .join("\n\n");
+        // Ensure the assistant has context of proposed transaction or options card data
+        if (m.role === "assistant" && m.transactionParams) {
+          text += `\n[Context: Pending ${m.transactionParams.type || m.cardType} with data: ${JSON.stringify(m.transactionParams)}]`;
+        } else if (m.role === "assistant" && m.cardType === "bulk_transfer" && m.cardData) {
+          text += `\n[Context: Bulk transfer proposal: ${JSON.stringify(m.cardData)}]`;
+        }
+        return {
+          role: m.role as "user" | "assistant",
+          content: text || "",
+        };
+      });
 
     const aiContext = {
       walletAddress,
@@ -350,6 +358,18 @@ export async function POST(req: NextRequest) {
         content: finalAssistantContent,
         isTransaction: true,
         cardType: "offramp",
+        status: "pending",
+        transactionParams: primaryTransactionParams,
+        cardData: primaryCardHint.data,
+        timestamp: new Date(),
+      };
+    } else if (primaryCardHint.type === "bulk_transfer") {
+      assistantMessage = {
+        id: generateId("msg"),
+        role: "assistant",
+        content: finalAssistantContent,
+        isTransaction: true,
+        cardType: "bulk_transfer" as any,
         status: "pending",
         transactionParams: primaryTransactionParams,
         cardData: primaryCardHint.data,

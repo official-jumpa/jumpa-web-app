@@ -131,9 +131,6 @@ function PinProgress() {
       <span className="block h-1 w-full overflow-hidden rounded-pill bg-jumpa-primary-50">
         <span className="progress-band block h-full w-1/3 animate-progress rounded-pill bg-jumpa-primary-600" />
       </span>
-      <p className="text-center text-xs leading-4 text-jumpa-neutral-700">
-        This takes a few seconds. Please keep this screen open.
-      </p>
     </output>
   );
 }

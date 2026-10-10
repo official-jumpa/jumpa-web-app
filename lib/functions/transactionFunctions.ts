@@ -645,14 +645,13 @@ function detailRows(tx: any, status: string, descriptor: TxTypeDescriptor): Tran
   if (tx.chain && tx.chain !== "fiat") {
     rows.push(
       ["Network", `${tx.chain} ${tx.network || ""}`.trim()],
-      ["Network fee", tx.feePaid],
+      // ["Network fee", tx.feePaid],
     );
     if (status !== "failed") {
       rows.push(["Transaction hash", shortenKey(tx.txHash), tx.txHash]);
     }
   }
 
-  rows.push(["Time taken", timeTaken(tx)]);
   if (status === "failed") rows.push(["Reason", tx.errorMessage]);
 
   return rows

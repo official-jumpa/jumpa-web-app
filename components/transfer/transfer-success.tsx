@@ -8,44 +8,11 @@ import { TransferHeader } from "@/components/transfer/transfer-header";
 import { Button } from "@/components/ui/button";
 import { ShareArrowIcon } from "@/components/ui/icons/share-arrow";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
-import { JumpaLoader } from "@/components/ui/jumpa-loader";
-import { WarningMedallion } from "@/components/ui/warning-medallion";
 import { cn } from "@/lib/cn";
 
 const ACTION =
   "tap flex h-13 flex-1 items-center justify-center gap-2 rounded-tile bg-jumpa-neutral-50 " +
   "text-base leading-4 font-medium text-jumpa-black active:scale-[0.98]";
-
-/** What the badge says about the transfer: landed, being checked, waiting on the bank, or came back. */
-export type TransferBadge = "success" | "checking" | "pending" | "failed";
-
-/** Every badge fills the 137px slot the success art collapses to, so swapping one never moves the screen. */
-function Badge({ kind }: { kind: TransferBadge }) {
-  if (kind === "failed") return <WarningMedallion size="screen" />;
-  if (kind === "success") {
-    // The export carries the glow bleed; negative margins collapse it to the badge.
-    return (
-      <Image
-        src="/images/transfer/payment-success.svg"
-        alt=""
-        width={199}
-        height={250}
-        priority
-        className="-mt-7.75 -mb-20.5 h-62.5 w-49.75 max-w-none"
-      />
-    );
-  }
-  return (
-    <JumpaLoader
-      label={
-        kind === "checking" ? "Checking your transfer" : "Transfer processing"
-      }
-      spinning={kind === "checking"}
-      className="size-34.25"
-      markClassName="w-17.5"
-    />
-  );
-}
 
 /**
  * Terminal screen for every transfer. "More details" reveals the receipt, which
@@ -65,7 +32,6 @@ export function TransferSuccess({
   actionsFirst,
   actions: actionsOverride,
   compact,
-  badge = "success",
   onShare,
 }: {
   back: string;
@@ -85,7 +51,6 @@ export function TransferSuccess({
   actions?: ReactNode;
   /** The savings receipts draw a 32px amount under a 16px title. */
   compact?: boolean;
-  badge?: TransferBadge;
   onShare?: () => void;
 }) {
   const router = useRouter();
@@ -169,7 +134,15 @@ export function TransferSuccess({
       />
 
       <div className="mt-11.5 flex flex-col items-center text-center">
-        <Badge kind={badge} />
+        {/* The export carries the glow bleed; negative margins collapse it to the badge. */}
+        <Image
+          src="/images/transfer/payment-success.svg"
+          alt=""
+          width={199}
+          height={250}
+          priority
+          className="-mt-7.75 -mb-20.5 h-62.5 w-49.75 max-w-none"
+        />
 
         <div
           className={cn(

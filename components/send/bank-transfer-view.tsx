@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { type ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   type BankAccountItem,
   type BankForm,
@@ -16,78 +16,16 @@ import { RecipientTag } from "@/components/transfer/recipient-tag";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
-import {
-  type TransferBadge,
-  TransferSuccess,
-} from "@/components/transfer/transfer-success";
+import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { getAssetLogo } from "@/lib/assets";
 import { FIAT_DECIMALS } from "@/lib/token-amount";
 import { COUNTRIES, titleCaseName } from "@/lib/transfer";
 import { calculateNgnWithdrawalFee } from "@/lib/ngn-account";
 import { invalidateClientBalances } from "@/lib/client-events";
-import { useTransferSettlement } from "@/hooks/use-transfer-settlement";
 
 type Stage = "form" | "amount" | "done";
 type Sheet = "review" | "pin" | null;
-
-/**
- * How far the transfer got: sent, submitted to the offramp, processing at the
- * bank (still being checked, or `delayed` once the screen stops checking), or refunded.
- */
-type Outcome = "sent" | "submitted" | "processing" | "delayed" | "failed";
-
-const OUTCOME_TITLE: Record<Outcome, string> = {
-  sent: "Payment Successful",
-  submitted: "Transfer Submitted",
-  processing: "Transfer Processing",
-  delayed: "Transfer Processing",
-  failed: "Transfer Failed",
-};
-
-const OUTCOME_BADGE: Record<Outcome, TransferBadge> = {
-  sent: "success",
-  submitted: "success",
-  processing: "checking",
-  delayed: "pending",
-  failed: "failed",
-};
-
-function outcomeNote(outcome: Outcome, recipient: ReactNode, refund: string) {
-  switch (outcome) {
-    case "sent":
-      return <>Your money is on its way to {recipient}</>;
-    case "submitted":
-      return (
-        <>
-          Your transfer is pending and being processed. Your money will arrive
-          at {recipient} shortly
-        </>
-      );
-    case "processing":
-      return (
-        <>
-          Your transfer to {recipient} is being processed. If it doesn&apos;t
-          go through, the money comes back to your Naira balance.
-        </>
-      );
-    case "delayed":
-      return (
-        <>
-          Your transfer to {recipient} is still being processed. We&apos;ll
-          notify you when it&apos;s done. If it doesn&apos;t go through, the
-          money comes back to your Naira balance.
-        </>
-      );
-    case "failed":
-      return (
-        <>
-          Your transfer to {recipient} didn&apos;t go through.{" "}
-          <b className="font-bold">{refund}</b> is back in your Naira balance.
-        </>
-      );
-  }
-}
 
 /** Standard crypto amount chips (e.g. 25, 50, 100 USDC) */
 const CRYPTO_CHIPS = [25, 50, 100] as const;
@@ -110,15 +48,7 @@ export function BankTransferView({
   const [pinError, setPinError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>();
-  const [transferStatus, setTransferStatus] = useState<"CONFIRMED" | "PENDING">("CONFIRMED");
-  // Set only for a naira transfer the bank is still processing; the screen follows it until it settles.
-  const [processingId, setProcessingId] = useState<string | null>(null);
-  const settlement = useTransferSettlement(processingId);
-
-  // A failed transfer was refunded server-side, so the cached Naira balance is stale.
-  useEffect(() => {
-    if (settlement.status === "failed") invalidateClientBalances();
-  }, [settlement.status]);
+  const [offrampStatus, setOfframpStatus] = useState<"CONFIRMED" | "PENDING">("CONFIRMED");
   const [currencyMode, setCurrencyMode] = useState<"crypto" | "fiat">("crypto");
 
   const [form, setForm] = useState<BankForm>(() => {
@@ -415,10 +345,6 @@ export function BankTransferView({
         setSheet(null);
         // Instantly notify components and clear cached balances
         invalidateClientBalances();
-        // PENDING while the bank is still processing it, so the receipt does not claim it landed
-        const processing = data.status === "PENDING";
-        setTransferStatus(processing ? "PENDING" : "CONFIRMED");
-        setProcessingId(processing ? (data.data?.transactionId ?? null) : null);
         setStage("done");
       } catch (err: any) {
         setErrorMessage(
@@ -466,7 +392,7 @@ export function BankTransferView({
       // Instantly notify components and clear cached balances
       invalidateClientBalances();
       // Preserve PENDING status so the success screen can show the right message
-      setTransferStatus(data.status === "PENDING" ? "PENDING" : "CONFIRMED");
+      setOfframpStatus(data.status === "PENDING" ? "PENDING" : "CONFIRMED");
       setStage("done");
     } catch (err: any) {
       setErrorMessage(err?.message || "Failed to connect to transfer service");
@@ -477,26 +403,11 @@ export function BankTransferView({
   };
 
   if (stage === "done") {
-    const outcome: Outcome =
-      settlement.status === "failed"
-        ? "failed"
-        : transferStatus !== "PENDING" || settlement.status === "completed"
-          ? "sent"
-          : !isFiatWithdrawal
-            ? "submitted"
-            : settlement.checking
-              ? "processing"
-              : "delayed";
-    const recipient = (
-      <b className="font-bold">
-        {form.name || (momo ? form.network : form.bank)}
-      </b>
-    );
+    const isPending = offrampStatus === "PENDING";
     return (
       <TransferSuccess
         back="/home"
-        title={OUTCOME_TITLE[outcome]}
-        badge={OUTCOME_BADGE[outcome]}
+        title={isPending ? "Transfer Submitted" : "Payment Successful"}
         // Lead with the figure the user actually typed; the conversion goes on
         // its own line, so neither has to share the 54px heading.
         amount={
@@ -511,11 +422,24 @@ export function BankTransferView({
               ? `≈ ${numCryptoAmount} ${selectedAsset}`
               : `≈ ₦${targetFiatAmount.toLocaleString()}`
         }
-        note={outcomeNote(
-          outcome,
-          recipient,
-          `₦${fiatTotalDebit.toLocaleString()}`,
-        )}
+        note={
+          isPending ? (
+            <>
+              Your transfer is pending and being processed. Your money will arrive at{" "}
+              <b className="font-bold">
+                {form.name || (momo ? form.network : form.bank)}
+              </b>{" "}
+              shortly
+            </>
+          ) : (
+            <>
+              Your money is on its way to{" "}
+              <b className="font-bold">
+                {form.name || (momo ? form.network : form.bank)}
+              </b>
+            </>
+          )
+        }
         details={details}
       />
     );

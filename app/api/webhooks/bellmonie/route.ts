@@ -9,13 +9,13 @@ import {
   getDailySubsidizedDepositCount,
 } from "@/lib/functions/bellmonieFunctions";
 import {
-  notifyNgnWithdrawalSent,
   RefundError,
   refundFailedNgnWithdrawal,
 } from "@/lib/functions/ngnRefundFunctions";
 import { calculateNgnDepositFee } from "@/lib/ngn-account";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { enforceRateLimit } from "@/lib/functions/rateLimitFunctions";
+import { createNotification } from "@/lib/functions/notificationFunctions";
 
 /**
  * POST /api/webhooks/bellmonie
@@ -229,20 +229,29 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ received: true });
         }
 
-        // Conditional, so a retried webhook or one that lands after settlement cannot notify twice.
-        const { modifiedCount } = await Transaction.updateOne(
-          {
-            _id: existingTx._id,
-            status: { $ne: "CONFIRMED" },
-            refundedAt: null,
-          },
-          { $set: { status: "CONFIRMED", executedAt: new Date() } },
-        );
+        if (existingTx.status !== "CONFIRMED") {
+          existingTx.status = "CONFIRMED";
+          existingTx.executedAt = new Date();
+          await existingTx.save();
+        }
 
         invalidateBalanceCache(existingTx.userId);
         invalidateBellmonieNgnBalanceCache(existingTx.userId);
 
-        if (modifiedCount === 1) notifyNgnWithdrawalSent(existingTx, reference);
+        createNotification({
+          userId: existingTx.userId,
+          tab: "transactions",
+          type: "WITHDRAWAL_COMPLETED",
+          title: "Withdrawal Successful",
+          body: `₦${Number(existingTx.amount).toLocaleString()} transfer to ${existingTx.bankDetails?.accountName || "beneficiary"} (${existingTx.bankDetails?.bankName || "Bank"}) has been completed successfully.`,
+          metadata: {
+            reference,
+            amount: existingTx.amount,
+            bankName: existingTx.bankDetails?.bankName,
+            accountNumber: existingTx.bankDetails?.accountNumber,
+          },
+          link: "/transactions",
+        }).catch(() => {});
 
         console.log(
           `[Bellmonie Webhook] ✅ Payout ${reference} confirmed successful for user ${existingTx.userId}`,

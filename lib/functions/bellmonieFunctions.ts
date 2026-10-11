@@ -12,7 +12,6 @@ import { logUserActivity, saveOrUpdateBeneficiary } from "@/lib/functions/userFu
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { generateId } from "@/lib/schema-ids";
 import { refundFailedNgnWithdrawal } from "@/lib/functions/ngnRefundFunctions";
-import { recordStatusFor } from "@/lib/bellmonie-transfer-status";
 import { BellmonieBanks, findBellmonieBank } from "@/lib/constants/bellmonie-banks";
 
 export {
@@ -559,8 +558,6 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
   totalDebited: number;
   isInternal: boolean;
   transactionId: string;
-  /** PENDING while Bellmonie is still processing the payout; its webhook settles it later. */
-  status: "CONFIRMED" | "PENDING";
 }> {
   await connectDB();
 
@@ -669,14 +666,13 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
     }
   }
 
-  // An internal transfer settles here, so it carries the default "success".
-  const status = recordStatusFor(transferRes.status);
+  const declined = transferRes.status === "failed";
 
-  // 7. Record the Transaction as Bellmonie reported it
+  // 7. Record confirmed Transaction
   const transaction: any = await Transaction.create({
     userId: params.userId,
     type: "WITHDRAW",
-    status,
+    status: declined ? "FAILED" : "CONFIRMED",
     chain: "fiat",
     network: "mainnet",
     fromAddress: userAccount.accountNumber,
@@ -697,7 +693,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
   });
 
   // A declined payout is refunded here: the webhook skips a transfer already marked FAILED.
-  if (status === "FAILED") {
+  if (declined) {
     const refunded = await refundFailedNgnWithdrawal({
       transactionId: transaction._id.toString(),
       refundedBy: "system",
@@ -715,16 +711,6 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
     );
   }
 
-  const result = {
-    success: true,
-    reference,
-    fee,
-    totalDebited,
-    isInternal,
-    transactionId: transaction._id.toString(),
-    status,
-  };
-
   // 8. Save beneficiary for quick repeat transfers
   saveOrUpdateBeneficiary(params.userId, {
     type: "bank",
@@ -737,24 +723,6 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
       currency: "NGN",
     },
   }).catch(() => { });
-
-  // Not sent yet: say so, and leave the completed log and "sent" message to the webhook.
-  if (status === "PENDING") {
-    createNotification({
-      userId: params.userId,
-      tab: "transactions",
-      type: "WITHDRAWAL_INITIATED",
-      title: "Transfer Processing",
-      body: `Your transfer of ₦${params.amount.toLocaleString()} to ${params.accountName} (${resolvedBankName}) is being processed. If it doesn't go through, the money comes back to your Naira balance.`,
-      metadata: {
-        amount: params.amount,
-        reference,
-        bankName: resolvedBankName,
-      },
-      link: `/transactions?id=${transaction._id}`,
-    }).catch(() => { });
-    return result;
-  }
 
   logUserActivity({
     userId: params.userId,
@@ -783,7 +751,14 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
     link: "/transactions",
   }).catch(() => { });
 
-  return result;
+  return {
+    success: true,
+    reference,
+    fee,
+    totalDebited,
+    isInternal,
+    transactionId: transaction._id.toString(),
+  };
 }
 
 // Ledger Operations

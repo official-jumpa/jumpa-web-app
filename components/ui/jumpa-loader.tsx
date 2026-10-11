@@ -15,15 +15,12 @@ export function JumpaLoader({
   label = "Loading",
   className = "size-29",
   markClassName = "w-14.75",
-  spinning = true,
 }: {
   /** Announced to screen readers — the visual is decorative. */
   label?: string;
   /** Box size. The ring and mark scale with it. */
   className?: string;
   markClassName?: string;
-  /** Off holds a closed ring: the work is still out there, but nothing is checking it. */
-  spinning?: boolean;
 }) {
   return (
     <span
@@ -34,7 +31,7 @@ export function JumpaLoader({
       <svg
         viewBox="0 0 116 116"
         aria-hidden="true"
-        className={`absolute inset-0 size-full ${spinning ? "animate-spin" : ""}`}
+        className="absolute inset-0 size-full animate-spin"
       >
         <circle
           cx="58"
@@ -50,9 +47,7 @@ export function JumpaLoader({
           r="54"
           fill="none"
           strokeWidth="8"
-          strokeDasharray={
-            spinning ? `${ARC} ${CIRCUMFERENCE - ARC}` : undefined
-          }
+          strokeDasharray={`${ARC} ${CIRCUMFERENCE - ARC}`}
           className="spinner-arc stroke-jumpa-primary-600"
         />
       </svg>

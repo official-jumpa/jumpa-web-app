@@ -1,5 +1,6 @@
 import "dotenv/config";
 import mongoose from "mongoose";
+import { settlePendingNgnWithdrawals } from "@/lib/functions/ngnRefundFunctions";
 import { resolveAllPendingTransactions } from "@/lib/functions/transactionFunctions";
 
 async function main() {
@@ -22,6 +23,9 @@ async function main() {
     } else {
       console.log("No pending txs found");
     }
+
+    const ngn = await settlePendingNgnWithdrawals();
+    console.log(`Naira transfers checked: ${ngn.checked}, confirmed: ${ngn.confirmed}, refunded: ${ngn.refunded}, still processing: ${ngn.pending}`);
 
     console.log("\n✅ Job Done");
     process.exit(0); //terminate the session

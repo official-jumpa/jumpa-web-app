@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { settlePendingNgnWithdrawals } from "@/lib/functions/ngnRefundFunctions";
 import { resolveAllPendingTransactions } from "@/lib/functions/transactionFunctions";
 
 /**
  * GET or POST /api/cron/resolve-transactions
  *
  * Checks the status of all PENDING Switch onramp/offramp transactions with the Switch API
- * and updates their status in the database.
+ * and updates their status in the database, then settles naira transfers still processing at Bellmonie.
  *
  * Query Params:
  *  - staleHours: number (default: 24) - hours after which unfulfilled AWAITING_DEPOSIT txs are marked FAILED
@@ -35,11 +36,14 @@ async function handleResolve(req: NextRequest) {
     const result = await resolveAllPendingTransactions({
       staleHours: staleHours && !isNaN(staleHours) ? staleHours : 24,
     });
+    // Never expired by age: a naira transfer only settles on Bellmonie's own answer.
+    const ngnWithdrawals = await settlePendingNgnWithdrawals();
 
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
       ...result,
+      ngnWithdrawals,
     });
   } catch (error: any) {
     console.error("[Cron Resolve Transactions] Error:", error);

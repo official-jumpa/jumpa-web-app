@@ -1,3 +1,4 @@
+import { isFailedStatus, isSentStatus } from "@/lib/bellmonie-transfer-status";
 import { connectDB } from "@/lib/db";
 import {
   invalidateBellmonieNgnBalanceCache,
@@ -19,9 +20,6 @@ export class RefundError extends Error {
 
 /** Our record can still say CONFIRMED or PENDING when Bellmonie fails or reverses the payout later. */
 const REFUNDABLE: ITransaction["status"][] = ["FAILED", "CONFIRMED", "PENDING"];
-const FAILED_STATUSES = new Set(["failed", "reversed", "rejected", "declined"]);
-const isFailedStatus = (status: unknown) =>
-  FAILED_STATUSES.has(String(status ?? "").toLowerCase());
 
 /** Bellmonie books a payout's reversal under `R-<original reference>`. */
 export const reversalReference = (reference: string) => `R-${reference}`;
@@ -54,33 +52,51 @@ export type BellmonieVerdict =
   | "pending"
   | "not_found";
 
-const SENT_STATUSES = new Set(["successful", "success"]);
+/** Rejects once `deadline` (epoch ms) passes. The lookup is left to finish: it only reads. */
+function beforeDeadline<T>(lookup: Promise<T>, deadline?: number): Promise<T> {
+  if (deadline === undefined) return lookup;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("Bellmonie did not answer in time")),
+      Math.max(0, deadline - Date.now()),
+    );
+  });
+  return Promise.race([lookup, timeout]).finally(() => clearTimeout(timer));
+}
 
 /** Bellmonie's answer for one payout: the transfer itself first, then any reversal booked against it. */
 async function bellmonieVerdict(
   reference: string,
+  deadline?: number,
 ): Promise<{ verdict: BellmonieVerdict; status: string | null }> {
-  const original = await lookupBellmonie(reference);
+  const original = await beforeDeadline(lookupBellmonie(reference), deadline);
   const status = original?.status
     ? String(original.status).toLowerCase()
     : null;
   if (original && isFailedStatus(original.status)) {
     return { verdict: "failed", status };
   }
-  const reversal = await lookupBellmonie(reversalReference(reference));
+  const reversal = await beforeDeadline(
+    lookupBellmonie(reversalReference(reference)),
+    deadline,
+  );
   if (reversal && !isFailedStatus(reversal.status)) {
     return { verdict: "reversed", status };
   }
   if (!original) return { verdict: "not_found", status: null };
   return {
-    verdict: status && SENT_STATUSES.has(status) ? "sent" : "pending",
+    verdict: isSentStatus(status) ? "sent" : "pending",
     status,
   };
 }
 
 /** True when Bellmonie shows the payout failed, or has a reversal booked against it. */
-async function bellmonieReportsFailure(reference: string): Promise<boolean> {
-  const { verdict } = await bellmonieVerdict(reference);
+async function bellmonieReportsFailure(
+  reference: string,
+  deadline?: number,
+): Promise<boolean> {
+  const { verdict } = await bellmonieVerdict(reference, deadline);
   return verdict === "failed" || verdict === "reversed";
 }
 
@@ -94,10 +110,13 @@ export async function refundFailedNgnWithdrawal({
   transactionId,
   refundedBy,
   reason,
+  lookupDeadline,
 }: {
   transactionId: string;
   refundedBy: string;
   reason?: string;
+  /** Epoch ms after which the Bellmonie check gives up. It runs before anything is written. */
+  lookupDeadline?: number;
 }): Promise<{ refundAmount: number; newBalance: number }> {
   await connectDB();
 
@@ -131,7 +150,7 @@ export async function refundFailedNgnWithdrawal({
   if (tx.status !== "FAILED") {
     let failed: boolean;
     try {
-      failed = await bellmonieReportsFailure(reference);
+      failed = await bellmonieReportsFailure(reference, lookupDeadline);
     } catch (err) {
       console.error(
         `[NGN Refund] Bellmonie lookup failed for ${reference}:`,
@@ -258,6 +277,20 @@ export async function refundFailedNgnWithdrawal({
 export const MAX_WITHDRAWAL_CHECKS = 25;
 const LOOKUP_CONCURRENCY = 5;
 
+/** Runs `task` over `items` a few at a time, so a batch never floods Bellmonie. */
+async function forEachLimited<T>(
+  items: T[],
+  task: (item: T) => Promise<void>,
+): Promise<void> {
+  const queue = [...items];
+  const worker = async () => {
+    for (let item = queue.shift(); item !== undefined; item = queue.shift()) {
+      await task(item);
+    }
+  };
+  await Promise.all(Array.from({ length: LOOKUP_CONCURRENCY }, worker));
+}
+
 export interface WithdrawalCheck {
   /** `ineligible`: not a naira withdrawal with a bank reference. `unavailable`: Bellmonie could not answer. */
   verdict: BellmonieVerdict | "ineligible" | "unavailable";
@@ -286,25 +319,159 @@ export async function checkNgnWithdrawals(
   }
 
   const checks: Record<string, WithdrawalCheck> = {};
-  const queue = [...transactionIds];
-  const worker = async () => {
-    for (let id = queue.shift(); id; id = queue.shift()) {
-      const reference = references.get(id);
-      if (!reference) {
-        checks[id] = { verdict: "ineligible", status: null };
-        continue;
-      }
-      try {
-        checks[id] = await bellmonieVerdict(reference);
-      } catch (err) {
-        console.error(
-          `[NGN Refund] Bellmonie lookup failed for ${reference}:`,
-          err,
-        );
-        checks[id] = { verdict: "unavailable", status: null };
+  await forEachLimited(transactionIds, async (id) => {
+    const reference = references.get(id);
+    if (!reference) {
+      checks[id] = { verdict: "ineligible", status: null };
+      return;
+    }
+    try {
+      checks[id] = await bellmonieVerdict(reference);
+    } catch (err) {
+      console.error(
+        `[NGN Refund] Bellmonie lookup failed for ${reference}:`,
+        err,
+      );
+      checks[id] = { verdict: "unavailable", status: null };
+    }
+  });
+  return checks;
+}
+
+/** Tells the sender their payout landed. The webhook and settlement share it so both read the same. */
+export function notifyNgnWithdrawalSent(
+  tx: Pick<ITransaction, "userId" | "amount" | "bankDetails">,
+  reference: string,
+): void {
+  createNotification({
+    userId: tx.userId,
+    tab: "transactions",
+    type: "WITHDRAWAL_COMPLETED",
+    title: "Withdrawal Successful",
+    body: `₦${Number(tx.amount).toLocaleString()} transfer to ${tx.bankDetails?.accountName || "beneficiary"} (${tx.bankDetails?.bankName || "Bank"}) has been completed successfully.`,
+    metadata: {
+      reference,
+      amount: tx.amount,
+      bankName: tx.bankDetails?.bankName,
+      accountNumber: tx.bankDetails?.accountNumber,
+    },
+    link: "/transactions",
+  }).catch(() => {});
+}
+
+/** A naira withdrawal Bellmonie accepted but has not yet called sent or failed. */
+export function isPendingNgnWithdrawal(
+  tx: Pick<
+    ITransaction,
+    "chain" | "type" | "status" | "bankDetails" | "refundedAt"
+  >,
+): boolean {
+  return (
+    tx.chain === "fiat" &&
+    tx.type === "WITHDRAW" &&
+    tx.status === "PENDING" &&
+    !tx.refundedAt &&
+    Boolean(tx.bankDetails?.reference)
+  );
+}
+
+export type SettleOutcome = "confirmed" | "refunded" | "pending";
+
+/**
+ * Brings one pending naira withdrawal up to date with Bellmonie, for when its webhook is late or
+ * never comes: a sent payout is confirmed, a failed or reversed one is refunded to the sender.
+ * Never throws. If Bellmonie cannot answer, the transfer stays pending.
+ */
+export async function settlePendingNgnWithdrawal(
+  tx: ITransaction,
+  { lookupTimeoutMs }: { lookupTimeoutMs?: number } = {},
+): Promise<{ outcome: SettleOutcome; tx: ITransaction }> {
+  const reference = tx.bankDetails?.reference;
+  if (!reference || !isPendingNgnWithdrawal(tx)) {
+    return { outcome: "pending", tx };
+  }
+
+  // Bounds only the Bellmonie reads, so a write that has started always finishes.
+  const deadline = lookupTimeoutMs ? Date.now() + lookupTimeoutMs : undefined;
+  let verdict: BellmonieVerdict;
+  try {
+    ({ verdict } = await bellmonieVerdict(reference, deadline));
+  } catch (err) {
+    console.error(
+      `[NGN Settle] Bellmonie lookup failed for ${reference}:`,
+      err,
+    );
+    return { outcome: "pending", tx };
+  }
+
+  if (verdict === "sent") {
+    const executedAt = new Date();
+    const { modifiedCount } = await Transaction.updateOne(
+      { _id: tx._id, status: "PENDING", refundedAt: null },
+      { $set: { status: "CONFIRMED", executedAt } },
+    );
+    // Only the caller that flips it tells the user; the webhook may have got there first.
+    if (modifiedCount === 1) notifyNgnWithdrawalSent(tx, reference);
+    return {
+      outcome: "confirmed",
+      tx: { ...tx, status: "CONFIRMED", executedAt },
+    };
+  }
+
+  if (verdict === "failed" || verdict === "reversed") {
+    try {
+      await refundFailedNgnWithdrawal({
+        transactionId: String(tx._id),
+        refundedBy: "system",
+        lookupDeadline: deadline,
+      });
+    } catch (err) {
+      // A RefundError here usually means the webhook refunded it first.
+      if (err instanceof RefundError) {
+        console.log(`[NGN Settle] ${reference} not refunded: ${err.message}`);
+      } else {
+        console.error(`[NGN Settle] Refund failed for ${reference}:`, err);
       }
     }
+    const fresh = await Transaction.findById(tx._id).lean<ITransaction>();
+    return {
+      outcome: fresh?.refundedAt ? "refunded" : "pending",
+      tx: fresh ?? tx,
+    };
+  }
+
+  return { outcome: "pending", tx };
+}
+
+/** Each run settles this many at most, oldest first. */
+const MAX_SETTLEMENTS_PER_RUN = 100;
+
+export type SettlementRun = { checked: number } & Record<SettleOutcome, number>;
+
+/** Settles every pending naira withdrawal. The cron runs it, so a payout whose webhook never came still resolves. */
+export async function settlePendingNgnWithdrawals(): Promise<SettlementRun> {
+  await connectDB();
+
+  const pending = await Transaction.find({
+    chain: "fiat",
+    type: "WITHDRAW",
+    status: "PENDING",
+    refundedAt: null,
+    "bankDetails.reference": { $exists: true, $ne: null },
+  })
+    .sort({ createdAt: 1 })
+    .limit(MAX_SETTLEMENTS_PER_RUN)
+    .lean<ITransaction[]>();
+
+  const run: SettlementRun = {
+    checked: pending.length,
+    confirmed: 0,
+    refunded: 0,
+    pending: 0,
   };
-  await Promise.all(Array.from({ length: LOOKUP_CONCURRENCY }, worker));
-  return checks;
+  await forEachLimited(pending, async (tx) => {
+    const { outcome } = await settlePendingNgnWithdrawal(tx);
+    run[outcome]++;
+  });
+  return run;
 }

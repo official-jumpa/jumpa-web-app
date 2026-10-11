@@ -2,9 +2,9 @@
 
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { TriangleWarningIcon } from "@/components/ui/icons/triangle-warning";
 import { SheetPortal } from "@/components/ui/sheet-portal";
 import { toast } from "@/components/ui/toast";
+import { WarningMedallion } from "@/components/ui/warning-medallion";
 
 /**
  * A failed action, in place of the browser alert the flows used to raise.
@@ -35,9 +35,7 @@ export function ResultSheet({
 
   return (
     <SheetPortal onClose={onClose} className="px-6 pb-7.5">
-      <span className="mx-auto flex size-16 items-center justify-center rounded-full bg-jumpa-warning-50 text-jumpa-warning">
-        <TriangleWarningIcon className="size-8" />
-      </span>
+      <WarningMedallion />
 
       <h2 className="mt-4 text-center text-xl leading-6 font-bold text-jumpa-black">
         {title}

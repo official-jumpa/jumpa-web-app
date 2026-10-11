@@ -80,10 +80,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       data: result,
+      // Same field the crypto offramp returns, so the client reads both the same way.
+      status: result.status,
       provider: "bellmonie",
-      message: result.isInternal
-        ? "Transfer completed successfully"
-        : "Withdrawal completed successfully",
+      message:
+        result.status === "PENDING"
+          ? "Transfer is processing"
+          : result.isInternal
+            ? "Transfer completed successfully"
+            : "Withdrawal completed successfully",
     });
   } catch (error: any) {
     console.error("[NGN Withdraw POST] Error:", error.message);

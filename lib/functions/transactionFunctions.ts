@@ -4,6 +4,10 @@ import { SwitchService } from "@/lib/switch";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
+import {
+  isPendingNgnWithdrawal,
+  settlePendingNgnWithdrawal,
+} from "@/lib/functions/ngnRefundFunctions";
 import type { TransactionDetailRow, TransactionKind } from "@/lib/wallet";
 import { detectCarrierFromPhone } from "@/lib/bills";
 
@@ -304,6 +308,17 @@ export async function syncPendingRampTransaction(tx: any): Promise<any> {
   return tx;
 }
 
+/** History and receipts wait this long for Bellmonie, then show the row as it is. */
+const NGN_LOOKUP_TIMEOUT_MS = 3000;
+
+/** Asks Bellmonie about a naira transfer still processing, so history never shows a stale status. */
+async function settleNgnWithdrawal<T>(tx: T): Promise<T> {
+  const { tx: settled } = await settlePendingNgnWithdrawal(tx as ITransaction, {
+    lookupTimeoutMs: NGN_LOOKUP_TIMEOUT_MS,
+  });
+  return settled as T;
+}
+
 /**
  * Lists transactions belonging to an authenticated user, ordered newest first.
  */
@@ -319,6 +334,8 @@ export async function listTransactionsByUserId(
 
   return Promise.all(
     raw.map((tx) => {
+      if (isPendingNgnWithdrawal(tx)) return settleNgnWithdrawal(tx);
+
       const isCustomPendingSettlement =
         tx.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
         tx.rampDetails?.settlementStatus !== "COMPLETED";
@@ -341,6 +358,7 @@ export async function getTransactionById(
   await connectDB();
   const tx = await Transaction.findOne({ _id: id, userId }).lean();
   if (!tx) return null;
+  if (isPendingNgnWithdrawal(tx)) return settleNgnWithdrawal(tx);
   return syncPendingRampTransaction(tx);
 }
 
@@ -848,9 +866,11 @@ export async function queryUserTransactions(params: {
 
   const transactions = await Promise.all(
     rawTransactions.map((tx) =>
-      tx.status === "PENDING" && tx.rampDetails?.reference
-        ? syncPendingRampTransaction(tx)
-        : Promise.resolve(tx),
+      isPendingNgnWithdrawal(tx)
+        ? settleNgnWithdrawal(tx)
+        : tx.status === "PENDING" && tx.rampDetails?.reference
+          ? syncPendingRampTransaction(tx)
+          : Promise.resolve(tx),
     ),
   );
 

@@ -24,6 +24,7 @@ import { createNotification } from "./functions/notificationFunctions";
 import { shouldSendNotification } from "./functions/userPreferenceFunctions";
 import { formatSignInDescription, parseUserAgent } from "./user-agent";
 import { sendLoginAlertEmail } from "./email-notifications";
+import { syncWalletInboundDeposits } from "./functions/depositSyncFunctions";
 
 await connectDB();
 
@@ -112,6 +113,13 @@ export const auth = betterAuth({
               userAgent: session.userAgent || undefined,
               details: { sessionId: session.id },
             });
+
+            // 1b. Check for inbound external deposits received while user was away
+            if (wallet) {
+              syncWalletInboundDeposits(wallet as any).catch((err) =>
+                console.warn("[Login Sync] Err:", err),
+              );
+            }
 
             // 2. Create in-app activity notification
             const loginBody = formatSignInDescription(

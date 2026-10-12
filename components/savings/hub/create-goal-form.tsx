@@ -3,7 +3,6 @@
 import Image from "next/image";
 import { type ReactNode, useRef, useState, useEffect } from "react";
 import { InfoNote } from "@/components/auth/info-note";
-import { ChoiceChips } from "@/components/savings/choice-chips";
 import {
   SAVINGS_INPUT,
   SavingsField,
@@ -21,42 +20,22 @@ import { PlusIcon } from "@/components/ui/icons/plus";
 import {
   addDays,
   apyForDays,
-  formatApy,
-  LOCK_TERMS,
   longDate,
   projectedYield,
-  rateForTerm,
   type SavingsKind,
-  type SavingsTerm,
   shortDate,
-  TARGET_TERMS,
 } from "@/lib/savings";
 import {
+  type CircleStyleKey,
   createGoal,
   formatMoney,
   type HubCurrency,
   type HubGoal,
 } from "@/lib/savings-hub";
 import { type FormErrors, revealFirstError } from "@/lib/validation";
+import { CircleStylePicker } from "./circle-style-picker";
 import { MoneyField } from "./money-field";
-
-/** A lock and a circle need an end date; the custom range is the production form's. */
-const FIXED_TERMS = LOCK_TERMS.filter((term) => !term.custom);
-
-const MONTH_OPTIONS = [
-  { months: 1, days: 30, label: "1 Month (30 days)" },
-  { months: 2, days: 60, label: "2 Months (60 days)" },
-  { months: 3, days: 90, label: "3 Months (90 days)" },
-  { months: 4, days: 120, label: "4 Months (120 days)" },
-  { months: 5, days: 150, label: "5 Months (150 days)" },
-  { months: 6, days: 180, label: "6 Months (180 days)" },
-  { months: 7, days: 210, label: "7 Months (210 days)" },
-  { months: 8, days: 240, label: "8 Months (240 days)" },
-  { months: 9, days: 270, label: "9 Months (270 days)" },
-  { months: 10, days: 300, label: "10 Months (300 days)" },
-  { months: 11, days: 330, label: "11 Months (330 days)" },
-  { months: 12, days: 365, label: "12 Months (1 Year)" },
-];
+import { TermPicker } from "./term-picker";
 
 type FormConfig = {
   title: string;
@@ -68,7 +47,8 @@ type FormConfig = {
   depositLabel: string;
   depositEmpty: string;
   termLabel: string;
-  terms: SavingsTerm[];
+  /** A flexible goal may run with no end date. */
+  openEnded: boolean;
 };
 
 /** Everything that differs between the three create forms. */
@@ -82,7 +62,7 @@ const FORMS: Record<SavingsKind, FormConfig> = {
     depositLabel: "First deposit (optional)",
     depositEmpty: "Enter how much to start with",
     termLabel: "Target timeline",
-    terms: TARGET_TERMS,
+    openEnded: true,
   },
   lock: {
     title: "Lock savings",
@@ -93,7 +73,7 @@ const FORMS: Record<SavingsKind, FormConfig> = {
     depositLabel: "Amount to lock",
     depositEmpty: "Enter the amount you want to lock",
     termLabel: "Lock duration",
-    terms: FIXED_TERMS,
+    openEnded: false,
   },
   circle: {
     title: "New circle",
@@ -104,7 +84,7 @@ const FORMS: Record<SavingsKind, FormConfig> = {
     depositLabel: "Your first contribution",
     depositEmpty: "Enter how much to start with",
     termLabel: "Circle duration",
-    terms: FIXED_TERMS,
+    openEnded: false,
   },
 };
 
@@ -225,9 +205,10 @@ export function CreateGoalForm({
   const [deposit, setDeposit] = useState("");
   // Individual savings defaults to open-ended (null days), Lock & Circle default to 1 Month (30 days)
   const [selectedDays, setSelectedDays] = useState<number | null>(
-    kind === "individual" ? null : 30,
+    form.openEnded ? null : 30,
   );
-  const [circleStyle, setCircleStyle] = useState<"save_together" | "shared_pool">("save_together");
+  const [circleStyle, setCircleStyle] =
+    useState<CircleStyleKey>("save_together");
   const [members, setMembers] = useState<number>(MEMBERS.start);
   const [errors, setErrors] = useState<FormErrors<Field>>({});
 
@@ -298,42 +279,10 @@ export function CreateGoalForm({
 
 
       {kind === "circle" ? (
-        <SavingsPanel>
-          <div className="px-2.5">
-            <SavingsLabel>Circle Type</SavingsLabel>
-            <div className="relative mt-2">
-              <select
-                value={circleStyle}
-                onChange={(e) =>
-                  setCircleStyle(e.target.value as "save_together" | "shared_pool")
-                }
-                className="w-full appearance-none rounded-xl border border-jumpa-neutral-200 bg-white py-2.5 pl-3.5 pr-8 text-xs font-semibold text-slate-800 focus:border-jumpa-primary-500 focus:outline-none focus:ring-1 focus:ring-jumpa-primary-500 shadow-xs cursor-pointer transition-all"
-              >
-                <option value="save_together">
-                  Save Together — Everyone keeps their own share
-                </option>
-                <option value="shared_pool">
-                  Shared Pool — Circle Owner can withdraw the funds
-                </option>
-              </select>
-              <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400">
-                <ChevronDownIcon className="size-3.5" />
-              </div>
-            </div>
-
-            <div className="mt-2.5 rounded-lg bg-jumpa-neutral-50 p-2 text-[11px] leading-relaxed text-jumpa-neutral-600">
-              {circleStyle === "save_together" ? (
-                <span>
-                  Each member saves toward the common goal and can only withdraw their own contributions + interest.
-                </span>
-              ) : (
-                <span>
-                  Funds are pooled together. Only the Circle Owner can withdraw the pooled funds.
-                </span>
-              )}
-            </div>
-          </div>
-        </SavingsPanel>
+        <div className="flex flex-col gap-3">
+          <SavingsLabel>Circle type</SavingsLabel>
+          <CircleStylePicker value={circleStyle} onChange={setCircleStyle} />
+        </div>
       ) : null}
 
       {/* 2. Target Amount (or Initial Deposit for locks) with inline currency dropdown */}
@@ -377,29 +326,14 @@ export function CreateGoalForm({
       <SavingsPanel>
         <div className="px-2.5">
           <SavingsLabel>{form.termLabel}</SavingsLabel>
-          <div className="relative mt-2">
-            <select
-              value={selectedDays === null ? "none" : String(selectedDays)}
-              onChange={(e) => {
-                const val = e.target.value;
-                setSelectedDays(val === "none" ? null : Number(val));
-              }}
-              className="w-full appearance-none rounded-xl border border-jumpa-neutral-200 bg-white py-2.5 pl-3.5 pr-8 text-xs font-semibold text-slate-800 focus:border-jumpa-primary-500 focus:outline-none focus:ring-1 focus:ring-jumpa-primary-500 shadow-xs cursor-pointer transition-all"
-            >
-              {kind === "individual" && (
-                <option value="none">
-                  No deadline (Save as you want) — {formatApy(apyForDays("individual", null))} APY
-                </option>
-              )}
-              {MONTH_OPTIONS.map((opt) => (
-                <option key={opt.months} value={opt.days}>
-                  {opt.label} — {formatApy(apyForDays(kind, opt.days))} APY
-                </option>
-              ))}
-            </select>
-            <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400">
-              <ChevronDownIcon className="size-3.5" />
-            </div>
+          <div className="mt-2">
+            <TermPicker
+              kind={kind}
+              label={form.termLabel}
+              value={selectedDays}
+              onChange={setSelectedDays}
+              openEnded={form.openEnded}
+            />
           </div>
         </div>
 

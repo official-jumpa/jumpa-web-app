@@ -5,7 +5,6 @@ import {
 } from "@/components/savings/savings-field";
 import { currencySymbol, type HubCurrency } from "@/lib/savings-hub";
 import { formatAmount, sanitiseAmount } from "@/lib/transfer";
-import { Equivalent } from "./equivalent";
 
 /** Plausible figures per field, so two money fields never show the same hint. */
 const EXAMPLES = {
@@ -54,7 +53,6 @@ export function MoneyField({
       {trailing ? (
         <span className="flex shrink-0 items-center pl-1">{trailing}</span>
       ) : null}
-      <Equivalent value={Number(value)} currency={currency} tone="field" />
     </SavingsField>
   );
 }

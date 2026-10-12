@@ -203,6 +203,21 @@ export const TARGET_TERMS: SavingsTerm[] = [
   { label: "No Deadline", days: null },
 ];
 
+/** The hub's term picker: whole months, with the twelfth as a full year. */
+export const MONTH_TERMS: readonly { months: number; days: number }[] =
+  Array.from({ length: 12 }, (_, index) => ({
+    months: index + 1,
+    days: index === 11 ? 365 : (index + 1) * 30,
+  }));
+
+/** "1 month", "6 months", or "No deadline" for an open-ended goal. */
+export function termName(days: number | null): string {
+  if (days === null) return "No deadline";
+  const term = MONTH_TERMS.find((option) => option.days === days);
+  if (!term) return `${days} days`;
+  return `${term.months} ${term.months === 1 ? "month" : "months"}`;
+}
+
 /**
  * ─── Rate card ────────────────────────────────────────────────────────────
  * TODO(product): THESE ARE PLACEHOLDER RATES. Replace every band before launch.
@@ -286,9 +301,11 @@ export function rateRange(kind: SavingsKind): string {
   return `${formatApy(Math.min(...rates))} – ${formatApy(Math.max(...rates))}`;
 }
 
-/** "14.49%" — the best a product pays, for a card too narrow for the range. */
+/** "15%" or "14.49%" — the best a product pays, short enough for a corner badge. */
 export function topRate(kind: SavingsKind): string {
-  return formatApy(Math.max(...RATE_BANDS[kind].map((band) => band.apy)));
+  const best = Math.max(...RATE_BANDS[kind].map((band) => band.apy));
+  // Number() drops the trailing zeros toFixed leaves: 15.00 → 15.
+  return `${Number(best.toFixed(2))}%`;
 }
 
 /** The rate a term chip prints under its label. */

@@ -1,15 +1,15 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
+import { BadgePercentIcon } from "@/components/ui/icons/badge-percent";
 
 /**
  * The purple card both hub screens open on — the same gradient and grid as
- * `SavingsBalance`, with room for a control in the corner and a stat row.
+ * `SavingsBalance`, with room for a control in the corner and a meter below.
  */
 export function HubHero({
   badge,
   aside,
   meter,
-  foot,
   children,
 }: {
   badge: string;
@@ -17,8 +17,6 @@ export function HubHero({
   aside?: ReactNode;
   /** Progress under the amount. */
   meter?: ReactNode;
-  /** Stat row along the bottom edge. */
-  foot?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -39,25 +37,14 @@ export function HubHero({
         {aside}
       </div>
 
-      <div className="relative flex flex-col items-center gap-1.5 px-4 pt-5 pb-5 text-center">
+      <div
+        className={`relative flex flex-col items-center gap-1 px-4 pt-4 text-center ${meter ? "pb-4" : "pb-5"}`}
+      >
         {children}
       </div>
 
       {meter ? <div className="relative px-4 pb-4">{meter}</div> : null}
-
-      {foot ? (
-        <div className="relative flex items-end justify-between gap-3 border-t border-jumpa-white/20 px-4 pt-2.5 pb-3">
-          {foot}
-        </div>
-      ) : null}
     </section>
-  );
-}
-
-/** Holds the equivalent chip's height before the rate lands, so nothing below it jumps. */
-export function HeroNote({ children }: { children: ReactNode }) {
-  return (
-    <span className="flex h-5.5 items-center justify-center">{children}</span>
   );
 }
 
@@ -77,30 +64,24 @@ export function HeroAmount({
   );
 }
 
-export function HeroStat({
-  label,
-  value,
-  accent = false,
-  align = "start",
+/**
+ * What the money has earned, straight under the figure it was earned on.
+ * `earned` is null when there is nothing to show, e.g. a lock left early.
+ */
+export function HeroInterest({
+  earned,
+  caption,
 }: {
-  label: string;
-  value: string;
-  /** Lime for the figure the card is selling — interest. */
-  accent?: boolean;
-  align?: "start" | "end";
+  earned: string | null;
+  caption: string;
 }) {
   return (
-    <span
-      className={`flex min-w-0 flex-col gap-0.5 ${align === "end" ? "items-end text-right" : ""}`}
-    >
-      <span className="text-[10px] leading-3 text-jumpa-primary-100">
-        {label}
-      </span>
-      <span
-        className={`truncate text-sm leading-4 font-semibold ${accent ? "text-jumpa-alt-400" : "text-jumpa-white"}`}
-      >
-        {value}
-      </span>
+    <span className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-pill bg-jumpa-white/15 px-3 py-1.5 text-xs leading-4 whitespace-nowrap text-jumpa-primary-50">
+      <BadgePercentIcon className="size-4 shrink-0 text-jumpa-alt-400" />
+      {earned ? (
+        <span className="font-semibold text-jumpa-alt-400">+{earned}</span>
+      ) : null}
+      <span className="truncate">{caption}</span>
     </span>
   );
 }

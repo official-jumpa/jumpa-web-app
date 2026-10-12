@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CopyButton } from "@/components/auth/copy-button";
 import {
   PLAN_ACTION_BUTTON,
   PlanActions,
@@ -7,31 +8,31 @@ import { WithdrawWarningSheet } from "@/components/savings/withdraw-warning-shee
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { ArrowUpFromArcIcon } from "@/components/ui/icons/arrow-up-from-arc";
-import { toast } from "@/components/ui/toast";
-import { CopyIcon } from "@/components/ui/icons/copy";
 import { CheckIcon } from "@/components/ui/icons/check";
 import { PlusIcon } from "@/components/ui/icons/plus";
 import { ShareArrowIcon } from "@/components/ui/icons/share-arrow";
 import { WalletPlusIcon } from "@/components/ui/icons/wallet-plus";
 import { formatApy } from "@/lib/savings";
 import {
+  circleStyle,
   currencySymbol,
   formatFigure,
   formatMoney,
   goalApy,
-  goalEndLabel,
   goalMatured,
+  goalPeriod,
   goalProgress,
   HUB_KINDS,
+  type HubCircle,
   type HubClosure,
   type HubGoal,
   progressLabel,
+  savingStyle,
   timeLeft,
 } from "@/lib/savings-hub";
 import { reachedMilestone } from "@/lib/savings-moments";
-import { Equivalent } from "./equivalent";
 import { GoalActivity } from "./goal-activity";
-import { HeroAmount, HeroNote, HeroStat, HubHero } from "./hub-hero";
+import { HeroAmount, HeroInterest, HubHero } from "./hub-hero";
 import { MilestoneTrack } from "./moments/milestone-track";
 import { TopUpSheet } from "./top-up-sheet";
 import { WithdrawSheet } from "./withdraw-sheet";
@@ -66,8 +67,9 @@ export function GoalDetail({
   const matured = goalMatured(goal);
   // Leaving a lock before it matures is the one exit that costs something.
   const early = locked && !matured;
-  const end = goalEndLabel(goal);
   const figure = closed ? closed.paidOut : goal.saved;
+  const period = goalPeriod(goal);
+  const rate = `${formatApy(goalApy(goal))} a year`;
 
   return (
     <div className="flex min-h-dvh flex-col gap-6 px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+2rem)]">
@@ -106,24 +108,6 @@ export function GoalDetail({
             </span>
           </span>
         }
-        foot={
-          <>
-            <HeroStat
-              label="Interest earned"
-              value={
-                closed?.forfeited
-                  ? "Forfeited"
-                  : formatMoney(goal.interestEarned, goal.currency)
-              }
-              accent={!closed?.forfeited}
-            />
-            <HeroStat
-              label="Interest rate"
-              value={`${formatApy(goalApy(goal))} a year`}
-              align="end"
-            />
-          </>
-        }
       >
         <HeroAmount
           symbol={currencySymbol(goal.currency)}
@@ -136,9 +120,17 @@ export function GoalDetail({
               ? "Locked balance"
               : `of ${formatMoney(goal.target, goal.currency)} target`}
         </p>
-        <HeroNote>
-          <Equivalent value={figure} currency={goal.currency} tone="onBrand" />
-        </HeroNote>
+        {closed?.forfeited ? (
+          <HeroInterest
+            earned={null}
+            caption={`Interest forfeited · ${rate}`}
+          />
+        ) : (
+          <HeroInterest
+            earned={formatMoney(goal.interestEarned, goal.currency)}
+            caption={`earned · ${rate}`}
+          />
+        )}
       </HubHero>
 
       <PlanActions>
@@ -175,67 +167,24 @@ export function GoalDetail({
         )}
       </PlanActions>
 
-      {/* Circle Invite Code Banner */}
-      {goal.circle && !closed ? (
-        <div className="flex items-center justify-between rounded-2xl border border-jumpa-primary-100 bg-jumpa-primary-50/50 p-3.5">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[11px] font-semibold text-jumpa-primary-700">
-              Invite Friends to Circle
-            </span>
-            <span className="font-mono text-sm font-bold tracking-wider text-jumpa-black">
-              {goal.circle.inviteCode}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              const code = goal.circle?.inviteCode || "";
-              navigator.clipboard?.writeText(code);
-              toast.success(`Invite code ${code} copied!`);
-            }}
-            className="flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-jumpa-primary-600 shadow-xs border border-jumpa-neutral-200 active:scale-95 transition-all"
-          >
-            <CopyIcon className="size-3.5" />
-            <span>Copy Code</span>
-          </button>
-        </div>
-      ) : null}
+      {goal.circle && !closed ? <CircleInvite circle={goal.circle} /> : null}
 
       <section className="flex flex-col gap-3">
         <h2 className="text-xs font-medium text-jumpa-black">Plan details</h2>
         <DetailList>
-          <DetailRow label="Started" value={goal.startDate} />
-          {closed ? (
-            <DetailRow label="Closed" value={closed.date} />
-          ) : (
-            <DetailRow
-              label={locked ? "Unlocks" : "Ends"}
-              value={end ?? "No deadline"}
-            />
-          )}
+          <DetailRow label={period.label} value={period.value} />
           <DetailRow
             label="How you save"
-            value={
-              goal.circle
-                ? `${goal.circle.style === "shared_pool" ? "Pooled Savings" : "Save Together"} (${goal.circle.members.length} of ${goal.circle.capacity} members)`
-                : HUB_KINDS[goal.kind].style
-            }
+            value={savingStyle(goal)}
+            rule={Boolean(goal.circle)}
           />
           {goal.circle ? (
             <DetailRow
-              label="Withdrawal rule"
-              value={
-                goal.circle.style === "shared_pool"
-                  ? "Circle Owner can withdraw the pooled funds"
-                  : "Each member withdraws their own share"
-              }
+              label="Withdrawals"
+              value={circleStyle(goal.circle).rule}
+              rule={false}
             />
           ) : null}
-          <DetailRow
-            label={closed ? "Paid out to" : "Pays out to"}
-            value={`Your ${goal.currency} wallet`}
-            rule={false}
-          />
         </DetailList>
       </section>
 
@@ -304,5 +253,31 @@ function StatusChip({
       )}
       {label}
     </span>
+  );
+}
+
+/** The circle's invite code, with the app's own copy control beside it. */
+function CircleInvite({ circle }: { circle: HubCircle }) {
+  const open = circle.capacity - circle.members.length;
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-surface bg-jumpa-neutral-50 py-3 pr-3 pl-4 inset-ring-1 inset-ring-jumpa-neutral-60">
+      <span className="flex min-w-0 flex-col gap-1">
+        <span className="text-[11px] leading-3.5 text-jumpa-neutral-500">
+          {open > 0
+            ? `Invite code · ${open} ${open === 1 ? "spot" : "spots"} left`
+            : "Invite code · circle full"}
+        </span>
+        <span className="truncate font-mono text-base leading-5 font-semibold tracking-wider text-jumpa-black uppercase">
+          {circle.inviteCode}
+        </span>
+      </span>
+      <CopyButton
+        value={circle.inviteCode}
+        label="Copy"
+        name="Copy invite code"
+        className="shrink-0"
+      />
+    </div>
   );
 }

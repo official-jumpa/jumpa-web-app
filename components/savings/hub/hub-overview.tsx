@@ -17,9 +17,8 @@ import {
   type PlanTab,
 } from "@/lib/savings-hub";
 import type { Streak } from "@/lib/savings-moments";
-import { Equivalent } from "./equivalent";
 import { GoalCard } from "./goal-card";
-import { HeroAmount, HeroNote, HeroStat, HubHero } from "./hub-hero";
+import { HeroAmount, HeroInterest, HubHero } from "./hub-hero";
 import { StreakButton } from "./moments/streak-button";
 import { slideIn } from "./slide-in";
 
@@ -90,7 +89,6 @@ export function HubOverview({
   const direction = motion?.direction ?? null;
   const heroDirection = motion?.by === "currency" ? direction : null;
   const amount = slideIn(heroDirection, 0);
-  const stats = slideIn(heroDirection, 1);
 
   return (
     <div className="flex min-h-dvh flex-col gap-6 px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+2rem)]">
@@ -123,41 +121,21 @@ export function HubOverview({
             onChange={onCurrency}
           />
         }
-        foot={
-          // Keyed on the currency, so a switch replays the entrance.
-          <span
-            key={currency}
-            className={cn(
-              "flex w-full items-end justify-between gap-3",
-              stats.className,
-            )}
-            style={stats.style}
-          >
-            <HeroStat
-              label="Interest earned"
-              value={formatMoney(interest, currency)}
-              accent
-            />
-            <HeroStat
-              label="Active plans"
-              value={String(active.length)}
-              align="end"
-            />
-          </span>
-        }
       >
         <span
           key={currency}
-          className={cn("flex flex-col items-center gap-1.5", amount.className)}
+          className={cn("flex flex-col items-center", amount.className)}
           style={amount.style}
         >
           <HeroAmount
             symbol={currencySymbol(currency)}
             figure={formatFigure(saved)}
           />
-          <HeroNote>
-            <Equivalent value={saved} currency={currency} tone="onBrand" />
-          </HeroNote>
+          {/* The plan count is on the Active tab below, so the hero does not repeat it. */}
+          <HeroInterest
+            earned={formatMoney(interest, currency)}
+            caption="interest earned"
+          />
         </span>
       </HubHero>
 

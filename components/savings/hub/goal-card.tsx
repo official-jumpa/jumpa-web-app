@@ -11,7 +11,6 @@ import {
   timeLeft,
 } from "@/lib/savings-hub";
 import { MILESTONES } from "@/lib/savings-moments";
-import { Equivalent } from "./equivalent";
 import { ProgressBar } from "./progress-bar";
 
 /** One plan in the hub list: what it is, how far along, and what it has earned. */
@@ -79,9 +78,6 @@ export function GoalCard({
           </span>
           <span className="min-w-0 truncate text-xs leading-4 text-jumpa-neutral-500">
             {suffix}
-          </span>
-          <span className="ml-auto pl-2">
-            <Equivalent value={figure} currency={goal.currency} />
           </span>
         </span>
         <ProgressBar

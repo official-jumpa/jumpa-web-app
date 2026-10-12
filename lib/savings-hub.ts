@@ -32,26 +32,6 @@ export function formatMoney(value: number, currency: HubCurrency): string {
   return `${SYMBOL[currency]}${formatFigure(value)}`;
 }
 
-/**
- * The figure in the other currency: naira shows dollars, USDC shows naira.
- * USDC is taken at $1, which is close enough for a hint and never for a quote.
- */
-export function formatEquivalent(
-  value: number,
-  currency: HubCurrency,
-  ngnPerUsd: number,
-): string {
-  if (currency === "NGN") {
-    const usd = value / ngnPerUsd;
-    return `≈ $${usd.toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
-  }
-  // Whole naira: kobo on a converted figure is false precision.
-  return `≈ ₦${Math.round(value * ngnPerUsd).toLocaleString("en-US")}`;
-}
-
 export type SlideDirection = "left" | "right";
 
 /** Which side content enters from when a switch moves — the way its thumb went. */
@@ -219,12 +199,50 @@ export function timeLeft(goal: HubGoal): string {
   return `${goal.daysLeft} ${goal.daysLeft === 1 ? "day" : "days"} left`;
 }
 
-/** End date in the same form as `startDate`, so the two rows read alike. */
+/** End date in the same form as `startDate`, so the two read alike. */
 export function goalEndLabel(goal: HubGoal): string | null {
   if (goal.daysLeft === null) return null;
   const end = new Date();
   end.setDate(end.getDate() + goal.daysLeft);
   return dayLabel(end);
+}
+
+/** Start and end as one row: "07 Sept 2026 – 06 Dec 2026". A closed plan ends the day it paid out. */
+export function goalPeriod(goal: HubGoal): { label: string; value: string } {
+  const end = goal.closed?.date ?? goalEndLabel(goal) ?? "No deadline";
+  return {
+    label: goal.kind === "lock" ? "Lock period" : "Period",
+    value: `${goal.startDate} – ${end}`,
+  };
+}
+
+export type CircleStyleKey = NonNullable<SavingsCircle["style"]>;
+
+/** How a circle shares its money: the row that names it and the rule for taking it out. */
+export const CIRCLE_STYLES: Record<
+  CircleStyleKey,
+  { label: string; rule: string }
+> = {
+  save_together: {
+    label: "Save together",
+    rule: "Members withdraw their share",
+  },
+  shared_pool: {
+    label: "Pooled savings",
+    rule: "Owner withdraws the pool",
+  },
+};
+
+/** A circle's sharing rules; one saved before `style` existed shares like a new one. */
+export function circleStyle(circle: SavingsCircle) {
+  return CIRCLE_STYLES[circle.style ?? "save_together"];
+}
+
+/** "Save together · 4 of 6 members", or the product's own line when it is not a circle. */
+export function savingStyle(goal: HubGoal): string {
+  const { circle } = goal;
+  if (!circle) return HUB_KINDS[goal.kind].style;
+  return `${circleStyle(circle).label} · ${circle.members.length} of ${circle.capacity} members`;
 }
 
 /**
@@ -474,7 +492,7 @@ export function createGoal(input: {
   termDays: number | null;
   /** A circle's head count — its invite limit. */
   members?: number;
-  circleStyle?: "save_together" | "shared_pool";
+  circleStyle?: CircleStyleKey;
 }): HubGoal {
   const stamp = Date.now();
   return {

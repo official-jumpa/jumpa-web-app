@@ -2,9 +2,8 @@ import { useState } from "react";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
-import { formatMoney, type HubGoal, payoutFor } from "@/lib/savings-hub";
+import { formatMoney, type HubGoal } from "@/lib/savings-hub";
 import { MoneyField } from "./money-field";
-import { Equivalent } from "./equivalent";
 
 /** What leaving or withdrawing from a plan pays out. */
 export function WithdrawSheet({
@@ -60,7 +59,7 @@ export function WithdrawSheet({
           <p className="max-w-72 text-xs leading-4 text-jumpa-neutral-500">
             {isLock
               ? `The money goes to your ${goal.currency} wallet, and ${goal.name} moves to Completed.`
-              : `Withdraw from your flexible balance (${formatMoney(goal.saved, goal.currency)} available).`}
+              : `${formatMoney(goal.saved, goal.currency)} available. Interest stays in the plan until you withdraw it all.`}
           </p>
         </div>
 
@@ -85,7 +84,7 @@ export function WithdrawSheet({
               }}
               className="self-end text-xs font-semibold text-jumpa-primary-600 active:underline"
             >
-              Withdraw all ({formatMoney(goal.saved, goal.currency)})
+              Withdraw all
             </button>
           </div>
         ) : null}
@@ -109,12 +108,7 @@ export function WithdrawSheet({
           />
           <DetailRow
             label="You receive"
-            value={
-              <span className="flex flex-col items-end gap-0.5">
-                {formatMoney(totalPayout, goal.currency)}
-                <Equivalent value={totalPayout} currency={goal.currency} />
-              </span>
-            }
+            value={formatMoney(totalPayout, goal.currency)}
             rule={false}
           />
         </DetailList>

@@ -5,6 +5,7 @@ import { wordlist } from "@scure/bip39/wordlists/english.js";
 import bcrypt from "bcryptjs";
 import { requireAuth } from "@/lib/functions/permissionFunctions";
 import { encryptMnemonic, decryptMnemonic } from "@/lib/crypto";
+import { triggerWalletBackgroundUpdates } from "@/lib/services/wallet-migration";
 import {
   deriveAddresses,
   type DerivedWallet,
@@ -50,7 +51,7 @@ function resolveNextOnboardingRoute(user: any, wallet: any): string {
   const hasPassword = Boolean(user?.loginPasswordHash);
   const hasTag = Boolean(user?.jumpaTag);
   const hasPin = Boolean(wallet?.pinHash);
-  const needsPinMigration = Boolean(wallet && wallet.pinVersion !== "v2");
+  const needsPinMigration = Boolean(wallet && wallet.pinVersion === "v1");
 
   if (!hasPhone) return "/sign-up/phone";
   if (!hasPassword) return "/sign-up/password";
@@ -111,7 +112,7 @@ export async function GET(req: NextRequest) {
     const hasPassword = Boolean(user?.loginPasswordHash);
     const hasTag = Boolean(user?.jumpaTag);
     const hasPin = Boolean(wallet?.pinHash);
-    const needsPinMigration = Boolean(wallet && wallet.pinVersion !== "v2");
+    const needsPinMigration = Boolean(wallet && wallet.pinVersion === "v1");
     const nextRoute = resolveNextOnboardingRoute(user, wallet);
 
     return NextResponse.json({
@@ -124,10 +125,10 @@ export async function GET(req: NextRequest) {
       userStatus: user?.status || "active",
       nickname: user?.nickname ?? null,
       jumpaTag: user?.jumpaTag ?? null,
-      isComplete: hasPhone && hasPassword && hasTag && hasPin && !needsPinMigration,//delete once everyone has migrated to v2
+      isComplete: hasPhone && hasPassword && hasTag && hasPin && !needsPinMigration,
     });
   } catch (err) {
-    console.error("[WalletSetup GET]", err);
+    console.error("Error", err);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 },
@@ -180,7 +181,7 @@ export async function POST(req: NextRequest) {
         userId: session.user.id,
         action: "LOGIN_PASSWORD_SET",
         req,
-      }).catch((e) => console.error("[WalletSetup] ActivityLog error:", e));
+      }).catch((e) => console.error("ActivityLog error:", e));
 
       const response = NextResponse.json({
         success: true,
@@ -273,7 +274,7 @@ export async function POST(req: NextRequest) {
       });
       // If the user already has a wallet:
       const existingWallets = await listWalletsByUserId(session.user.id);
-      console.log("🟢🟢🟢 Total user wallets", existingWallets.length)
+      console.log("🟢 Total existing wallets", existingWallets.length)
 
       // Pre-validation path: Verify current 6-digit PIN before prompting for new PIN
       if (body.action === "validate-current" || body.action === "verify-current") {
@@ -293,7 +294,7 @@ export async function POST(req: NextRequest) {
 
         const isMatch = await bcrypt.compare(oldPin, wallet.pinHash);
         if (!isMatch) {
-          console.warn(`[MigratePIN][ValidateCurrent] ❌ WRONG CURRENT PIN! bcrypt.compare returned false for wallet ${wallet._id} (User: ${session.user.id})`);
+          console.warn(`[MigratePIN][ValidateCurrent] ❌ WRONG CURRENT PIN for wallet ${wallet._id} (User: ${session.user.id})`);
           return NextResponse.json(
             { error: "Incorrect current PIN. Please try again." },
             { status: 400 },
@@ -309,7 +310,7 @@ export async function POST(req: NextRequest) {
           );
         } catch (decryptErr) {
           console.error(
-            `[MigratePIN][ValidateCurrent] ❌ Decryption failed for wallet ${wallet._id}:`,
+            `[MigratePIN] ❌ Decryption failed for wallet ${wallet._id}:`,
             decryptErr,
           );
           return NextResponse.json(
@@ -318,7 +319,16 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        console.log(`[MigratePIN][ValidateCurrent] ✅ Current PIN verified successfully for wallet ${wallet._id}.`);
+        // Trigger background migration to v3 and Tron derivation (non-blocking, zero lag)
+        if (wallet.pinVersion !== "v3" || !wallet.addresses?.trx) {
+          void triggerWalletBackgroundUpdates({
+            walletId: wallet._id,
+            userId: session.user.id,
+            pin: oldPin,
+          });
+        }
+
+        console.log(`[MigratePIN] ✅ Current PIN verified for wallet ${wallet._id}.`);
         return NextResponse.json({
           success: true,
           message: "Current PIN verified successfully",
@@ -335,14 +345,14 @@ export async function POST(req: NextRequest) {
           : await findWalletForUser(session.user.id);
 
         if (!wallet) {
-          console.warn(`[MigratePIN][ConfirmExisting] ⚠️ No active wallet found for user ${session.user.id}`);
+          console.warn(`[MigratePIN] ⚠️ No active wallet found for user ${session.user.id}`);
           return NextResponse.json(
             { error: "No active wallet found" },
             { status: 404 },
           );
         }
 
-        console.log(`[MigratePIN][ConfirmExisting] Wallet found (${wallet._id}), checking pinHash...`, {
+        console.log(`[MigratePIN] Wallet found (${wallet._id}), checking pinHash...`, {
           walletId: wallet._id.toString(),
           hasPinHash: Boolean(wallet.pinHash),
           pinVersion: wallet.pinVersion,
@@ -351,14 +361,14 @@ export async function POST(req: NextRequest) {
 
         const isMatch = await bcrypt.compare(pinCandidate, wallet.pinHash);
         if (!isMatch) {
-          console.warn(`[MigratePIN][ConfirmExisting] ❌ WRONG PIN! bcrypt.compare returned false for wallet ${wallet._id} (User: ${session.user.id})`);
+          console.warn(`[MigratePIN] ❌ WRONG PIN for wallet ${wallet._id} (User: ${session.user.id})`);
           return NextResponse.json(
             { error: "Incorrect PIN. Please try again or update your PIN." },
             { status: 400 },
           );
         }
 
-        console.log(`[MigratePIN][ConfirmExisting] ✅ PIN matches hash! Testing decryption of mnemonic for wallet ${wallet._id}...`);
+        console.log(` ✅ PIN matches hash! Testing decryption for wallet ${wallet._id}...`);
 
         try {
           decryptMnemonic(
@@ -367,10 +377,10 @@ export async function POST(req: NextRequest) {
             wallet.salt,
             pinCandidate,
           );
-          console.log(`[MigratePIN][ConfirmExisting] ✅ Decryption test succeeded! Updating pinVersion to v2 for wallet ${wallet._id}...`);
+          console.log(` ✅ Decryption test succeeded! Updating pinVersion to v3 for wallet ${wallet._id}...`);
         } catch (decryptErr) {
           console.error(
-            `[MigratePIN][ConfirmExisting] ❌ Decryption failed for wallet ${wallet._id} with provided 4-digit PIN:`,
+            ` ❌ Decryption failed for wallet ${wallet._id} with provided 4-digit PIN:`,
             decryptErr,
           );
           return NextResponse.json(
@@ -379,17 +389,18 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        await updateWalletById(wallet._id, {
-          pinVersion: "v2",
-          pinAttempts: 0,
-          pinLockedUntil: null,
+        // Trigger background migration to v3 and Tron derivation (non-blocking, zero lag)
+        void triggerWalletBackgroundUpdates({
+          walletId: wallet._id,
+          userId: session.user.id,
+          pin: pinCandidate,
         });
 
-        console.log(`[MigratePIN][ConfirmExisting] 🎉 Successfully upgraded wallet ${wallet._id} to pinVersion v2.`);
+        console.log(`[MigratePIN] 🎉 Successfully scheduled upgrade for wallet ${wallet._id} to pinVersion v3.`);
 
         return NextResponse.json({
           success: true,
-          message: "Existing 4-digit PIN confirmed and updated successfully",
+          message: "PIN confirmed and updated",
         });
       }
 
@@ -410,18 +421,18 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      console.log(`[MigratePIN][Standard] Wallet found (${wallet._id}), checking oldPin against pinHash...`);
+      console.log(`[MigratePIN] Wallet found (${wallet._id}), checking oldPin against pinHash...`);
 
       const isMatch = await bcrypt.compare(oldPin, wallet.pinHash);
       if (!isMatch) {
-        console.warn(`[MigratePIN][Standard] ❌ WRONG CURRENT PIN! bcrypt.compare returned false for wallet ${wallet._id} (User: ${session.user.id})`);
+        console.warn(` ❌ WRONG CURRENT PIN for wallet ${wallet._id} (User: ${session.user.id})`);
         return NextResponse.json(
           { error: "Incorrect current PIN. Please try again." },
           { status: 400 },
         );
       }
 
-      console.log(`[MigratePIN][Standard] ✅ Current PIN matches! Decrypting mnemonic for wallet ${wallet._id}...`);
+      console.log(`[MigratePIN] ✅ Current PIN matches! Decrypting mnemonic for wallet ${wallet._id}...`);
 
       let rawSecret: string;
       try {
@@ -431,10 +442,10 @@ export async function POST(req: NextRequest) {
           wallet.salt,
           oldPin,
         );
-        console.log(`[MigratePIN][Standard] ✅ Mnemonic decrypted successfully! Re-encrypting with new 4-digit PIN...`);
+        console.log(`[MigratePIN] ✅ Mnemonic decrypted successfully! Re-encrypting with new 4-digit PIN...`);
       } catch (decryptErr) {
         console.error(
-          `[MigratePIN][Standard] ❌ Failed to decrypt active wallet ${wallet._id}:`,
+          ` ❌ Failed to decrypt active wallet ${wallet._id}:`,
           decryptErr,
         );
         return NextResponse.json(
@@ -457,7 +468,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      console.log(`[MigratePIN][Standard] 🎉 Wallet ${wallet._id} re-encrypted and upgraded to pinVersion v2 successfully!`);
+      console.log(` Wallet ${wallet._id} re-encrypted and upgraded to v3!`);
 
       logUserActivity({
         userId: session.user.id,
@@ -478,7 +489,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: "Active wallet PIN migrated to 4-digit version successfully",
+        message: "PIN updated",
       });
     }
 
@@ -493,7 +504,7 @@ export async function POST(req: NextRequest) {
     // If the user already has a wallet:
     const existingWallets = await listWalletsByUserId(session.user.id);
     const existingWallet = existingWallets[0];
-    console.log("🟢🟢🟢 Total wallets", existingWallets.length)
+    console.log("🟢 Total wallets", existingWallets.length)
 
     if (existingWallet) {
       // If the wallet exists but is missing pinHash, complete the setup instead of throwing error:
@@ -501,7 +512,7 @@ export async function POST(req: NextRequest) {
         const pinHash = await bcrypt.hash(pin, 10);
         await updateWalletById(existingWallet._id, {
           pinHash,
-          pinVersion: "v2",
+          pinVersion: "v3",
         });
         return NextResponse.json({ success: true, walletId: existingWallet._id });
       }
@@ -533,10 +544,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Encrypt secret with the user's chosen transaction PIN
+    // Encrypt secret with (Wallet v3: pepper only)
     const { encryptedMnemonic, iv, salt } = encryptMnemonic(
       secretToEncrypt,
-      pin,
     );
     const pinHash = await bcrypt.hash(pin, 10);
 
@@ -552,7 +562,7 @@ export async function POST(req: NextRequest) {
       iv,
       salt,
       pinHash,
-      pinVersion: "v2",
+      pinVersion: "v3",
       setupMethod,
       importedChain: null,
       lastUsedAt: new Date(),

@@ -115,7 +115,8 @@ export function TokenDetailView({
             (chainIdLower === "ethereum" &&
               (net.includes("ethereum") ||
                 net.includes("eth"))) ||
-            (chainIdLower === "base" && net.includes("base"))
+            (chainIdLower === "base" && net.includes("base")) ||
+            (chainIdLower === "tron" && (net.includes("tron") || net.includes("trx")))
           );
         });
 

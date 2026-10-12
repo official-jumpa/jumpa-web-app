@@ -11,12 +11,14 @@ export interface IWallet {
     base: string;
     sol: string;
     xlm: string;
+    trx?: string;
   };
   publicKeys: {
     eth: string;
     base: string;
     sol: string;
     xlm: string;
+    trx?: string;
   };
   encryptedMnemonic: string;
   iv: string;
@@ -24,7 +26,7 @@ export interface IWallet {
   pinHash: string;
   pinAttempts: number;
   pinLockedUntil: Date | null;
-  pinVersion?: "v1" | "v2";
+  pinVersion?: "v1" | "v2" | "v3";
   setupMethod?: "CREATED_SEED" | "IMPORTED_SEED" | "IMPORTED_PRIVATE_KEY";
   importedChain?: string | null;
   lastUsedAt?: Date | null;
@@ -42,12 +44,14 @@ const WalletSchema = new Schema<IWallet>(
       sol: { type: String, required: true },
       base: { type: String, required: true },
       xlm: { type: String, required: true },
+      trx: { type: String, default: null },
     },
     publicKeys: {
       eth: { type: String, required: true },
       sol: { type: String, required: true },
       base: { type: String, required: true },
       xlm: { type: String, required: true },
+      trx: { type: String, default: null },
     },
     encryptedMnemonic: { type: String, required: true },
     iv: { type: String, required: true },
@@ -55,10 +59,10 @@ const WalletSchema = new Schema<IWallet>(
     pinHash: { type: String, required: true },
     pinAttempts: { type: Number, default: 0 },
     pinLockedUntil: { type: Date, default: null },
-    pinVersion: { //delete once everyone has migrated to v2
+    pinVersion: {
       type: String,
-      enum: ["v1", "v2"],
-      default: "v1",
+      enum: ["v1", "v2", "v3"],
+      default: "v3",
     },
     setupMethod: {
       type: String,

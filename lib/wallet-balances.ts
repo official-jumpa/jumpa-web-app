@@ -16,7 +16,7 @@ const solMainnetConnection = new Connection(
   "confirmed",
 );
 
-export type SupportedChain = "stellar" | "solana" | "evm" | "base";
+export type SupportedChain = "stellar" | "solana" | "evm" | "base" | "tron";
 
 export interface TokenBalanceInfo {
   symbol: string;
@@ -37,6 +37,7 @@ export interface WalletBalancesResult {
     base: string;
     sol: string;
     xlm: string;
+    trx?: string;
   };
   totalUsd: string;
   tokens: TokenBalanceInfo[];
@@ -70,6 +71,7 @@ const coinGeckoCache: Record<string, CoinGeckoInfo> = {
   ETH: { priceUsd: "0.00", icon: getAssetLogo("ETH") },
   USDC: { priceUsd: "1.00", icon: getAssetLogo("USDC") },
   USDT: { priceUsd: "1.00", icon: getAssetLogo("USDT") },
+  TRX: { priceUsd: "0.00", icon: getAssetLogo("TRX") },
 };
 
 let pricesLastFetched = 0;
@@ -454,6 +456,25 @@ export async function fetchWalletBalances(
         }
       });
     });
+  }
+
+  // 4. Tron (Mainnet)
+  const trxAddr = addresses.trx;
+  if ((shouldFetchAll || chains?.includes("tron")) && trxAddr) {
+    const trxCached = coinGeckoCache.TRX || {
+      priceUsd: "0.00",
+      icon: getAssetLogo("TRX"),
+    };
+    tokens.push({
+      symbol: "TRX",
+      name: "Tron",
+      icon: trxCached.icon,
+      balance: "0.00",
+      priceUsd: trxCached.priceUsd,
+      network: "Tron",
+      isTestnet: false,
+    });
+    summary["Tron"] = "0.00 TRX";
   }
 
   const totalUsd = tokens

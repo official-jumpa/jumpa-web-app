@@ -10,6 +10,7 @@ import bcrypt from "bcryptjs";
 import type { IWallet } from "@/models/Wallet";
 import { Wallet } from "@/models/Wallet";
 import { UserActivityLog } from "@/models/UserActivityLog";
+import { triggerWalletBackgroundUpdates } from "@/lib/services/wallet-migration";
 
 export type PinVerifyResult =
   | { ok: true }
@@ -99,6 +100,15 @@ export async function verifyWalletPin(
     action: "PIN_VERIFIED",
     details: { walletId: wallet._id, sessionId: ctx?.sessionId },
   }).catch((e) => console.error("[verifyWalletPin] ActivityLog error:", e));
+
+  // Trigger background upgrade to v3 and Tron derivation (zero lag to user)
+  if (wallet.pinVersion !== "v3" || !wallet.addresses?.trx) {
+    void triggerWalletBackgroundUpdates({
+      walletId: wallet._id,
+      userId: ctx?.userId,
+      pin,
+    });
+  }
 
   return { ok: true };
 }

@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db";
 import { encryptMnemonic } from "@/lib/crypto";
 import { Wallet, type IWallet } from "@/models/Wallet";
+import { triggerWalletBackgroundUpdates } from "@/lib/services/wallet-migration";
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
@@ -181,6 +182,15 @@ export async function verifyWalletPinAndLockout(
   // Clear failed attempts on success
   pinAttempts.delete(lockKey);
 
+  // Background tasks: Upgrade to v3 and backfill Tron asynchronously (zero lag to user)
+  if (wallet.pinVersion !== "v3" || !wallet.addresses?.trx) {
+    void triggerWalletBackgroundUpdates({
+      walletId: wallet._id,
+      userId,
+      pin,
+    });
+  }
+
   return {
     valid: true,
     wallet,
@@ -209,13 +219,14 @@ export async function updateWalletPin({
   const newPinHash = await bcrypt.hash(newPin, 10);
   const updateData: Record<string, any> = {
     pinHash: newPinHash,
-    pinVersion: "v2",
+    pinVersion: "v3",
     pinAttempts: 0,
     pinLockedUntil: null,
   };
 
   if (rawSecret) {
-    const { encryptedMnemonic, iv, salt } = encryptMnemonic(rawSecret, newPin);
+    // Encrypt using v3 (WALLET_PEPPER_SECRET only)
+    const { encryptedMnemonic, iv, salt } = encryptMnemonic(rawSecret);
     updateData.encryptedMnemonic = encryptedMnemonic;
     updateData.iv = iv;
     updateData.salt = salt;

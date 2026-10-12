@@ -6,6 +6,7 @@ import {
   deriveStellarKeypairFromMnemonic,
   deriveStellarKeypairFromPrivateKey,
 } from "@/lib/chains/stellar";
+import { deriveTronAddress } from "@/lib/chains/tron/derivation";
 
 export interface DerivedWallet {
   addresses: {
@@ -13,18 +14,20 @@ export interface DerivedWallet {
     base: string;
     sol: string;
     xlm: string;
+    trx?: string;
   };
   publicKeys: {
     eth: string;
     base: string;
     sol: string;
     xlm: string;
+    trx?: string;
   };
 }
 
 /**
- * Derives public addresses and raw public keys for ETH, SOL, XLM
- * from a BIP39 mnemonic using viem and standard derivation paths.
+ * Derives public addresses and raw public keys for ETH, SOL, XLM, TRX
+ * from a BIP39 mnemonic using standard derivation paths.
  */
 export function deriveAddresses(phrase: string): DerivedWallet {
   const account = mnemonicToAccount(phrase);
@@ -41,18 +44,31 @@ export function deriveAddresses(phrase: string): DerivedWallet {
   const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
   const xlmAddress = stellarKeys.publicKey;
 
+  // Tron Derivation m/44'/195'/0'/0/0
+  let tronAddress = "";
+  let tronPublicKey = "";
+  try {
+    const tronKeys = deriveTronAddress(seed);
+    tronAddress = tronKeys.address;
+    tronPublicKey = tronKeys.publicKey;
+  } catch (tronErr) {
+    console.error("Tron derivation error:", tronErr);
+  }
+
   return {
     addresses: {
       eth: ethAddress,
       base: ethAddress,
       sol: solAddress,
       xlm: xlmAddress,
+      ...(tronAddress ? { trx: tronAddress } : {}),
     },
     publicKeys: {
       eth: account.publicKey,
       base: account.publicKey,
       sol: solKeypair.publicKey.toBase58(),
       xlm: xlmAddress,
+      ...(tronPublicKey ? { trx: tronPublicKey } : {}),
     },
   };
 }

@@ -60,10 +60,17 @@ export const SUPPORTED_ASSETS: Asset[] = [
     balance: "$0.00",
     change: "+$0.00",
   },
+  {
+    symbol: "TRX",
+    name: "Tron",
+    icon: "/coins/trx.webp",
+    balance: "$0.00",
+    change: "+$0.00",
+  },
 ];
 
-/** The three the home hero scrolls through; the design draws exactly these. */
-const HOME_WALLETS = ["XLM", "USDC", "USDT"];
+/** The wallets the home hero scrolls through. */
+const HOME_WALLETS = ["XLM", "USDC", "USDT", "TRX"];
 
 export const ASSETS: Asset[] = SUPPORTED_ASSETS.filter((asset) =>
   HOME_WALLETS.includes(asset.symbol),

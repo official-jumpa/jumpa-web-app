@@ -477,12 +477,19 @@ export const CHAINS: Record<string, ChainDef> = {
     address: "",
     walletKey: "base",
   },
+  tron: {
+    id: "tron",
+    name: "Tron",
+    caption: "Tron network (TRC-20)",
+    address: "",
+    walletKey: "trx",
+  },
 };
 
 /** Where each asset can be received, in the order the picker offers them. */
 export const ASSET_CHAINS: Record<string, string[]> = {
   USDC: ["stellar", "solana", "base", "ethereum"],
-  USDT: ["ethereum", "solana"],
+  USDT: ["tron", "ethereum", "solana"],
   ETH: ["ethereum", "base"],
   XLM: ["stellar"],
   SOL: ["solana"],
@@ -499,19 +506,19 @@ export function isMultiChain(symbol: string): boolean {
   return chainsFor(symbol).length > 1;
 }
 
-export const NETWORKS = ["stellar", "base", "solana", "ethereum"].map((id) => ({
+export const NETWORKS = ["stellar", "base", "solana", "ethereum", "tron"].map((id) => ({
   id,
   label: CHAINS[id]?.name || id,
 }));
 
 /**
  * Injects real wallet addresses into a chain list.
- * Supported chains (stellar, solana, ethereum, base) get the user's actual
+ * Supported chains (stellar, solana, ethereum, base, tron) get the user's actual
  * address from their wallet record. Chains marked `unavailable` are passed
  * through unchanged (address stays "Unavailable").
  */
 export function resolveChainAddresses(
-  addresses: { eth: string; base: string; sol: string; xlm: string },
+  addresses: { eth: string; base: string; sol: string; xlm: string; trx?: string },
   chains: Chain[],
 ): Chain[] {
   return chains.map((chain) => {
@@ -525,7 +532,7 @@ export function resolveChainAddresses(
 }
 
 
-export type SupportedChain = "stellar" | "solana" | "evm" | "base";
+export type SupportedChain = "stellar" | "solana" | "evm" | "base" | "tron";
 
 export function detectTargetChains(prompt: string): SupportedChain[] | undefined {
   const p = prompt.toLowerCase();
@@ -533,6 +540,7 @@ export function detectTargetChains(prompt: string): SupportedChain[] | undefined
 
   if (p.includes("stellar") || p.includes("xlm")) chains.push("stellar");
   if (p.includes("solana") || p.includes("sol")) chains.push("solana");
+  if (p.includes("tron") || p.includes("trx")) chains.push("tron");
   if (p.includes("base") && !p.includes("ethereum")) chains.push("base");
   else if (
     p.includes("ethereum") ||

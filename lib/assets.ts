@@ -98,6 +98,8 @@ export function unifyTokens(tokens: any[]): Asset[] {
     if (s.includes("POL") || s.includes("MATIC"))
       return { symbol: "POL", name: "Polygon" };
     if (s.includes("CELO")) return { symbol: "CELO", name: "Celo" };
+    if (s.includes("TRX") || s.includes("TRON"))
+      return { symbol: "TRX", name: "Tron" };
     return { symbol: s, name: s };
   };
 

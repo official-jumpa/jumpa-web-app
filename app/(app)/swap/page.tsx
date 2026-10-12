@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { createPublicClient, http, erc20Abi, formatUnits } from "viem";
 import { mainnet, base } from "viem/chains";
-import { type StellarBalances, SwapView } from "@/components/swap/swap-view";
+import {
+  type StellarBalances,
+  type BridgeBalances,
+  type WalletAddresses,
+  SwapView,
+} from "@/components/swap/swap-view";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import { getCachedWalletBalances } from "@/lib/wallet-balances";
 import { CONTRACT_ADDRESSES, getRpcUrl } from "@/lib/blockchain";
@@ -11,12 +16,13 @@ export const metadata: Metadata = { title: "Swap" };
 export default async function SwapPage() {
   let stellarBalances: StellarBalances = { xlm: "0.00", usdc: "0.00" };
   let solanaBalances = { sol: "0.00", usdc: "0.00", usdt: "0.00" };
-  let bridgeBalances = {
+  let bridgeBalances: BridgeBalances = {
     stellarUsdc: "0.00",
     baseUsdc: "0.00",
     ethereumUsdc: "0.00",
+    solanaUsdc: "0.00",
   };
-  let walletAddresses = {
+  let walletAddresses: WalletAddresses = {
     stellar: "",
     base: "",
     ethereum: "",
@@ -91,10 +97,13 @@ export default async function SwapPage() {
           } catch {}
         }
 
+        const solanaUsdc = usdcSolanaToken?.balance || "0.00";
+
         bridgeBalances = {
           stellarUsdc: mainnetStellarUsdc,
           baseUsdc,
           ethereumUsdc: ethUsdc,
+          solanaUsdc,
         };
       }
     }

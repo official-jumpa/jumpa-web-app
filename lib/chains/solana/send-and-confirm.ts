@@ -138,3 +138,87 @@ export async function sendAndConfirmTransactionPolling(
     `Transaction ${txHash} was not confirmed within ${timeoutMs / 1000} seconds.`,
   );
 }
+
+/**
+ * Sends and confirms a Solana VersionedTransaction (v0) using pure HTTP JSON-RPC polling
+ * (`sendRawTransaction` and `getSignatureStatuses`).
+ *
+ * Avoids `@solana/web3.js` `confirmTransaction` WebSocket subscription errors (`signatureSubscribe -32601`).
+ */
+export async function sendAndConfirmVersionedTransactionPolling(
+  connection: Connection,
+  rawTx: Uint8Array,
+  lastValidBlockHeight: number,
+  options: SendAndConfirmPollingOptions = {},
+): Promise<string> {
+  const commitment: Commitment = options.commitment || "confirmed";
+  const timeoutMs = options.timeoutMs || 60000;
+  const pollIntervalMs = options.pollIntervalMs || 1500;
+
+  const txHash = await connection.sendRawTransaction(rawTx, {
+    skipPreflight: options.skipPreflight ?? false,
+    preflightCommitment: commitment,
+    maxRetries: 3,
+  });
+
+  console.log(
+    `Tx sent:  ${txHash}. Polling confirmation via HTTP...`,
+  );
+
+  const startTime = Date.now();
+  let lastRebroadcast = Date.now();
+
+  while (Date.now() - startTime < timeoutMs) {
+    try {
+      const { value } = await connection.getSignatureStatuses([txHash]);
+      const status = value?.[0];
+
+      if (status) {
+        if (status.err) {
+          throw new Error(
+            `Transaction ${txHash} failed on-chain: ${JSON.stringify(status.err)}`,
+          );
+        }
+        if (
+          status.confirmationStatus === commitment ||
+          status.confirmationStatus === "finalized"
+        ) {
+          console.log(
+            `[Solana] Transaction ${txHash} confirmed! (status: ${status.confirmationStatus}, took ${Date.now() - startTime}ms)`,
+          );
+          return txHash;
+        }
+      }
+    } catch (err: any) {
+      if (err.message?.includes("failed on-chain")) throw err;
+      console.warn(`[Solana] polling error:`, err?.message || err);
+    }
+
+    try {
+      const currentHeight = await connection.getBlockHeight(commitment);
+      if (currentHeight > lastValidBlockHeight) {
+        throw new Error(
+          `Signature ${txHash} has expired: block height exceeded.`,
+        );
+      }
+    } catch (err: any) {
+      if (err.message?.includes("expired")) throw err;
+    }
+
+    if (Date.now() - lastRebroadcast > 3000) {
+      try {
+        await connection.sendRawTransaction(rawTx, {
+          skipPreflight: true,
+        });
+        lastRebroadcast = Date.now();
+      } catch {}
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  throw new Error(
+    `Transaction ${txHash} was not confirmed within ${timeoutMs / 1000} seconds.`,
+  );
+}
+

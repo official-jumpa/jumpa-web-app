@@ -35,23 +35,36 @@ import {
   CIRCLE_IRIS_API,
   evmAddressToBytes32,
   stellarAddressToBytes32,
+  solanaAddressToBytes32,
+  solanaRecipientToCctpBytes32,
+  getSolanaUsdcAta,
   getExplorerTxUrl,
   getRpcUrl,
+  getSolanaRpcUrl,
 } from "@/lib/blockchain";
+import { relayToSolana, submitSolanaDepositForBurn } from "@/lib/chains/solana/cctp-bridge";
+import { relayToStellar } from "@/lib/chains/stellar/cctp-bridge";
+import { getSolanaSponsorKeypair } from "@/lib/chains/solana/sponsor";
+import { Connection, PublicKey, Keypair as SolanaKeypair } from "@solana/web3.js";
+import * as bip39 from "bip39";
+import { derivePath } from "ed25519-hd-key";
 import { connectDB } from "@/lib/db";
 import { Transaction } from "@/models/Transaction";
 import type { IWallet } from "@/models/Wallet";
 
+export type BridgeChain = "stellar" | "base" | "ethereum" | "solana";
+
 export interface BridgeExecuteParams {
   wallet: IWallet;
   pin: string;
-  fromChain: "stellar" | "base" | "ethereum";
-  toChain: "stellar" | "base" | "ethereum";
+  fromChain: BridgeChain;
+  toChain: BridgeChain;
   amount: string;
   toAmount: string;
   recipientAddress: string;
   transferType?: "standard" | "fast";
   fee: string;
+  networkFee?: string;
   userId: string;
 }
 
@@ -144,6 +157,7 @@ export async function executeBridge(
     recipientAddress,
     transferType = "fast",
     fee,
+    networkFee,
     userId,
   } = params;
 
@@ -298,8 +312,20 @@ export async function executeBridge(
       const accForBurn = await rpc.getAccount(sourceAddress);
       const messengerContract = new StellarSdk.Contract(tokenMessengerContract);
 
-      // Convert destination EVM address to 32-byte hex for CCTP mint recipient
-      const destBytes32 = evmAddressToBytes32(recipientAddress);
+      const destDomain =
+        toChain === "solana"
+          ? CONTRACT_ADDRESSES.cctp.mainnet.solana.domain
+          : toChain === "ethereum"
+            ? CONTRACT_ADDRESSES.cctp.mainnet.ethereum.domain
+            : CONTRACT_ADDRESSES.cctp.mainnet.base.domain;
+
+      // Convert destination address to 32-byte hex for CCTP mint recipient.
+      // Guardrail: On Solana, CCTP strictly requires the recipient's USDC ATA,
+      // never the raw wallet address. solanaRecipientToCctpBytes32 enforces this automatically.
+      const destBytes32 =
+        toChain === "solana"
+          ? solanaRecipientToCctpBytes32(recipientAddress)
+          : evmAddressToBytes32(recipientAddress);
       const destBytesBuffer = Buffer.from(destBytes32.replace(/^0x/, ""), "hex");
 
       const fastTransfer = transferType === "fast";
@@ -316,7 +342,7 @@ export async function executeBridge(
         "deposit_for_burn",
         new StellarSdk.Address(sourceAddress).toScVal(),
         StellarSdk.nativeToScVal(amountInSubunits, { type: "i128" }),
-        StellarSdk.nativeToScVal(destCctp.domain, { type: "u32" }),
+        StellarSdk.nativeToScVal(destDomain, { type: "u32" }),
         StellarSdk.xdr.ScVal.scvBytes(destBytesBuffer),
         new StellarSdk.Address(stellarUsdcContract).toScVal(),
         StellarSdk.xdr.ScVal.scvBytes(Buffer.alloc(32)),
@@ -333,8 +359,8 @@ export async function executeBridge(
       });
 
       explorerUrl = getExplorerTxUrl("stellar", txHash, false);
-    } else {
-      // ── EVM (Base or Ethereum Mainnet) -> Stellar Mainnet ──
+    } else if (fromChain === "ethereum" || fromChain === "base") {
+      // ── EVM (Base or Ethereum Mainnet) -> Destination Chain ──
       const isEth = fromChain === "ethereum";
       const evmChain = isEth ? mainnet : base;
       const evmRpcUrl = getRpcUrl(isEth ? "ethereum" : "base");
@@ -354,7 +380,6 @@ export async function executeBridge(
         transport: http(evmRpcUrl),
       });
 
-      const stellarCctp = CONTRACT_ADDRESSES.cctp.mainnet.stellar;
       const sendAmount = parseUnits(amount, evmCctp.decimals);
 
       // Check EVM ETH balance for gas
@@ -403,8 +428,27 @@ export async function executeBridge(
         await publicClient.waitForTransactionReceipt({ hash: approveHash });
       }
 
-      // Recipient for Stellar via CctpForwarder
-      const forwarderBytes32 = stellarAddressToBytes32(stellarCctp.cctpForwarder);
+      // Resolve destination CCTP domain and 32-byte recipient address
+      let targetDomain: number;
+      let targetRecipientBytes32: `0x${string}`;
+
+      if (toChain === "stellar") {
+        const stellarCctp = CONTRACT_ADDRESSES.cctp.mainnet.stellar;
+        targetDomain = stellarCctp.domain;
+        targetRecipientBytes32 = stellarAddressToBytes32(stellarCctp.cctpForwarder);
+      } else if (toChain === "solana") {
+        targetDomain = CONTRACT_ADDRESSES.cctp.mainnet.solana.domain;
+        // Guardrail: On Solana, CCTP strictly requires the recipient's USDC ATA,
+        // never the raw wallet address.
+        targetRecipientBytes32 = solanaRecipientToCctpBytes32(recipientAddress);
+      } else {
+        const destCctp =
+          toChain === "ethereum"
+            ? CONTRACT_ADDRESSES.cctp.mainnet.ethereum
+            : CONTRACT_ADDRESSES.cctp.mainnet.base;
+        targetDomain = destCctp.domain;
+        targetRecipientBytes32 = evmAddressToBytes32(recipientAddress);
+      }
 
       const tokenMessengerAbi = [
         {
@@ -425,24 +469,104 @@ export async function executeBridge(
         address: evmCctp.tokenMessenger,
         abi: tokenMessengerAbi,
         functionName: "depositForBurn",
-        args: [sendAmount, stellarCctp.domain, forwarderBytes32, evmCctp.usdc],
+        args: [sendAmount, targetDomain, targetRecipientBytes32, evmCctp.usdc],
       });
 
       explorerUrl = getExplorerTxUrl(isEth ? "ethereum" : "base", txHash, false);
+    } else {
+      // ── Solana Mainnet Source ──
+      const seed = bip39.mnemonicToSeedSync(phrase);
+      const solDerived = derivePath("m/44'/501'/0'/0'", seed.toString("hex")).key;
+      const ownerKeypair = SolanaKeypair.fromSeed(solDerived);
+
+      const solanaCctp = CONTRACT_ADDRESSES.cctp.mainnet.solana;
+      const sendAmountSubunits = BigInt(Math.round(parseFloat(amount) * 10 ** solanaCctp.decimals));
+
+      // Pre-flight check: determine if user has enough SOL or if gas abstraction should be activated
+      const solConnection = new Connection(getSolanaRpcUrl(), "confirmed");
+      const solLamports = await solConnection.getBalance(ownerKeypair.publicKey);
+      const MIN_REQUIRED_LAMPORTS = 2850000; // ~0.00285 SOL for CCTP event rent + gas
+
+      let sponsorKeypair: SolanaKeypair | undefined = undefined;
+      let feeSubunits: bigint | undefined = undefined;
+
+      if (solLamports < MIN_REQUIRED_LAMPORTS) {
+        // User does not have enough SOL: activate Gas Abstraction
+        const platformSponsor = getSolanaSponsorKeypair();
+        if (!platformSponsor) {
+          return {
+            ok: false,
+            error: "Solana gas sponsorship is currently unavailable on the server.",
+            status: 500,
+          };
+        }
+        sponsorKeypair = platformSponsor;
+
+        const numNetworkFee = parseFloat(networkFee || "0.32");
+        feeSubunits = BigInt(Math.round(numNetworkFee * 10 ** solanaCctp.decimals));
+
+        // Verify user has enough USDC to pay both the bridge amount and the abstracted network fee
+        const userAta = getSolanaUsdcAta(ownerKeypair.publicKey.toBase58());
+        const ataBalanceRes = await solConnection
+          .getTokenAccountBalance(new PublicKey(userAta))
+          .catch(() => null);
+        const availableUsdc = ataBalanceRes?.value?.uiAmount ?? 0;
+        const totalRequiredUsdc = parseFloat(amount) + numNetworkFee;
+
+        if (availableUsdc < totalRequiredUsdc) {
+          return {
+            ok: false,
+            error: `Insufficient USDC balance for bridge amount and solana network fee (available: ${availableUsdc.toFixed(2)} USDC, need ${totalRequiredUsdc.toFixed(2)} USDC)`,
+            status: 400,
+          };
+        }
+      }
+
+      // Resolve destination CCTP domain and 32-byte recipient
+      let destDomain: number;
+      let targetRecipientBytes32: `0x${string}`;
+
+      if (toChain === "stellar") {
+        const stellarCctp = CONTRACT_ADDRESSES.cctp.mainnet.stellar;
+        destDomain = stellarCctp.domain;
+        targetRecipientBytes32 = stellarAddressToBytes32(stellarCctp.cctpForwarder);
+      } else if (toChain === "ethereum") {
+        destDomain = CONTRACT_ADDRESSES.cctp.mainnet.ethereum.domain;
+        targetRecipientBytes32 = evmAddressToBytes32(recipientAddress);
+      } else {
+        destDomain = CONTRACT_ADDRESSES.cctp.mainnet.base.domain;
+        targetRecipientBytes32 = evmAddressToBytes32(recipientAddress);
+      }
+
+      const burnResult = await submitSolanaDepositForBurn({
+        ownerKeypair,
+        amountSubunits: sendAmountSubunits,
+        destinationDomain: destDomain,
+        mintRecipientBytes32: targetRecipientBytes32,
+        sponsorKeypair,
+        feeSubunits,
+      });
+
+      if (!burnResult.ok || !burnResult.txHash) {
+        return {
+          ok: false,
+          error: burnResult.error || "Failed to burn USDC on Solana",
+          status: 500,
+        };
+      }
+
+      txHash = burnResult.txHash;
+      explorerUrl = getExplorerTxUrl("solana", txHash, false);
     }
 
-    const fromDisplayName =
-      fromChain === "stellar"
-        ? "Stellar"
-        : fromChain === "ethereum"
-          ? "Ethereum"
-          : "Base";
-    const toDisplayName =
-      toChain === "stellar"
-        ? "Stellar"
-        : toChain === "ethereum"
-          ? "Ethereum"
-          : "Base";
+    const CHAIN_DISPLAY_NAMES: Record<BridgeChain, string> = {
+      stellar: "Stellar",
+      base: "Base",
+      ethereum: "Ethereum",
+      solana: "Solana",
+    };
+    const fromDisplayName = CHAIN_DISPLAY_NAMES[fromChain];
+    const toDisplayName = CHAIN_DISPLAY_NAMES[toChain];
 
     // 2. Persist in database
     await connectDB();
@@ -475,13 +599,41 @@ export async function executeBridge(
       },
     });
 
-    // 3. Automated Instant Relayer: automatically submit receiveMessage on destination EVM chain
+    // 3. Automated Instant Relayer: automatically submit receiveMessage on destination chain
     if (fromChain === "stellar" && (toChain === "ethereum" || toChain === "base")) {
       relayStellarToEvm({
         txHash,
         toChain,
         userId,
         amount: toAmount,
+      });
+    } else if (toChain === "solana") {
+      const sourceDomain =
+        fromChain === "stellar"
+          ? CONTRACT_ADDRESSES.cctp.mainnet.stellar.domain
+          : fromChain === "ethereum"
+            ? CONTRACT_ADDRESSES.cctp.mainnet.ethereum.domain
+            : CONTRACT_ADDRESSES.cctp.mainnet.base.domain;
+
+      relayToSolana({
+        txHash,
+        userId,
+        amount: toAmount,
+        sourceDomain,
+      });
+    } else if (toChain === "stellar") {
+      const sourceDomain =
+        fromChain === "solana"
+          ? CONTRACT_ADDRESSES.cctp.mainnet.solana.domain
+          : fromChain === "ethereum"
+            ? CONTRACT_ADDRESSES.cctp.mainnet.ethereum.domain
+            : CONTRACT_ADDRESSES.cctp.mainnet.base.domain;
+
+      relayToStellar({
+        txHash,
+        userId,
+        amount: toAmount,
+        sourceDomain,
       });
     }
 

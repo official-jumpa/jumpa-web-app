@@ -32,6 +32,8 @@ import {
   type WalletAddresses,
 } from "@/components/swap/bridge-view";
 
+export { BridgeView, type BridgeBalances, type WalletAddresses };
+
 /** Assets available for swap per chain. */
 const NETWORK_ASSETS = {
   stellar: ["XLM", "USDC"] as const,

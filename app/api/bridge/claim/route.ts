@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { CIRCLE_IRIS_API, CONTRACT_ADDRESSES, getRpcUrl, getExplorerTxUrl } from "@/lib/blockchain";
+import { submitSolanaReceiveMessage } from "@/lib/chains/solana/cctp-bridge";
 import { decryptMnemonic } from "@/lib/crypto";
 import { mnemonicToAccount } from "viem/accounts";
 import { createWalletClient, createPublicClient, http, getAddress } from "viem";
 import { base, mainnet } from "viem/chains";
 import { Wallet } from "@/models/Wallet";
+import { Transaction } from "@/models/Transaction";
 import { connectDB } from "@/lib/db";
+import { invalidateBalanceCache } from "@/lib/wallet-balances";
 
 export async function POST(req: NextRequest) {
   try {
@@ -64,11 +67,13 @@ export async function POST(req: NextRequest) {
         const destDomainNum = parseInt(destDomainHex, 16);
         if (destDomainNum === 0) targetChain = "ethereum";
         else if (destDomainNum === 6) targetChain = "base";
+        else if (destDomainNum === 5) targetChain = "solana";
       } catch {}
     }
+    const isSolana = targetChain === "solana";
     const isEth = targetChain === "ethereum";
-    const chainName = isEth ? "Ethereum" : "Base";
-    const chainKey = isEth ? "ethereum" : "base";
+    const chainName = isSolana ? "Solana" : isEth ? "Ethereum" : "Base";
+    const chainKey = isSolana ? "solana" : isEth ? "ethereum" : "base";
 
     // If already minted by Iris or relayer
     if (destinationMintTxHash) {
@@ -77,7 +82,42 @@ export async function POST(req: NextRequest) {
         alreadyMinted: true,
         mintTxHash: destinationMintTxHash,
         explorerUrl: getExplorerTxUrl(chainKey, destinationMintTxHash, false),
-        message: "USDC has already been minted on destination chain.",
+        message: `USDC has already been minted on ${chainName}.`,
+      });
+    }
+
+    // 2. Solana minting via sponsored relayer
+    if (isSolana) {
+      const claimResult = await submitSolanaReceiveMessage({
+        messageHex: message,
+        attestationHex: attestation,
+      });
+
+      if (!claimResult.ok || !claimResult.mintTxHash) {
+        return NextResponse.json(
+          { error: claimResult.error || "Failed to mint USDC on Solana" },
+          { status: 500 },
+        );
+      }
+
+      await connectDB();
+      await Transaction.findOneAndUpdate(
+        { txHash },
+        {
+          $set: {
+            status: "CONFIRMED",
+            "bridgeDetails.mintTxHash": claimResult.mintTxHash,
+            "bridgeDetails.mintExplorerUrl": getExplorerTxUrl("solana", claimResult.mintTxHash, false),
+          },
+        },
+      );
+      invalidateBalanceCache(user._id.toString());
+
+      return NextResponse.json({
+        ok: true,
+        mintTxHash: claimResult.mintTxHash,
+        explorerUrl: getExplorerTxUrl("solana", claimResult.mintTxHash, false),
+        message: "Successfully claimed USDC on Solana!",
       });
     }
 

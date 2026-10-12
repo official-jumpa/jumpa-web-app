@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
       recipientAddress,
       transferType = "fast",
       fee = "0.00",
+      networkFee,
     } = body;
 
     if (!pin || typeof pin !== "string") {
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest) {
       recipientAddress,
       transferType,
       fee,
+      networkFee,
       userId,
     });
 

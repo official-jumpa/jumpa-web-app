@@ -25,25 +25,30 @@ export interface BridgeBalances {
   stellarUsdc: string;
   baseUsdc: string;
   ethereumUsdc?: string;
+  solanaUsdc?: string;
 }
 
 export interface WalletAddresses {
   stellar: string;
   base: string;
   ethereum?: string;
+  solana?: string;
 }
 
-type Direction = "stellar-to-evm" | "evm-to-stellar";
-type EvmChain = "ethereum" | "base";
+export type BridgeChain = "stellar" | "base" | "ethereum" | "solana";
 type TransferMode = "fast" | "standard";
 type Stage = "quote" | "review" | "done";
 
 interface BridgeQuote {
   fromAmount: string;
   toAmount: string;
+  totalSpendAmount?: string;
   fee: string;
   feeBps: number;
   maxFee: string;
+  networkFee?: string;
+  networkFeeLabel?: string;
+  requiresGasAbstraction?: boolean;
   estimatedTime: string;
   transferType: "fast" | "standard";
 }
@@ -74,8 +79,8 @@ export function BridgeView({
   const boundary = usePopoverBoundary();
 
   // ── Bridge Config ──
-  const [direction, setDirection] = useState<Direction>("stellar-to-evm");
-  const [evmChain, setEvmChain] = useState<EvmChain>("ethereum");
+  const [fromChain, setFromChain] = useState<BridgeChain>("stellar");
+  const [toChain, setToChain] = useState<BridgeChain>("base");
   const [transferMode, setTransferMode] = useState<TransferMode>("fast");
   const [amount, setAmount] = useState("");
   const [customRecipient, setCustomRecipient] = useState(false);
@@ -94,34 +99,49 @@ export function BridgeView({
   const [quote, setQuote] = useState<BridgeQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
-  const isStellarSource = direction === "stellar-to-evm";
-  const evmLabel = evmChain === "ethereum" ? "Ethereum" : "Base";
-  const evmChainName = evmLabel;
-  const sourceChainName = isStellarSource ? "Stellar" : evmChainName;
-  const destChainName = isStellarSource ? evmChainName : "Stellar";
+  const CHAIN_NAMES: Record<BridgeChain, string> = {
+    stellar: "Stellar",
+    base: "Base",
+    ethereum: "Ethereum",
+    solana: "Solana",
+  };
 
-  const defaultRecipient = isStellarSource
-    ? (evmChain === "ethereum"
-      ? (walletAddresses.ethereum || walletAddresses.base)
-      : walletAddresses.base)
-    : walletAddresses.stellar;
+  const sourceChainName = CHAIN_NAMES[fromChain];
+  const destChainName = CHAIN_NAMES[toChain];
 
+  const getBalanceForChain = (chain: BridgeChain) => {
+    switch (chain) {
+      case "stellar":
+        return bridgeBalances.stellarUsdc || "0.00";
+      case "base":
+        return bridgeBalances.baseUsdc || "0.00";
+      case "ethereum":
+        return bridgeBalances.ethereumUsdc || "0.00";
+      case "solana":
+        return bridgeBalances.solanaUsdc || "0.00";
+    }
+  };
+
+  const getAddressForChain = (chain: BridgeChain) => {
+    switch (chain) {
+      case "stellar":
+        return walletAddresses.stellar || "";
+      case "base":
+        return walletAddresses.base || "";
+      case "ethereum":
+        return walletAddresses.ethereum || walletAddresses.base || "";
+      case "solana":
+        return walletAddresses.solana || "";
+    }
+  };
+
+  const defaultRecipient = getAddressForChain(toChain);
   const targetRecipient = customRecipient
     ? recipientInput.trim()
     : defaultRecipient;
 
-  const evmBalance =
-    (evmChain === "ethereum"
-      ? bridgeBalances.ethereumUsdc
-      : bridgeBalances.baseUsdc) || "0.00";
-
-  const sourceBalance = isStellarSource
-    ? bridgeBalances.stellarUsdc
-    : evmBalance;
-
-  const destBalance = isStellarSource
-    ? evmBalance
-    : bridgeBalances.stellarUsdc;
+  const sourceBalance = getBalanceForChain(fromChain);
+  const destBalance = getBalanceForChain(toChain);
 
   // write 0 as the fee instead of sponsored
   const feeLabel = quote
@@ -133,13 +153,10 @@ export function BridgeView({
   const arrivalLabel =
     quote?.estimatedTime ?? (transferMode === "fast" ? "~20 secs" : "~18 mins");
 
-  const fromChainParam = isStellarSource ? "stellar" : evmChain;
-  const toChainParam = isStellarSource ? evmChain : "stellar";
-
   // Auto-enable fast transfer on supported chains
   useEffect(() => {
     setTransferMode("fast");
-  }, [direction, evmChain]);
+  }, [fromChain, toChain]);
 
   // Fetch quote when amount or settings change
   useEffect(() => {
@@ -156,8 +173,8 @@ export function BridgeView({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        fromChain: fromChainParam,
-        toChain: toChainParam,
+        fromChain,
+        toChain,
         amount,
         transferType: transferMode,
       }),
@@ -181,13 +198,12 @@ export function BridgeView({
     return () => {
       active = false;
     };
-  }, [amount, direction, transferMode, isStellarSource, fromChainParam, toChainParam]);
+  }, [amount, fromChain, toChain, transferMode]);
 
   // Flip direction
   function flipDirection() {
-    setDirection((prev) =>
-      prev === "stellar-to-evm" ? "evm-to-stellar" : "stellar-to-evm",
-    );
+    setFromChain(toChain);
+    setToChain(fromChain);
     setAmount("");
     setQuote(null);
     setCustomRecipient(false);
@@ -219,13 +235,14 @@ export function BridgeView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pin,
-          fromChain: fromChainParam,
-          toChain: toChainParam,
+          fromChain,
+          toChain,
           amount,
           toAmount: quote.toAmount,
           recipientAddress: targetRecipient,
           transferType: transferMode,
           fee: quote.fee,
+          networkFee: quote.networkFee,
         }),
       });
 
@@ -330,10 +347,16 @@ export function BridgeView({
   }
 
 
-  const EVM_NETWORKS = [
-    { value: "ethereum", logo: "/coins/eth.webp", name: "Ethereum" },
+  const ALL_NETWORKS: Array<{
+    value: BridgeChain;
+    logo: string;
+    name: string;
+  }> = [
+    { value: "stellar", logo: "/coins/xlm.webp", name: "Stellar" },
     { value: "base", logo: "/coins/base.webp", name: "Base" },
-  ] as const;
+    { value: "solana", logo: "/coins/sol.webp", name: "Solana" },
+    { value: "ethereum", logo: "/coins/eth.webp", name: "Ethereum" },
+  ];
 
   /** Chain mark overlapping the token mark — the pair a bridge leg moves. */
   const assetPair = (chainLogo: string, chainName: string) => (
@@ -358,21 +381,25 @@ export function BridgeView({
   const BADGE =
     "flex h-8 shrink-0 items-center gap-1.5 rounded-pill bg-jumpa-secondary-100 px-2.5 text-xs font-medium text-jumpa-primary-950 shadow-jumpa-sm";
 
-  /** The EVM side picks its chain; the Stellar side has nothing to choose. */
-  const renderEvmBadge = () => {
+  const renderChainBadge = (
+    currentChain: BridgeChain,
+    otherChain: BridgeChain,
+    onChange: (val: BridgeChain) => void,
+  ) => {
     const active =
-      EVM_NETWORKS.find((n) => n.value === evmChain) ?? EVM_NETWORKS[0];
+      ALL_NETWORKS.find((n) => n.value === currentChain) ?? ALL_NETWORKS[0];
+    const available = ALL_NETWORKS.filter((n) => n.value !== otherChain);
 
     return (
       <Primitive.Root
-        value={evmChain}
+        value={currentChain}
         onValueChange={(val) => {
-          setEvmChain(val as EvmChain);
+          onChange(val as BridgeChain);
           setQuote(null);
         }}
       >
         <Primitive.Trigger
-          aria-label="Select EVM network"
+          aria-label="Select bridge network"
           className={`${BADGE} tap cursor-pointer outline-none transition-colors hover:bg-jumpa-secondary-200/80 active:scale-[0.98] data-[state=open]:ring-1 data-[state=open]:ring-jumpa-primary-600`}
         >
           {assetPair(active.logo, active.name)}
@@ -394,7 +421,7 @@ export function BridgeView({
             className="z-70 min-w-44 animate-drop-in overflow-hidden rounded-surface border border-jumpa-neutral-100 bg-jumpa-white p-1.5 shadow-jumpa-toast"
           >
             <Primitive.Viewport className="flex flex-col gap-1">
-              {EVM_NETWORKS.map((network) => (
+              {available.map((network) => (
                 <Primitive.Item
                   key={network.value}
                   value={network.value}
@@ -418,13 +445,6 @@ export function BridgeView({
       </Primitive.Root>
     );
   };
-
-  const renderStellarBadge = () => (
-    <span className={BADGE}>
-      {assetPair("/coins/xlm.webp", "Stellar")}
-      <span>USDC</span>
-    </span>
-  );
 
   const balanceLine = (value: string, max?: boolean) => (
     <span className="flex items-center gap-1 text-[10px] leading-3 font-bold text-jumpa-primary-400">
@@ -450,7 +470,7 @@ export function BridgeView({
           <div className="flex items-center gap-2.5 rounded-xl bg-jumpa-white p-2.5">
             <span className="flex min-w-0 flex-1 flex-col gap-1 px-2.5">
               <span className="text-[10px] leading-3 text-jumpa-black/50 uppercase">
-                You send ({isStellarSource ? "Stellar" : evmLabel})
+                You send ({sourceChainName})
               </span>
               <input
                 value={amount}
@@ -466,7 +486,7 @@ export function BridgeView({
             </span>
 
             <span className="flex shrink-0 flex-col items-end justify-center gap-2.5">
-              {isStellarSource ? renderStellarBadge() : renderEvmBadge()}
+              {renderChainBadge(fromChain, toChain, setFromChain)}
               {balanceLine(sourceBalance, true)}
             </span>
           </div>
@@ -478,18 +498,14 @@ export function BridgeView({
             aria-label="Switch bridge direction"
             className="tap absolute top-1/2 left-1/2 z-10 flex size-8.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[0.66px] border-jumpa-black/10 bg-jumpa-primary-525 text-jumpa-alt-400 shadow-jumpa-disc active:scale-90"
           >
-            {/* Spins with the direction it just set, so the flip reads as one motion. */}
-            <ArrowDownArrowUpIcon
-              className={`size-4 transition-transform duration-500 ease-jumpa ${isStellarSource ? "" : "rotate-180"
-                }`}
-            />
+            <ArrowDownArrowUpIcon className="size-4" />
           </button>
 
           {/* Receive Leg */}
           <div className="flex items-center gap-2.5 rounded-xl bg-jumpa-white p-2.5">
             <span className="flex min-w-0 flex-1 flex-col gap-1 px-2.5">
               <span className="text-[10px] leading-3 text-jumpa-black/50 uppercase">
-                You receive ({isStellarSource ? evmLabel : "Stellar"})
+                You receive ({destChainName})
               </span>
               {/* Opacity and blur only — the row never resizes as a quote lands. */}
               <span
@@ -501,7 +517,7 @@ export function BridgeView({
             </span>
 
             <span className="flex shrink-0 flex-col items-end justify-center gap-2.5">
-              {isStellarSource ? renderEvmBadge() : renderStellarBadge()}
+              {renderChainBadge(toChain, fromChain, setToChain)}
               {balanceLine(destBalance)}
             </span>
           </div>
@@ -510,14 +526,28 @@ export function BridgeView({
         <span className="-mb-px block h-px w-full bg-jumpa-neutral-200" />
 
         {/* Speed & Bridge Fee Summary */}
-        <p className="flex items-center justify-between gap-3 px-2.5 text-xs leading-4 text-jumpa-black/50">
-          <span>
-            Arrival: <b className="font-bold text-jumpa-black">{arrivalLabel}</b>
-          </span>
-          <span>
-            Fee: <b className="font-bold text-jumpa-black">{feeLabel}</b>
-          </span>
-        </p>
+        <div className="flex flex-col gap-1 px-2.5 text-xs leading-4 text-jumpa-black/50">
+          <p className="flex items-center justify-between gap-3">
+            <span>
+              Arrival: <b className="font-bold text-jumpa-black">{arrivalLabel}</b>
+            </span>
+            <span>
+              Bridge fee: <b className="font-bold text-jumpa-black">{feeLabel}</b>
+            </span>
+          </p>
+          {quote?.networkFeeLabel ? (
+            <p className="flex items-center justify-between gap-3 text-[11px] text-jumpa-neutral-425">
+              <span>solana network fee</span>
+              <span className="font-medium text-jumpa-neutral-700">{quote.networkFeeLabel}</span>
+            </p>
+          ) : null}
+          {quote?.requiresGasAbstraction && quote?.totalSpendAmount ? (
+            <p className="flex items-center justify-between gap-3 border-t border-jumpa-neutral-100 pt-1 text-[11px] text-jumpa-neutral-600">
+              <span className="font-medium">Total spend</span>
+              <span className="font-semibold text-jumpa-black">{quote.totalSpendAmount} USDC</span>
+            </p>
+          ) : null}
+        </div>
       </div>
 
       {/* ── Recipient Address Section ── */}
@@ -586,12 +616,24 @@ export function BridgeView({
           variant="gradient"
           size="lg"
           onClick={() => {
-            if (!Number(amount)) {
+            const num = Number(amount);
+            const requiredSpend = quote?.totalSpendAmount
+              ? Number(quote.totalSpendAmount)
+              : num;
+            const available = Number(sourceBalance || "0");
+
+            if (!num) {
               setError("Enter an amount to bridge");
             } else if (!quote) {
               setError("Waiting for bridge quote. Please try again.");
             } else if (!targetRecipient) {
               setError("Destination address required");
+            } else if (available < requiredSpend) {
+              setError(
+                quote?.requiresGasAbstraction
+                  ? `Insufficient USDC balance. You need at least ${requiredSpend.toFixed(2)} USDC to cover the bridge amount and solana network fee.`
+                  : "Insufficient balance for this bridge",
+              );
             } else {
               setStage("review");
             }
@@ -622,7 +664,13 @@ export function BridgeView({
           <DetailList tone="secondary">
             <DetailRow label="Source network" value={sourceChainName} />
             <DetailRow label="Destination network" value={destChainName} />
-            <DetailRow label="Fee" value={feeLabel} />
+            <DetailRow label="Bridge fee" value={feeLabel} />
+            {quote?.networkFeeLabel ? (
+              <DetailRow label="solana network fee" value={quote.networkFeeLabel} />
+            ) : null}
+            {quote?.requiresGasAbstraction && quote?.totalSpendAmount ? (
+              <DetailRow label="Total you spend" value={`${quote.totalSpendAmount} USDC`} />
+            ) : null}
             <DetailRow label="Estimated arrival" value={arrivalLabel} />
             <DetailRow
               label="Recipient"

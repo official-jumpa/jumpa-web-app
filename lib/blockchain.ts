@@ -17,6 +17,7 @@ import {
 } from "viem/chains";
 import { createPublicClient, http, getAddress } from "viem";
 import { StrKey } from "@stellar/stellar-sdk";
+import { PublicKey } from "@solana/web3.js";
 import { environment } from "./environment";
 
 // ─── ALL CONTRACT & MINTS ADDRESSES
@@ -121,6 +122,13 @@ export const CONTRACT_ADDRESSES = {
         usdc: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" as `0x${string}`,
         decimals: 6,
       },
+      solana: {
+        domain: 5,
+        tokenMessengerMinter: "CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe",
+        messageTransmitter: "CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC",
+        usdc: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+        decimals: 6,
+      },
     },
     mainnet: {
       stellar: {
@@ -142,6 +150,13 @@ export const CONTRACT_ADDRESSES = {
         tokenMessenger: "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d" as `0x${string}`,
         messageTransmitter: "0x81D40F21F12A8F0E3252Bccb954D722d4c464B64" as `0x${string}`,
         usdc: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" as `0x${string}`,
+        decimals: 6,
+      },
+      solana: {
+        domain: 5,
+        tokenMessengerMinter: "CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe",
+        messageTransmitter: "CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC",
+        usdc: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
         decimals: 6,
       },
     },
@@ -240,6 +255,10 @@ export function bytes32ToEvmAddress(bytes32: string): `0x${string}` {
  * using raw Ed25519 public key bytes, as required by Circle CCTP.
  */
 export function stellarAddressToBytes32(stellarAddress: string): `0x${string}` {
+  if (stellarAddress.startsWith("C")) {
+    const decoded = StrKey.decodeContract(stellarAddress);
+    return `0x${Buffer.from(decoded).toString("hex")}` as `0x${string}`;
+  }
   const decoded = StrKey.decodeEd25519PublicKey(stellarAddress);
   return `0x${Buffer.from(decoded).toString("hex")}` as `0x${string}`;
 }
@@ -253,7 +272,121 @@ export function bytes32ToStellarAddress(bytes32: string): string {
   return StrKey.encodeEd25519PublicKey(buf);
 }
 
-// ─── SOROSWAP COMPATIBILITY EXPORTS ───────────────────────────────────────
+/**
+ * Resolves the USDC Associated Token Account (ATA) for a Solana wallet address.
+ * On Solana, Circle CCTP strictly requires the mintRecipient to be the recipient's
+ * USDC Associated Token Account (ATA), NEVER the wallet address.
+ */
+export function getSolanaUsdcAta(walletAddress: string): string {
+  try {
+    const walletPubkey = new PublicKey(walletAddress);
+    const usdcMint = new PublicKey(CONTRACT_ADDRESSES.cctp.mainnet.solana.usdc);
+    const tokenProgramId = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+    const ataProgramId = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+
+    const [ata] = PublicKey.findProgramAddressSync(
+      [walletPubkey.toBuffer(), tokenProgramId.toBuffer(), usdcMint.toBuffer()],
+      ataProgramId,
+    );
+    return ata.toBase58();
+  } catch (err: any) {
+    throw new Error(`Invalid Solana address for USDC ATA derivation: ${walletAddress}`);
+  }
+}
+
+/**
+ * Converts a Solana recipient (either wallet address or already-derived ATA)
+ * to the exact 32-byte hex representation required by Circle CCTP.
+ * Guardrail: If passed a wallet address, it automatically derives the USDC ATA.
+ */
+export function solanaRecipientToCctpBytes32(recipientOrWallet: string): `0x${string}` {
+  let targetAta = recipientOrWallet;
+  try {
+    // If the string is a valid Solana public key, ensure it's converted to ATA
+    targetAta = getSolanaUsdcAta(recipientOrWallet);
+  } catch {
+    // Fall back to direct conversion if derivation threw
+  }
+  return solanaAddressToBytes32(targetAta);
+}
+
+/**
+ * Converts a Solana Base58 public key to a 32-byte hex string (0x...)
+ * using raw 32-byte public key bytes, as required by Circle CCTP.
+ */
+export function solanaAddressToBytes32(solanaAddress: string): `0x${string}` {
+  const decoded = bs58Decode(solanaAddress);
+  return `0x${Buffer.from(decoded).toString("hex")}` as `0x${string}`;
+}
+
+/**
+ * Converts a 32-byte hex string (0x...) back to a Solana Base58 address.
+ */
+export function bytes32ToSolanaAddress(bytes32: string): string {
+  const hex = bytes32.replace(/^0x/, "");
+  const buf = Buffer.from(hex, "hex");
+  return bs58Encode(buf);
+}
+
+// Minimal zero-dependency Base58 encode/decode helpers for Solana address conversion
+const ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+const ALPHABET_MAP: Record<string, number> = {};
+for (let i = 0; i < ALPHABET.length; i++) {
+  ALPHABET_MAP[ALPHABET.charAt(i)] = i;
+}
+
+function bs58Decode(string: string): Uint8Array {
+  if (string.length === 0) return new Uint8Array(0);
+  const bytes = [0];
+  for (let i = 0; i < string.length; i++) {
+    const c = string[i];
+    if (!(c in ALPHABET_MAP)) throw new Error(`Non-base58 character: ${c}`);
+    for (let j = 0; j < bytes.length; j++) bytes[j] *= 58;
+    bytes[0] += ALPHABET_MAP[c];
+    let carry = 0;
+    for (let j = 0; j < bytes.length; ++j) {
+      bytes[j] += carry;
+      carry = bytes[j] >> 8;
+      bytes[j] &= 0xff;
+    }
+    while (carry) {
+      bytes.push(carry & 0xff);
+      carry >>= 8;
+    }
+  }
+  for (let i = 0; string[i] === "1" && i < string.length - 1; i++) {
+    bytes.push(0);
+  }
+  return new Uint8Array(bytes.reverse());
+}
+
+function bs58Encode(buffer: Uint8Array): string {
+  if (buffer.length === 0) return "";
+  const digits = [0];
+  for (let i = 0; i < buffer.length; i++) {
+    for (let j = 0; j < digits.length; j++) digits[j] <<= 8;
+    digits[0] += buffer[i];
+    let carry = 0;
+    for (let j = 0; j < digits.length; ++j) {
+      digits[j] += carry;
+      carry = (digits[j] / 58) | 0;
+      digits[j] %= 58;
+    }
+    while (carry) {
+      digits.push(carry % 58);
+      carry = (carry / 58) | 0;
+    }
+  }
+  for (let i = 0; buffer[i] === 0 && i < buffer.length - 1; i++) {
+    digits.push(0);
+  }
+  return digits
+    .reverse()
+    .map((digit) => ALPHABET[digit])
+    .join("");
+}
+
+// SOROSWAP COMPATIBILITY EXPORTS 
 
 export const SOROSWAP_TESTNET_CONTRACTS = CONTRACT_ADDRESSES.soroswap.testnet;
 export const SOROSWAP_MAINNET_CONTRACTS = CONTRACT_ADDRESSES.soroswap.mainnet;
@@ -300,7 +433,7 @@ export function resolveSoroswapSymbol(
   return contractAddress;
 }
 
-// ─── CHAINS & ASSETS REGISTRY ─────────────────────────────────────────────
+// CHAINS & ASSETS REGISTRY 
 
 export type Chain = {
   id: string;

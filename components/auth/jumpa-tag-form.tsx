@@ -54,9 +54,21 @@ function AvailabilityChip({
 }
 
 /** Tag entry with live availability, then the confirmation sheet. */
-export function JumpaTagForm({ nextHref }: { nextHref: string }) {
+export function JumpaTagForm({
+  nextHref,
+  onComplete,
+  onClose,
+  initialHandle,
+}: {
+  nextHref?: string;
+  onComplete?: (fullTag: string) => void;
+  onClose?: () => void;
+  initialHandle?: string;
+}) {
   const router = useRouter();
-  const [handle, setHandle] = useState("");
+  const [handle, setHandle] = useState(() =>
+    initialHandle ? normaliseTag(initialHandle.replace(/@jumpa$/i, "").replace(/^@/, "")) : ""
+  );
   const [availability, setAvailability] = useState<TagAvailability | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -120,8 +132,13 @@ export function JumpaTagForm({ nextHref }: { nextHref: string }) {
       writeSignUpValue(SIGN_UP_KEYS.tag, fullTag(handle));
       setClaiming(false);
       setConfirming(false);
-      const destination = data.nextRoute || nextHref;
-      router.push(destination);
+      if (onComplete) {
+        onComplete(fullTag(handle));
+        onClose?.();
+      } else {
+        const destination = data.nextRoute || nextHref || "/home";
+        router.push(destination);
+      }
     } catch {
       setClaimError("Network error. Please try again.");
       setClaiming(false);

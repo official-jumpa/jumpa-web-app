@@ -64,6 +64,16 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json(formatZodError(validation.error), { status: 400 });
     }
 
+    if (validation.data.jumpaTag) {
+      const existingUser = await getUserById(auth.userId);
+      if (existingUser?.jumpaTag) {
+        return NextResponse.json(
+          { error: "Jumpa Tag cannot be changed once set" },
+          { status: 400 },
+        );
+      }
+    }
+
     const updated = await updateUserProfile(auth.userId, validation.data);
     if (!updated) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });

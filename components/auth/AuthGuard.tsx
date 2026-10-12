@@ -135,7 +135,6 @@ export function AuthGuard({
       if (
         (pathname?.startsWith("/sign-up/phone") && data.hasPhone && !fromBank) ||
         (pathname?.startsWith("/sign-up/password") && data.hasPassword) ||
-        (pathname?.startsWith("/sign-up/tag") && data.hasTag) ||
         (pathname?.startsWith("/sign-up/pin") && data.hasPin)
       ) {
         if (data.nextRoute) {
@@ -144,8 +143,6 @@ export function AuthGuard({
           router.replace("/sign-up/phone");
         } else if (!data.hasPassword) {
           router.replace("/sign-up/password");
-        } else if (!data.hasTag) {
-          router.replace("/sign-up/tag");
         } else if (!data.hasPin) {
           router.replace("/sign-up/pin");
         } else if (data.needsPinMigration) {
@@ -166,15 +163,13 @@ export function AuthGuard({
         return;
       }
 
-      // Sequential onboarding check: Phone -> Password -> Tag -> PIN / Migration
+      // Sequential onboarding check: Phone -> Password -> PIN / Migration
       if (data.nextRoute && data.nextRoute !== "/home") {
         router.replace(data.nextRoute);
       } else if (!data.hasPhone) {
         router.replace("/sign-up/phone");
       } else if (!data.hasPassword) {
         router.replace("/sign-up/password");
-      } else if (!data.hasTag) {
-        router.replace("/sign-up/tag");
       } else if (!data.hasPin) {
         router.replace("/sign-up/pin");
       } else if (data.needsPinMigration) {

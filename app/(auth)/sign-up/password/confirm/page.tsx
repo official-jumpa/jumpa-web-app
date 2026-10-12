@@ -24,7 +24,7 @@ export default function ConfirmLoginPasswordPage() {
 
       <LoginPasswordForm
         label="Re-Enter your login password"
-        nextHref={SIGN_UP_FLOW.tag}
+        nextHref={SIGN_UP_FLOW.pin}
         confirm
       />
     </AuthScreen>

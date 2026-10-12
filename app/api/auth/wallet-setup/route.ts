@@ -49,13 +49,11 @@ import { formatZodError } from "@/lib/validations/validation-helper";
 function resolveNextOnboardingRoute(user: any, wallet: any): string {
   const hasPhone = Boolean(user?.phoneNumberVerified || user?.phoneSkipped);
   const hasPassword = Boolean(user?.loginPasswordHash);
-  const hasTag = Boolean(user?.jumpaTag);
   const hasPin = Boolean(wallet?.pinHash);
   const needsPinMigration = Boolean(wallet && wallet.pinVersion === "v1");
 
   if (!hasPhone) return "/sign-up/phone";
   if (!hasPassword) return "/sign-up/password";
-  if (!hasTag) return "/sign-up/tag";
   if (!hasPin) return "/sign-up/pin";
   if (needsPinMigration) return "/migrate-pin";
   return "/home";
@@ -125,7 +123,7 @@ export async function GET(req: NextRequest) {
       userStatus: user?.status || "active",
       nickname: user?.nickname ?? null,
       jumpaTag: user?.jumpaTag ?? null,
-      isComplete: hasPhone && hasPassword && hasTag && hasPin && !needsPinMigration,
+      isComplete: hasPhone && hasPassword && hasPin && !needsPinMigration,
     });
   } catch (err) {
     console.error("Error", err);
@@ -201,6 +199,14 @@ export async function POST(req: NextRequest) {
 
     // Step 2: Set Jumpa Tag
     if (step === "tag") {
+      const existingUser = await getUserById(session.user.id);
+      if (existingUser?.jumpaTag) {
+        return NextResponse.json(
+          { error: "Jumpa Tag cannot be changed once set" },
+          { status: 400 },
+        );
+      }
+
       const validation = setJumpaTagSchema.safeParse(body);
       if (!validation.success) {
         return NextResponse.json(formatZodError(validation.error), {

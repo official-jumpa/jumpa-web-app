@@ -35,8 +35,6 @@ export function AuthRedirect() {
           router.replace("/sign-up/phone");
         } else if (!status.hasPassword) {
           router.replace("/sign-up/password");
-        } else if (!status.hasTag) {
-          router.replace("/sign-up/tag");
         } else if (!status.hasPin) {
           router.replace("/sign-up/pin");
         } else if (status.needsPinMigration) {

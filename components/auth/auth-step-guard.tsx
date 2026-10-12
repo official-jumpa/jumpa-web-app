@@ -55,14 +55,7 @@ export function AuthStepGuard({ children }: { children: ReactNode }) {
           return;
         }
 
-        // 2. Already has tag -> redirect away from /sign-up/tag
-        const onTagPage = pathname?.startsWith("/sign-up/tag");
-        if (onTagPage && status.hasTag) {
-          router.replace(status.nextRoute || "/home");
-          return;
-        }
-
-        // 3. Already has wallet & pin -> redirect away from /sign-up/pin
+        // 2. Already has wallet & pin -> redirect away from /sign-up/pin
         const onPinPage = pathname?.startsWith("/sign-up/pin");
         if (onPinPage && status.hasPin) {
           router.replace(status.nextRoute || "/home");

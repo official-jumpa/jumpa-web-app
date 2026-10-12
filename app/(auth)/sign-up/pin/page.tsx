@@ -15,7 +15,7 @@ export const metadata: Metadata = pageMetadata({
 export default function SetPinPage() {
   return (
     <AuthScreen
-      header={<AuthHeader backHref={SIGN_UP_FLOW.tag} />}
+      header={<AuthHeader backHref={SIGN_UP_FLOW.confirmPassword} />}
       className="[--auth-pb:11px]"
     >
       <AuthHeading title="Set transaction PIN">

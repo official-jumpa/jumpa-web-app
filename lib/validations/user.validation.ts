@@ -43,7 +43,17 @@ export const updateProfileSchema = z.object({
   jumpaTag: z
     .string()
     .trim()
-    .regex(/^[a-zA-Z0-9_]{3,20}$/, "Jumpa tag must be 3 to 20 alphanumeric characters or underscores")
+    .transform((v) =>
+      v
+        .replace(/@jumpa$/i, "")
+        .replace(/^@+/, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, "")
+        .slice(0, 20),
+    )
+    .refine((v) => v.length >= 3, {
+      message: "Jumpa tag must be 3 to 20 alphanumeric characters or underscores",
+    })
     .optional(),
   country: z.string().trim().length(2, "Country code must be a 2-letter ISO code").optional(),
   image: z.string().url("Image must be a valid URL").optional(),

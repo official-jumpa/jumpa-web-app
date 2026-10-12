@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/auth/copy-button";
+import { JumpaTagForm } from "@/components/auth/jumpa-tag-form";
 import { EditNicknameSheet } from "@/components/profile/edit-nickname-sheet";
+import { SheetPortal } from "@/components/ui/sheet-portal";
 import {
   SettingAction,
   SettingLink,
@@ -58,7 +60,7 @@ export function ProfileView({
 }: ProfileViewProps) {
   const router = useRouter();
   const auth = useAuthContext();
-  const { profile, updateProfile } = useUserProfile();
+  const { profile, updateProfile, refreshProfile } = useUserProfile();
   const authUser = auth?.user as any;
   const user = {
     ...initialUser,
@@ -76,6 +78,7 @@ export function ProfileView({
   } | null>(initialWalletAddresses);
   const [showOtherChains, setShowOtherChains] = useState(false);
   const [editingNickname, setEditingNickname] = useState(false);
+  const [editingTag, setEditingTag] = useState(false);
   const [kycVerified, setKycVerified] = useState<boolean>(initialKycVerified);
 
   // Fallback client fetch only if server hydration was missing
@@ -87,7 +90,7 @@ export function ProfileView({
       if (savedKyc !== null) {
         setKycVerified(savedKyc === "true");
       }
-    } catch {}
+    } catch { }
 
     async function checkKyc() {
       try {
@@ -96,13 +99,13 @@ export function ProfileView({
           const data = await res.json();
           const isDone = Boolean(
             data?.isCompleted ||
-              data?.status === "approved" ||
-              data?.stage === "completed",
+            data?.status === "approved" ||
+            data?.stage === "completed",
           );
           setKycVerified(isDone);
           try {
             localStorage.setItem("jumpa_kyc_completed", String(isDone));
-          } catch {}
+          } catch { }
         }
       } catch (err) {
         console.warn("[ProfilePage] Failed to fetch KYC status:", err);
@@ -139,11 +142,18 @@ export function ProfileView({
   const displayName =
     currentNickname || profile?.name || user?.name || profile?.jumpaTag || user?.jumpaTag || ACCOUNT.firstName;
   const displayEmail = profile?.email || user?.email || "";
-  const jumpaTag = profile?.jumpaTag || user?.jumpaTag || "user@jumpa";
+  const currentTag = profile?.jumpaTag || user?.jumpaTag || null;
+  const jumpaTag = currentTag || "user@jumpa";
   const referralCode = (user?.referralCode || "JUMPA").toUpperCase();
 
   const handleSaveNickname = async (nextNickname: string) => {
     await updateProfile({ nickname: nextNickname });
+    router.refresh();
+  };
+
+  const handleSaveTag = async (nextTag: string) => {
+    auth?.updateUser?.({ jumpaTag: nextTag });
+    await refreshProfile();
     router.refresh();
   };
 
@@ -200,15 +210,15 @@ export function ProfileView({
       </div>
 
       {kycVerified ? (
-        <div className="mt-6 flex items-center gap-1.5 rounded-xl border-[1.5px] border-jumpa-primary-50 bg-jumpa-neutral-50 px-3.25 py-4">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-pill bg-jumpa-primary-600 text-jumpa-white">
-            <UserAlt1Icon className="size-6" />
+        <div className="mt-6 flex items-center gap-1.5 rounded-xl border-[1.5px] border-jumpa-primary-50 bg-jumpa-neutral-50 px-3.25 py-3">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-pill bg-jumpa-primary-600 text-jumpa-white">
+            <UserAlt1Icon className="size-5" />
           </span>
           <span className="flex min-w-0 flex-1 flex-col gap-1">
             <span className="text-sm leading-4 font-semibold text-jumpa-primary-950">
               KYC Complete
             </span>
-            <span className="text-[10px] leading-3.25 text-jumpa-neutral-350">
+            <span className="text-[11px] leading-3.25 text-jumpa-neutral-350">
               Your identity has been verified
             </span>
           </span>
@@ -238,12 +248,21 @@ export function ProfileView({
       <div className="mt-4.25 flex flex-col gap-4">
         <SettingSection label="Your wallet Information">
           <SettingCard className="pb-4">
-            <SettingRow
-              icon={TagsIcon}
-              label="Jumpa Tag"
-              value={jumpaTag}
-              action={<CopyButton value={jumpaTag} />}
-            />
+            {currentTag ? (
+              <SettingRow
+                icon={TagsIcon}
+                label="Jumpa Tag"
+                value={currentTag}
+                action={<CopyButton value={currentTag} />}
+              />
+            ) : (
+              <SettingAction
+                icon={TagsIcon}
+                label="Jumpa Tag"
+                value="Tap to set"
+                onClick={() => setEditingTag(true)}
+              />
+            )}
             <SettingRule />
 
             <SettingAction
@@ -284,9 +303,8 @@ export function ProfileView({
                       : "Show other addresses"}
                   </span>
                   <ChevronDownIcon
-                    className={`size-4.5 transition-transform duration-200 ${
-                      showOtherChains ? "rotate-180" : ""
-                    }`}
+                    className={`size-4.5 transition-transform duration-200 ${showOtherChains ? "rotate-180" : ""
+                      }`}
                   />
                 </button>
 
@@ -386,6 +404,20 @@ export function ProfileView({
           onSave={handleSaveNickname}
           onClose={() => setEditingNickname(false)}
         />
+      ) : null}
+
+      {editingTag ? (
+        <SheetPortal onClose={() => setEditingTag(false)}>
+          <div className="flex flex-col gap-4">
+            <h2 className="text-center text-base leading-4.5 font-semibold text-jumpa-black">
+              Set Jumpa Tag
+            </h2>
+            <JumpaTagForm
+              onComplete={handleSaveTag}
+              onClose={() => setEditingTag(false)}
+            />
+          </div>
+        </SheetPortal>
       ) : null}
     </div>
   );

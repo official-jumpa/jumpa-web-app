@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
 
   const { recipient, amount, asset, network: networkName, memo, pin } =
     validation.data;
+    console.log("send details", validation.data)
 
   const config = NETWORK_CONFIGS[networkName];
   if (!config) {

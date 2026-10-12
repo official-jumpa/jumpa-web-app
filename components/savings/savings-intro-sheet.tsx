@@ -22,11 +22,13 @@ export function SavingsIntroSheet({
   intro,
   onClose,
   onContinue,
+  onSecondary,
 }: {
   intro: SavingsIntro;
   onClose: () => void;
   /** Stays on the page instead of following `href` — the CTA becomes a button. */
   onContinue?: () => void;
+  onSecondary?: () => void;
 }) {
   return (
     <BottomSheet onClose={onClose} pb="pb-7.5">
@@ -72,14 +74,24 @@ export function SavingsIntroSheet({
           )}
 
           {intro.secondary ? (
-            <Button
-              href={intro.secondary.href}
-              variant="plain"
-              size="lg"
-              onClick={onClose}
-            >
-              {intro.secondary.label}
-            </Button>
+            onSecondary ? (
+              <Button
+                variant="plain"
+                size="lg"
+                onClick={onSecondary}
+              >
+                {intro.secondary.label}
+              </Button>
+            ) : (
+              <Button
+                href={intro.secondary.href}
+                variant="plain"
+                size="lg"
+                onClick={onClose}
+              >
+                {intro.secondary.label}
+              </Button>
+            )
           ) : null}
         </div>
       </div>

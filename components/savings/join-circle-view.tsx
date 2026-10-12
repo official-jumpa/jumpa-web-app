@@ -1,28 +1,102 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
-import { PlanAction, PlanActions } from "@/components/savings/plan-actions";
-import { SavingsLabel, savingsShell } from "@/components/savings/savings-field";
-import { SavingsPanel, SavingsRule } from "@/components/savings/savings-form";
+import { type ReactNode, useEffect, useState } from "react";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field-error";
 import { SearchAltIcon } from "@/components/ui/icons/search-alt";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
-import { findCircle, savingsHref } from "@/lib/savings";
+import { SavingsLabel, savingsShell } from "@/components/savings/savings-field";
+import { SavingsPanel, SavingsRule } from "@/components/savings/savings-form";
+import { formatMoney, type HubCurrency } from "@/lib/savings-hub";
+import { MoneyField } from "@/components/savings/hub/money-field";
+import { toast } from "@/components/ui/toast";
 
-/** Short enough to still be typing, so the miss note holds off until then. */
-const MIN_LOOKUP = 3;
+interface ResolvedCircle {
+  id: string;
+  name: string;
+  currency: HubCurrency;
+  target: number;
+  saved: number;
+  style: "save_together" | "shared_pool";
+  inviteCode: string;
+  membersCount: number;
+  capacity: number;
+  isFull: boolean;
+  isMember: boolean;
+  endDate: string | null;
+}
 
-/** Join a circle from its name or invite link, then confirm what you joined. */
-export function JoinCircleView() {
+export function JoinCircleView({
+  onBack,
+  onJoin,
+}: {
+  onBack?: () => void;
+  onJoin?: (code: string, amount: number, currency: HubCurrency) => void;
+}) {
   const [ref, setRef] = useState("");
+  const [amount, setAmount] = useState("");
   const [pasteError, setPasteError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [circle, setCircle] = useState<ResolvedCircle | null>(null);
   const [joined, setJoined] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Derived, so the card can never disagree with what is in the field.
-  const circle = findCircle(ref);
+  // Clean the input to extract code (supports raw code e.g. "C8H2KX" or link e.g. "jumpa.app/...code=C8H2KX")
+  const extractCode = (input: string): string => {
+    const trimmed = input.trim();
+    if (!trimmed) return "";
+    try {
+      if (trimmed.includes("code=")) {
+        const url = new URL(trimmed.startsWith("http") ? trimmed : `https://${trimmed}`);
+        const codeParam = url.searchParams.get("code");
+        if (codeParam) return codeParam.toUpperCase();
+      }
+    } catch { }
+    // Extract last path or pure code
+    const segments = trimmed.split(/[/=]/);
+    return segments[segments.length - 1].toUpperCase();
+  };
+
+  useEffect(() => {
+    const code = extractCode(ref);
+    if (!code || code.length < 3) {
+      setCircle(null);
+      setError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/savings/lookup?code=${encodeURIComponent(code)}`, {
+          signal: controller.signal,
+        });
+        const data = await res.json();
+        if (res.ok && data.circle) {
+          setCircle(data.circle);
+        } else {
+          setCircle(null);
+          setError("No active circle matches this code");
+        }
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          setCircle(null);
+          setError("Failed to look up circle");
+        }
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [ref]);
 
   const paste = async () => {
     try {
@@ -30,47 +104,61 @@ export function JoinCircleView() {
       setRef(text.trim());
       setPasteError(null);
     } catch {
-      setPasteError("Paste is blocked here. Long-press the field instead.");
+      setPasteError("Paste is blocked. Type or long-press the field.");
+    }
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!circle) return;
+    const numAmount = Number(amount);
+    if (numAmount <= 0) {
+      toast.error("Please enter your contribution amount");
+      return;
+    }
+    if (circle.isFull) {
+      toast.error("This circle is already at full capacity");
+      return;
+    }
+    if (circle.isMember) {
+      toast.error("You are already a member of this circle");
+      return;
+    }
+
+    if (onJoin) {
+      onJoin(circle.inviteCode, numAmount, circle.currency);
+    } else {
+      setJoined(true);
     }
   };
 
   if (joined && circle) {
     return (
       <TransferSuccess
+        back="/savings-1"
         compact
-        back={savingsHref("circle")}
         title="Successful"
         titleFirst
         amount={`You joined ${circle.name}`}
-        note={`You are now saving towards ${circle.target} with this circle.`}
-        // The screen after joining is not designed; it lands on the circles list.
-        actions={
-          <PlanActions>
-            <PlanAction href={savingsHref("circle")} icon={ShieldCheckIcon}>
-              View circle
-            </PlanAction>
-          </PlanActions>
-        }
-        ctaLabel="Back to home"
-        ctaHref="/home"
+        note={`You contributed ${formatMoney(Number(amount), circle.currency)} to this circle.`}
+        actions={null}
+        ctaLabel="Done"
+        ctaHref="/savings-1"
       />
     );
   }
 
   return (
     <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (circle) setJoined(true);
-      }}
+      onSubmit={submit}
       className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
     >
-      <TransferHeader back={savingsHref("circle")} title="Join circle" />
+      <TransferHeader back="/savings-1" onBack={onBack} title="Join circle" />
 
       <div className="mt-6 flex flex-col gap-6">
         <div className="flex flex-col gap-3">
           <label className="flex flex-col gap-3">
-            <SavingsLabel>Enter circle name or link</SavingsLabel>
+            <SavingsLabel>Enter circle code or invite link</SavingsLabel>
             <span className={savingsShell()}>
               <SearchAltIcon
                 aria-hidden="true"
@@ -82,7 +170,7 @@ export function JoinCircleView() {
                   setRef(event.target.value);
                   setPasteError(null);
                 }}
-                placeholder="e.g December Hangout"
+                placeholder="e.g. C7K9WZ or invite link"
                 className="min-w-0 flex-1 bg-transparent text-sm leading-4 font-semibold text-jumpa-black outline-none placeholder:font-medium placeholder:text-jumpa-primary-200"
               />
               <button
@@ -90,56 +178,79 @@ export function JoinCircleView() {
                 onClick={paste}
                 className="tap flex h-full shrink-0 items-center rounded-pill bg-[image:var(--gradient-jumpa-cta)] px-2.5 text-xs leading-4 font-semibold text-jumpa-alt-400 active:scale-95"
               >
-                Paste circle link
+                Paste
               </button>
             </span>
           </label>
 
           <FieldError>
-            {pasteError ??
-              (!circle && ref.trim().length >= MIN_LOOKUP
-                ? "No circle matches that name or link."
-                : undefined)}
+            {pasteError ?? error ?? undefined}
           </FieldError>
         </div>
 
         {circle ? (
-          <SavingsPanel>
-            <Row label="Name">
-              <span className="text-xs leading-5 font-medium text-jumpa-black">
-                {circle.name}
-              </span>
-            </Row>
-            <SavingsRule />
+          <>
+            <SavingsPanel>
+              <Row label="Name">
+                <span className="text-xs leading-5 font-bold text-jumpa-black">
+                  {circle.name}
+                </span>
+              </Row>
+              <SavingsRule />
 
-            <Row label="Circle target">
-              <span className="text-lg leading-5 font-bold text-jumpa-primary-500">
-                {circle.target}
-              </span>
-            </Row>
-            <SavingsRule />
+              <Row label="Type">
+                <span className="text-xs leading-5 font-semibold text-jumpa-primary-600">
+                  {circle.style === "shared_pool" ? "Shared Pool" : "Save Together"}
+                </span>
+              </Row>
+              <SavingsRule />
 
-            <Row label="Members">
-              <Value>{circle.members} Members</Value>
-            </Row>
-            <SavingsRule />
+              <Row label="Circle target">
+                <span className="text-base leading-5 font-bold text-jumpa-primary-600">
+                  {formatMoney(circle.target, circle.currency)}
+                </span>
+              </Row>
+              <SavingsRule />
 
-            <Row label="Target date">
-              <Value>{circle.targetDate}</Value>
-            </Row>
-          </SavingsPanel>
+              <Row label="Members">
+                <Value>
+                  {circle.membersCount} of {circle.capacity} Members
+                </Value>
+              </Row>
+              {circle.endDate ? (
+                <>
+                  <SavingsRule />
+                  <Row label="Target date">
+                    <Value>{circle.endDate}</Value>
+                  </Row>
+                </>
+              ) : null}
+            </SavingsPanel>
+
+            <MoneyField
+              label="Your first contribution"
+              currency={circle.currency}
+              value={amount}
+              onChange={setAmount}
+              example="target"
+            />
+          </>
         ) : null}
       </div>
 
-      {/* The frame sits the CTA straight under the card, not at the foot. */}
       {circle ? (
         <Button
           type="submit"
           variant="gradientSheet"
           size="lg"
           className="mt-7"
+          disabled={loading || circle.isFull || circle.isMember}
         >
-          Join circle
+          {circle.isFull
+            ? "Circle is full"
+            : circle.isMember
+              ? "Already joined"
+              : "Join circle"}
         </Button>
       ) : null}
     </form>
@@ -157,7 +268,6 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** The two rows the design prints in the deep brand purple. */
 function Value({ children }: { children: ReactNode }) {
   return (
     <span className="text-sm leading-4 font-medium text-jumpa-primary-950">

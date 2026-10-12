@@ -39,6 +39,7 @@ export const SCHEMA_IDS = {
   att: { prefix: "att", length: 16, description: "Chat attachments and media" },
   ngn: { prefix: "ngn", length: 16, description: "NGN fiat accounts" },
   bill: { prefix: "bill", length: 16, description: "Airtime and data bill purchases" },
+  savtx: { prefix: "savtx", length: 16, description: "Savings transaction history" },
 
   // ── Utility Entities
   cardref: { prefix: "cardref", length: 12, description: "Card references" },
@@ -116,6 +117,13 @@ const nanoidReferral5 = customAlphabet(referralAlphabet, 5);
  */
 export const generateReferralCode = (): string => {
   return `R${nanoidReferral5()}`;
+};
+
+/**
+ * Generates a clean 6-character uppercase circle invite code starting with 'C' (e.g. 'C7K9WZ')
+ */
+export const generateCircleInviteCode = (): string => {
+  return `C${nanoidReferral5()}`;
 };
 
 /**

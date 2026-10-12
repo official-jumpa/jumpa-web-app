@@ -6,15 +6,15 @@ import { pinSchema } from "./user.validation";
  */
 export const createSavingsPlanSchema = z.object({
   kind: z.enum(["individual", "lock", "circle"], {
-    error: "Kind must be individual, lock, or circle",
+    error: "Invalid savings plan type",
   }).default("individual"),
   name: z
     .string({
       error: "Goal name is required",
     })
     .trim()
-    .min(1, "Goal name is required")
-    .max(50, "Goal name cannot exceed 50 characters"),
+    .min(2, "Goal name must be at least 2 characters")
+    .max(25, "Goal name cannot exceed 25 characters"),
   category: z.string().trim().nullish().transform((val) => val || "Other"),
   targetAmount: z
     .union([z.number(), z.string()])
@@ -59,8 +59,14 @@ export const createSavingsPlanSchema = z.object({
     .union([z.string(), z.number()])
     .nullish()
     .transform((val) => (val == null || val === "" ? undefined : String(val).trim())),
+  currency: z.enum(["NGN", "USDC"]).default("USDC"),
   fundingSource: z.enum(["crypto", "usd", "ngn"]).nullish().transform((val) => val || "crypto"),
-  pin: pinSchema,
+  circleType: z.enum(["save_together", "shared_pool"]).optional().default("save_together"),
+  circleMembers: z
+    .union([z.number(), z.string()])
+    .nullish()
+    .transform((val) => (val === undefined || val === null || val === "" ? 4 : Number(val))),
+  pin: pinSchema.optional(),
 }).refine(
   (data) => {
     if (data.startDate && data.endDate) {
@@ -95,7 +101,8 @@ export const topUpSavingsSchema = z.object({
       message: "Top-up amount must be greater than 0",
     }),
   fundingSource: z.enum(["crypto", "usd", "ngn"]).default("crypto"),
-  pin: pinSchema,
+  currency: z.enum(["NGN", "USDC"]).optional(),
+  pin: pinSchema.optional(),
 });
 
 export type TopUpSavingsInput = z.infer<typeof topUpSavingsSchema>;
@@ -153,6 +160,8 @@ export type SavingsIntroSeenInput = z.infer<typeof savingsIntroSeenSchema>;
  */
 export const listSavingsPlansQuerySchema = z.object({
   type: z.enum(["individual", "lock", "circle"]).optional(),
+  currency: z.enum(["NGN", "USDC"]).optional(),
+  tab: z.enum(["active", "completed"]).optional(),
 });
 
 export type ListSavingsPlansQueryInput = z.infer<typeof listSavingsPlansQuerySchema>;

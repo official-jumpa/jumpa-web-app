@@ -87,17 +87,67 @@ export async function updateSavingsPlanBalance(params: {
   );
 }
 
+import { SavingsTransaction, type ISavingsTransaction } from "@/models/SavingsTransaction";
+
+/**
+ * Inserts a new savings transaction record into the DB.
+ */
+export async function createSavingsTransaction(
+  data: Partial<ISavingsTransaction>,
+): Promise<ISavingsTransaction> {
+  await connectDB();
+  return SavingsTransaction.create(data);
+}
+
+/**
+ * Retrieves the transaction history for a savings plan.
+ */
+export async function getSavingsTransactionsByPlanId(
+  planId: string,
+  limit = 50,
+): Promise<ISavingsTransaction[]> {
+  await connectDB();
+  return SavingsTransaction.find({ planId }).sort({ at: -1 }).limit(limit).lean();
+}
+
+/**
+ * Retrieves all savings transactions for a user across plans.
+ */
+export async function getSavingsTransactionsByUserId(
+  userId: string,
+  limit = 50,
+): Promise<ISavingsTransaction[]> {
+  await connectDB();
+  return SavingsTransaction.find({ userId }).sort({ at: -1 }).limit(limit).lean();
+}
+
 /**
  * Marks a user's savings plan as Completed or Closed.
  */
 export async function closeSavingsPlanRecord(
   planId: string,
   userId: string,
+  closure?: { paidOut: number; forfeited: boolean },
 ): Promise<ISavingsPlan | null> {
   await connectDB();
   return SavingsPlan.findOneAndUpdate(
     { _id: planId, userId },
-    { $set: { status: "Completed", currentAmount: 0 } },
+    {
+      $set: {
+        status: "Completed",
+        currentAmount: 0,
+        ...(closure
+          ? {
+              closure: {
+                date: new Date(),
+                paidOut: closure.paidOut,
+                forfeited: closure.forfeited,
+              },
+            }
+          : {}),
+      },
+    },
     { returnDocument: "after" },
   );
 }
+

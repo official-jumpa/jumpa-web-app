@@ -32,14 +32,17 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Query live on-chain balance & APY from DeFindex vault
+    // Query live on-chain balance & APY from DeFindex vault if applicable
     let liveAmount = plan.currentAmount;
-    const liveBal = await getLiveVaultBalance(plan.vaultAddress, plan.walletAddress);
-    if (liveBal && liveBal.underlyingBalance > 0) {
-      liveAmount = liveBal.underlyingBalance;
+    let liveBal: { underlyingBalance: number; shares: string } | null = null;
+    if (plan.currency !== "NGN" && plan.vaultAddress && plan.walletAddress) {
+      liveBal = await getLiveVaultBalance(plan.vaultAddress, plan.walletAddress);
+      if (liveBal && liveBal.underlyingBalance > 0) {
+        liveAmount = liveBal.underlyingBalance;
+      }
     }
 
-    const liveApy = await getLiveVaultApy(plan.vaultAddress);
+    const liveApy = plan.vaultAddress ? await getLiveVaultApy(plan.vaultAddress) : 0;
     const formatted = formatPlanForUI(plan, liveAmount);
 
     return NextResponse.json({

@@ -3,6 +3,8 @@ import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import {
   createSavingsPlanRecord,
   getRawSavingsPlanById,
+  createSavingsTransaction,
+  closeSavingsPlanRecord,
 } from "@/lib/functions/savingsFunctions";
 import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
 import {
@@ -21,7 +23,10 @@ import { fetchStellarBalances } from "@/lib/chains/stellar/account";
 import { DefindexClient } from "@/lib/chains/stellar/defindex-client";
 import { environment } from "@/lib/environment";
 import { getExplorerTxUrl, CONTRACT_ADDRESSES } from "@/lib/blockchain";
+import { generateCircleInviteCode } from "@/lib/schema-ids";
 import { formatPlanForUI } from "@/lib/savings-service";
+import { NgnAccount } from "@/models/NgnAccount";
+import { SavingsPlan } from "@/models/SavingsPlan";
 
 const defindexClient = new DefindexClient(
   environment.DEFINDEX_API_KEY,
@@ -32,7 +37,7 @@ const defindexClient = new DefindexClient(
 export interface CreateSavingsExecutionParams {
   userId: string;
   wallet?: any;
-  pin: string;
+  pin?: string;
   kind?: "individual" | "lock" | "circle";
   name: string;
   category?: string;
@@ -42,14 +47,25 @@ export interface CreateSavingsExecutionParams {
   term?: string;
   frequency?: string;
   fundingSource?: "crypto" | "usd" | "ngn";
+  currency?: "NGN" | "USDC";
   chain?: string;
+  circleType?: "save_together" | "shared_pool";
+  circleMembers?: number;
 }
 
 export interface DepositSavingsExecutionParams {
   userId: string;
   wallet?: any;
-  pin: string;
+  pin?: string;
   planId: string;
+  amount: number;
+}
+
+export interface JoinCircleExecutionParams {
+  userId: string;
+  wallet?: any;
+  pin?: string;
+  code: string;
   amount: number;
 }
 
@@ -69,14 +85,14 @@ export interface SavingsExecutionResult {
   txHash?: string;
   explorerUrl?: string;
   withdrawnAmount?: number;
-  penaltyFee?: number;
   netPayout?: number;
+  forfeited?: boolean;
   receiptCardData?: any;
 }
 
 /**
- * Executes creation of a savings plan and optional initial deposit.
- * Chain-agnostic interface that delegates to chain-specific vault execution.
+ * Creates a new savings plan with an optional initial deposit.
+ * Supports NGN (DB ledger on NgnAccount) and USDC (Stellar DeFindex on-chain).
  */
 export async function createSavingsPlanExecution(
   params: CreateSavingsExecutionParams,
@@ -92,7 +108,10 @@ export async function createSavingsPlanExecution(
     durationDays,
     frequency = "Weekly",
     fundingSource = "crypto",
-    chain = "stellar",
+    currency = "USDC",
+    chain = currency === "NGN" ? "none" : "stellar",
+    circleType = "save_together",
+    circleMembers = 4,
   } = params;
 
   const wallet = params.wallet || (await findWalletForUser(userId));
@@ -100,39 +119,149 @@ export async function createSavingsPlanExecution(
     return { ok: false, error: "No wallet found for user", status: 404 };
   }
 
-  // 1. Verify 4-digit PIN
-  const pinCheck = await verifyWalletPin(wallet, pin, { userId });
-  if (!pinCheck.ok) {
-    return { ok: false, error: pinCheck.error, status: pinCheck.status };
+  // 1. PIN verification is only required for on-chain USDC execution (to decrypt stellar keypair)
+  if (currency === "USDC" && Number(depositAmount) > 0) {
+    if (!pin) {
+      return { ok: false, error: "Wallet PIN is required for on-chain savings", status: 400 };
+    }
+    const pinCheck = await verifyWalletPin(wallet, pin, { userId });
+    if (!pinCheck.ok) {
+      return { ok: false, error: pinCheck.error, status: pinCheck.status };
+    }
   }
 
-  // Calculate term and dates
-  const days = durationDays || (params.term ? parseInt(params.term) : 30) || 30;
+  const days = durationDays || (params.term ? parseInt(params.term, 10) : 30) || 30;
   const computedTerm = `${days} DAYS`;
   const startDate = new Date();
   const endDate = new Date(startDate.getTime() + days * 24 * 60 * 60 * 1000);
-
-  // 2. Resolve target vault address
-  const vaultAddress =
-    kind === "lock"
-      ? environment.DEFINDEX_LOCK_VAULT_ADDRESS
-      : environment.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS;
-
-  const stellarAddress = wallet.addresses?.xlm || wallet.address;
-  let txHash: string | undefined;
-  let initialShares = "0";
   const numDeposit = Number(depositAmount) || 0;
 
-  // 3. Execute initial deposit on-chain if depositAmount > 0
-  if (numDeposit > 0 && chain === "stellar") {
-    if (!vaultAddress) {
-      return {
-        ok: false,
-        error: "DeFindex vault address not configured",
-        status: 500,
-      };
+  const circleConfig =
+    kind === "circle"
+      ? {
+          type: circleType,
+          inviteCode: generateCircleInviteCode(),
+          capacity: Number(circleMembers) || 4,
+          members: [
+            {
+              userId,
+              name: "You (Owner)",
+              role: "owner" as const,
+              saved: numDeposit,
+              joinedAt: startDate,
+            },
+          ],
+        }
+      : undefined;
+
+  let txHash: string | undefined;
+  let explorerUrl: string | undefined;
+  let initialShares = "0";
+  const stellarAddress = wallet.addresses?.xlm || wallet.address || "";
+
+  // Currency: NGN (Database Only) 
+  if (currency === "NGN") {
+    if (numDeposit > 0) {
+      // Atomic conditional deduction from user's NgnAccount
+      const updatedNgn = await NgnAccount.findOneAndUpdate(
+        { userId, balance: { $gte: numDeposit } },
+        { $inc: { balance: -numDeposit } },
+        { returnDocument: "after" },
+      );
+
+      if (!updatedNgn) {
+        return {
+          ok: false,
+          error: `Insufficient NGN balance for this deposit (₦${numDeposit.toLocaleString()}).`,
+          status: 400,
+        };
+      }
     }
 
+    // Save SavingsPlan in MongoDB
+    const plan = await createSavingsPlanRecord({
+      userId,
+      walletId: wallet._id,
+      walletAddress: stellarAddress,
+      kind,
+      name,
+      category,
+      targetAmount: Number(targetAmount) || 0,
+      initialDeposit: numDeposit,
+      currentAmount: numDeposit,
+      interestEarned: 0,
+      currency: "NGN",
+      chain: "none",
+      vaultAddress: "ngn_db_vault",
+      sharesOwned: "0",
+      circleConfig,
+      startDate,
+      endDate,
+      term: computedTerm,
+      frequency,
+      fundingSource: "ngn",
+      status: "Active",
+      penaltyFeePercent: 0,
+      txHashes: [],
+    });
+
+    if (numDeposit > 0) {
+      await createSavingsTransaction({
+        planId: plan._id,
+        userId,
+        currency: "NGN",
+        kind: "deposit",
+        amount: numDeposit,
+        at: startDate,
+      });
+
+      await createTransactionRecord({
+        userId,
+        walletId: wallet._id,
+        type: "SAVINGS_DEPOSIT",
+        status: "CONFIRMED",
+        chain: "fiat",
+        network: "mainnet",
+        fromAddress: "ngn_account",
+        toAddress: "savings_plan",
+        amount: String(numDeposit),
+        token: "NGN",
+        memo: `savings:create:${plan._id}`,
+        savingsDetails: { planId: plan._id, vaultAddress: "ngn_db_vault" },
+        executedAt: new Date(),
+      });
+    }
+
+    setUserCreatedSavings(userId).catch(() => {});
+    markSavingsIntroSeen(userId, kind).catch(() => {});
+
+    return {
+      ok: true,
+      plan: formatPlanForUI(plan),
+      receiptCardData: {
+        title: "Savings Goal Created",
+        status: "Active",
+        balance: {
+          caption: "INITIAL DEPOSIT",
+          value: numDeposit > 0 ? `₦${numDeposit.toLocaleString()}` : "₦0.00",
+          badge: "NGN",
+        },
+      },
+    };
+  }
+
+  // Currency: USDC (Stellar DeFindex On-Chain) 
+  // Unified Vault Address: All kinds (individual, lock, circle) point to DEFINDEX_INDIVIDUAL_VAULT_ADDRESS
+  const vaultAddress = environment.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS;
+  if (!vaultAddress) {
+    return {
+      ok: false,
+      error: "vault address not configured",
+      status: 500,
+    };
+  }
+
+  if (numDeposit > 0) {
     const balances = await fetchStellarBalances(stellarAddress);
     const availableUsdc = Number(balances.testnet.usdc) || 0;
     if (availableUsdc < numDeposit) {
@@ -149,7 +278,7 @@ export async function createSavingsPlanExecution(
         wallet.encryptedMnemonic,
         wallet.iv,
         wallet.salt,
-        pin,
+        pin!,
       );
     } catch {
       return {
@@ -197,7 +326,7 @@ export async function createSavingsPlanExecution(
     const sendRes = await defindexClient.send(tx.toXDR());
     txHash = sendRes.txHash;
     initialShares = String(sendRes.dfTokens || amountStroops);
-    const explorerUrl = getExplorerTxUrl("stellar", txHash, true);
+    explorerUrl = getExplorerTxUrl("stellar", txHash, true);
 
     await createTransactionRecord({
       userId,
@@ -221,7 +350,7 @@ export async function createSavingsPlanExecution(
     });
   }
 
-  // 4. Save SavingsPlan in MongoDB
+  // Save SavingsPlan in MongoDB
   const plan = await createSavingsPlanRecord({
     userId,
     walletId: wallet._id,
@@ -230,61 +359,39 @@ export async function createSavingsPlanExecution(
     name,
     category,
     targetAmount: Number(targetAmount) || 0,
+    initialDeposit: numDeposit,
     currentAmount: numDeposit,
+    interestEarned: 0,
     currency: "USDC",
-    chain: (chain as "stellar") || "stellar",
-    vaultAddress: vaultAddress || "",
+    chain: "stellar",
+    vaultAddress,
     sharesOwned: initialShares,
+    circleConfig,
     startDate,
     endDate,
     term: computedTerm,
     frequency,
     fundingSource,
     status: "Active",
-    penaltyFeePercent: 5,
+    penaltyFeePercent: 0,
     txHashes: txHash ? [txHash] : [],
   });
 
-  setUserCreatedSavings(userId).catch((err) =>
-    console.warn("[SavingsCreate] Failed to update hasCreatedSavings:", err),
-  );
-  if (kind) {
-    markSavingsIntroSeen(userId, kind).catch((err) =>
-      console.warn("[SavingsCreate]:", err),
-    );
+  if (numDeposit > 0) {
+    await createSavingsTransaction({
+      planId: plan._id,
+      userId,
+      currency: "USDC",
+      kind: "deposit",
+      amount: numDeposit,
+      shares: initialShares,
+      txHash,
+      at: startDate,
+    });
   }
 
-  const explorerUrl = txHash ? getExplorerTxUrl("stellar", txHash, true) : undefined;
-
-  const receiptCardData = {
-    title: "Savings Goal Created",
-    status: "Active",
-    balance: {
-      caption: "INITIAL DEPOSIT",
-      value: numDeposit > 0 ? `$${numDeposit.toFixed(2)}` : "$0.00",
-      badge: "USDC",
-    },
-    stats: [
-      { lead: "Goal Name ", value: name },
-      { lead: "Category ", value: category },
-      {
-        lead: "Target ",
-        value: targetAmount ? `$${Number(targetAmount).toLocaleString("en-US")}` : "Open",
-      },
-      { lead: "Duration ", value: `${days} days` },
-      { lead: "Estimated APY ", value: "8.5%" },
-      ...(txHash
-        ? [
-            {
-              lead: "Tx Hash ",
-              value: `${txHash.slice(0, 6)}...${txHash.slice(-6)}`,
-            },
-          ]
-        : []),
-    ],
-    txHash: txHash || undefined,
-    explorerUrl: explorerUrl || undefined,
-  };
+  setUserCreatedSavings(userId).catch(() => {});
+  markSavingsIntroSeen(userId, kind).catch(() => {});
 
   logUserActivity({
     userId,
@@ -304,12 +411,11 @@ export async function createSavingsPlanExecution(
     plan: formatPlanForUI(plan),
     txHash,
     explorerUrl,
-    receiptCardData,
   };
 }
 
 /**
- * Executes a deposit (top-up) into an existing savings plan.
+ * Top up an existing active savings plan.
  */
 export async function depositSavingsExecution(
   params: DepositSavingsExecutionParams,
@@ -336,15 +442,68 @@ export async function depositSavingsExecution(
     };
   }
 
-  // 1. Verify PIN
+  // Currency: NGN (Database - No PIN required)
+  if (plan.currency === "NGN") {
+    const updatedNgn = await NgnAccount.findOneAndUpdate(
+      { userId, balance: { $gte: amount } },
+      { $inc: { balance: -amount } },
+      { returnDocument: "after" },
+    );
+
+    if (!updatedNgn) {
+      return {
+        ok: false,
+        error: `Insufficient NGN balance for this top-up (₦${amount.toLocaleString()}).`,
+        status: 400,
+      };
+    }
+
+    const newTotal = (plan.currentAmount || 0) + amount;
+    plan.currentAmount = newTotal;
+    await plan.save();
+
+    await createSavingsTransaction({
+      planId: plan._id,
+      userId,
+      currency: "NGN",
+      kind: "top_up",
+      amount,
+      at: new Date(),
+    });
+
+    await createTransactionRecord({
+      userId,
+      walletId: wallet._id,
+      type: "SAVINGS_DEPOSIT",
+      status: "CONFIRMED",
+      chain: "fiat",
+      network: "mainnet",
+      fromAddress: "ngn_account",
+      toAddress: "savings_plan",
+      amount: String(amount),
+      token: "NGN",
+      memo: `savings:topup:${plan._id}`,
+      savingsDetails: { planId: plan._id, vaultAddress: "ngn_db_vault" },
+      executedAt: new Date(),
+    });
+
+    return {
+      ok: true,
+      plan: formatPlanForUI(plan),
+    };
+  }
+
+  // ── Currency: USDC (Stellar DeFindex - Requires PIN for on-chain key decryption) ─
+  if (!pin) {
+    return { ok: false, error: "Wallet PIN is required for on-chain deposit", status: 400 };
+  }
   const pinCheck = await verifyWalletPin(wallet, pin, { userId });
   if (!pinCheck.ok) {
     return { ok: false, error: pinCheck.error, status: pinCheck.status };
   }
 
+  // ── Currency: USDC (Stellar DeFindex) ────────────────────────────────────
   const stellarAddress = wallet.addresses?.xlm || wallet.address;
-
-  // 2. Check balance
   const balances = await fetchStellarBalances(stellarAddress);
   const availableUsdc = Number(balances.testnet.usdc) || 0;
   if (availableUsdc < amount) {
@@ -355,7 +514,6 @@ export async function depositSavingsExecution(
     };
   }
 
-  // 3. Decrypt and execute on-chain
   let secret: string;
   try {
     secret = decryptMnemonic(
@@ -378,15 +536,10 @@ export async function depositSavingsExecution(
       : deriveStellarKeypairFromMnemonic(secret);
 
   const userKeypair = StellarSdk.Keypair.fromSecret(keys.secretKey);
-
-  await ensureStellarTrustline(
-    userKeypair,
-    new StellarSdk.Asset("USDC", CONTRACT_ADDRESSES.stellar.testnet.USDC),
-    "testnet",
-  );
-
   const amountStroops = Math.round(amount * 10_000_000);
-  const depositRes = await defindexClient.deposit(plan.vaultAddress, {
+
+  const targetVault = environment.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS;
+  const depositRes = await defindexClient.deposit(targetVault, {
     amounts: [amountStroops],
     caller: stellarAddress,
     invest: true,
@@ -411,16 +564,23 @@ export async function depositSavingsExecution(
   const txHash = sendRes.txHash;
   const explorerUrl = getExplorerTxUrl("stellar", txHash, true);
 
-  // 4. Update SavingsPlan in MongoDB
-  const oldBalance = plan.currentAmount || 0;
-  const newTotal = oldBalance + amount;
+  const newTotal = (plan.currentAmount || 0) + amount;
   plan.currentAmount = newTotal;
   if (txHash && !plan.txHashes.includes(txHash)) {
     plan.txHashes.push(txHash);
   }
   await plan.save();
 
-  // 5. Record Transaction
+  await createSavingsTransaction({
+    planId: plan._id,
+    userId,
+    currency: "USDC",
+    kind: "top_up",
+    amount,
+    txHash,
+    at: new Date(),
+  });
+
   await createTransactionRecord({
     userId,
     walletId: wallet._id,
@@ -429,63 +589,32 @@ export async function depositSavingsExecution(
     chain: "stellar",
     network: "testnet",
     fromAddress: stellarAddress,
-    toAddress: plan.vaultAddress,
+    toAddress: targetVault,
     amount: String(amount),
-    token: plan.currency || "USDC",
+    token: "USDC",
     memo: `savings:topup:${plan._id}`,
     txHash,
     explorerUrl,
     savingsDetails: {
       planId: plan._id,
-      vaultAddress: plan.vaultAddress,
+      vaultAddress: targetVault,
     },
     executedAt: new Date(),
   });
-
-  const receiptCardData = {
-    title: "Deposit Successful",
-    status: "Successful",
-    balance: {
-      caption: "DEPOSITED",
-      value: `$${amount.toFixed(2)}`,
-      badge: "USDC",
-    },
-    stats: [
-      { lead: "Goal ", value: plan.name },
-      { lead: "New Balance ", value: `$${newTotal.toFixed(2)} USDC` },
-      { lead: "Target ", value: `$${(plan.targetAmount || 0).toFixed(2)}` },
-      { lead: "APY ", value: "8.5%" },
-      {
-        lead: "Tx Hash ",
-        value: `${txHash.slice(0, 6)}...${txHash.slice(-6)}`,
-      },
-    ],
-    txHash,
-    explorerUrl,
-  };
-
-  logUserActivity({
-    userId,
-    action: "SAVINGS_TOP_UP",
-    details: {
-      planId: plan._id,
-      name: plan.name,
-      amount,
-      txHash,
-    },
-  }).catch(() => {});
 
   return {
     ok: true,
     plan: formatPlanForUI(plan),
     txHash,
     explorerUrl,
-    receiptCardData,
   };
 }
 
 /**
- * Executes a withdrawal from an existing savings plan.
+ * Withdraws from a savings plan.
+ * - Flexible: pays principal + earned interest.
+ * - Lock (Early): user forfeits all interest, receives 100% of principal back (0 capital fee).
+ * - Lock (Matured): pays principal + earned interest.
  */
 export async function withdrawSavingsExecution(
   params: WithdrawSavingsExecutionParams,
@@ -504,13 +633,8 @@ export async function withdrawSavingsExecution(
     return { ok: false, error: "Savings plan not found", status: 404 };
   }
 
-  const withdrawAmount = amount ?? plan.currentAmount;
-  if (withdrawAmount > plan.currentAmount) {
-    return {
-      ok: false,
-      error: `Requested amount ($${withdrawAmount}) exceeds plan balance ($${plan.currentAmount})`,
-      status: 400,
-    };
+  if (plan.status === "Closed" || plan.status === "Completed") {
+    return { ok: false, error: "Plan has already been withdrawn", status: 400 };
   }
 
   // 1. Verify PIN
@@ -519,18 +643,103 @@ export async function withdrawSavingsExecution(
     return { ok: false, error: pinCheck.error, status: pinCheck.status };
   }
 
-  // 2. Early withdrawal penalty check
-  let penaltyFee = 0;
-  const now = new Date();
-  if (plan.kind === "lock" && plan.endDate && now < new Date(plan.endDate)) {
-    const penaltyPercent = plan.penaltyFeePercent || 5;
-    penaltyFee = Number(((withdrawAmount * penaltyPercent) / 100).toFixed(2));
+  // 2. Circle Governance check: if Shared Pool, only organizer can withdraw
+  if (plan.kind === "circle" && plan.circleConfig?.type === "shared_pool") {
+    if (plan.userId !== userId) {
+      return {
+        ok: false,
+        error: "Only the circle owner can withdraw funds from a Shared Pool.",
+        status: 403,
+      };
+    }
   }
 
-  const netPayout = Number((withdrawAmount - penaltyFee).toFixed(2));
-  const stellarAddress = wallet.addresses?.xlm || wallet.address;
+  const now = new Date();
+  const isLock = plan.kind === "lock";
+  const isEarlyLock = isLock && plan.endDate && now < new Date(plan.endDate);
 
-  // 3. Decrypt credentials & derive keypair
+  // Interest handling: early lock forfeits all interest
+  const accruedInterest = plan.interestEarned || 0;
+  const forfeitInterest = Boolean(isEarlyLock);
+  const principalWithdraw = amount !== undefined ? amount : plan.currentAmount;
+
+  if (principalWithdraw > plan.currentAmount) {
+    return {
+      ok: false,
+      error: `Requested amount exceeds plan balance (${plan.currentAmount})`,
+      status: 400,
+    };
+  }
+
+  // Net payout = principal + (interest unless forfeited)
+  const interestPayout = forfeitInterest ? 0 : accruedInterest;
+  const netPayout = Number((principalWithdraw + interestPayout).toFixed(2));
+
+  let txHash: string | undefined;
+  let explorerUrl: string | undefined;
+
+  const remainingBalance = Math.max(0, (plan.currentAmount || 0) - principalWithdraw);
+  const isFullWithdrawal = isLock || remainingBalance === 0;
+
+  // ── Currency: NGN (Database Ledger) ──────────────────────────────────────
+  if (plan.currency === "NGN") {
+    // Atomically credit user's NgnAccount with the payout
+    await NgnAccount.updateOne(
+      { userId },
+      { $inc: { balance: netPayout } },
+    );
+
+    if (isFullWithdrawal) {
+      await closeSavingsPlanRecord(planId, userId, {
+        paidOut: netPayout,
+        forfeited: forfeitInterest,
+      });
+    } else {
+      plan.currentAmount = remainingBalance;
+      plan.interestEarned = Math.max(0, plan.interestEarned - interestPayout);
+      await plan.save();
+    }
+
+    await createSavingsTransaction({
+      planId: plan._id,
+      userId,
+      currency: "NGN",
+      kind: "withdrawal",
+      amount: netPayout,
+      forfeited: forfeitInterest,
+      at: new Date(),
+    });
+
+    await createTransactionRecord({
+      userId,
+      walletId: wallet._id,
+      type: "SAVINGS_WITHDRAW",
+      status: "CONFIRMED",
+      chain: "fiat",
+      network: "mainnet",
+      fromAddress: "savings_plan",
+      toAddress: "ngn_account",
+      amount: String(netPayout),
+      token: "NGN",
+      memo: `savings:withdraw:${plan._id}`,
+      savingsDetails: {
+        planId: plan._id,
+        vaultAddress: "ngn_db_vault",
+      },
+      executedAt: new Date(),
+    });
+
+    return {
+      ok: true,
+      withdrawnAmount: principalWithdraw,
+      netPayout,
+      forfeited: forfeitInterest,
+      plan: formatPlanForUI(plan),
+    };
+  }
+
+  // Currency: USDC (Stellar DeFindex)
+  const stellarAddress = wallet.addresses?.xlm || wallet.address;
   let secret: string;
   try {
     secret = decryptMnemonic(
@@ -542,7 +751,7 @@ export async function withdrawSavingsExecution(
   } catch {
     return {
       ok: false,
-      error: "Failed to decrypt wallet credentials",
+      error: "Failed to decrypt wallet",
       status: 401,
     };
   }
@@ -553,14 +762,11 @@ export async function withdrawSavingsExecution(
       : deriveStellarKeypairFromMnemonic(secret);
 
   const userKeypair = StellarSdk.Keypair.fromSecret(keys.secretKey);
-
-  // 4. Request DeFindex withdrawal transaction
-  let txHash: string | undefined;
-  let explorerUrl: string | undefined;
+  const targetVault = environment.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS;
 
   try {
     const netPayoutStroops = Math.round(netPayout * 10_000_000);
-    const withdrawRes = await defindexClient.withdraw(plan.vaultAddress, {
+    const withdrawRes = await defindexClient.withdraw(targetVault, {
       amounts: [netPayoutStroops],
       caller: stellarAddress,
     });
@@ -578,23 +784,36 @@ export async function withdrawSavingsExecution(
     }
   } catch (onChainErr: any) {
     console.warn(
-      `[withdrawSavingsExecution] On-chain DeFindex withdraw failed or bypassed in testnet:`,
+      `[withdrawSavingsExecution] On-chain DeFindex withdraw error/notice:`,
       onChainErr?.message || onChainErr,
     );
   }
 
-  // 5. Update Plan Balance in MongoDB
-  const remainingBalance = Math.max(0, (plan.currentAmount || 0) - withdrawAmount);
-  plan.currentAmount = remainingBalance;
-  if (remainingBalance === 0) {
-    plan.status = "Closed";
+  if (isFullWithdrawal) {
+    await closeSavingsPlanRecord(planId, userId, {
+      paidOut: netPayout,
+      forfeited: forfeitInterest,
+    });
+  } else {
+    plan.currentAmount = remainingBalance;
+    plan.interestEarned = Math.max(0, plan.interestEarned - interestPayout);
+    if (txHash && !plan.txHashes.includes(txHash)) {
+      plan.txHashes.push(txHash);
+    }
+    await plan.save();
   }
-  if (txHash && !plan.txHashes.includes(txHash)) {
-    plan.txHashes.push(txHash);
-  }
-  await plan.save();
 
-  // 6. Record Transaction in DB
+  await createSavingsTransaction({
+    planId: plan._id,
+    userId,
+    currency: "USDC",
+    kind: "withdrawal",
+    amount: netPayout,
+    forfeited: forfeitInterest,
+    txHash,
+    at: new Date(),
+  });
+
   await createTransactionRecord({
     userId,
     walletId: wallet._id,
@@ -602,70 +821,196 @@ export async function withdrawSavingsExecution(
     status: "CONFIRMED",
     chain: "stellar",
     network: "testnet",
-    fromAddress: plan.vaultAddress,
+    fromAddress: targetVault,
     toAddress: stellarAddress,
     amount: String(netPayout),
-    token: plan.currency || "USDC",
+    token: "USDC",
     memo: `savings:withdraw:${plan._id}`,
     txHash,
     explorerUrl,
     savingsDetails: {
       planId: plan._id,
-      vaultAddress: plan.vaultAddress,
-      penaltyFee: penaltyFee > 0 ? String(penaltyFee) : undefined,
+      vaultAddress: targetVault,
     },
     executedAt: new Date(),
   });
 
-  const receiptCardData = {
-    title: "Withdrawal Successful",
-    status: "Successful",
-    balance: {
-      caption: "RECEIVED",
-      value: `$${netPayout.toFixed(2)}`,
-      badge: "USDC",
-    },
-    stats: [
-      { lead: "Goal ", value: plan.name },
-      { lead: "Withdrawn ", value: `$${withdrawAmount.toFixed(2)}` },
-      ...(penaltyFee > 0
-        ? [{ lead: "Early Penalty (5%) ", value: `-$${penaltyFee.toFixed(2)}` }]
-        : []),
-      { lead: "Remaining Balance ", value: `$${remainingBalance.toFixed(2)} USDC` },
-      ...(txHash
-        ? [
-            {
-              lead: "Tx Hash ",
-              value: `${txHash.slice(0, 6)}...${txHash.slice(-6)}`,
-            },
-          ]
-        : []),
-    ],
-    txHash: txHash || undefined,
-    explorerUrl: explorerUrl || undefined,
+  return {
+    ok: true,
+    withdrawnAmount: principalWithdraw,
+    netPayout,
+    forfeited: forfeitInterest,
+    txHash,
+    explorerUrl,
+    plan: formatPlanForUI(plan),
   };
+}
 
-  logUserActivity({
+/**
+ * Joins an active Circle savings plan by invite code or plan ID.
+ */
+export async function joinCircleExecution(
+  params: JoinCircleExecutionParams,
+): Promise<SavingsExecutionResult> {
+  const { userId, pin, code, amount } = params;
+
+  if (amount <= 0) {
+    return { ok: false, error: "Deposit amount must be greater than 0", status: 400 };
+  }
+
+  const wallet = params.wallet || (await findWalletForUser(userId));
+  if (!wallet) {
+    return { ok: false, error: "Wallet not found", status: 404 };
+  }
+
+  // Find active circle by code or id
+  const cleanCode = code.trim().toUpperCase();
+  const plan = await SavingsPlan.findOne({
+    kind: "circle",
+    status: "Active",
+    $or: [
+      { "circleConfig.inviteCode": cleanCode },
+      { "circleConfig.inviteCode": new RegExp(`^${cleanCode}$`, "i") },
+      { _id: cleanCode.toLowerCase() },
+    ],
+  });
+
+  if (!plan) {
+    return { ok: false, error: "No active circle matches this invite code", status: 404 };
+  }
+
+  const members = plan.circleConfig?.members || [];
+  const capacity = plan.circleConfig?.capacity || 4;
+
+  if (members.length >= capacity) {
+    return { ok: false, error: "This circle is already at full capacity", status: 400 };
+  }
+
+  const alreadyMember = members.some((m) => m.userId === userId);
+  if (alreadyMember) {
+    return { ok: false, error: "You are already a member of this circle", status: 400 };
+  }
+
+  const numDeposit = Number(amount);
+  let txHash: string | undefined;
+  let explorerUrl: string | undefined;
+
+  // 1. Process payment: NGN or USDC
+  if (plan.currency === "NGN") {
+    const updatedNgn = await NgnAccount.findOneAndUpdate(
+      { userId, balance: { $gte: numDeposit } },
+      { $inc: { balance: -numDeposit } },
+      { returnDocument: "after" },
+    );
+
+    if (!updatedNgn) {
+      return {
+        ok: false,
+        error: `Insufficient NGN balance for this deposit (₦${numDeposit.toLocaleString()}).`,
+        status: 400,
+      };
+    }
+  } else {
+    // USDC on-chain
+    if (!pin) {
+      return { ok: false, error: "Wallet PIN is required for on-chain deposit", status: 400 };
+    }
+    const pinCheck = await verifyWalletPin(wallet, pin, { userId });
+    if (!pinCheck.ok) {
+      return { ok: false, error: pinCheck.error, status: pinCheck.status };
+    }
+
+    const stellarAddress = wallet.addresses?.xlm || wallet.address || "";
+    const balances = await fetchStellarBalances(stellarAddress);
+    const availableUsdc = Number(balances.testnet.usdc) || 0;
+    if (availableUsdc < numDeposit) {
+      return {
+        ok: false,
+        error: `Insufficient USDC balance: you have $${availableUsdc.toFixed(2)} and need $${numDeposit.toFixed(2)}.`,
+        status: 400,
+      };
+    }
+
+    const vaultAddress = plan.vaultAddress || environment.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS;
+    let secret: string;
+    try {
+      secret = decryptMnemonic(wallet.encryptedMnemonic, wallet.iv, wallet.salt, pin);
+    } catch {
+      return { ok: false, error: "Invalid wallet PIN", status: 401 };
+    }
+
+    const keys =
+      wallet.setupMethod === "IMPORTED_PRIVATE_KEY"
+        ? deriveStellarKeypairFromPrivateKey(secret)
+        : deriveStellarKeypairFromMnemonic(secret);
+
+    const userKeypair = StellarSdk.Keypair.fromSecret(keys.secretKey);
+    const amountStroops = Math.round(numDeposit * 10_000_000);
+
+    await ensureStellarTrustline(
+      userKeypair,
+      new StellarSdk.Asset("USDC", CONTRACT_ADDRESSES.stellar.testnet.USDC),
+      "testnet",
+    );
+
+    const depositRes = await defindexClient.deposit(vaultAddress, {
+      amounts: [amountStroops],
+      caller: stellarAddress,
+      invest: true,
+      slippageBps: 50,
+    });
+
+    if (!depositRes.xdr) {
+      return { ok: false, error: "DeFindex failed to generate deposit transaction", status: 500 };
+    }
+
+    const tx = StellarSdk.TransactionBuilder.fromXDR(depositRes.xdr, StellarSdk.Networks.TESTNET);
+    tx.sign(userKeypair);
+    const sendRes = await defindexClient.send(tx.toXDR());
+    txHash = sendRes.txHash;
+    explorerUrl = getExplorerTxUrl("stellar", txHash, true);
+  }
+
+  // 2. Add member to circle and increment currentAmount
+  plan.currentAmount = (plan.currentAmount || 0) + numDeposit;
+  if (!plan.circleConfig) {
+    plan.circleConfig = {
+      type: "save_together",
+      capacity,
+      members: [],
+    };
+  }
+
+  plan.circleConfig.members.push({
     userId,
-    action: "SAVINGS_WITHDRAWAL",
-    details: {
-      planId: plan._id,
-      name: plan.name,
-      withdrawnAmount: withdrawAmount,
-      penaltyFee,
-      netPayout,
-      txHash,
-    },
-  }).catch(() => {});
+    name: "Member",
+    role: "member",
+    saved: numDeposit,
+    joinedAt: new Date(),
+  });
+
+  if (txHash && !plan.txHashes.includes(txHash)) {
+    plan.txHashes.push(txHash);
+  }
+
+  await plan.save();
+
+  await createSavingsTransaction({
+    planId: plan._id,
+    userId,
+    currency: plan.currency,
+    kind: "deposit",
+    amount: numDeposit,
+    txHash,
+    at: new Date(),
+  });
+
+  setUserCreatedSavings(userId).catch(() => {});
 
   return {
     ok: true,
-    withdrawnAmount: withdrawAmount,
-    penaltyFee,
-    netPayout,
     plan: formatPlanForUI(plan),
     txHash,
     explorerUrl,
-    receiptCardData,
   };
 }

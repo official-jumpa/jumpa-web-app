@@ -7,6 +7,8 @@ import { WithdrawWarningSheet } from "@/components/savings/withdraw-warning-shee
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { ArrowUpFromArcIcon } from "@/components/ui/icons/arrow-up-from-arc";
+import { toast } from "@/components/ui/toast";
+import { CopyIcon } from "@/components/ui/icons/copy";
 import { CheckIcon } from "@/components/ui/icons/check";
 import { PlusIcon } from "@/components/ui/icons/plus";
 import { ShareArrowIcon } from "@/components/ui/icons/share-arrow";
@@ -51,8 +53,8 @@ export function GoalDetail({
   goal: HubGoal;
   onBack: () => void;
   onTopUp: (amount: number) => void;
-  /** `forfeit` is true when a lock is left before it matures. */
-  onWithdraw: (forfeit: boolean) => void;
+  /** `forfeit` is true when a lock is left before it matures; `amount` is custom partial amount. */
+  onWithdraw: (forfeit: boolean, amount?: number) => void;
   /** A closed plan's one action: start another of the same kind. */
   onSaveAgain: () => void;
   /** Opens this plan's share card: its latest milestone, or its start. */
@@ -173,6 +175,32 @@ export function GoalDetail({
         )}
       </PlanActions>
 
+      {/* Circle Invite Code Banner */}
+      {goal.circle && !closed ? (
+        <div className="flex items-center justify-between rounded-2xl border border-jumpa-primary-100 bg-jumpa-primary-50/50 p-3.5">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[11px] font-semibold text-jumpa-primary-700">
+              Invite Friends to Circle
+            </span>
+            <span className="font-mono text-sm font-bold tracking-wider text-jumpa-black">
+              {goal.circle.inviteCode}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const code = goal.circle?.inviteCode || "";
+              navigator.clipboard?.writeText(code);
+              toast.success(`Invite code ${code} copied!`);
+            }}
+            className="flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-jumpa-primary-600 shadow-xs border border-jumpa-neutral-200 active:scale-95 transition-all"
+          >
+            <CopyIcon className="size-3.5" />
+            <span>Copy Code</span>
+          </button>
+        </div>
+      ) : null}
+
       <section className="flex flex-col gap-3">
         <h2 className="text-xs font-medium text-jumpa-black">Plan details</h2>
         <DetailList>
@@ -189,10 +217,20 @@ export function GoalDetail({
             label="How you save"
             value={
               goal.circle
-                ? `${goal.circle.members.length} of ${goal.circle.capacity} members, one target`
+                ? `${goal.circle.style === "shared_pool" ? "Pooled Savings" : "Save Together"} (${goal.circle.members.length} of ${goal.circle.capacity} members)`
                 : HUB_KINDS[goal.kind].style
             }
           />
+          {goal.circle ? (
+            <DetailRow
+              label="Withdrawal rule"
+              value={
+                goal.circle.style === "shared_pool"
+                  ? "Circle Owner can withdraw the pooled funds"
+                  : "Each member withdraws their own share"
+              }
+            />
+          ) : null}
           <DetailRow
             label={closed ? "Paid out to" : "Pays out to"}
             value={`Your ${goal.currency} wallet`}
@@ -226,9 +264,9 @@ export function GoalDetail({
           goal={goal}
           forfeit={early}
           onClose={() => setSheet(null)}
-          onConfirm={() => {
+          onConfirm={(amount) => {
             setSheet(null);
-            onWithdraw(early);
+            onWithdraw(early, amount);
           }}
         />
       ) : null}

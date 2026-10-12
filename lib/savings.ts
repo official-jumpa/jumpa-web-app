@@ -15,7 +15,7 @@ export type SavingsPlan = {
   name: string;
   /** Pre-formatted, as the card prints it. */
   endDate: string;
-  status: "Active" | "Matured" | "Closed";
+  status: "Active" | "Matured" | "Closed" | "Completed" | "Paused";
   saved: string;
   target: string;
   daysLeft: number;
@@ -190,6 +190,8 @@ export const LOCK_TERMS: SavingsTerm[] = [
   { label: "30 DAYS", days: 30 },
   { label: "60 DAYS", days: 60 },
   { label: "90 DAYS", days: 90 },
+  { label: "180 DAYS", days: 180 },
+  { label: "1 YEAR", days: 365 },
   { label: "Custom", days: null, custom: true },
 ];
 
@@ -217,26 +219,48 @@ type RateBand = { minDays: number; apy: number };
 
 const RATE_BANDS: Record<SavingsKind, RateBand[]> = {
   individual: [
-    { minDays: 0, apy: 2.5 },
-    { minDays: 30, apy: 3.5 },
-    { minDays: 60, apy: 4.25 },
-    { minDays: 90, apy: 5.0 },
-    { minDays: 180, apy: 6.5 },
-    { minDays: 365, apy: 8.0 },
+    { minDays: 0, apy: 2.0 },
+    { minDays: 30, apy: 2.25 },
+    { minDays: 60, apy: 2.5 },
+    { minDays: 90, apy: 2.75 },
+    { minDays: 120, apy: 3.0 },
+    { minDays: 150, apy: 3.25 },
+    { minDays: 180, apy: 3.5 },
+    { minDays: 210, apy: 3.75 },
+    { minDays: 240, apy: 4.0 },
+    { minDays: 270, apy: 4.25 },
+    { minDays: 300, apy: 4.5 },
+    { minDays: 330, apy: 4.75 },
+    { minDays: 365, apy: 5.0 },
   ],
   lock: [
     { minDays: 30, apy: 5.0 },
-    { minDays: 60, apy: 6.5 },
-    { minDays: 90, apy: 8.0 },
-    { minDays: 180, apy: 11.0 },
-    { minDays: 365, apy: 14.49 },
+    { minDays: 60, apy: 6.0 },
+    { minDays: 90, apy: 7.0 },
+    { minDays: 120, apy: 8.0 },
+    { minDays: 150, apy: 9.0 },
+    { minDays: 180, apy: 10.0 },
+    { minDays: 210, apy: 11.0 },
+    { minDays: 240, apy: 12.0 },
+    { minDays: 270, apy: 12.75 },
+    { minDays: 300, apy: 13.5 },
+    { minDays: 330, apy: 14.25 },
+    { minDays: 365, apy: 15.0 },
   ],
   circle: [
     { minDays: 0, apy: 3.0 },
+    { minDays: 30, apy: 3.5 },
     { minDays: 60, apy: 4.0 },
-    { minDays: 90, apy: 5.0 },
+    { minDays: 90, apy: 4.75 },
+    { minDays: 120, apy: 5.5 },
+    { minDays: 150, apy: 6.25 },
     { minDays: 180, apy: 7.0 },
-    { minDays: 365, apy: 9.5 },
+    { minDays: 210, apy: 7.75 },
+    { minDays: 240, apy: 8.5 },
+    { minDays: 270, apy: 9.0 },
+    { minDays: 300, apy: 9.35 },
+    { minDays: 330, apy: 9.7 },
+    { minDays: 365, apy: 10.0 },
   ],
 };
 

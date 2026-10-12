@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   SAVINGS_INPUT,
   SavingsField,
@@ -21,6 +22,7 @@ export function MoneyField({
   error,
   example = "deposit",
   autoFocus,
+  trailing,
 }: {
   label: string;
   currency: HubCurrency;
@@ -31,6 +33,7 @@ export function MoneyField({
   /** Which figure the placeholder suggests. */
   example?: keyof typeof EXAMPLES;
   autoFocus?: boolean;
+  trailing?: ReactNode;
 }) {
   return (
     <SavingsField label={label} error={error}>
@@ -48,6 +51,9 @@ export function MoneyField({
         aria-invalid={error ? true : undefined}
         className={SAVINGS_INPUT}
       />
+      {trailing ? (
+        <span className="flex shrink-0 items-center pl-1">{trailing}</span>
+      ) : null}
       <Equivalent value={Number(value)} currency={currency} tone="field" />
     </SavingsField>
   );

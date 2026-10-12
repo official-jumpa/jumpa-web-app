@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 
 const BULLETS = [
   "Interest: You'll forfeit your accrued interest.",
-  "Early withdrawal fee: A break fee may apply.",
-  "Payout: You'll receive your eligible principal minus any applicable fee.",
+  "You will receive 100% of your deposited money back.",
+  "Payout: Your full principal will be returned immediately to your wallet.",
 ];
 
 /** Raised before an active plan's Withdraw action, so leaving early is a choice. */
@@ -25,8 +25,7 @@ export function WithdrawWarningSheet({
             Withdraw savings early?
           </h2>
           <p className="max-w-62.5 text-xs leading-3.5 text-jumpa-black">
-            You&apos;ll lose the interest earned on this savings and may be
-            charged an early withdrawal fee.
+            You&apos;ll forfeit the interest earned on this lock, but all of your deposited money will be returned.
           </p>
         </div>
 

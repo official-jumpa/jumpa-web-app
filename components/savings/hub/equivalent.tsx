@@ -28,14 +28,15 @@ export function Equivalent({
   const ngnPerUsd = useFiatRate("NGN");
   if (!ngnPerUsd || !(value > 0)) return null;
 
-  return (
-    <span
-      className={`inline-flex shrink-0 animate-fade items-center whitespace-nowrap ${TONE[tone]}`}
-    >
-      {tone === "onBrand" ? (
-        <SwitchHorizontalIcon className="size-3 text-jumpa-alt-400" />
-      ) : null}
-      {formatEquivalent(value, currency, ngnPerUsd)}
-    </span>
-  );
+  // return (
+  //   <span
+  //     className={`inline-flex shrink-0 animate-fade items-center whitespace-nowrap ${TONE[tone]}`}
+  //   >
+  //     {tone === "onBrand" ? (
+  //       <SwitchHorizontalIcon className="size-3 text-jumpa-alt-400" />
+  //     ) : null}
+  //     {formatEquivalent(value, currency, ngnPerUsd)}
+  //   </span>
+  // );
+  return null;
 }

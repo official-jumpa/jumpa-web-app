@@ -2,15 +2,17 @@ import { apyForDays, type SavingsKind } from "@/lib/savings";
 
 /** Data and formatting for the unified savings hub prototype (`/savings-1`). */
 
-export type HubCurrency = "NGN" | "USDC";
+export type SavingsCurrency = "NGN" | "USDC";
+export type HubCurrency = SavingsCurrency;
 
-export const HUB_CURRENCIES: readonly { value: HubCurrency; label: string }[] =
+export const SAVINGS_CURRENCIES: readonly { value: SavingsCurrency; label: string }[] =
   [
     { value: "NGN", label: "Naira" },
     { value: "USDC", label: "USDC" },
   ];
+export const HUB_CURRENCIES = SAVINGS_CURRENCIES;
 
-const SYMBOL: Record<HubCurrency, string> = { NGN: "₦", USDC: "$" };
+const SYMBOL: Record<SavingsCurrency, string> = { NGN: "₦", USDC: "$" };
 
 const DAY_MS = 86_400_000;
 
@@ -74,24 +76,27 @@ export const PLAN_TABS: readonly { value: PlanTab; label: string }[] = [
   { value: "completed", label: "Completed" },
 ];
 
-export type HubActivityKind = "deposit" | "withdrawal" | "interest";
+export type SavingsActivityKind = "deposit" | "withdrawal" | "interest";
+export type HubActivityKind = SavingsActivityKind;
 
-export type HubActivity = {
+export type SavingsActivity = {
   id: string;
-  kind: HubActivityKind;
+  kind: SavingsActivityKind;
   amount: number;
   /** Local calendar day, `YYYY-MM-DD` — streaks are counted from it. */
   at: string;
   /** Who paid it in, on a circle; absent means you. */
   by?: string;
 };
+export type HubActivity = SavingsActivity;
 
-export type HubGoal = {
+export type SavingsGoal = {
   id: string;
   name: string;
   kind: SavingsKind;
-  currency: HubCurrency;
+  currency: SavingsCurrency;
   saved: number;
+  initialDeposit?: number;
   /** A lock has no target of its own — its target is what was locked. */
   target: number;
   interestEarned: number;
@@ -99,40 +104,46 @@ export type HubGoal = {
   termDays: number | null;
   daysLeft: number | null;
   startDate: string;
-  circle?: HubCircle;
-  activity: HubActivity[];
+  circle?: SavingsCircle;
+  activity: SavingsActivity[];
   /** Set when the plan is withdrawn. It moves to Completed and keeps its final figures. */
-  closed?: HubClosure;
+  closed?: SavingsClosure;
 };
+export type HubGoal = SavingsGoal;
 
-export type HubClosure = {
+export type SavingsClosure = {
   date: string;
   paidOut: number;
   /** A lock left before it matured gives up its interest. */
   forfeited: boolean;
 };
+export type HubClosure = SavingsClosure;
 
-export type HubCircleMember = {
+export type SavingsCircleMember = {
   id: string;
   name: string;
   you?: boolean;
-  captain?: boolean;
+  owner?: boolean;
   /** What this member has put in; 0 until their first deposit. */
   saved: number;
 };
+export type HubCircleMember = SavingsCircleMember;
 
-export type HubCircle = {
+export type SavingsCircle = {
+  /** "save_together" (everyone keeps their own) vs "shared_pool" (owner dispatches) */
+  style?: "save_together" | "shared_pool";
   /** What the invite link carries. */
   inviteCode: string;
   /** Head count set when the circle was made — the invite limit. */
   capacity: number;
-  members: HubCircleMember[];
+  members: SavingsCircleMember[];
   /** Members get a weekly nudge to add their share. */
   reminders: boolean;
 };
+export type HubCircle = SavingsCircle;
 
 /** How each product names itself on a card, in a pill and in a header. */
-export const HUB_KINDS: Record<
+export const SAVINGS_KINDS: Record<
   SavingsKind,
   { title: string; pill: string; style: string }
 > = {
@@ -152,6 +163,7 @@ export const HUB_KINDS: Record<
     style: "One shared target",
   },
 };
+export const HUB_KINDS = SAVINGS_KINDS;
 
 export const ACTIVITY_LABEL: Record<HubActivityKind, string> = {
   deposit: "Deposit",
@@ -290,7 +302,7 @@ export const HUB_GOALS: HubGoal[] = [
       capacity: 6,
       reminders: true,
       members: [
-        { id: "m-1", name: "You", you: true, captain: true, saved: 350000 },
+        { id: "m-1", name: "You", you: true, owner: true, saved: 350000 },
         { id: "m-2", name: "Ada", saved: 200000 },
         { id: "m-3", name: "Tobi", saved: 100000 },
         { id: "m-4", name: "Kemi", saved: 0 },
@@ -462,6 +474,7 @@ export function createGoal(input: {
   termDays: number | null;
   /** A circle's head count — its invite limit. */
   members?: number;
+  circleStyle?: "save_together" | "shared_pool";
 }): HubGoal {
   const stamp = Date.now();
   return {
@@ -478,6 +491,7 @@ export function createGoal(input: {
     circle:
       input.kind === "circle"
         ? {
+            style: input.circleStyle || "save_together",
             // TODO(backend): the circles API issues the invite code.
             inviteCode: stamp.toString(36).slice(-6),
             capacity: input.members ?? 2,
@@ -487,7 +501,7 @@ export function createGoal(input: {
                 id: `m-${stamp}`,
                 name: "You",
                 you: true,
-                captain: true,
+                owner: true,
                 saved: input.deposit,
               },
             ],

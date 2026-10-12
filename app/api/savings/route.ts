@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
-import { listSavingsPlansByUserId } from "@/lib/functions/savingsFunctions";
+import {
+  listSavingsPlansByUserId,
+  getSavingsTransactionsByPlanId,
+} from "@/lib/functions/savingsFunctions";
 import { getUserById } from "@/lib/functions/userFunctions";
-import { formatPlanForUI, getLiveVaultApy } from "@/lib/savings-service";
-import { environment } from "@/lib/environment";
 import { listSavingsPlansQuerySchema } from "@/lib/validations/savings.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { apyForDays, type SavingsKind } from "@/lib/savings";
+import type { SavingsGoal, SavingsActivity } from "@/lib/savings-hub";
 
 export async function GET(req: NextRequest) {
   const auth = await requireActiveUser({
@@ -13,10 +16,13 @@ export async function GET(req: NextRequest) {
   });
   if (!auth.ok) return auth.response;
   const { userId } = auth;
+
   try {
     const { searchParams } = new URL(req.url);
     const validation = listSavingsPlansQuerySchema.safeParse({
       type: searchParams.get("type") || undefined,
+      currency: searchParams.get("currency") || undefined,
+      tab: searchParams.get("tab") || undefined,
     });
 
     if (!validation.success) {
@@ -25,7 +31,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const type = validation.data.type;
+    const { type, currency: filterCurrency } = validation.data;
 
     const [plans, user] = await Promise.all([
       listSavingsPlansByUserId(userId, type),
@@ -39,57 +45,108 @@ export async function GET(req: NextRequest) {
       circle: Boolean(user?.seenSavingsIntros?.circle),
     };
 
-    let totalSaved = 0;
-    let totalTarget = 0;
-    let activeGoalsCount = 0;
+    const now = new Date();
 
-    const formattedPlans = plans.map((p) => {
-      if (p.status === "Active") {
-        totalSaved += p.currentAmount || 0;
-        totalTarget += p.targetAmount || 0;
-        activeGoalsCount += 1;
-      }
-      return formatPlanForUI(p);
-    });
+    // Map each ISavingsPlan to the SavingsGoal structure with its real transactions
+    const goals: SavingsGoal[] = await Promise.all(
+      plans.map(async (plan) => {
+        const txs = await getSavingsTransactionsByPlanId(plan._id, 30);
+        const activity: SavingsActivity[] = txs.map((tx) => ({
+          id: tx._id,
+          kind: tx.kind === "top_up" ? "deposit" : (tx.kind as any),
+          amount: tx.amount,
+          at: new Date(tx.at || tx.createdAt).toISOString().split("T")[0],
+          by: tx.actorName || undefined,
+        }));
 
-    const percent =
-      totalTarget > 0 ? Math.min(100, Math.round((totalSaved / totalTarget) * 100)) : 0;
-    const remaining = Math.max(0, totalTarget - totalSaved);
+        const start = new Date(plan.startDate || plan.createdAt || now);
+        const startDateFormatted = start.toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        });
 
-    // Get live APY for header badge
-    const targetVault =
-      type === "lock"
-        ? environment.DEFINDEX_LOCK_VAULT_ADDRESS
-        : environment.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS;
-    const liveApy = await getLiveVaultApy(targetVault);
+        const termDays = plan.term ? parseInt(plan.term, 10) || null : null;
+        let daysLeft: number | null = null;
+        if (plan.endDate) {
+          const diffMs = new Date(plan.endDate).getTime() - now.getTime();
+          daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+        }
+
+        const isClosed = plan.status === "Closed" || plan.status === "Completed";
+        const closure =
+          isClosed && plan.closure
+            ? {
+                date: new Date(plan.closure.date || plan.updatedAt).toLocaleDateString("en-GB", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                }),
+                paidOut: plan.closure.paidOut,
+                forfeited: Boolean(plan.closure.forfeited),
+              }
+            : isClosed
+              ? {
+                  date: new Date(plan.updatedAt).toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  }),
+                  paidOut: plan.currentAmount || plan.initialDeposit || 0,
+                  forfeited: false,
+                }
+              : undefined;
+
+        const circleData =
+          plan.kind === "circle"
+            ? {
+                style: plan.circleConfig?.type || "save_together",
+                inviteCode: plan.circleConfig?.inviteCode || plan._id.slice(-6).toUpperCase(),
+                capacity: plan.circleConfig?.capacity || 4,
+                members: (plan.circleConfig?.members || []).map((m) => ({
+                  id: m.userId,
+                  name: m.name,
+                  you: m.userId === userId,
+                  owner: m.role === "owner",
+                  saved: m.saved,
+                })),
+                reminders: true,
+              }
+            : undefined;
+
+        return {
+          id: plan._id,
+          name: plan.name,
+          kind: plan.kind as SavingsKind,
+          currency: (plan.currency as "NGN" | "USDC") || "USDC",
+          saved: plan.currentAmount || 0,
+          initialDeposit: plan.initialDeposit || 0,
+          target: plan.targetAmount || 0,
+          interestEarned: plan.interestEarned || 0,
+          termDays,
+          daysLeft,
+          startDate: startDateFormatted,
+          circle: circleData,
+          activity,
+          closed: closure,
+        };
+      }),
+    );
+
+    // Apply currency filter if specified in request
+    const filteredGoals = filterCurrency
+      ? goals.filter((g) => g.currency === filterCurrency)
+      : goals;
 
     return NextResponse.json({
-      plans: formattedPlans,
+      goals: filteredGoals,
       hasCreatedSavings,
       seenSavingsIntros,
-      summary: {
-        goals: activeGoalsCount,
-        saved: totalSaved.toLocaleString("en-US", {
-          minimumFractionDigits: totalSaved % 1 === 0 ? 0 : 2,
-          maximumFractionDigits: 2,
-        }),
-        target: totalTarget.toLocaleString("en-US", {
-          minimumFractionDigits: totalTarget % 1 === 0 ? 0 : 2,
-          maximumFractionDigits: 2,
-        }),
-        percent,
-        remaining: remaining.toLocaleString("en-US", {
-          minimumFractionDigits: remaining % 1 === 0 ? 0 : 2,
-          maximumFractionDigits: 2,
-        }),
-        apy: `${liveApy.toFixed(1)}% p.a.`,
-        apyValue: liveApy,
-      },
     });
   } catch (err: any) {
-    console.error("[GET /api/savings] Unexpected Error:", err);
+    console.error("Error:", err);
     return NextResponse.json(
-      { error: err.message || "Failed to fetch savings plans" },
+      { error: "Failed to fetch savings plans" },
       { status: 500 },
     );
   }

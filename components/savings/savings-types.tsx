@@ -101,17 +101,18 @@ function TypeGrid({ onSelect }: { onSelect: (kind: SavingsKind) => void }) {
           key={kind}
           type="button"
           onClick={() => onSelect(kind)}
-          className={`${CARD_BASE} min-w-0 flex-col gap-3 p-3`}
+          className={`${CARD_BASE} relative min-w-0 flex-col gap-3 p-3`}
         >
+          {/* A notification-style badge; the white ring cuts it out of the page. */}
+          <span className="absolute -top-2 -right-1.5 rounded-pill bg-jumpa-primary-600 px-2 py-0.5 text-[10px] leading-3.5 font-semibold whitespace-nowrap text-jumpa-white ring-2 ring-jumpa-white">
+            Up to {topRate(kind)}
+          </span>
           <span className="flex size-9 shrink-0 items-center justify-center rounded-panel bg-jumpa-primary-950 text-jumpa-primary-50">
             <Icon className="size-5" />
           </span>
           <span className="flex min-w-0 flex-col gap-0.5">
             <span className="text-sm leading-4 font-semibold text-jumpa-black">
               {short}
-            </span>
-            <span className="text-[11px] leading-4 font-semibold text-jumpa-primary-600">
-              Up to {topRate(kind)}
             </span>
             <span className="text-[10px] leading-3.5 text-jumpa-neutral-500">
               {hint}

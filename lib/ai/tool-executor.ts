@@ -76,10 +76,11 @@ export interface ToolResult {
 
 function mapAssetToTxChain(
   asset: string,
-): "stellar" | "solana" | "base" | "eth" {
+): "stellar" | "solana" | "base" | "eth" | "tron" {
   const c = (asset.split(":")[0] || "base").toLowerCase();
   if (c === "solana") return "solana";
   if (c === "stellar") return "stellar";
+  if (c === "tron") return "tron";
   if (c === "ethereum" || c === "eth") return "eth";
   return "base";
 }

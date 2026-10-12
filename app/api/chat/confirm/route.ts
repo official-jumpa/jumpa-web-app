@@ -771,9 +771,11 @@ export async function POST(req: NextRequest) {
       const isEvmDeposit = cleanDeposit.startsWith("0x");
       const isStellarDeposit =
         cleanDeposit.startsWith("G") && cleanDeposit.length === 56;
-      const isSolanaDeposit = !isEvmDeposit && !isStellarDeposit;
+      const isTronDeposit =
+        cleanDeposit.startsWith("T") && cleanDeposit.length === 34;
+      const isSolanaDeposit = !isEvmDeposit && !isStellarDeposit && !isTronDeposit;
 
-      // Disambiguate asset and ensure it differentiates Solana vs Ethereum
+      // Disambiguate asset and ensure it differentiates Solana vs Ethereum vs Tron
       let asset = rawAsset;
       if (!asset) {
         if (isEvmDeposit) {
@@ -783,6 +785,11 @@ export async function POST(req: NextRequest) {
               : "base:usdc";
         } else if (isStellarDeposit) {
           asset = "stellar:usdc";
+        } else if (isTronDeposit) {
+          asset =
+            cryptoToken.toUpperCase() === "USDC"
+              ? "tron:usdc"
+              : "tron:usdt";
         } else {
           asset =
             cryptoToken.toUpperCase() === "USDT"
@@ -791,17 +798,21 @@ export async function POST(req: NextRequest) {
         }
       } else {
         const lowerAsset = asset.toLowerCase();
-        if (isEvmDeposit && lowerAsset.startsWith("solana:")) {
+        if (isEvmDeposit && (lowerAsset.startsWith("solana:") || lowerAsset.startsWith("tron:"))) {
           const token = lowerAsset.split(":")[1] || "usdc";
           asset = token === "usdt" ? "ethereum:usdt" : "base:usdc";
           console.warn(
             `[Chat Confirm] Deposit address is EVM (0x). Corrected asset to ${asset}.`,
           );
+        } else if (isTronDeposit) {
+          const token = lowerAsset.split(":")[1] || "usdt";
+          asset = `tron:${token}`;
         } else if (
           isSolanaDeposit &&
           (lowerAsset.startsWith("ethereum:") ||
             lowerAsset.startsWith("base:") ||
-            lowerAsset.startsWith("eth:"))
+            lowerAsset.startsWith("eth:") ||
+            lowerAsset.startsWith("tron:"))
         ) {
           const token = lowerAsset.split(":")[1] || "usdc";
           asset = `solana:${token}`;
@@ -815,12 +826,14 @@ export async function POST(req: NextRequest) {
 
       const targetChainName = asset.toLowerCase().includes("solana")
         ? "Solana"
-        : asset.toLowerCase().includes("ethereum") ||
-            asset.toLowerCase().startsWith("eth")
-          ? "Ethereum"
-          : asset.toLowerCase().includes("stellar")
-            ? "Stellar"
-            : "Base";
+        : asset.toLowerCase().includes("tron")
+          ? "Tron"
+          : asset.toLowerCase().includes("ethereum") ||
+              asset.toLowerCase().startsWith("eth")
+            ? "Ethereum"
+            : asset.toLowerCase().includes("stellar")
+              ? "Stellar"
+              : "Base";
 
       if (!wallet?.encryptedMnemonic || !pin) {
         return NextResponse.json(

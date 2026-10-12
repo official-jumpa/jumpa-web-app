@@ -51,7 +51,7 @@ import {
 
 export function resolveChainPrivateKey(
   secret: string,
-  chain: "stellar" | "solana" | "base" | "eth" | "ethereum",
+  chain: "stellar" | "solana" | "base" | "eth" | "ethereum" | "tron",
 ): string {
   const trimmed = secret.trim();
   const isMnemonic = trimmed.split(/\s+/).length >= 12;
@@ -67,6 +67,13 @@ export function resolveChainPrivateKey(
       const derived = derivePath("m/44'/501'/0'/0'", seed.toString("hex")).key;
       const keypair = SolKeypair.fromSeed(derived);
       return Buffer.from(keypair.secretKey).toString("hex");
+    }
+
+    if (chain === "tron") {
+      const hdKey = HDKey.fromMasterSeed(seed);
+      const child = hdKey.derive("m/44'/195'/0'/0/0");
+      if (!child.privateKey) throw new Error("Could not derive Tron private key");
+      return `0x${Buffer.from(child.privateKey).toString("hex")}`;
     }
 
     if (chain === "base" || chain === "eth" || chain === "ethereum") {

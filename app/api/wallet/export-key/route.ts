@@ -90,6 +90,12 @@ export async function POST(req: NextRequest) {
   } else if (selectedChain === "xlm" || selectedChain === "stellar") {
     const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
     privateKey = stellarKeys.secretKey;
+  } else if (selectedChain === "trx" || selectedChain === "tron") {
+    const tronChild = masterKey.derive("m/44'/195'/0'/0/0");
+    if (!tronChild.privateKey) {
+      return NextResponse.json({ error: "Failed to derive Tron private key" }, { status: 500 });
+    }
+    privateKey = `0x${Buffer.from(tronChild.privateKey).toString("hex")}`;
   } else {
     return NextResponse.json({ error: "Unsupported chain" }, { status: 400 });
   }

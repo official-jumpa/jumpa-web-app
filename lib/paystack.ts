@@ -77,6 +77,8 @@ export function findPaystackBank(bankName: string): { name: string; code: string
     "monie point": "Moniepoint MFB",
     "opay": "OPay Digital Services Limited (OPay)",
     "paycom": "OPay Digital Services Limited (OPay)",
+    "paycom(opay)": "OPay Digital Services Limited (OPay)",
+    "paycom (opay)": "OPay Digital Services Limited (OPay)",
     "kuda": "Kuda Bank",
     "kuda bank": "Kuda Bank",
     "kuda mfb": "Kuda Bank",

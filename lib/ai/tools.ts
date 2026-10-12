@@ -214,8 +214,8 @@ const onrampNgn: DeepSeekTool = {
     description:
       "Generate bank transfer details to deposit Nigerian Naira (NGN) and receive crypto via Switch. " +
       "Supported Switch asset pairs: " +
-      "USDC: 'base:usdc', 'solana:usdc', 'ethereum:usdc', 'stellar:usdc'. " +
-      "USDT: 'solana:usdt', 'ethereum:usdt'. " +
+      "USDC: 'base:usdc', 'solana:usdc', 'ethereum:usdc', 'stellar:usdc', 'tron:usdc'. " +
+      "USDT: 'tron:usdt', 'solana:usdt', 'ethereum:usdt'. " +
       "cNGN: 'base:cngn'. " +
       "(USDT on Base is NOT supported for NGN onramp). " +
       "(All fiat onramps operate exclusively on MAINNET). " +
@@ -297,8 +297,8 @@ const offrampNgn: DeepSeekTool = {
       "Initiate a withdrawal via Switch to sell crypto for Nigerian Naira (NGN) to a user's bank account. " +
       "The system automatically verifies the account number and bank with Paystack to ensure accuracy. " +
       "Supported Switch asset pairs: " +
-      "USDC: 'base:usdc', 'solana:usdc', 'ethereum:usdc', 'stellar:usdc'. " +
-      "USDT: 'solana:usdt', 'ethereum:usdt'. " +
+      "USDC: 'base:usdc', 'solana:usdc', 'ethereum:usdc', 'stellar:usdc', 'tron:usdc'. " +
+      "USDT: 'tron:usdt', 'solana:usdt', 'ethereum:usdt'. " +
       "cNGN: 'base:cngn'. " +
       "(USDT on Base is NOT supported for NGN offramp). " +
       "(All fiat offramps operate exclusively on MAINNET). " +

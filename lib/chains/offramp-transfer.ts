@@ -53,9 +53,11 @@ const ERC20_ABI = [
 
 import { CONTRACT_ADDRESSES, getExplorerTxUrl, getRpcUrl, getSolanaRpcUrl } from "@/lib/blockchain";
 
+import { executeTronTokenTransfer } from "@/lib/chains/tron/transfer";
+
 export interface OfframpAssetConfig {
-  chain: "base" | "solana" | "stellar" | "ethereum";
-  address?: string; // For EVM
+  chain: "base" | "solana" | "stellar" | "ethereum" | "tron";
+  address?: string; // For EVM / Tron
   mint?: string; // For Solana
   decimals: number;
 }
@@ -105,6 +107,16 @@ export const OFFRAMP_ASSETS: Record<string, OfframpAssetConfig> = {
     address: CONTRACT_ADDRESSES.ethereum.mainnet.USDT.address,
     decimals: CONTRACT_ADDRESSES.ethereum.mainnet.USDT.decimals,
   },
+  "tron:usdt": {
+    chain: "tron",
+    address: CONTRACT_ADDRESSES.tron.mainnet.USDT.address,
+    decimals: CONTRACT_ADDRESSES.tron.mainnet.USDT.decimals,
+  },
+  "tron:usdc": {
+    chain: "tron",
+    address: CONTRACT_ADDRESSES.tron.mainnet.USDC.address,
+    decimals: CONTRACT_ADDRESSES.tron.mainnet.USDC.decimals,
+  },
 };
 
 export interface OfframpExecutionResult {
@@ -130,27 +142,32 @@ export async function executeOfframpTransfer(options: {
     normalizedAsset = `ethereum:${normalizedAsset.slice(4)}`;
   }
 
-  // Differentiate between Solana and Ethereum / EVM using the deposit address format
+  // Differentiate between EVM, Stellar, Tron, and Solana using deposit address format
   const cleanDeposit = (depositAddress || "").trim();
   const isEvmDeposit = cleanDeposit.startsWith("0x");
   const isStellarDeposit = cleanDeposit.startsWith("G") && cleanDeposit.length === 56;
-  const isSolanaDeposit = !isEvmDeposit && !isStellarDeposit && cleanDeposit.length > 0;
+  const isTronDeposit = cleanDeposit.startsWith("T") && cleanDeposit.length === 34;
+  const isSolanaDeposit = !isEvmDeposit && !isStellarDeposit && !isTronDeposit && cleanDeposit.length > 0;
 
   if (isEvmDeposit) {
-    if (normalizedAsset.startsWith("solana:")) {
+    if (normalizedAsset.startsWith("solana:") || normalizedAsset.startsWith("tron:")) {
       const token = normalizedAsset.split(":")[1] || "usdc";
       normalizedAsset = token === "usdt" ? "ethereum:usdt" : "ethereum:usdc";
       console.warn(
-        `[OfframpTransfer] Deposit address is EVM (0x). Corrected asset from solana to ${normalizedAsset}.`,
+        `[OfframpTransfer] Deposit address is EVM (0x). Corrected asset to ${normalizedAsset}.`,
       );
     } else if (!normalizedAsset.includes(":")) {
       normalizedAsset = normalizedAsset === "usdt" ? "ethereum:usdt" : "ethereum:usdc";
     }
+  } else if (isTronDeposit) {
+    const token = normalizedAsset.split(":")[1] || "usdt";
+    normalizedAsset = `tron:${token}`;
   } else if (isSolanaDeposit) {
     if (
       normalizedAsset.startsWith("ethereum:") ||
       normalizedAsset.startsWith("base:") ||
-      normalizedAsset.startsWith("eth:")
+      normalizedAsset.startsWith("eth:") ||
+      normalizedAsset.startsWith("tron:")
     ) {
       const token = normalizedAsset.split(":")[1] || "usdc";
       normalizedAsset = `solana:${token}`;
@@ -495,6 +512,25 @@ export async function executeOfframpTransfer(options: {
         success: true,
         txHash,
         explorerUrl: getExplorerTxUrl("solana", txHash),
+      };
+    }
+
+    // ── 4. Tron TRC-20 Transfer
+    if (config.chain === "tron") {
+      console.log(`[OfframpTransfer] Executing Tron transfer of ${amount} to ${depositAddress}`);
+      const tronResult = await executeTronTokenTransfer({
+        mnemonicOrPrivateKey: mnemonic,
+        toAddress: depositAddress,
+        amount: numAmount,
+        tokenContractAddress: config.address,
+      });
+
+      return {
+        success: tronResult.success,
+        txHash: tronResult.txHash,
+        explorerUrl: tronResult.explorerUrl,
+        error: tronResult.error,
+        txStatus: "CONFIRMED",
       };
     }
 

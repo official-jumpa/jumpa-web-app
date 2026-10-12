@@ -150,6 +150,7 @@ export function ProfileView({
   const stellarAddress = walletAddresses?.xlm || "";
   const evmAddress = walletAddresses?.base || walletAddresses?.eth || "";
   const solanaAddress = walletAddresses?.sol || "";
+  const tronAddress = walletAddresses?.trx || walletAddresses?.tron || "";
 
   const formatAddress = (addr: string) => {
     if (!addr) return "";
@@ -312,19 +313,39 @@ export function ProfileView({
                     )}
 
                     {solanaAddress && (
+                      <>
+                        <SettingRow
+                          icon={
+                            <Image
+                              src={getAssetLogo("SOL")}
+                              alt="Solana"
+                              width={24}
+                              height={24}
+                              className="size-6 shrink-0 rounded-full object-contain"
+                            />
+                          }
+                          label="Solana Address"
+                          value={formatAddress(solanaAddress)}
+                          action={<CopyButton value={solanaAddress} />}
+                        />
+                        {tronAddress && <SettingRule />}
+                      </>
+                    )}
+
+                    {tronAddress && (
                       <SettingRow
                         icon={
                           <Image
-                            src={getAssetLogo("SOL")}
-                            alt="Solana"
+                            src={getAssetLogo("TRX")}
+                            alt="Tron"
                             width={24}
                             height={24}
                             className="size-6 shrink-0 rounded-full object-contain"
                           />
                         }
-                        label="Solana Address"
-                        value={formatAddress(solanaAddress)}
-                        action={<CopyButton value={solanaAddress} />}
+                        label="Tron Address (TRC-20)"
+                        value={formatAddress(tronAddress)}
+                        action={<CopyButton value={tronAddress} />}
                       />
                     )}
                   </div>

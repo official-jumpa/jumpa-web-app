@@ -142,6 +142,9 @@ export const environment = {
     ? Number(process.env.FEE_USD_AMOUNT_SOLANA)
     : 0.05,
 
+  // Tron Configuration & Fee Treasury
+  FEE_WALLET_TRON: process.env.FEE_WALLET_TRON || "",
+
   // Switch
   SWITCH_LIVE_KEY: process.env.SWITCH_LIVE_KEY || "",
   SWITCH_SANDBOX_KEY: process.env.SWITCH_SANDBOX_KEY || "",

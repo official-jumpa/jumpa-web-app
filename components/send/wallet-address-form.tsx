@@ -114,7 +114,13 @@ export function WalletAddressForm({
       }
     } else if (chain === "solana") {
       if (address.length < 32 || address.length > 44) {
-        setError("Invalid Solana address format.");
+        setError("Invalid Solana address");
+        revealFirstError(fields.current);
+        return;
+      }
+    } else if (chain === "tron") {
+      if (!address.startsWith("T") || address.length !== 34) {
+        setError("Invalid Tron address");
         revealFirstError(fields.current);
         return;
       }

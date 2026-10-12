@@ -162,7 +162,7 @@ export function shortenAddress(address: string, lead = 5, tail = 4): string {
 export type NetworkConfig = {
   id: string;
   name: string;
-  chain: "stellar" | "solana" | "base" | "eth";
+  chain: "stellar" | "solana" | "base" | "eth" | "tron";
   network: "mainnet" | "testnet";
   assets: readonly string[];
   supportsMemo: boolean;
@@ -201,6 +201,16 @@ export const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
     supportsMemo: false,
     feeLabel: "$0.05", //0.05 USDC / USDT (Gas Abstracted)
     settlementTime: "1-2 seconds",
+  },
+  Tron: {
+    id: "tron",
+    name: "Tron",
+    chain: "tron",
+    network: "mainnet",
+    assets: ["USDT", "USDC"],
+    supportsMemo: false,
+    feeLabel: "~13-27 TRX",
+    settlementTime: "1-3 seconds",
   },
   Base: {
     id: "base",
@@ -242,24 +252,7 @@ export function depositNotes(
   // Stablecoins: minimum is exactly $1 in the asset itself
   const isStable = upper === "USDC" || upper === "USDT";
 
-  let minimumLine: string;
-  if (isStable) {
-    minimumLine = `Minimum deposit: 1 **${upper}**`;
-  } else if (priceUsd > 0) {
-    // Convert $1 into the asset's units then ceil UP to 1 significant figure.
-    // e.g. 5.566 → 6, 0.00559 → 0.006, 8.333 → 9, 0.000282 → 0.0003
-    const minUnits = 1 / priceUsd;
-    const magnitude = Math.pow(10, Math.floor(Math.log10(minUnits)));
-    const ceiled = Math.ceil(minUnits / magnitude) * magnitude;
-    const decimals = magnitude >= 1 ? 0 : Math.round(-Math.log10(magnitude));
-    const formatted = ceiled.toFixed(decimals);
-    minimumLine = `Minimum deposit: ${formatted} **${upper}**`;
-  } else {
-    minimumLine = `Minimum deposit: $1 USD equivalent`;
-  }
-
   return [
-    minimumLine,
     `Only send **${symbol}** on the **${network}** network. Anything else is lost`,
     "Funds arrive in your Jumpa wallet few seconds after confirmation",
   ];

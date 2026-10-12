@@ -96,6 +96,8 @@ export async function POST(req: NextRequest) {
       balanceData?.addresses?.sol || wallet?.addresses?.sol || "";
     const baseAddress =
       balanceData?.addresses?.base || wallet?.addresses?.base || "";
+    const tronAddress =
+      balanceData?.addresses?.trx || wallet?.addresses?.trx || "";
 
     const liveBalances = balanceData?.summary || {};
     const testnetBalances = balanceData?.testnetSummary || {};
@@ -140,6 +142,7 @@ export async function POST(req: NextRequest) {
       stellarAddress,
       solanaAddress,
       baseAddress,
+      tronAddress,
       balances: liveBalances,
       testnetBalances,
     };

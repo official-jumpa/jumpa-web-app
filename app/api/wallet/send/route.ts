@@ -18,6 +18,8 @@ import {
   resolveChainPrivateKey,
   type TransferResult,
 } from "@/lib/chains/transfer-service";
+import { executeTronTokenTransfer } from "@/lib/chains/tron/transfer";
+import { CONTRACT_ADDRESSES } from "@/lib/blockchain";
 
 /**
  * POST /api/wallet/send
@@ -132,9 +134,30 @@ export async function POST(req: NextRequest) {
         asset,
         chain: config.chain,
       });
+    } else if (config.chain === "tron") {
+      const tokenContract =
+        asset.toUpperCase() === "USDC"
+          ? CONTRACT_ADDRESSES.tron.mainnet.USDC.address
+          : CONTRACT_ADDRESSES.tron.mainnet.USDT.address;
+
+      const tronRes = await executeTronTokenTransfer({
+        mnemonicOrPrivateKey: privateKey,
+        toAddress: recipient.trim(),
+        amount: String(amount),
+        tokenContractAddress: tokenContract,
+      });
+
+      if (!tronRes.success || !tronRes.txHash) {
+        throw new Error(tronRes.error || "Failed to execute Tron transaction.");
+      }
+
+      result = {
+        success: true,
+        txHash: tronRes.txHash,
+        explorerUrl: tronRes.explorerUrl || `https://tronscan.org/#/transaction/${tronRes.txHash}`,
+        fromAddress: wallet?.addresses?.trx || "",
+      };
     } else {
-
-
       return NextResponse.json(
         { error: `Chain ${config.chain} is not supported for transfer` },
         { status: 400 },

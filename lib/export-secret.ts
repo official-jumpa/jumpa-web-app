@@ -2,7 +2,7 @@
 
 export type ExportKind = "private-key" | "seed-phrase";
 
-export type ExportChainId = "stellar" | "base" | "ethereum" | "solana";
+export type ExportChainId = "stellar" | "base" | "ethereum" | "solana" | "tron";
 
 export interface ExportChainOption {
   id: ExportChainId;
@@ -35,6 +35,12 @@ export const EXPORT_CHAINS: ExportChainOption[] = [
     name: "Solana",
     symbol: "SOL",
     badge: "Solana (SPL)",
+  },
+  {
+    id: "tron",
+    name: "Tron",
+    symbol: "TRX",
+    badge: "Tron (TRC-20)",
   },
 ];
 

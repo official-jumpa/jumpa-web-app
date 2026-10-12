@@ -23,137 +23,137 @@ export interface ITransaction {
     | "DATA";
   status: "PENDING" | "CONFIRMED" | "FAILED" | "CANCELLED" | "SIMULATED";
 
-  chain?: "stellar" | "solana" | "base" | "eth" | "ethereum" | "fiat";
-  network?: "mainnet" | "testnet";
-  carrier?: "mtn" | "airtel" | "glo" | "9mobile" | string;
+    chain?: "stellar" | "solana" | "base" | "eth" | "ethereum" | "tron" | "fiat";
+    network?: "mainnet" | "testnet";
+    carrier?: "mtn" | "airtel" | "glo" | "9mobile" | string;
 
-  // Transfer, Faucet & Bank Details
-  fromAddress?: string;
-  toAddress?: string;
-  amount: string;
-  token: string;
-  memo?: string;
+    // Transfer, Faucet & Bank Details
+    fromAddress?: string;
+    toAddress?: string;
+    amount: string;
+    token: string;
+    memo?: string;
 
-  // Bank Details (if type === "DEPOSIT" | "WITHDRAW")
-  bankDetails?: {
-    bankName?: string;
-    accountNumber?: string;
-    accountName?: string;
-    bankCode?: string;
-    reference?: string;
-    senderName?: string;
-    senderAccountNumber?: string;
-    senderBank?: string;
-  };
-
-  // Swap Details (if type === "SWAP")
-  swapDetails?: {
-    fromToken: string;
-    toToken: string;
-    fromAmount: string;
-    toAmount: string;
-    slippage?: number;
-    protocol?: string;
-  };
-
-  // Fiat Ramp Details (if type === "ONRAMP" | "OFFRAMP")
-  rampDetails?: {
-    provider: "switch" | "moneygram" | "mercuryo" | "centiiv";
-    fiatCurrency: string;
-    fiatAmount: number;
-    reference?: string;
+    // Bank Details (if type === "DEPOSIT" | "WITHDRAW")
     bankDetails?: {
       bankName?: string;
       accountNumber?: string;
       accountName?: string;
       bankCode?: string;
+      reference?: string;
+      senderName?: string;
+      senderAccountNumber?: string;
+      senderBank?: string;
     };
-    fulfillmentAction?: "CUSTOM_ONRAMP" | string;
-    targetToken?: string;
-    expectedUsdc?: string;
-    treasuryAddress?: string;
-    settlementStatus?: "PENDING" | "SETTLING" | "COMPLETED" | "RETRY_PENDING" | "FAILED" | string;
-    settlementStartedAt?: Date;
-    inboundConfirmedTxHash?: string;
-    relayTxHash?: string;
-    settledAt?: Date;
-    lastSettlementError?: string;
-  };
 
-  // Savings Details (if type === "SAVINGS_DEPOSIT" | "SAVINGS_WITHDRAW")
-  savingsDetails?: {
-    planId?: string;
-    vaultAddress?: string;
-    shares?: string;
-    penaltyFee?: string;
-  };
+    // Swap Details (if type === "SWAP")
+    swapDetails?: {
+      fromToken: string;
+      toToken: string;
+      fromAmount: string;
+      toAmount: string;
+      slippage?: number;
+      protocol?: string;
+    };
 
-  // Bridge Details (if type === "BRIDGE")
-  bridgeDetails?: {
-    provider: string;
-    fromChain: string;
-    toChain: string;
-    fromToken: string;
-    toToken: string;
-    fromAmount: string;
-    toAmount: string;
-    fee: string;
-    relayerFee?: string;
-  };
+    // Fiat Ramp Details (if type === "ONRAMP" | "OFFRAMP")
+    rampDetails?: {
+      provider: "switch" | "moneygram" | "mercuryo" | "centiiv";
+      fiatCurrency: string;
+      fiatAmount: number;
+      reference?: string;
+      bankDetails?: {
+        bankName?: string;
+        accountNumber?: string;
+        accountName?: string;
+        bankCode?: string;
+      };
+      fulfillmentAction?: "CUSTOM_ONRAMP" | string;
+      targetToken?: string;
+      expectedUsdc?: string;
+      treasuryAddress?: string;
+      settlementStatus?: "PENDING" | "SETTLING" | "COMPLETED" | "RETRY_PENDING" | "FAILED" | string;
+      settlementStartedAt?: Date;
+      inboundConfirmedTxHash?: string;
+      relayTxHash?: string;
+      settledAt?: Date;
+      lastSettlementError?: string;
+    };
 
-  // On-Chain Execution & Accounting
-  txHash?: string;
-  explorerUrl?: string;
-  feePaid?: string;
-  errorMessage?: string;
-  executedAt?: Date;
+    // Savings Details (if type === "SAVINGS_DEPOSIT" | "SAVINGS_WITHDRAW")
+    savingsDetails?: {
+      planId?: string;
+      vaultAddress?: string;
+      shares?: string;
+      penaltyFee?: string;
+    };
 
-  // Set once a failed naira withdrawal is credited back; `refundedBy` is "system" or the operator.
-  refundedAt?: Date | null;
-  refundedBy?: string | null;
+    // Bridge Details (if type === "BRIDGE")
+    bridgeDetails?: {
+      provider: string;
+      fromChain: string;
+      toChain: string;
+      fromToken: string;
+      toToken: string;
+      fromAmount: string;
+      toAmount: string;
+      fee: string;
+      relayerFee?: string;
+    };
 
-  createdAt: Date;
-  updatedAt: Date;
-}
+    // On-Chain Execution & Accounting
+    txHash?: string;
+    explorerUrl?: string;
+    feePaid?: string;
+    errorMessage?: string;
+    executedAt?: Date;
 
-const TransactionSchema = new Schema<ITransaction>(
-  {
-    _id: { type: String, default: () => generateId("tx") },
-    userId: { type: String, required: true, index: true },
-    walletId: { type: String, default: null },
-    sessionId: { type: String, default: null },
-    messageId: { type: String, default: null },
+    // Set once a failed naira withdrawal is credited back; `refundedBy` is "system" or the operator.
+    refundedAt?: Date | null;
+    refundedBy?: string | null;
 
-    type: {
-      type: String,
-      enum: [
-        "TRANSFER",
-        "SWAP",
-        "ONRAMP",
-        "OFFRAMP",
-        "DEPOSIT",
-        "WITHDRAW",
-        "FAUCET",
-        "SAVINGS_DEPOSIT",
-        "SAVINGS_WITHDRAW",
-        "BRIDGE",
-        "AIRTIME",
-        "DATA",
-      ],
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: ["PENDING", "CONFIRMED", "FAILED", "CANCELLED", "SIMULATED"],
-      default: "PENDING",
-      required: true,
-    },
+    createdAt: Date;
+    updatedAt: Date;
+  }
 
-    chain: {
-      type: String,
-      enum: ["stellar", "solana", "base", "eth", "ethereum", "fiat"],
-      default: null,
-    },
+  const TransactionSchema = new Schema<ITransaction>(
+    {
+      _id: { type: String, default: () => generateId("tx") },
+      userId: { type: String, required: true, index: true },
+      walletId: { type: String, default: null },
+      sessionId: { type: String, default: null },
+      messageId: { type: String, default: null },
+
+      type: {
+        type: String,
+        enum: [
+          "TRANSFER",
+          "SWAP",
+          "ONRAMP",
+          "OFFRAMP",
+          "DEPOSIT",
+          "WITHDRAW",
+          "FAUCET",
+          "SAVINGS_DEPOSIT",
+          "SAVINGS_WITHDRAW",
+          "BRIDGE",
+          "AIRTIME",
+          "DATA",
+        ],
+        required: true,
+      },
+      status: {
+        type: String,
+        enum: ["PENDING", "CONFIRMED", "FAILED", "CANCELLED", "SIMULATED"],
+        default: "PENDING",
+        required: true,
+      },
+
+      chain: {
+        type: String,
+        enum: ["stellar", "solana", "base", "eth", "ethereum", "tron", "fiat"],
+        default: null,
+      },
     network: {
       type: String,
       enum: ["mainnet", "testnet"],

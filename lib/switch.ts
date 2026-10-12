@@ -74,6 +74,8 @@ export const SUPPORTED_SWITCH_ASSETS = [
   "ethereum:usdt",
   "eth:usdc",
   "eth:usdt",
+  "tron:usdt",
+  "tron:usdc",
 ];
 
 export function normalizeSwitchAsset(asset: string): string {
@@ -92,6 +94,8 @@ export const SWITCH_ASSET_LABELS: Record<string, string> = {
   "ethereum:usdt": "USDT on Ethereum",
   "eth:usdc": "USDC on Ethereum",
   "eth:usdt": "USDT on Ethereum",
+  "tron:usdt": "USDT on Tron",
+  "tron:usdc": "USDC on Tron",
 };
 
 function parseSwitchError(errorMsg: string): string {
@@ -117,7 +121,7 @@ function parseSwitchError(errorMsg: string): string {
 
 /**
  * Returns the appropriate treasury fee recipient wallet for a given asset network.
- * Uses environment configuration for EVM, Solana, and Stellar.
+ * Uses environment configuration for EVM, Solana, Stellar, and Tron.
  */
 export function getSwitchFeeRecipient(asset: string): string | undefined {
   const normAsset = normalizeSwitchAsset(asset);
@@ -126,6 +130,9 @@ export function getSwitchFeeRecipient(asset: string): string | undefined {
   }
   if (normAsset.startsWith("stellar:")) {
     return environment.FEE_WALLET_STELLAR?.trim() || undefined;
+  }
+  if (normAsset.startsWith("tron:")) {
+    return environment.FEE_WALLET_TRON?.trim() || undefined;
   }
   if (normAsset.startsWith("base:") || normAsset.startsWith("ethereum:")) {
     return environment.FEE_WALLET_EVM?.trim() || undefined;

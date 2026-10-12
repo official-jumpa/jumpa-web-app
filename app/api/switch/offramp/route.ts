@@ -119,20 +119,17 @@ export async function POST(req: NextRequest) {
 
 
     if (isStellar) {
-      const { centiivBanks } = await import("@/lib/constants/centiiv-banks");
+      const { centiivBanks, findCentiivBank } = await import("@/lib/constants/centiiv-banks");
       const { bellmonieBankNameEnquiry } = await import("@/lib/functions/bellmonieFunctions");
       
-      let centiivBank = centiivBanks.find((b) => b.name.toLowerCase() === bankName.toLowerCase() || b.code === bankName);
+      let centiivBank = findCentiivBank(bankName) || centiivBanks.find((b) => b.name.toLowerCase() === bankName.toLowerCase() || b.code === bankName);
       
       // Revalidate: if bankName was preloaded from beneficiary (e.g. Paystack code), 
       // normalize via Paystack then cross-reference with Centiiv
       if (!centiivBank) {
         const paystackBank = findPaystackBank(bankName);
         if (paystackBank) {
-          const matchedCentiiv = centiivBanks.find((b) => b.name.toLowerCase() === paystackBank.name.toLowerCase());
-          if (matchedCentiiv) {
-            centiivBank = matchedCentiiv;
-          }
+          centiivBank = findCentiivBank(paystackBank.name) || centiivBanks.find((b) => b.name.toLowerCase() === paystackBank.name.toLowerCase());
         }
       }
 
@@ -144,9 +141,14 @@ export async function POST(req: NextRequest) {
         t = performance.now();
         const bmRes = await bellmonieBankNameEnquiry({ accountNumber, bankCode: centiivBank.code });
         console.log(`[Offramp] bellmonieBankNameEnquiry: ${elapsed(t)}`);
-        if (!bmRes?.accountName) throw new Error("Verification failed");
-      } catch {
-        return NextResponse.json({ success: false, error: `Account number "${accountNumber}" could not be verified for ${centiivBank.name}.` }, { status: 400 });
+        if (!bmRes?.accountName) throw new Error("Bellmonie verification failed");
+      } catch (bmErr: any) {
+        console.warn(`[Offramp] Bellmonie enquiry failed for ${centiivBank.name}, attempting Paystack fallback...`);
+        const paystackBank = findPaystackBank(bankName) || (centiivBank ? findPaystackBank(centiivBank.name) : null);
+        const isAccountValid = paystackBank ? await validateAccountNumber(accountNumber, paystackBank.code) : false;
+        if (!isAccountValid) {
+          return NextResponse.json({ success: false, error: `Account number "${accountNumber}" could not be verified for ${centiivBank.name}.` }, { status: 400 });
+        }
       }
       
       bankMatch = { name: centiivBank.name, code: centiivBank.code };
@@ -205,7 +207,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: `Account number "${accountNumber}" could not be verified for ${paystackBank.name}.` }, { status: 400 });
       }
 
-      const switchBank = resolveBankCode(paystackBank.name);
+      const switchBank = resolveBankCode(bankName) || resolveBankCode(paystackBank.name);
       bankMatch = {
         name: switchBank?.name || paystackBank.name,
         code: switchBank?.code || paystackBank.code,
@@ -246,7 +248,9 @@ export async function POST(req: NextRequest) {
         ? (wallet?.addresses?.sol || "")
         : txChain === "stellar"
           ? (wallet?.addresses?.xlm || wallet?.address || "")
-          : (wallet?.addresses?.eth || wallet?.addresses?.base || wallet?.address || "");
+          : txChain === "tron"
+            ? (wallet?.addresses?.trx || "")
+            : (wallet?.addresses?.eth || wallet?.addresses?.base || wallet?.address || "");
 
     let txRecord: any;
     try {

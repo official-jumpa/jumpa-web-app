@@ -67,12 +67,13 @@ export const OFFRAMP_NETWORKS = [
   "Stellar",
   "Base",
   "Solana",
+  "Tron",
   "Ethereum",
 ] as const;
 
 export const OFFRAMP_NETWORK_CONFIGS: Record<
   string,
-  { name: string; chain: "stellar" | "base" | "solana" | "ethereum" | "eth" | "fiat"; assets: readonly string[] }
+  { name: string; chain: "stellar" | "base" | "solana" | "tron" | "ethereum" | "eth" | "fiat"; assets: readonly string[] }
 > = {
   "Nigeria Bank": {
     name: "Nigeria Bank",
@@ -93,6 +94,11 @@ export const OFFRAMP_NETWORK_CONFIGS: Record<
     name: "Solana",
     chain: "solana",
     assets: ["USDC", "USDT"],
+  },
+  Tron: {
+    name: "Tron",
+    chain: "tron",
+    assets: ["USDT", "USDC"],
   },
   Ethereum: {
     name: "Ethereum",

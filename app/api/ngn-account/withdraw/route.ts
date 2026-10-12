@@ -80,7 +80,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       data: result,
-      provider: "bellmonie",
       message: result.isInternal
         ? "Transfer completed successfully"
         : "Withdrawal completed successfully",

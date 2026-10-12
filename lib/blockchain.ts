@@ -99,6 +99,18 @@ export const CONTRACT_ADDRESSES = {
       },
     },
   },
+  tron: {
+    mainnet: {
+      USDT: {
+        address: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+        decimals: 6,
+      },
+      USDC: {
+        address: "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8",
+        decimals: 6,
+      },
+    },
+  },
   cctp: {
     testnet: {
       stellar: {
@@ -179,6 +191,9 @@ export function getExplorerTxUrl(
   if (c.includes("solana") || c === "sol") {
     return `https://solscan.io/tx/${txHash}${test ? "?cluster=devnet" : ""}`;
   }
+  if (c.includes("tron") || c === "trx") {
+    return `https://tronscan.org/#/transaction/${txHash}`;
+  }
   if (c.includes("base")) {
     return test
       ? `https://sepolia.basescan.org/tx/${txHash}`
@@ -205,6 +220,9 @@ export function getExplorerAddressUrl(
   if (c.includes("solana") || c === "sol") {
     return `https://solscan.io/account/${address}${test ? "?cluster=devnet" : ""}`;
   }
+  if (c.includes("tron") || c === "trx") {
+    return `https://tronscan.org/#/address/${address}`;
+  }
   if (c.includes("base")) {
     return test
       ? `https://sepolia.basescan.org/address/${address}`
@@ -216,7 +234,7 @@ export function getExplorerAddressUrl(
     : `https://etherscan.io/address/${address}`;
 }
 
-// ─── CCTP CONFIGURATION & CONVERSIONS ──────────────────────────────────────
+// ─── CCTP CONFIGURATION & CONVERSIONS
 
 export const CCTP_DOMAINS = {
   ethereum: 0,

@@ -33,19 +33,25 @@ export async function getOrCreateKycRecord(
   userId: string,
 ): Promise<IKYCSchema> {
   await connectDB();
-  let record = await KYCSchema.findOne({ userId });
 
-  if (!record) {
-    record = await KYCSchema.create({
-      userId,
-      isCompleted: false,
-      status: "not_started",
-      stage: "intro",
-      currentStep: 1,
-      stepsCompleted: { document: false, selfie: false, verification: false },
-      provider: "myaza",
-    });
-  } else if (
+  // Atomic upsert: prevents race condition
+  const record = await KYCSchema.findOneAndUpdate(
+    { userId },
+    {
+      $setOnInsert: {
+        userId,
+        isCompleted: false,
+        status: "not_started",
+        stage: "intro",
+        currentStep: 1,
+        stepsCompleted: { document: false, selfie: false, verification: false },
+        provider: "myaza",
+      },
+    },
+    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
+  );
+
+  if (
     !record.isCompleted &&
     record.status !== "approved" &&
     record.status !== "pending"

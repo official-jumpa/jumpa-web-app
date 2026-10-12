@@ -35,9 +35,9 @@ const refundKeys = (reference: string) => [
 
 async function lookupBellmonie(reference: string) {
   try {
-    return (
-      (await queryBellmonieTransactionByReference(reference))?.data ?? null
-    );
+    const res = await queryBellmonieTransactionByReference(reference);
+    console.log("BellMonie response", res)
+    return res?.data ?? res ?? null;
   } catch (err) {
     // A 4xx on a lookup means no such transaction; anything else means Bellmonie could not answer.
     const status = (err as { status?: number })?.status ?? 0;
@@ -56,19 +56,28 @@ export type BellmonieVerdict =
 
 const SENT_STATUSES = new Set(["successful", "success"]);
 
+function extractStatus(record: any): string | null {
+  if (!record) return null;
+  const raw =
+    record.status ??
+    record.transactionStatus ??
+    record.data?.status ??
+    record.data?.transactionStatus;
+  return raw ? String(raw).toLowerCase() : null;
+}
+
 /** Bellmonie's answer for one payout: the transfer itself first, then any reversal booked against it. */
 async function bellmonieVerdict(
   reference: string,
 ): Promise<{ verdict: BellmonieVerdict; status: string | null }> {
   const original = await lookupBellmonie(reference);
-  const status = original?.status
-    ? String(original.status).toLowerCase()
-    : null;
-  if (original && isFailedStatus(original.status)) {
+  const status = extractStatus(original);
+  if (original && isFailedStatus(status)) {
     return { verdict: "failed", status };
   }
   const reversal = await lookupBellmonie(reversalReference(reference));
-  if (reversal && !isFailedStatus(reversal.status)) {
+  const reversalStatus = extractStatus(reversal);
+  if (reversal && !isFailedStatus(reversalStatus)) {
     return { verdict: "reversed", status };
   }
   if (!original) return { verdict: "not_found", status: null };
@@ -112,7 +121,8 @@ export async function refundFailedNgnWithdrawal({
     throw new RefundError("Only a naira withdrawal can be refunded", 400);
   }
 
-  const reference = tx.bankDetails?.reference;
+  // Resolve reference with fallbacks (bankDetails.reference -> txHash)
+  const reference = tx.bankDetails?.reference || tx.txHash;
   if (!reference)
     throw new RefundError("Transaction has no bank reference", 400);
   if (tx.refundedAt) throw new RefundError("Already refunded", 409);
@@ -152,13 +162,14 @@ export async function refundFailedNgnWithdrawal({
 
   const account = await NgnAccount.findOne({
     userId: tx.userId,
-    provider: "bellmonie",
+    $or: [{ provider: "bellmonie" }, { provider: { $exists: false } }],
   }).lean<INgnAccount>();
   if (!account) throw new RefundError("User has no naira account", 404);
 
   // The claim is the lock: once `refundedAt` is set, no other caller can match it.
+  // Use $in: REFUNDABLE so that a concurrent status change doesn't break the lock.
   const claimed = await Transaction.findOneAndUpdate(
-    { _id: transactionId, status: tx.status, refundedAt: null },
+    { _id: transactionId, status: { $in: REFUNDABLE }, refundedAt: null },
     {
       $set: {
         status: "FAILED",
@@ -189,6 +200,7 @@ export async function refundFailedNgnWithdrawal({
   const recipient = tx.bankDetails?.accountName || "beneficiary";
   const bank = tx.bankDetails?.bankName || "Bank";
   const refundRef = `${reference}-refund`;
+  const defaultBankName = account.bankName || "Bloc MFB";
 
   // Receipt first, balance second: if either write fails the balance has not moved, so releasing is safe.
   let receiptId: string;
@@ -200,12 +212,12 @@ export async function refundFailedNgnWithdrawal({
       chain: "fiat",
       network: "mainnet",
       fromAddress: "NGN_BANK_TRANSFER",
-      toAddress: account.accountNumber || "Bloc MFB",
+      toAddress: account.accountNumber || defaultBankName,
       amount: refundAmount.toString(),
       feePaid: "0",
       token: "NGN",
       bankDetails: {
-        bankName: "Bloc MFB",
+        bankName: defaultBankName,
         accountNumber: account.accountNumber ?? undefined,
         accountName: account.accountName ?? undefined,
         reference: refundRef,
@@ -222,7 +234,10 @@ export async function refundFailedNgnWithdrawal({
   }
 
   const credited = await NgnAccount.findOneAndUpdate(
-    { userId: tx.userId, provider: "bellmonie" },
+    {
+      userId: tx.userId,
+      $or: [{ provider: "bellmonie" }, { provider: { $exists: false } }],
+    },
     { $inc: { balance: refundAmount } },
     { returnDocument: "after" },
   ).catch((err) => {
@@ -246,7 +261,7 @@ export async function refundFailedNgnWithdrawal({
     body: `Your transfer of ₦${Number(tx.amount).toLocaleString()} to ${recipient} could not be completed, so ₦${refundAmount.toLocaleString()} has been returned to your Naira balance.`,
     metadata: { reference, refundAmount, refundedBy },
     link: `/transactions?id=${receiptId}`,
-  }).catch(() => {});
+  }).catch(() => { });
 
   console.log(
     `[NGN Refund] ✅ Refunded ₦${refundAmount} to user ${tx.userId} for ${transactionId} (by ${refundedBy}).`,
@@ -275,11 +290,11 @@ export async function checkNgnWithdrawals(
   await connectDB();
 
   const txs = await Transaction.find({ _id: { $in: transactionIds } })
-    .select("chain type bankDetails")
+    .select("chain type bankDetails txHash")
     .lean<ITransaction[]>();
   const references = new Map<string, string>();
   for (const tx of txs) {
-    const reference = tx.bankDetails?.reference;
+    const reference = tx.bankDetails?.reference || tx.txHash;
     if (tx.chain === "fiat" && tx.type === "WITHDRAW" && reference) {
       references.set(String(tx._id), reference);
     }

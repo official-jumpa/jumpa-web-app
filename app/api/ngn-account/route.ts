@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
     if (!result.account) {
       return NextResponse.json(
         { hasAccount: false, message: "No NGN account found", canCreateBellmonie: true },
-        { status: 404 },
+        { status: 200 },
       );
     }
 

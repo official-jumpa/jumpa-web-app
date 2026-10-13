@@ -1,6 +1,6 @@
 import { apyForDays, type SavingsKind } from "@/lib/savings";
 
-/** Data and formatting for the unified savings hub prototype (`/savings-1`). */
+/** Data and formatting for the unified savings hub. */
 
 export type SavingsCurrency = "NGN" | "USDC";
 export type HubCurrency = SavingsCurrency;

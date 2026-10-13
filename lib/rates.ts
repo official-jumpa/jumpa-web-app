@@ -19,6 +19,7 @@ export const RATE_TOKENS: RateToken[] = [
   { symbol: "USDT", name: "Tether" },
   { symbol: "ETH", name: "Ethereum" },
   { symbol: "SOL", name: "Solana" },
+  { symbol: "TRX", name: "Tron" },
 ];
 
 /** Supported fiat currencies and their official display marks. */

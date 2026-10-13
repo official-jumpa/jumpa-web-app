@@ -154,7 +154,7 @@ export function JoinCircleView({
   if (joined && circle) {
     return (
       <TransferSuccess
-        back="/savings-1"
+        back="/savings"
         compact
         title="Successful"
         titleFirst
@@ -162,7 +162,7 @@ export function JoinCircleView({
         note={`You contributed ${formatMoney(Number(amount), circle.currency)} to this circle.`}
         actions={null}
         ctaLabel="Done"
-        ctaHref="/savings-1"
+        ctaHref="/savings"
       />
     );
   }
@@ -172,7 +172,7 @@ export function JoinCircleView({
       onSubmit={submit}
       className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
     >
-      <TransferHeader back="/savings-1" onBack={onBack} title="Join circle" />
+      <TransferHeader back="/savings" onBack={onBack} title="Join circle" />
 
       <div className="mt-6 flex flex-col gap-6">
         <div className="flex flex-col gap-3">

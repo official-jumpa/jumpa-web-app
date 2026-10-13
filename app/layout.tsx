@@ -194,7 +194,11 @@ export const viewport: Viewport = {
 
 const gaId = process.env.NEXT_PUBLIC_GA_ID;
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html
       lang="en"

@@ -141,6 +141,94 @@ async function safeFetchBalance<T>(
   }
 }
 
+interface TronBalancesResult {
+  trx: string;
+  usdt: string;
+  usdc: string;
+}
+
+/**
+ * Fetches real on-chain balances for Tron mainnet (TRX, TRC-20 USDT, and TRC-20 USDC).
+ * Queries TronGrid and falls back to TronScan API.
+ */
+async function fetchTronBalances(address: string): Promise<TronBalancesResult> {
+  const fallback: TronBalancesResult = { trx: "0.00", usdt: "0.00", usdc: "0.00" };
+  const usdtContract = CONTRACT_ADDRESSES.tron.mainnet.USDT.address;
+  const usdcContract = CONTRACT_ADDRESSES.tron.mainnet.USDC.address;
+
+  // 1. Primary: TronGrid API
+  try {
+    const res = await fetch(`https://api.trongrid.io/v1/accounts/${address}`, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const account = data.data?.[0];
+      if (account) {
+        const rawTrx = Number(account.balance) || 0;
+        const trx = (rawTrx / 1_000_000).toFixed(4);
+
+        let usdt = "0.00";
+        let usdc = "0.00";
+        if (Array.isArray(account.trc20)) {
+          for (const tokenItem of account.trc20) {
+            if (tokenItem[usdtContract]) {
+              const rawUsdt = Number(tokenItem[usdtContract]) || 0;
+              usdt = (rawUsdt / 1_000_000).toFixed(2);
+            }
+            if (tokenItem[usdcContract]) {
+              const rawUsdc = Number(tokenItem[usdcContract]) || 0;
+              usdc = (rawUsdc / 1_000_000).toFixed(2);
+            }
+          }
+        }
+        return { trx, usdt, usdc };
+      }
+    }
+  } catch (err) {
+    console.warn("[Balance Service] TronGrid balance query failed, trying fallback:", err);
+  }
+
+  // 2. Fallback: TronScan API
+  try {
+    const res = await fetch(`https://apilist.tronscanapi.com/api/account?address=${address}`, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const rawTrx = Number(data.balance) || 0;
+      const trx = (rawTrx / 1_000_000).toFixed(4);
+
+      let usdt = "0.00";
+      let usdc = "0.00";
+      if (Array.isArray(data.trc20token_balances)) {
+        const usdtToken = data.trc20token_balances.find(
+          (t: any) => t.tokenId === usdtContract,
+        );
+        if (usdtToken) {
+          const rawUsdt = Number(usdtToken.balance) || 0;
+          usdt = (rawUsdt / 1_000_000).toFixed(2);
+        }
+
+        const usdcToken = data.trc20token_balances.find(
+          (t: any) => t.tokenId === usdcContract,
+        );
+        if (usdcToken) {
+          const rawUsdc = Number(usdcToken.balance) || 0;
+          usdc = (rawUsdc / 1_000_000).toFixed(2);
+        }
+      }
+      return { trx, usdt, usdc };
+    }
+  } catch (err) {
+    console.warn("[Balance Service] TronScan balance query failed:", err);
+  }
+
+  return fallback;
+}
+
 export async function fetchWalletBalances(
   addresses: {
     eth: string;
@@ -156,13 +244,14 @@ export async function fetchWalletBalances(
   const fetchSolana = shouldFetchAll || chains?.includes("solana");
   const fetchBaseOnly = chains?.includes("base") && !chains?.includes("evm");
   const fetchEvm = shouldFetchAll || chains?.includes("evm") || fetchBaseOnly;
+  const fetchTron = (shouldFetchAll || chains?.includes("tron")) && Boolean(addresses.trx);
 
   console.log(
     `[Balance Service] Fetching balances for chains: [${shouldFetchAll ? "ALL" : chains?.join(", ")
     }] (Testnet: Stellar only)`,
   );
 
-  const { eth: ethAddr, sol: solAddr, xlm: xlmAddr } = addresses;
+  const { eth: ethAddr, sol: solAddr, xlm: xlmAddr, trx: trxAddr } = addresses;
   await updateCoinGeckoData();
 
   // Fetch all chain ecosystems concurrently in parallel with isolated error fallbacks
@@ -170,6 +259,7 @@ export async function fetchWalletBalances(
     evmResults,
     solMainnetBal,
     { mainnet: xlmMainnet, testnet: xlmTestnet, spendableXlm },
+    tronBal,
   ] = await Promise.all([
     // 1. EVM Chains (Mainnet only)
     fetchEvm
@@ -304,6 +394,15 @@ export async function fetchWalletBalances(
         mainnet: { native: "0.00", usdc: "0.00", usdt: "0.00" },
         testnet: { native: "0.00", usdc: "0.00", usdt: "0.00" },
       }),
+
+    // 4. Tron (Mainnet)
+    fetchTron && trxAddr
+      ? safeFetchBalance(
+        () => fetchTronBalances(trxAddr),
+        "Tron Balances",
+        { trx: "0.00", usdt: "0.00", usdc: "0.00" },
+      )
+      : Promise.resolve<TronBalancesResult>({ trx: "0.00", usdt: "0.00", usdc: "0.00" }),
   ]);
 
   const solCached = coinGeckoCache.SOL;
@@ -459,8 +558,7 @@ export async function fetchWalletBalances(
   }
 
   // 4. Tron (Mainnet)
-  const trxAddr = addresses.trx;
-  if ((shouldFetchAll || chains?.includes("tron")) && trxAddr) {
+  if (fetchTron && trxAddr) {
     const trxCached = coinGeckoCache.TRX || {
       priceUsd: "0.00",
       icon: getAssetLogo("TRX"),
@@ -469,12 +567,34 @@ export async function fetchWalletBalances(
       symbol: "TRX",
       name: "Tron",
       icon: trxCached.icon,
-      balance: "0.00",
+      balance: tronBal.trx,
       priceUsd: trxCached.priceUsd,
       network: "Tron",
       isTestnet: false,
     });
-    summary["Tron"] = "0.00 TRX";
+    summary["Tron (TRX)"] = `${tronBal.trx} TRX`;
+
+    tokens.push({
+      symbol: "USDT",
+      name: "Tether USD (Tron)",
+      icon: usdtCached.icon,
+      balance: tronBal.usdt,
+      priceUsd: usdtCached.priceUsd,
+      network: "Tron",
+      isTestnet: false,
+    });
+    summary["Tron (USDT)"] = `${tronBal.usdt} USDT`;
+
+    tokens.push({
+      symbol: "USDC",
+      name: "USD Coin (Tron)",
+      icon: usdcCached.icon,
+      balance: tronBal.usdc,
+      priceUsd: usdcCached.priceUsd,
+      network: "Tron",
+      isTestnet: false,
+    });
+    summary["Tron (USDC)"] = `${tronBal.usdc} USDC`;
   }
 
   const totalUsd = tokens
@@ -529,6 +649,7 @@ export async function invalidateBalanceCache(userIdOrAddress?: string) {
         { "addresses.sol": key },
         { "addresses.xlm": key },
         { "addresses.base": key },
+        { "addresses.trx": key },
       ],
     }).lean();
 
@@ -540,6 +661,7 @@ export async function invalidateBalanceCache(userIdOrAddress?: string) {
         wallet.addresses?.sol?.toLowerCase(),
         wallet.addresses?.xlm?.toLowerCase(),
         wallet.addresses?.base?.toLowerCase(),
+        wallet.addresses?.trx?.toLowerCase(),
       ].filter(Boolean) as string[];
 
       for (const k of keysToClear) {

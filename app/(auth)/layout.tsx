@@ -11,7 +11,11 @@ export const metadata: Metadata = {
 };
 
 /** Light column for the sign-up flow. Same shell as the signed-in app. */
-export default function AuthLayout({ children }: LayoutProps<"/">) {
+export default function AuthLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <AppColumn>
       <AuthStepGuard>{children}</AuthStepGuard>

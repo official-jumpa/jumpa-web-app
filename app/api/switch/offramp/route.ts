@@ -350,12 +350,21 @@ export async function POST(req: NextRequest) {
           "[Switch Offramp] On-chain transfer failed:",
           transferResult.error,
         );
+
+        // Sanitize on-chain / RPC / node errors for client response
+        let clientError = transferResult.error || "Transfer could not be completed.";
+        if (
+          /hex string|parseexception|rpc|org\.tron|jsonformat|getlogs|timeout|revert|execution reverted/i.test(
+            clientError,
+          )
+        ) {
+          clientError = "Unable to broadcast transaction to the network. Please try again shortly.";
+        }
+
         return NextResponse.json(
           {
             success: false,
-            error:
-              transferResult.error ||
-              "On-chain crypto transfer to settlement provider failed.",
+            error: clientError,
           },
           { status: 400 },
         );

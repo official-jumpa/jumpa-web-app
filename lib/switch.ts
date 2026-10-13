@@ -103,40 +103,113 @@ function parseSwitchError(errorMsg: string): string {
 
   const lowerError = errorMsg.toLowerCase();
 
+  // User-fixable limits
   if (lowerError.match(/amount.*minimum/)) {
-    return "Amount is below the minimum limit of $1.5";
+    return "Amount is below the minimum limit of $1.50";
   }
   if (lowerError.match(/amount.*maximum/)) {
-    return "Amount exceeds the maximum limit of $10000";
+    return "Amount exceeds the maximum limit of $10,000";
   }
   if (lowerError.includes("rate limit") || lowerError.includes("429")) {
-    return "Too many requests. Please try again later.";
+    return "Too many requests. Please wait a moment and try again.";
   }
-  if (lowerError.includes("\"asset\" must be one of")) {
-    return "The selected asset is not supported by our provider at this time.";
+  if (lowerError.includes('"asset" must be one of') || lowerError.includes("asset not supported")) {
+    return "The selected crypto asset is currently not supported for direct bank payout.";
+  }
+  if (lowerError.includes("insufficient") && lowerError.includes("balance")) {
+    return "Insufficient wallet balance to complete this transaction.";
+  }
+  if (lowerError.includes("invalid account") || lowerError.includes("account number") || lowerError.includes("bank code")) {
+    return "The recipient bank account details could not be verified. Please check the account number and bank.";
+  }
+
+  // Developer, internal configuration, fee recipient, or 3rd-party provider infrastructure errors
+  if (
+    lowerError.includes("developer fee") ||
+    lowerError.includes("recipient wallet") ||
+    lowerError.includes("fee recipient") ||
+    lowerError.includes("invalid developer") ||
+    lowerError.includes("service key") ||
+    lowerError.includes("api key") ||
+    lowerError.includes("unauthorized") ||
+    lowerError.includes("forbidden") ||
+    lowerError.includes("internal server") ||
+    lowerError.includes("service unavailable") ||
+    lowerError.includes("bad gateway") ||
+    lowerError.includes("cloudflare") ||
+    lowerError.includes("switch")
+  ) {
+    return "Service is temporarily unavailable. Please try again shortly or contact support.";
+  }
+
+  // Generic fallback: never expose raw stack traces or internal backend errors
+  if (lowerError.includes("error") || lowerError.includes("failed") || lowerError.includes("exception")) {
+    return "Unable to complete transfer at this time. Please try again shortly.";
   }
 
   return errorMsg;
 }
 
 /**
+ * Validates that an address format matches its intended blockchain before passing to 3rd-party APIs.
+ */
+function isValidAddressForChain(chain: "solana" | "stellar" | "tron" | "evm", address: string): boolean {
+  if (!address || typeof address !== "string") return false;
+  const clean = address.trim();
+
+  switch (chain) {
+    case "tron":
+      // Tron addresses start with 'T' and are exactly 34 base58 characters
+      return /^T[1-9A-HJ-NP-za-km-z]{33}$/.test(clean);
+    case "solana":
+      // Solana addresses are base58, 32-44 characters, never start with 0x
+      return !clean.startsWith("0x") && /^[1-9A-HJ-NP-za-km-z]{32,44}$/.test(clean);
+    case "stellar":
+      // Stellar public keys start with 'G' and are 56 characters
+      return /^G[A-Z2-7]{55}$/.test(clean);
+    case "evm":
+      // EVM (Ethereum / Base) addresses start with 0x and are 42 hex characters
+      return /^0x[a-fA-F0-9]{40}$/.test(clean);
+    default:
+      return false;
+  }
+}
+
+/**
  * Returns the appropriate treasury fee recipient wallet for a given asset network.
- * Uses environment configuration for EVM, Solana, Stellar, and Tron.
+ * Verifies address format for the specific chain to prevent provider rejection.
  */
 export function getSwitchFeeRecipient(asset: string): string | undefined {
   const normAsset = normalizeSwitchAsset(asset);
+
   if (normAsset.startsWith("solana:")) {
-    return environment.FEE_WALLET_SOLANA?.trim() || undefined;
+    const addr = environment.FEE_WALLET_SOLANA?.trim();
+    if (addr && isValidAddressForChain("solana", addr)) return addr;
+    if (addr) console.warn("[Switch] FEE_WALLET_SOLANA has invalid format for Solana, omitting developer fee recipient");
+    return undefined;
   }
+
   if (normAsset.startsWith("stellar:")) {
-    return environment.FEE_WALLET_STELLAR?.trim() || undefined;
+    const addr = environment.FEE_WALLET_STELLAR?.trim();
+    if (addr && isValidAddressForChain("stellar", addr)) return addr;
+    if (addr) console.warn("[Switch] FEE_WALLET_STELLAR has invalid format for Stellar, omitting developer fee recipient");
+    return undefined;
   }
+
   if (normAsset.startsWith("tron:")) {
-    return environment.FEE_WALLET_TRON?.trim() || undefined;
+    const addr = environment.FEE_WALLET_TRON?.trim();
+    if (addr && isValidAddressForChain("tron", addr)) return addr;
+    if (addr) console.warn("[Switch] FEE_WALLET_TRON has invalid format for Tron (must start with T), omitting developer fee recipient");
+    return undefined;
   }
+
   if (normAsset.startsWith("base:") || normAsset.startsWith("ethereum:")) {
-    return environment.FEE_WALLET_EVM?.trim() || undefined;
+    const addr = environment.FEE_WALLET_EVM?.trim();
+    if (addr && isValidAddressForChain("evm", addr)) return addr;
+    if (addr) console.warn("[Switch] FEE_WALLET_EVM has invalid format for EVM (must start with 0x), omitting developer fee recipient");
+    return undefined;
   }
+
   return undefined;
 }
 

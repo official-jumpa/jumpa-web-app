@@ -26,6 +26,15 @@ export function tronAddressToHex(address: string): `0x${string}` {
 }
 
 /**
+ * Convert a Tron Base58Check address to a 21-byte 41-prefixed hex string for Tron full node / TronGrid APIs
+ */
+export function tronAddressTo41Hex(address: string): string {
+  const decoded = bs58.decode(address);
+  // decoded is 25 bytes: prefix (0x41) + 20 bytes address + 4 bytes checksum
+  return Buffer.from(decoded.subarray(0, 21)).toString("hex");
+}
+
+/**
  * Derive secp256k1 private key for Tron from mnemonic (m/44'/195'/0'/0/0)
  */
 export function deriveTronPrivateKey(mnemonicOrPrivateKey: string): `0x${string}` {
@@ -87,13 +96,17 @@ export async function executeTronTokenTransfer(options: {
 
     console.log(`[TronTransfer] Triggering TRC-20 transfer from ${ownerTronAddress} to ${toAddress}: ${amount} (units: ${rawUnits})`);
 
+    // TronGrid's /wallet/triggersmartcontract HTTP API expects 41-prefixed hex addresses
+    const owner41Hex = tronAddressTo41Hex(ownerTronAddress);
+    const contract41Hex = tronAddressTo41Hex(tokenContractAddress);
+
     // 1. Trigger smart contract on TronGrid
     const triggerRes = await fetch(`${TRON_API_HOST}/wallet/triggersmartcontract`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        owner_address: ownerTronAddress,
-        contract_address: tokenContractAddress,
+        owner_address: owner41Hex,
+        contract_address: contract41Hex,
         function_selector: "transfer(address,uint256)",
         parameter,
         fee_limit: 30_000_000, // 30 TRX max fee limit
@@ -102,10 +115,11 @@ export async function executeTronTokenTransfer(options: {
 
     const triggerData = await triggerRes.json();
     if (!triggerData.result || !triggerData.result.result) {
-      const errMsg = triggerData.result?.message
+      const rawMsg = triggerData.result?.message
         ? Buffer.from(triggerData.result.message, "hex").toString()
-        : "Failed to create smart contract transaction";
-      return { success: false, error: `Tron transfer trigger failed: ${errMsg}` };
+        : JSON.stringify(triggerData);
+      console.error("[TronTransfer] Trigger smart contract failed:", rawMsg);
+      return { success: false, error: "Unable to send transaction to the Tron network. Please try again shortly." };
     }
 
     const transaction = triggerData.transaction;

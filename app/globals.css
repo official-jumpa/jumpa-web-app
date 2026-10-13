@@ -102,11 +102,23 @@
   --color-jumpa-anchor-800: #12131a; /* raised row, input */
 
   /* Landing page — read off the marketing frames, not Figma variables. */
-  --color-jumpa-primary-25: #faf5ff; /* feature panels */
-  --color-jumpa-alt-450: #ccf226; /* "Individual Savings" row on the Save card */
-  --color-jumpa-neutral-150: #ebebeb; /* outline badge border */
-  --color-jumpa-grey-200: #d9dfe8; /* email field border */
-  --color-jumpa-grey-450: #838b9e; /* email field placeholder in the footer */
+  --color-jumpa-ink: #1a0a33; /* landing headings and body copy */
+  --color-jumpa-ink-muted: #5e5470; /* landing supporting copy */
+  --color-jumpa-surface: #fcfaff; /* landing cards and menu rows */
+  --color-jumpa-surface-alt: #fbfaff; /* How it works phone card */
+  --color-jumpa-surface-faq: #f6f1ff; /* FAQ band on phones */
+  --color-jumpa-lavender-200: #e6dcf5; /* hero badge, security card strokes */
+  --color-jumpa-lavender-250: #e5dbff; /* hero badge on phones, FAQ rules */
+  --color-jumpa-lavender-300: #d3bffc; /* PIN preview shadow */
+  --color-jumpa-lavender-500: #9f9fc5; /* testimonial roles */
+  --color-jumpa-sand: #e6d9d0; /* testimonial screenshot ground */
+  --color-jumpa-ink-soft: #3b2c52; /* Receive card body */
+  --color-jumpa-lavender-100: #f0ddff; /* testimonial screenshot frame */
+  --color-jumpa-lavender-800: #5c418e; /* account number in the CTA bubble */
+  --color-jumpa-neutral-255: #d9d9d9; /* inactive testimonial dot */
+  --color-jumpa-primary-650: #8012ff; /* foot of the CTA band on phones */
+  --color-jumpa-surface-glow: #efdeff; /* centre of the account-access card */
+  --color-jumpa-surface-dim: #faf9fc; /* mid stop of the account-access card */
 
   /* Red is reserved for the irreversible: deleting an account, revoking a
      session, exposing a secret, a failed transaction. Anything the user can
@@ -179,6 +191,17 @@
 }
 
 /*
+ * Landing faces. `inline`, not `static`: next/font defines these variables on
+ * the landing `<main>` only, so the utility has to emit the `var()` where it is
+ * used — a static theme var would resolve at `:root`, where they don't exist.
+ */
+@theme inline {
+  --font-jakarta:
+    var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-inter: var(--font-inter-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/*
  * Motion. One easing curve and a fixed set of named animations, so every screen
  * settles the same way. All of them move `opacity`, `transform` or `filter` only
  * — never a property that reflows, or the Figma geometry shifts while animating.
@@ -245,6 +268,10 @@
   /* One confetti piece on the waitlist celebration. Each carries its own
      `--dx`/`--dy`/`--spin`, so one keyframe scatters the whole burst. */
   --animate-confetti: confetti 1400ms var(--ease-jumpa) both;
+  /* Landing marquees. The track holds `--copies` identical sets and slides by
+     exactly one, so the loop has no seam. Duration is per set: `--marquee-s`. */
+  --animate-marquee-x: marquee-x var(--marquee-s, 30s) linear infinite;
+  --animate-marquee-y: marquee-y var(--marquee-s, 40s) linear infinite;
 
   @keyframes rise {
     from {
@@ -472,6 +499,16 @@
         rotate(var(--spin, 180deg));
     }
   }
+  @keyframes marquee-x {
+    to {
+      transform: translateX(calc(-100% / var(--copies, 2)));
+    }
+  }
+  @keyframes marquee-y {
+    to {
+      transform: translateY(calc(-100% / var(--copies, 2)));
+    }
+  }
 }
 
 /* Recurring gradients. Tailwind has no utility for multi-stop brand gradients. */
@@ -551,34 +588,42 @@
   );
 
   /* Landing page. */
-  /* Gradient headings, waveform bars, the Why Jumpa section and the footer. */
+  /* Gradient headings, the install card and the footer. */
   --gradient-jumpa-landing: linear-gradient(
     180deg,
     var(--color-jumpa-primary-600) 0%,
     var(--color-jumpa-primary-400) 100%
   );
-  /* Feature cards: Send and Buy/Sell/Swap are lime, Receive and Save purple. */
-  --gradient-jumpa-card-lime: linear-gradient(
-    133.26deg,
-    var(--color-jumpa-alt-300) 17.5%,
-    var(--color-jumpa-alt-500) 112.66%
+  /* CTA band: a violet bloom rising from below the frame into white. */
+  --gradient-jumpa-cta-band: radial-gradient(
+    138.6% 138.6% at 49.51% 138.6%,
+    var(--color-jumpa-primary-600) 0%,
+    var(--color-jumpa-white) 63.544%
   );
-  --gradient-jumpa-card-purple: linear-gradient(
-    134.77deg,
-    var(--color-jumpa-primary-400) 0%,
-    var(--color-jumpa-primary-600) 112.65%
-  );
-  /* Frosted chat panel over the hero photo. */
-  --gradient-jumpa-glass: linear-gradient(
+  /* Multiplied over the bloom so the top of the band stays clean white. */
+  --gradient-jumpa-cta-band-fade: linear-gradient(
     180deg,
-    rgb(102 102 102 / 0.06) 0%,
-    rgb(0 0 0 / 0.5) 100%
+    var(--color-jumpa-white) 79.167%,
+    var(--color-jumpa-primary-400) 109.8%
   );
-  /* Darkens the lower half of the beta photo behind the form on phones. */
-  --gradient-jumpa-photo-shade: linear-gradient(
+  --gradient-jumpa-cta-band-mobile: linear-gradient(
     180deg,
-    rgb(102 102 102 / 0) 18.339%,
-    rgb(0 0 0 / 0.2) 75.029%
+    var(--color-jumpa-white) 0%,
+    var(--color-jumpa-primary-100) 50%,
+    var(--color-jumpa-primary-650) 100%
+  );
+  /* "Secure account access" card; phones move the centre down a touch. */
+  --gradient-jumpa-security-card: radial-gradient(
+    47.05% 47.05% at 50% 50%,
+    var(--color-jumpa-surface-glow) 0%,
+    var(--color-jumpa-surface-dim) 63.462%,
+    var(--color-jumpa-surface) 100%
+  );
+  --gradient-jumpa-security-card-mobile: radial-gradient(
+    43.37% 43.37% at 50% 53.66%,
+    var(--color-jumpa-surface-glow) 0%,
+    var(--color-jumpa-surface-dim) 63.462%,
+    var(--color-jumpa-surface) 100%
   );
 }
 
@@ -614,14 +659,29 @@
   font-size: calc(--value(number) * var(--spacing));
   line-height: calc(--modifier(number) * var(--spacing));
 }
+/* Figma tracks in px, so it scales with the frame too: `-tracking-u-0.48`. */
+@utility tracking-u-* {
+  letter-spacing: calc(--value(number) * var(--spacing));
+}
+@utility -tracking-u-* {
+  letter-spacing: calc(--value(number) * -1 * var(--spacing));
+}
 @utility rounded-u-* {
   border-radius: calc(--value(number) * var(--spacing));
+}
+@utility rounded-t-u-* {
+  border-top-left-radius: calc(--value(number) * var(--spacing));
+  border-top-right-radius: calc(--value(number) * var(--spacing));
 }
 @utility border-u-* {
   border-width: calc(--value(number) * var(--spacing));
 }
 @utility backdrop-blur-u-* {
   backdrop-filter: blur(calc(--value(number) * var(--spacing)));
+}
+/* Layer blur on the decorative glows. Figma's radius is CSS's 1:1. */
+@utility blur-u-* {
+  filter: blur(calc(--value(number) * var(--spacing)));
 }
 
 /* Shadows in frame units. The glossy orbs all cast `0 N 2N`; the panels cast
@@ -661,6 +721,18 @@
 @utility shadow-landing-mock {
   box-shadow: 0 calc(40 * var(--spacing)) calc(50 * var(--spacing))
     rgb(0 0 0 / 0.25);
+}
+@utility shadow-landing-pin {
+  box-shadow: 0 calc(20 * var(--spacing)) calc(20 * var(--spacing))
+    color-mix(in srgb, var(--color-jumpa-lavender-300) 50%, transparent);
+}
+@utility shadow-landing-quote {
+  box-shadow: 0 calc(4 * var(--spacing)) calc(4 * var(--spacing))
+    var(--color-jumpa-neutral-50);
+}
+@utility shadow-landing-quote-mobile {
+  box-shadow: 0 calc(4 * var(--spacing)) calc(4 * var(--spacing))
+    var(--color-jumpa-primary-50);
 }
 @utility shadow-landing-disc {
   box-shadow: 0 0 calc(37.5 * var(--spacing)) rgb(0 0 0 / 0.5);

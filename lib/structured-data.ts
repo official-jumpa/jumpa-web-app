@@ -6,13 +6,15 @@ const ORG_ID = `${SITE}/#organization`;
 const SITE_ID = `${SITE}/#website`;
 
 /**
- * Profile URLs for `sameAs`. Bare-domain entries are dropped — `FOOTER.socials`
- * still has `https://linkedin.com` as a placeholder. A rule, not a name, so it
- * stops applying once the real URL lands.
+ * Profile URLs for `sameAs`. Bare-domain and `#` entries are dropped —
+ * `FOOTER.socials` still has placeholders for LinkedIn and Facebook. A rule,
+ * not a name, so it stops applying once the real URLs land.
  */
 const profiles = FOOTER.socials
-  .map((social) => social.href)
-  .filter((href) => new URL(href).pathname.length > 1);
+  .map((social): string => social.href)
+  .filter(
+    (href) => href.startsWith("http") && new URL(href).pathname.length > 1,
+  );
 
 const DESCRIPTION =
   "Jumpa is a self-custodial wallet you operate by chatting. Send and receive money, move between cash and crypto, swap and bridge tokens across chains, and save toward goals, by text or voice, in one conversation.";

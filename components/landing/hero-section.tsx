@@ -1,237 +1,106 @@
-// import Image from "next/image";
-import { DotGlow } from "@/components/landing/dot-glow";
-import { HeroEmailForm } from "@/components/landing/email-capture-form";
+import { Art } from "@/components/landing/art";
 import { countChars, HeadlineChars } from "@/components/landing/headline-chars";
-import { QuickActionChips } from "@/components/landing/quick-action-chips";
+import { LandingButton } from "@/components/landing/landing-button";
 import { revealStep } from "@/components/landing/reveal";
-import { SectionBadge } from "@/components/landing/section-badge";
-import { CirclePlusIcon } from "@/components/ui/icons/circle-plus";
-import { GlobeBoldIcon } from "@/components/ui/icons/globe-bold";
-import { MicrophoneIcon } from "@/components/ui/icons/microphone";
-import { CHAT_PREVIEW, HERO } from "@/lib/landing";
-
-const BUBBLE =
-  "rounded-full bg-jumpa-neutral-95 px-26 py-11.5 text-u-13/16 tracking-jumpa text-jumpa-black";
+import { CTA, HERO } from "@/lib/landing";
 
 /** Where the heading's own characters stop, so the gradient word follows in step. */
 const LEAD_CHARS = countChars(HERO.heading.lead);
 
 /* The column runs on the 70ms `.stagger` step while the heading types itself on
-   a 34ms one, so the two are sequenced by hand: the subhead arrives as the last
-   character lands, and the form a beat behind it. */
-const SUBHEAD_STEP = 15;
-const FORM_STEP = 17;
+   a 34ms one: the subhead lands as the last character does, the rest behind it. */
+const SUBHEAD_STEP = 13;
 
-/**
- * The frosted chat mock that floats over the hero photo. Sized in its own 393
- * frame. The frost is the photo pre-blurred and exported rather than a
- * `backdrop-filter`: Figma's background blur reads about twice as strong as the
- * CSS filter at the same number, and neither Figma export renders it at all, so
- * the effect could not be matched or checked in the browser. Baked, it is one
- * image, identical in every browser. Re-run `scratchpad/bake-glass.mjs` to
- * change the radius; it must be re-baked whenever the hero photo changes.
- */
-// function ChatPanel() {
-//   return (
-//     <div className="frame-393 absolute top-1/2 left-200 w-393 -translate-y-1/2">
-//       <div className="relative isolate flex h-621 w-393 flex-col justify-end gap-10 overflow-clip rounded-u-42 border-u-2 border-jumpa-primary-50/20 p-10">
-//         <Image
-//           src="/images/landing/hero-glass-backdrop-mobile.webp"
-//           alt=""
-//           fill
-//           sizes="102px"
-//           className="-z-10 object-cover md:hidden"
-//         />
-//         <Image
-//           src="/images/landing/hero-glass-backdrop.webp"
-//           alt=""
-//           fill
-//           sizes="(min-width: 1024px) 393px, 1px"
-//           className="-z-10 hidden object-cover md:block"
-//         />
-//         <span
-//           aria-hidden="true"
-//           className="absolute inset-0 -z-10 bg-[image:var(--gradient-jumpa-glass)]"
-//         />
-//         <img
-//           src="/images/landing/hero-glow-purple.svg"
-//           alt=""
-//           aria-hidden="true"
-//           className="pointer-events-none absolute -z-10 -left-234.5 top-369 h-771 w-881 max-w-none"
-//         />
-//         <img
-//           src="/images/landing/hero-glow-white.svg"
-//           alt=""
-//           aria-hidden="true"
-//           className="pointer-events-none absolute -z-10 -left-36.5 top-312 h-545 w-445 max-w-none"
-//         />
-
-//         <div className="flex w-365 flex-col gap-20 self-start">
-//           <div className="flex w-184 flex-col items-end gap-8 self-end">
-//             {CHAT_PREVIEW.messages.map((message) => (
-//               <p key={message} className={BUBBLE}>
-//                 {message}
-//               </p>
-//             ))}
-//           </div>
-//           <div className="flex gap-4">
-//             <span className="flex size-38 shrink-0 items-center rounded-full bg-[image:var(--gradient-jumpa-landing)] py-13 pr-8 pl-7">
-//               <Image
-//                 src="/logo/mark/lemon.png"
-//                 alt=""
-//                 width={803}
-//                 height={381}
-//                 sizes="23px"
-//                 className="h-12 w-23 object-contain"
-//               />
-//             </span>
-//             <p className={`${BUBBLE} w-238 px-10`}>{CHAT_PREVIEW.reply}</p>
-//           </div>
-//         </div>
-
-//         <div className="flex w-369 flex-col gap-10 rounded-u-32 border-u-1 border-jumpa-white/20 bg-jumpa-black/30 p-9 shadow-u-40/20">
-//           <div className="rounded-u-22 bg-jumpa-white p-10">
-//             <QuickActionChips variant="hero" />
-//           </div>
-//           <div className="flex gap-10">
-//             <div className="flex h-46 w-285 items-center gap-10 rounded-u-22 bg-jumpa-white p-4">
-//               <span className="flex h-38 w-46 shrink-0 items-center justify-center rounded-u-32 bg-jumpa-neutral-250">
-//                 <CirclePlusIcon className="size-24 text-jumpa-grey-600" />
-//               </span>
-//               <span className="text-u-10/20 font-medium tracking-jumpa text-jumpa-black/20">
-//                 {CHAT_PREVIEW.composer}
-//               </span>
-//             </div>
-//             <span className="flex size-46 shrink-0 items-center justify-center rounded-u-32 bg-jumpa-alt-400">
-//               <MicrophoneIcon className="size-24 text-jumpa-secondary-600" />
-//             </span>
-//           </div>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
-// Off with the hero artwork below; restore both together.
-// function ChatPanelImage() {
-//   return (
-//     <div
-//       style={revealStep(8)}
-//       className="frame-393 stagger absolute top-1/2 left-200 w-393 -translate-y-1/2 animate-reveal-zoom"
-//     >
-//       <Image
-//         src="/images/landing/chatPanelHero.png"
-//         alt="chatPanelHero"
-//         width={400}
-//         height={621}
-//         priority
-//         className="h-full w-full"
-//       />
-//     </div>
-//   );
-// }
+/** Glows sit under the grid, as the design layers them. */
+const GLOW = "absolute rounded-full opacity-18";
 
 export function HeroSection() {
   return (
-    // Centred in the screen the nav leaves it, while the artwork below is off.
-    <section className="relative flex flex-1 items-center">
-      <div className="relative mx-auto w-393 py-56.75 md:w-1440 md:py-121">
-        {/* Each glow carries its own `--drift` so the page's decorative layers
-            never move in lockstep. The hero's is the gentlest — it is the first
-            thing on screen and sits closest to its design position. */}
-        <DotGlow
-          tone="grey"
-          className="drift hidden md:top-298 md:left-0 md:block md:w-1440 [--drift:24]"
-        />
+    <section className="relative isolate -mt-65 overflow-clip md:-mt-95">
+      <div aria-hidden="true" className="absolute inset-0 hidden md:block">
+        <div className="relative mx-auto h-full w-1440">
+          <span
+            className={`${GLOW} top-481.5 right-[82.5%] left-[1.59%] h-229.5 bg-jumpa-primary-600 blur-u-36.75`}
+          />
+          <span
+            className={`${GLOW} top-383 right-[4.05%] left-[78.1%] h-257.5 bg-jumpa-alt-400 blur-u-42.5`}
+          />
+        </div>
+      </div>
 
-        {/* The hero's entrance runs from plain `animate-*` utilities, not from
-            `data-reveal`: it is always above the fold, so it has to play at the
-            first paint rather than wait for hydration. `--i` sequences the whole
-            column on the 70ms `.stagger` step. */}
-        <div className="mx-auto flex w-320 flex-col items-center gap-15 text-center md:w-794 md:gap-30">
-          <SectionBadge
-            variant="outline"
-            icon={<GlobeBoldIcon />}
-            // 5.5 design px is unreadable on a phone; 10 matches the lift the
-            // rest of the app already uses. Floored at 14px from `md:` up.
-            className="animate-drop-in text-u-10 md:text-[clamp(14px,0.972vw,24.89px)]"
-          >
-            {HERO.badge.lead}
-            <strong className="font-medium">{HERO.badge.strong}</strong>
-            {HERO.badge.tail}
-          </SectionBadge>
+      {/* Tiles at a fixed size past 1440 so the grid never stretches. */}
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 bg-[url(/images/landing/hero-grid.webp)] bg-cover bg-center md:bg-[length:calc(1440*var(--spacing))_calc(765.5*var(--spacing))] md:bg-[position:calc(50%+3*var(--spacing))_0] md:bg-repeat-x"
+      />
 
-          <div className="flex w-full flex-col gap-15 md:gap-30">
-            <h1 className="text-u-40/40 font-medium tracking-jumpa md:text-u-100/80">
-              {/* The split is decorative; this is the sentence a screen reader
-                  gets, so the heading is not read out letter by letter. */}
-              <span className="sr-only">
-                {HERO.heading.lead}
+      <div className="relative mx-auto h-494 w-402 md:h-765.5 md:w-1440">
+        {/* Plays at the first paint from `animate-*` utilities: the hero is
+            always above the fold, so it cannot wait for hydration. */}
+        <div className="absolute inset-x-20 top-111 flex flex-col items-center gap-20.75 text-center md:top-127 md:right-auto md:left-267 md:w-895 md:gap-26">
+          <p className="relative flex animate-drop-in items-center gap-6 rounded-full border-u-1 bg-jumpa-white px-12 py-6 font-medium font-sans text-jumpa-black text-u-12/13.75 border-jumpa-lavender-250 md:h-38 md:w-255 md:justify-center md:border-jumpa-lavender-200 md:p-0 md:text-u-14/16">
+            <Art
+              src="/images/landing/badge-dot.svg"
+              className="size-6 shrink-0 md:absolute md:top-1/2 md:left-16 md:size-8 md:-translate-y-1/2"
+            />
+            <span className="whitespace-nowrap md:relative md:left-9">
+              {HERO.badge.lead}
+              <strong className="font-bold">{HERO.badge.strong}</strong>
+              {HERO.badge.tail}
+            </span>
+          </p>
+
+          <h1 className="w-full font-extrabold text-jumpa-black text-u-44/44.75 -tracking-u-0.75 md:text-u-112/113.75 md:-tracking-u-6.75">
+            {/* The split is decorative; this is the sentence a screen reader gets. */}
+            <span className="sr-only">
+              {HERO.heading.lead}
+              {HERO.heading.accent}
+            </span>
+            <span aria-hidden="true">
+              <HeadlineChars text={HERO.heading.lead} />
+              {/* One unit: a per-character opacity stops `bg-clip-text` painting. */}
+              <span
+                style={revealStep(LEAD_CHARS)}
+                className="headline-accent inline-block"
+              >
                 {HERO.heading.accent}
               </span>
-              <span aria-hidden="true">
-                <HeadlineChars text={HERO.heading.lead} />
-                {/* A zero-width slot, so the caret costs the line no layout and
-                    the heading wraps exactly where it did. */}
-                <span className="relative inline-block w-0">
-                  {/* Nudged back into the word space, so the bar sits in the
-                      gap rather than against the next glyph's stem. */}
-                  <span className="type-caret absolute bottom-[0.06em] left-[-0.16em] h-[0.76em] w-[0.055em] rounded-full bg-jumpa-primary-600" />
-                </span>
-                {/* One unit, never split: a per-character opacity stops the
-                    gradient painting through `bg-clip-text` — it renders blank. */}
-                <span
-                  style={revealStep(LEAD_CHARS)}
-                  className="headline-accent inline-block"
-                >
-                  {HERO.heading.accent}
-                </span>
-              </span>
-            </h1>
-            <p
-              style={revealStep(SUBHEAD_STEP)}
-              className="stagger animate-reveal text-u-12/18 tracking-jumpa md:text-u-22/32"
-            >
-              {HERO.subhead}
-            </p>
-          </div>
+            </span>
+          </h1>
 
-          {/* The nav pill's `#join` target while the beta section is off. */}
+          <p
+            style={revealStep(SUBHEAD_STEP)}
+            className="stagger animate-reveal text-jumpa-ink-muted text-u-14/21.75 -tracking-u-0.5 md:w-751 md:py-12 md:text-u-20/31"
+          >
+            {HERO.subhead}
+          </p>
+
           <div
-            id="join"
-            style={revealStep(FORM_STEP)}
+            style={revealStep(SUBHEAD_STEP + 2)}
             className="stagger animate-reveal"
           >
-            <HeroEmailForm />
+            <LandingButton
+              href={CTA.start.href}
+              className="h-53.5 w-172.75 text-u-15.5/24.25 -tracking-u-0.5 md:h-54.75 md:w-177.25 md:text-u-16/24.75"
+            >
+              {CTA.start.label}
+            </LandingButton>
           </div>
+
+          <p
+            style={revealStep(SUBHEAD_STEP + 4)}
+            className="stagger flex animate-reveal items-center gap-3.5 md:relative md:left-4 md:mt-38.5 md:gap-5"
+          >
+            <span className="whitespace-nowrap font-medium text-jumpa-black text-u-11.25/16.5 -tracking-u-0.5 md:text-u-16/23.25 md:-tracking-u-0.75">
+              {HERO.backedBy}
+            </span>
+            <Art
+              src="/images/landing/stellar.svg"
+              className="-mt-0.75 h-18 w-72 md:mt-0 md:h-25.5 md:w-102"
+            />
+            <span className="sr-only">Stellar</span>
+          </p>
         </div>
-
-        {/* Hero artwork — off at the client's ask; the hero is copy only. */}
-        {/* <div className="frame-1300 relative mx-auto mt-30.25 w-336.75 md:mt-114 md:w-1300">
-          <div className="relative h-780 w-1300 overflow-hidden rounded-u-24 md:h-699">
-            <Image
-              src="/images/landing/hero-photo-mobile.webp"
-              alt=""
-              width={1300}
-              height={780}
-              priority
-              sizes="100vw"
-              className="h-full w-full object-cover md:hidden"
-            />
-            <Image
-              src="/images/landing/hero-photo.webp"
-              alt=""
-              width={1920}
-              height={1032}
-              priority
-              sizes="100vw"
-              className="hidden h-full w-full object-cover md:block"
-            />
-
-            <ChatPanelImage />
-            <ChatPanel />
-          </div>
-        </div> */}
       </div>
     </section>
   );

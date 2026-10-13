@@ -1,109 +1,81 @@
-"use client";
-
-import { useCallback, useState } from "react";
-import { DotGlow } from "@/components/landing/dot-glow";
+import { Art } from "@/components/landing/art";
+import { FaqAccordion } from "@/components/landing/faq-accordion";
+import { LandingButton } from "@/components/landing/landing-button";
 import { revealStep } from "@/components/landing/reveal";
 import { SectionBadge } from "@/components/landing/section-badge";
-import { FlashIcon } from "@/components/ui/icons/flash";
-import { cn } from "@/lib/cn";
 import { FAQ } from "@/lib/landing";
 
-/**
- * FAQ. Each row expands on click to reveal the answer with a smooth height
- * animation via `grid-template-rows`. Only one row open at a time — clicking
- * an open row closes it, clicking another swaps.
- */
+const SUPPORT_ICON = "/images/landing/support.svg";
+
+/** Phones stack everything in flow; from `md:` the left column is pinned and the list flows. */
 export function FaqSection() {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
-
-  const toggle = useCallback((index: number) => {
-    setOpenIndex((prev) => (prev === index ? null : index));
-  }, []);
-
   return (
-    <section id="faq" className="relative pt-71.25 md:pt-262">
-      <div className="relative mx-auto w-393 md:w-1440">
-        <DotGlow
-          tone="purple"
-          className="drift -left-191 top-330 w-714.5 md:top-754 md:-left-49 md:w-1537.75 [--drift:-45]"
+    <section
+      id="faq"
+      className="scroll-mt-65 overflow-clip bg-jumpa-surface md:scroll-mt-95"
+    >
+      <div className="relative mx-auto flex w-402 flex-col items-start gap-20 px-20 py-56 md:block md:min-h-1133 md:w-1440 md:px-0 md:py-108">
+        <div className="absolute top-485 -left-329 hidden h-832.5 w-830 items-center justify-center md:flex">
+          <Art
+            src="/images/landing/faq-decor.svg"
+            className="drift h-487.25 w-688.25 flex-none rotate-[45.51deg]"
+          />
+        </div>
+
+        <SectionBadge className="reveal md:absolute md:top-108 md:left-104">
+          {FAQ.badge}
+        </SectionBadge>
+        <h2
+          style={revealStep(1)}
+          className="reveal font-medium text-jumpa-ink text-u-32/34.75 -tracking-u-1.25 md:absolute md:top-255 md:left-104 md:w-479 md:-translate-y-1/2 md:text-u-60/65.25 md:-tracking-u-2.25"
+        >
+          {FAQ.heading}
+        </h2>
+        <p
+          style={revealStep(2)}
+          className="reveal font-medium text-jumpa-black text-u-16/24.75 -tracking-u-0.5 md:absolute md:top-385.5 md:left-104 md:w-400 md:-translate-y-1/2 md:text-u-20/31"
+        >
+          {FAQ.subhead}
+        </p>
+
+        <div className="hidden md:contents">
+          <Art
+            src={SUPPORT_ICON}
+            className="reveal absolute top-473 left-106 size-31"
+          />
+          <p
+            style={revealStep(1)}
+            className="reveal absolute top-489.5 left-144 -translate-y-1/2 whitespace-nowrap font-medium text-jumpa-black text-u-20/31 -tracking-u-0.5"
+          >
+            {FAQ.support.label}
+          </p>
+          <LandingButton
+            href={FAQ.support.href}
+            tone="violet"
+            className="reveal absolute top-540 left-107 h-54.75 w-177.25 text-u-16/24.75 -tracking-u-0.5"
+          >
+            {FAQ.support.cta}
+          </LandingButton>
+        </div>
+
+        <FaqAccordion
+          items={FAQ.items}
+          className="reveal w-full md:ml-736 md:w-598"
         />
 
-        <div className="mx-auto flex w-320 flex-col items-center gap-40 md:w-1169 md:gap-100">
-          <div className="flex w-320 flex-col items-center gap-24">
-            <SectionBadge
-              variant="disc"
-              icon={<FlashIcon />}
-              className="reveal text-u-14 md:text-u-16"
+        <div className="reveal relative h-105 w-full rounded-u-24 bg-jumpa-surface-faq md:hidden">
+          <div className="absolute top-35 left-26 flex items-center gap-16">
+            <Art src={SUPPORT_ICON} className="size-31 shrink-0" />
+            <p className="w-142 font-medium text-jumpa-black text-u-14/21.75 -tracking-u-0.5">
+              {FAQ.support.label}
+            </p>
+            <LandingButton
+              href={FAQ.support.href}
+              className="px-21.5 py-10.75 text-u-12.25/19.25 -tracking-u-0.25"
             >
-              {FAQ.badge}
-            </SectionBadge>
-            <h2
-              style={revealStep(1)}
-              className="reveal w-302 text-center text-u-40/40 font-medium tracking-jumpa md:w-638 md:text-u-72/74"
-            >
-              {FAQ.heading}
-            </h2>
+              {FAQ.support.cta}
+            </LandingButton>
           </div>
-
-          <ul className="flex w-full flex-col gap-10 px-8 md:gap-24 md:px-0">
-            {FAQ.items.map((item, index) => {
-              const isOpen = openIndex === index;
-
-              return (
-                <li
-                  key={item.question}
-                  // The last two rows are `md:hidden`. `RevealObserver` skips
-                  // anything with no client rects, so they are never marked and
-                  // cannot be left invisible if a resize brings them back.
-                  style={revealStep(index)}
-                  className={cn(
-                    "reveal rounded-u-30 bg-jumpa-white transition-shadow duration-300",
-                    isOpen && "shadow-[0_4px_24px_rgba(0,0,0,0.06)]",
-                    index >= 5 && "md:hidden",
-                  )}
-                >
-                  <button
-                    type="button"
-                    aria-expanded={isOpen}
-                    onClick={() => toggle(index)}
-                    className="flex w-full items-center justify-between py-14 pr-20 pl-14 text-left md:p-30"
-                  >
-                    <span className="flex items-center gap-20 md:gap-23">
-                      <span className="flex size-25.25 shrink-0 items-center justify-center rounded-full bg-jumpa-black text-u-8/9 font-medium tracking-jumpa text-jumpa-white md:size-50 md:text-u-16/18">
-                        {index + 1}
-                      </span>
-                      <span className="text-u-12/16 tracking-jumpa md:text-u-20/22 md:font-medium">
-                        {item.question}
-                      </span>
-                    </span>
-                    <span
-                      aria-hidden="true"
-                      className={cn(
-                        "flex size-25 shrink-0 items-center justify-center rounded-full text-u-14 transition-all duration-300 md:size-40 md:text-u-20",
-                        isOpen
-                          ? "rotate-45 bg-jumpa-black text-jumpa-white"
-                          : "bg-jumpa-neutral-100 text-jumpa-black",
-                      )}
-                    >
-                      +
-                    </span>
-                  </button>
-
-                  {/* Smooth height animation via grid-template-rows */}
-                  <div
-                    className="grid transition-[grid-template-rows] duration-300 ease-in-out"
-                    style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
-                  >
-                    <div className="overflow-hidden">
-                      <p className="pb-10 pr-20 pl-55.25 text-u-10/16 tracking-jumpa text-jumpa-neutral-400 md:pb-30 md:pr-30 md:pl-103 md:text-u-16/24">
-                        {item.answer}
-                      </p>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
         </div>
       </div>
     </section>

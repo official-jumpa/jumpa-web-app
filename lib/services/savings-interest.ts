@@ -1,7 +1,6 @@
 import { connectDB } from "@/lib/db";
 import { SavingsPlan, type ISavingsPlan } from "@/models/SavingsPlan";
 import { createSavingsTransaction } from "@/lib/functions/savingsFunctions";
-import { apyForDays } from "@/lib/savings";
 
 //TODO: REVISIT THE CALCULATIONS HERE
 
@@ -31,14 +30,11 @@ export function getUtcDateString(date: Date = new Date()): string {
  */
 export function calculateDailyInterest(
   initialDeposit: number,
-  kind: ISavingsPlan["kind"],
-  term?: string,
+  lockedApy: number,
 ): number {
-  if (initialDeposit <= 0) return 0;
-  const termDays = term ? parseInt(term, 10) || null : null;
-  const apy = apyForDays(kind, termDays);
-  const daily = (initialDeposit * (apy / 100)) / 365;
-  // Round to 2 decimal places for fiat/crypto precision
+  if (initialDeposit <= 0 || !lockedApy || lockedApy <= 0) return 0;
+  const daily = (initialDeposit * (lockedApy / 100)) / 365;
+  // Round to 4 decimal places for precision
   return Math.max(0, Number(daily.toFixed(4)));
 }
 
@@ -83,11 +79,10 @@ export async function processDailySavingsInterest(
         continue;
       }
 
-      // 3. Calculate 1 day of simple interest based on initialDeposit
+      // 3. Calculate 1 day of simple interest based on initialDeposit and locked APY
       const dailyYield = calculateDailyInterest(
         plan.initialDeposit,
-        plan.kind,
-        plan.term,
+        plan.apy,
       );
 
       if (dailyYield <= 0) {

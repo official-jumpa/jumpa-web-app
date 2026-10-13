@@ -116,6 +116,25 @@ export function JoinCircleView({
       toast.error("Please enter your contribution amount");
       return;
     }
+    if (circle.currency === "NGN") {
+      if (numAmount < 200) {
+        toast.error("Minimum circle contribution is ₦200");
+        return;
+      }
+      if (numAmount > 1000000) {
+        toast.error("Maximum contribution limit is ₦1,000,000");
+        return;
+      }
+    } else {
+      if (numAmount < 0.5) {
+        toast.error("Minimum circle contribution is $0.5 USDC");
+        return;
+      }
+      if (numAmount > 1000) {
+        toast.error("Maximum contribution limit is $1,000 USDC");
+        return;
+      }
+    }
     if (circle.isFull) {
       toast.error("This circle is already at full capacity");
       return;

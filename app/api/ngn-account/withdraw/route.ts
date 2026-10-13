@@ -85,9 +85,22 @@ export async function POST(req: NextRequest) {
         : "Withdrawal completed successfully",
     });
   } catch (error: any) {
-    console.error("[NGN Withdraw POST] Error:", error.message);
+    const rawMessage = error?.message || "";
+    console.error("[NGN Withdraw POST] Error:", rawMessage);
+
+    // Sanitize infrastructure, provider, and network errors so users see clear, professional messages
+    let userMessage = rawMessage || "Failed to process withdrawal";
+    if (
+      /bellmonie|token|522|502|503|504|cloudflare|timeout|econnrefused|fetch failed/i.test(
+        userMessage,
+      )
+    ) {
+      userMessage =
+        "Banking network service is temporarily unavailable. Your balance was refunded, please try again shortly.";
+    }
+
     return NextResponse.json(
-      { success: false, error: error.message || "Failed to process withdrawal" },
+      { success: false, error: userMessage },
       { status: 400 },
     );
   }

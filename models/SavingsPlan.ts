@@ -40,6 +40,7 @@ export interface ISavingsPlan {
   initialDeposit: number;
   currentAmount: number;
   interestEarned: number;
+  apy: number; // Annual Percentage Yield locked at plan creation
   lastAccruedDate?: string; // YYYY-MM-DD
   currency: "NGN" | "USDC";
   chain: string; // e.g. stellar | none
@@ -84,6 +85,7 @@ const SavingsPlanSchema = new Schema<ISavingsPlan>(
     initialDeposit: { type: Number, default: 0 },
     currentAmount: { type: Number, default: 0 },
     interestEarned: { type: Number, default: 0 },
+    apy: { type: Number, default: 0 },
     lastAccruedDate: { type: String, default: null },
     currency: { type: String, enum: ["NGN", "USDC"], default: "USDC" },
     chain: { type: String, default: "stellar" },

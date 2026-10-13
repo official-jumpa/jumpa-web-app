@@ -13,7 +13,10 @@ export async function getSavingsPlanById(
 ): Promise<UISavingsPlan | null> {
   try {
     await connectDB();
-    const query: Record<string, any> = { _id: id, userId };
+    const query: Record<string, any> = {
+      _id: id,
+      $or: [{ userId }, { "circleConfig.members.userId": userId }],
+    };
     if (kind) query.kind = kind;
 
     const dbPlan = await SavingsPlan.findOne(query);
@@ -29,28 +32,61 @@ export async function getSavingsPlanById(
 import mongoose from "mongoose";
 
 /**
- * Returns the raw Mongoose ISavingsPlan document scoped to the owner for mutations.
+ * Returns the raw Mongoose ISavingsPlan document scoped to the owner or a circle member for mutations.
  */
 export async function getRawSavingsPlanById(
   id: string,
   userId: string,
 ): Promise<(ISavingsPlan & mongoose.Document) | null> {
   await connectDB();
-  return SavingsPlan.findOne({ _id: id, userId });
+  return SavingsPlan.findOne({
+    _id: id,
+    $or: [{ userId }, { "circleConfig.members.userId": userId }],
+  });
 }
 
 
 /**
- * Lists all active or historical savings plans belonging to an authenticated user.
+ * Lists all active or historical savings plans belonging to or joined by an authenticated user.
  */
 export async function listSavingsPlansByUserId(
   userId: string,
   kind?: SavingsKind,
 ): Promise<ISavingsPlan[]> {
   await connectDB();
-  const query: Record<string, any> = { userId };
+  const query: Record<string, any> = {
+    $or: [{ userId }, { "circleConfig.members.userId": userId }],
+  };
   if (kind) query.kind = kind;
   return SavingsPlan.find(query).sort({ createdAt: -1 });
+}
+
+/**
+ * Calculates the total active NGN savings principal across all active plans for a user.
+ * Used to enforce the platform-wide ₦1,000,000 savings cap per user.
+ */
+export async function getUserActiveNgnSavings(userId: string): Promise<number> {
+  await connectDB();
+  const plans = await SavingsPlan.find({
+    userId,
+    currency: "NGN",
+    status: "Active",
+  }).select("currentAmount");
+  return plans.reduce((sum, p) => sum + (p.currentAmount || 0), 0);
+}
+
+/**
+ * Calculates the total active USDC savings principal across all active plans for a user.
+ * Used to enforce the platform-wide $1,000 USDC savings cap per user.
+ */
+export async function getUserActiveUsdcSavings(userId: string): Promise<number> {
+  await connectDB();
+  const plans = await SavingsPlan.find({
+    userId,
+    currency: "USDC",
+    status: "Active",
+  }).select("currentAmount");
+  return plans.reduce((sum, p) => sum + (p.currentAmount || 0), 0);
 }
 
 /**

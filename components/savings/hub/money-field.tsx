@@ -22,6 +22,7 @@ export function MoneyField({
   example = "deposit",
   autoFocus,
   trailing,
+  maxDigits = 7,
 }: {
   label: string;
   currency: HubCurrency;
@@ -33,6 +34,8 @@ export function MoneyField({
   example?: keyof typeof EXAMPLES;
   autoFocus?: boolean;
   trailing?: ReactNode;
+  /** Maximum number of whole-number digits allowed (defaults to 7 for savings to prevent UI overflow) */
+  maxDigits?: number;
 }) {
   return (
     <SavingsField label={label} error={error}>
@@ -45,7 +48,14 @@ export function MoneyField({
         // biome-ignore lint/a11y/noAutofocus: the sheet exists to take this entry
         autoFocus={autoFocus}
         value={formatAmount(value)}
-        onChange={(event) => onChange(sanitiseAmount(event.target.value))}
+        onChange={(event) => {
+          const sanitised = sanitiseAmount(event.target.value);
+          const [whole, decimals] = sanitised.split(".");
+          if (whole && whole.length > maxDigits) {
+            return;
+          }
+          onChange(sanitised);
+        }}
         placeholder={EXAMPLES[example][currency]}
         aria-invalid={error ? true : undefined}
         className={SAVINGS_INPUT}

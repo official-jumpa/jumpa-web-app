@@ -128,6 +128,7 @@ export async function GET(req: NextRequest) {
           startDate: startDateFormatted,
           circle: circleData,
           activity,
+          apy: plan.apy ?? 0,
           closed: closure,
         };
       }),

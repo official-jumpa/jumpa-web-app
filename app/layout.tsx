@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import { IosInputZoom } from "@/components/ios-input-zoom";
 import { ServiceWorker } from "@/components/service-worker";
 import localFont from "next/font/local";
 import "./globals.css";
@@ -217,6 +218,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </>
         )}
         <ServiceWorker />
+        <IosInputZoom />
         {children}
       </body>
     </html>

@@ -6,6 +6,7 @@ import { InfoNote } from "@/components/auth/info-note";
 import {
   SAVINGS_INPUT,
   SavingsField,
+  SavingsFieldset,
   SavingsLabel,
 } from "@/components/savings/savings-field";
 import {
@@ -410,7 +411,7 @@ function MemberStepper({
     onChange(Math.max(MEMBERS.min, Math.min(MEMBERS.max, value + delta)));
 
   return (
-    <SavingsField label="Members in circle">
+    <SavingsFieldset label="Members in circle">
       <div className="flex w-full items-center justify-between">
         <span className="text-sm leading-4 font-medium text-jumpa-black">
           {value} {value === 1 ? "member" : "members"}
@@ -432,7 +433,7 @@ function MemberStepper({
           </StepButton>
         </span>
       </div>
-    </SavingsField>
+    </SavingsFieldset>
   );
 }
 

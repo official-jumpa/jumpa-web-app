@@ -20,16 +20,18 @@ export function SavingsLabel({ children }: { children: ReactNode }) {
   );
 }
 
-/** Label over a bordered field, with its validation message underneath. */
-export function SavingsField({
-  label,
-  error,
-  children,
-}: {
+type FieldProps = {
   label: ReactNode;
   error?: string;
   children: ReactNode;
-}) {
+};
+
+/**
+ * Label over a bordered field, with its validation message underneath. A
+ * `<label>` forwards any click inside it to its first control, so it takes one
+ * control only; use `SavingsFieldset` for more.
+ */
+export function SavingsField({ label, error, children }: FieldProps) {
   return (
     // biome-ignore lint/a11y/noLabelWithoutControl: the control is passed in as children
     <label className="flex flex-col gap-3">
@@ -37,5 +39,21 @@ export function SavingsField({
       <span className={savingsShell(Boolean(error))}>{children}</span>
       <FieldError>{error}</FieldError>
     </label>
+  );
+}
+
+/** `SavingsField` for several controls, like a stepper: the label is not clickable. */
+export function SavingsFieldset({ label, error, children }: FieldProps) {
+  return (
+    <fieldset className="min-w-0">
+      {/* Flex, so the label's own line box sets the height, not the legend's strut. */}
+      <legend className="mb-3 flex">
+        <SavingsLabel>{label}</SavingsLabel>
+      </legend>
+      <div className="flex flex-col gap-3">
+        <div className={savingsShell(Boolean(error))}>{children}</div>
+        <FieldError>{error}</FieldError>
+      </div>
+    </fieldset>
   );
 }

@@ -1,8 +1,8 @@
 import Image from "next/image";
 import type { CSSProperties } from "react";
 import { LandingButton } from "@/components/landing/landing-button";
-import { MARQUEE_IMAGE } from "@/components/landing/marquee";
 import { revealStep } from "@/components/landing/reveal";
+import { SLIDE_IMAGE } from "@/components/landing/slide-image";
 import { CLOSING, COUNTRIES, CTA } from "@/lib/landing";
 
 const IMG = "/images/landing";
@@ -11,7 +11,7 @@ const IMG = "/images/landing";
 const MARQUEE = { "--copies": 5, "--marquee-s": "30s" } as CSSProperties;
 
 const PILL =
-  "flex h-28 items-center rounded-u-15 bg-jumpa-white/10 p-10 font-medium text-u-8.25/12 -tracking-u-0.25";
+  "glass-landing-pill flex h-28 items-center rounded-u-15 bg-jumpa-white/10 p-10 font-medium text-u-8.25/12 -tracking-u-0.25";
 
 function Bubble({ className }: { className: string }) {
   return (
@@ -45,7 +45,7 @@ function CountryMarquee() {
                 sizes="(min-width: 768px) 190px, 134px"
                 alt={copy > 0 ? "" : country.name}
                 className="h-44 w-auto md:h-62"
-                {...MARQUEE_IMAGE}
+                {...SLIDE_IMAGE}
               />
             </li>
           )),

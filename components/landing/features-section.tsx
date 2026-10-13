@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { revealStep } from "@/components/landing/reveal";
 import { SectionBadge } from "@/components/landing/section-badge";
+import { SLIDE_IMAGE } from "@/components/landing/slide-image";
 import { SnapCarousel } from "@/components/landing/snap-carousel";
 import { cn } from "@/lib/cn";
 import { FEATURES, type Feature, type FeatureId } from "@/lib/landing";
@@ -123,6 +124,7 @@ function MobileCard({ feature }: { feature: Feature }) {
         height={864}
         sizes="(min-width: 768px) 1px, 90vw"
         alt=""
+        {...SLIDE_IMAGE}
         className="absolute inset-0 size-full object-cover"
       />
       <div className="absolute top-23 left-20 flex w-322 flex-col items-start gap-16">

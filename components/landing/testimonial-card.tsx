@@ -1,18 +1,12 @@
 import Image from "next/image";
 import { Art } from "@/components/landing/art";
-import { MARQUEE_IMAGE } from "@/components/landing/marquee";
+import { SLIDE_IMAGE } from "@/components/landing/slide-image";
 import { cn } from "@/lib/cn";
 import type { Testimonial } from "@/lib/landing";
 
 const STARS = 5;
 
-function Avatar({
-  avatar,
-  eager,
-}: {
-  avatar: Testimonial["avatar"];
-  eager?: boolean;
-}) {
+function Avatar({ avatar }: { avatar: Testimonial["avatar"] }) {
   return (
     <span className="relative block size-48 shrink-0 overflow-clip rounded-full bg-jumpa-sand">
       <Image
@@ -21,7 +15,7 @@ function Avatar({
         height={avatar.height}
         sizes="96px"
         alt=""
-        {...(eager ? MARQUEE_IMAGE : {})}
+        {...SLIDE_IMAGE}
         style={avatar.box}
         className={cn(
           "absolute max-w-none object-cover",
@@ -58,6 +52,7 @@ export function TestimonialCard({ item }: { item: Testimonial }) {
             fill
             sizes="(min-width: 1440px) 221px, 16vw"
             alt={`${item.name}'s message in the Jumpa beta group`}
+            {...SLIDE_IMAGE}
             style={{ objectPosition: item.shot.position }}
             className="object-cover"
           />
@@ -92,12 +87,12 @@ export function TestimonialCardMobile({ item }: { item: Testimonial }) {
           fill
           sizes="(min-width: 768px) 1px, 82vw"
           alt={`${item.name}'s message in the Jumpa beta group`}
-          {...MARQUEE_IMAGE}
+          {...SLIDE_IMAGE}
           className="object-cover"
         />
       </div>
       <div className="flex items-center gap-17">
-        <Avatar avatar={item.avatar} eager />
+        <Avatar avatar={item.avatar} />
         <p className="flex flex-col font-semibold -tracking-u-0.25">
           <span className="text-u-11.75/17.25">{item.name}</span>
           <span className="font-medium text-jumpa-lavender-500 text-u-10.75/16">

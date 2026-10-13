@@ -3,6 +3,7 @@ import { Art } from "@/components/landing/art";
 import { PinPreview } from "@/components/landing/pin-preview";
 import { revealStep } from "@/components/landing/reveal";
 import { SectionBadge } from "@/components/landing/section-badge";
+import { SLIDE_IMAGE } from "@/components/landing/slide-image";
 import { SnapCarousel } from "@/components/landing/snap-carousel";
 import { cn } from "@/lib/cn";
 import { SECURITY, type SecurityId } from "@/lib/landing";
@@ -61,6 +62,7 @@ function CardArt({ id, mobile }: { id: SecurityId; mobile?: boolean }) {
               : "(min-width: 1440px) 277px, 20vw"
           }
           alt=""
+          {...(mobile ? SLIDE_IMAGE : {})}
           className={cn(
             "absolute",
             mobile
@@ -83,6 +85,7 @@ function CardArt({ id, mobile }: { id: SecurityId; mobile?: boolean }) {
             : "(min-width: 1440px) 314px, 22vw"
         }
         alt=""
+        {...(mobile ? SLIDE_IMAGE : {})}
         className={cn(
           "absolute",
           mobile
@@ -140,6 +143,7 @@ function MobileNdpc() {
         height={400}
         sizes="(min-width: 768px) 1px, 34vw"
         alt=""
+        {...SLIDE_IMAGE}
         className="absolute top-27 left-115.5 size-130.5"
       />
       <Art

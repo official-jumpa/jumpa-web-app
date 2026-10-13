@@ -2,6 +2,7 @@ import Image from "next/image";
 import { HowItWorksSteps } from "@/components/landing/how-it-works-steps";
 import { revealStep } from "@/components/landing/reveal";
 import { SectionBadge } from "@/components/landing/section-badge";
+import { SLIDE_IMAGE } from "@/components/landing/slide-image";
 import { SnapCarousel } from "@/components/landing/snap-carousel";
 import { HOW_IT_WORKS } from "@/lib/landing";
 
@@ -63,6 +64,7 @@ export function HowItWorksSection() {
                   height={step.image.height}
                   sizes="(min-width: 768px) 1px, 63vw"
                   alt=""
+                  {...SLIDE_IMAGE}
                   className="absolute top-29.5 left-59.25 h-479 w-228 object-cover"
                 />
               </div>

@@ -272,6 +272,10 @@
      exactly one, so the loop has no seam. Duration is per set: `--marquee-s`. */
   --animate-marquee-x: marquee-x var(--marquee-s, 30s) linear infinite;
   --animate-marquee-y: marquee-y var(--marquee-s, 40s) linear infinite;
+  /* The hero's two colour glows wander on their own paths and clocks, so they
+     never move in step. Both start and end at the design position. */
+  --animate-glow-a: glow-a 14s ease-in-out infinite;
+  --animate-glow-b: glow-b 19s ease-in-out infinite;
 
   @keyframes rise {
     from {
@@ -509,6 +513,28 @@
       transform: translateY(calc(-100% / var(--copies, 2)));
     }
   }
+  @keyframes glow-a {
+    30% {
+      transform: translate(32%, -24%) scale(1.18);
+    }
+    60% {
+      transform: translate(-10%, 20%) scale(0.9);
+    }
+    80% {
+      transform: translate(18%, 12%) scale(1.08);
+    }
+  }
+  @keyframes glow-b {
+    25% {
+      transform: translate(-26%, 18%) scale(0.92);
+    }
+    55% {
+      transform: translate(-38%, -20%) scale(1.2);
+    }
+    80% {
+      transform: translate(8%, -14%) scale(1.04);
+    }
+  }
 }
 
 /* Recurring gradients. Tailwind has no utility for multi-stop brand gradients. */
@@ -736,6 +762,19 @@
 }
 @utility shadow-landing-disc {
   box-shadow: 0 0 calc(37.5 * var(--spacing)) rgb(0 0 0 / 0.5);
+}
+/* Figma's Glass effect on the CTA's message pills, which its CSS export drops:
+   a frosted fill shaded from the top-left, inside a hairline white rim. Read
+   off a 3x render of the frame. */
+@utility glass-landing-pill {
+  background-image: linear-gradient(
+    to bottom right,
+    color-mix(in srgb, var(--color-jumpa-ink) 4%, transparent),
+    color-mix(in srgb, var(--color-jumpa-white) 22%, transparent)
+  );
+  box-shadow: inset 0 0 0 calc(0.75 * var(--spacing))
+    color-mix(in srgb, var(--color-jumpa-white) 90%, transparent);
+  backdrop-filter: blur(calc(4 * var(--spacing)));
 }
 @utility inset-shadow-landing-row {
   box-shadow: inset 0 0 calc(14.75 * var(--spacing))

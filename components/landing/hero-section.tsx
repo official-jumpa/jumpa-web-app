@@ -1,3 +1,4 @@
+import { preload } from "react-dom";
 import { Art } from "@/components/landing/art";
 import { countChars, HeadlineChars } from "@/components/landing/headline-chars";
 import { LandingButton } from "@/components/landing/landing-button";
@@ -11,19 +12,23 @@ const LEAD_CHARS = countChars(HERO.heading.lead);
    a 34ms one: the subhead lands as the last character does, the rest behind it. */
 const SUBHEAD_STEP = 13;
 
-/** Glows sit under the grid, as the design layers them. */
-const GLOW = "absolute rounded-full opacity-18";
+const GRID = "/images/landing/hero-grid.webp";
+
+/** Glows sit under the grid, as the design layers them, and drift on their own clocks. */
+const GLOW = "absolute rounded-full opacity-18 will-change-transform md:w-auto";
 
 export function HeroSection() {
+  // A CSS background is only found once styles apply; fetch it with the HTML.
+  preload(GRID, { as: "image" });
   return (
     <section className="relative isolate -mt-65 overflow-clip md:-mt-95">
-      <div aria-hidden="true" className="absolute inset-0 hidden md:block">
-        <div className="relative mx-auto h-full w-1440">
+      <div aria-hidden="true" className="absolute inset-0">
+        <div className="relative mx-auto h-full w-402 md:w-1440">
           <span
-            className={`${GLOW} top-481.5 right-[82.5%] left-[1.59%] h-229.5 bg-jumpa-primary-600 blur-u-36.75`}
+            className={`${GLOW} top-356 -left-34 h-90 w-97 animate-glow-a bg-jumpa-primary-600 blur-u-17 md:top-481.5 md:right-[82.5%] md:left-[1.59%] md:h-229.5 md:blur-u-36.75`}
           />
           <span
-            className={`${GLOW} top-383 right-[4.05%] left-[78.1%] h-257.5 bg-jumpa-alt-400 blur-u-42.5`}
+            className={`${GLOW} top-314 left-310.25 h-119 w-122.5 animate-glow-b bg-jumpa-alt-400 blur-u-19.75 md:top-383 md:right-[4.05%] md:left-[78.1%] md:h-257.5 md:blur-u-42.5`}
           />
         </div>
       </div>
@@ -31,7 +36,8 @@ export function HeroSection() {
       {/* Tiles at a fixed size past 1440 so the grid never stretches. */}
       <span
         aria-hidden="true"
-        className="absolute inset-0 bg-[url(/images/landing/hero-grid.webp)] bg-cover bg-center md:bg-[length:calc(1440*var(--spacing))_calc(765.5*var(--spacing))] md:bg-[position:calc(50%+3*var(--spacing))_0] md:bg-repeat-x"
+        style={{ backgroundImage: `url(${GRID})` }}
+        className="absolute inset-0 bg-cover bg-center md:bg-[length:calc(1440*var(--spacing))_calc(765.5*var(--spacing))] md:bg-[position:calc(50%+3*var(--spacing))_0] md:bg-repeat-x"
       />
 
       <div className="relative mx-auto h-494 w-402 md:h-765.5 md:w-1440">

@@ -225,10 +225,42 @@ export function CreateGoalForm({
     const goal = Number(target) || 0;
     const next: FormErrors<Field> = {};
     if (!name.trim()) next.name = "Give this plan a name";
-    // Individual savings can have optional first deposit (principal >= 0)
-    if (kind !== "individual" && principal <= 0) {
-      next.deposit = form.depositEmpty;
-    } else if (form.targetLabel && goal > 0 && principal > goal) {
+    
+    // NGN Category Minimums & Caps
+    if (currency === "NGN") {
+      if (kind === "lock" && principal < 10000) {
+        next.deposit = "Minimum lock deposit is ₦10,000";
+      } else if (kind === "circle" && principal < 200) {
+        next.deposit = "Minimum circle contribution is ₦200";
+      } else if (kind !== "individual" && principal <= 0) {
+        next.deposit = form.depositEmpty;
+      }
+
+      if (principal > 1000000) {
+        next.deposit = "Maximum deposit limit is ₦1,000,000";
+      }
+      if (form.targetLabel && goal > 1000000) {
+        next.target = "Maximum target limit is ₦1,000,000";
+      }
+    } else {
+      // USDC Category Minimums & Caps
+      if (kind === "lock" && principal < 5) {
+        next.deposit = "Minimum lock deposit is $5 USDC";
+      } else if (kind === "circle" && principal < 0.5) {
+        next.deposit = "Minimum circle contribution is $0.5 USDC";
+      } else if (kind !== "individual" && principal <= 0) {
+        next.deposit = form.depositEmpty;
+      }
+
+      if (principal > 1000) {
+        next.deposit = "Maximum deposit limit is $1,000 USDC";
+      }
+      if (form.targetLabel && goal > 1000) {
+        next.target = "Maximum target limit is $1,000 USDC";
+      }
+    }
+
+    if (form.targetLabel && goal > 0 && principal > goal) {
       next.deposit = "This is more than the target";
     }
 

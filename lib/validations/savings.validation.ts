@@ -80,6 +80,61 @@ export const createSavingsPlanSchema = z.object({
     message: "End date must be on or after start date",
     path: ["endDate"],
   },
+).refine(
+  (data) => {
+    if (data.currency === "NGN") {
+      const dep = Number(data.depositAmount || 0);
+      if (data.kind === "lock" && dep < 10000) {
+        return false;
+      }
+    } else if (data.currency === "USDC") {
+      const dep = Number(data.depositAmount || 0);
+      if (data.kind === "lock" && dep < 5) {
+        return false;
+      }
+    }
+    return true;
+  },
+  {
+    message: "Minimum deposit for locked savings is $5 USDC",
+    path: ["depositAmount"],
+  },
+).refine(
+  (data) => {
+    if (data.currency === "NGN") {
+      const dep = Number(data.depositAmount || 0);
+      if (data.kind === "circle" && dep < 200) {
+        return false;
+      }
+    } else if (data.currency === "USDC") {
+      const dep = Number(data.depositAmount || 0);
+      if (data.kind === "circle" && dep < 0.5) {
+        return false;
+      }
+    }
+    return true;
+  },
+  {
+    message: "Minimum deposit for circles is $0.5 USDC",
+    path: ["depositAmount"],
+  },
+).refine(
+  (data) => {
+    const dep = Number(data.depositAmount || 0);
+    const tgt = Number(data.targetAmount || 0);
+    if (data.currency === "NGN") {
+      if (dep > 1000000) return false;
+      if (tgt > 1000000) return false;
+    } else if (data.currency === "USDC") {
+      if (dep > 1000) return false;
+      if (tgt > 1000) return false;
+    }
+    return true;
+  },
+  {
+    message: "Savings limit exceeded ($1,000 USDC max)",
+    path: ["depositAmount"],
+  },
 );
 
 export type CreateSavingsPlanInput = z.infer<typeof createSavingsPlanSchema>;
@@ -103,7 +158,21 @@ export const topUpSavingsSchema = z.object({
   fundingSource: z.enum(["crypto", "usd", "ngn"]).default("crypto"),
   currency: z.enum(["NGN", "USDC"]).optional(),
   pin: pinSchema.optional(),
-});
+}).refine(
+  (data) => {
+    if (data.currency === "NGN" && data.amount > 1000000) {
+      return false;
+    }
+    if (data.currency === "USDC" && data.amount > 1000) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: "Top-up limit exceeded",
+    path: ["amount"],
+  },
+);
 
 export type TopUpSavingsInput = z.infer<typeof topUpSavingsSchema>;
 

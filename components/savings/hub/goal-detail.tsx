@@ -18,7 +18,6 @@ import {
   currencySymbol,
   formatFigure,
   formatMoney,
-  goalApy,
   goalMatured,
   goalPeriod,
   goalProgress,
@@ -69,7 +68,7 @@ export function GoalDetail({
   const early = locked && !matured;
   const figure = closed ? closed.paidOut : goal.saved;
   const period = goalPeriod(goal);
-  const rate = `${formatApy(goalApy(goal))} a year`;
+  const rate = `${formatApy(goal.apy)} a year`;
 
   return (
     <div className="flex min-h-dvh flex-col gap-6 px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+2rem)]">

@@ -86,6 +86,8 @@ export type SavingsGoal = {
   startDate: string;
   circle?: SavingsCircle;
   activity: SavingsActivity[];
+  /** APY locked at creation time */
+  apy: number;
   /** Set when the plan is withdrawn. It moves to Completed and keeps its final figures. */
   closed?: SavingsClosure;
 };
@@ -151,10 +153,6 @@ export const ACTIVITY_LABEL: Record<HubActivityKind, string> = {
   interest: "Interest",
 };
 
-/** Rate a goal earns, from the same tier table every savings screen quotes. */
-export function goalApy(goal: HubGoal): number {
-  return apyForDays(goal.kind, goal.termDays);
-}
 
 /**
  * How far along, 0–1 and unrounded. A lock measures how much of its term has
@@ -263,6 +261,7 @@ export const HUB_GOALS: HubGoal[] = [
     termDays: 90,
     daysLeft: 41,
     startDate: startedAgo(49),
+    apy: 12,
     activity: [
       { id: "h-5", kind: "interest", amount: 18500, at: isoDaysAgo(0) },
       { id: "h-4", kind: "deposit", amount: 50000, at: isoDaysAgo(7) },
@@ -282,6 +281,7 @@ export const HUB_GOALS: HubGoal[] = [
     termDays: 180,
     daysLeft: 89,
     startDate: startedAgo(91),
+    apy: 8,
     activity: [
       { id: "h-8", kind: "interest", amount: 48.75, at: isoDaysAgo(0) },
       { id: "h-7", kind: "deposit", amount: 200, at: isoDaysAgo(42) },
@@ -299,6 +299,7 @@ export const HUB_GOALS: HubGoal[] = [
     termDays: 90,
     daysLeft: 20,
     startDate: startedAgo(70),
+    apy: 16,
     activity: [
       { id: "h-10", kind: "interest", amount: 32000, at: isoDaysAgo(0) },
       { id: "h-9", kind: "deposit", amount: 800000, at: isoDaysAgo(70) },
@@ -315,6 +316,7 @@ export const HUB_GOALS: HubGoal[] = [
     termDays: 90,
     daysLeft: 55,
     startDate: startedAgo(35),
+    apy: 10,
     circle: {
       inviteCode: "kgl482",
       capacity: 6,
@@ -357,6 +359,7 @@ export const HUB_GOALS: HubGoal[] = [
     termDays: 180,
     daysLeft: 0,
     startDate: "15 Feb 2026",
+    apy: 16,
     closed: { date: "14 Aug 2026", paidOut: 541000, forfeited: false },
     activity: [
       { id: "h-18", kind: "withdrawal", amount: 541000, at: "2026-08-14" },
@@ -375,6 +378,7 @@ export const HUB_GOALS: HubGoal[] = [
     termDays: 90,
     daysLeft: 0,
     startDate: "02 Mar 2026",
+    apy: 12,
     closed: { date: "31 May 2026", paidOut: 309200, forfeited: false },
     activity: [
       { id: "h-22", kind: "withdrawal", amount: 309200, at: "2026-05-31" },
@@ -394,6 +398,7 @@ export const HUB_GOALS: HubGoal[] = [
     termDays: 120,
     daysLeft: 31,
     startDate: "23 May 2026",
+    apy: 8,
     closed: { date: "20 Aug 2026", paidOut: 664.2, forfeited: false },
     activity: [
       { id: "h-26", kind: "withdrawal", amount: 664.2, at: "2026-08-20" },
@@ -413,6 +418,7 @@ export const HUB_GOALS: HubGoal[] = [
     termDays: 90,
     daysLeft: 54,
     startDate: "10 Jun 2026",
+    apy: 8,
     closed: { date: "16 Jul 2026", paidOut: 800, forfeited: true },
     activity: [
       { id: "h-28", kind: "withdrawal", amount: 800, at: "2026-07-16" },
@@ -506,6 +512,7 @@ export function createGoal(input: {
     termDays: input.termDays,
     daysLeft: input.termDays,
     startDate: todayLabel(),
+    apy: apyForDays(input.kind, input.termDays),
     circle:
       input.kind === "circle"
         ? {

@@ -5,7 +5,13 @@ import {
   getRawSavingsPlanById,
   createSavingsTransaction,
   closeSavingsPlanRecord,
+  getUserActiveNgnSavings,
+  getUserActiveUsdcSavings,
 } from "@/lib/functions/savingsFunctions";
+import {
+  atomicDebitNgnBalance,
+  atomicCreditNgnBalance,
+} from "@/lib/functions/bellmonieFunctions";
 import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
 import {
   setUserCreatedSavings,
@@ -23,6 +29,7 @@ import { fetchStellarBalances } from "@/lib/chains/stellar/account";
 import { DefindexClient } from "@/lib/chains/stellar/defindex-client";
 import { environment } from "@/lib/environment";
 import { getExplorerTxUrl, CONTRACT_ADDRESSES } from "@/lib/blockchain";
+import { apyForDays } from "@/lib/savings";
 import { generateCircleInviteCode } from "@/lib/schema-ids";
 import { formatPlanForUI } from "@/lib/savings-service";
 import { NgnAccount } from "@/models/NgnAccount";
@@ -161,22 +168,35 @@ export async function createSavingsPlanExecution(
 
   // Currency: NGN (Database Only) 
   if (currency === "NGN") {
-    if (numDeposit > 0) {
-      // Atomic conditional deduction from user's NgnAccount
-      const updatedNgn = await NgnAccount.findOneAndUpdate(
-        { userId, balance: { $gte: numDeposit } },
-        { $inc: { balance: -numDeposit } },
-        { returnDocument: "after" },
-      );
+    // 1. Enforce cumulative ₦1,000,000 maximum savings cap per user
+    const currentActiveNgnSavings = await getUserActiveNgnSavings(userId);
+    if (currentActiveNgnSavings + numDeposit > 1000000) {
+      return {
+        ok: false,
+        error: `Savings limit exceeded. Maximum allowed savings across all categories is ₦1,000,000. Current total saved: ₦${currentActiveNgnSavings.toLocaleString()}.`,
+        status: 400,
+      };
+    }
 
-      if (!updatedNgn) {
+    if (numDeposit > 0) {
+      try {
+        await atomicDebitNgnBalance({
+          userId,
+          amount: numDeposit,
+          memo: `savings:deposit:initial:${name}`,
+        });
+      } catch (err: any) {
+        console.log("savings error", err)
         return {
           ok: false,
-          error: `Insufficient NGN balance for this deposit (₦${numDeposit.toLocaleString()}).`,
+          error:`Insufficient NGN balance for this deposit (₦${numDeposit.toLocaleString()}).`,
           status: 400,
         };
       }
     }
+
+    // Compute and lock APY for this plan at creation time
+    const lockedApy = apyForDays(kind, days);
 
     // Save SavingsPlan in MongoDB
     const plan = await createSavingsPlanRecord({
@@ -190,6 +210,7 @@ export async function createSavingsPlanExecution(
       initialDeposit: numDeposit,
       currentAmount: numDeposit,
       interestEarned: 0,
+      apy: lockedApy,
       currency: "NGN",
       chain: "none",
       vaultAddress: "ngn_db_vault",
@@ -258,6 +279,16 @@ export async function createSavingsPlanExecution(
       ok: false,
       error: "vault address not configured",
       status: 500,
+    };
+  }
+
+  // Enforce cumulative $1,000 USDC maximum savings cap per user
+  const currentActiveUsdcSavings = await getUserActiveUsdcSavings(userId);
+  if (currentActiveUsdcSavings + numDeposit > 1000) {
+    return {
+      ok: false,
+      error: `Savings limit exceeded. Maximum allowed savings across all USDC categories is $1,000. Current total saved: $${currentActiveUsdcSavings.toFixed(2)}.`,
+      status: 400,
     };
   }
 
@@ -350,6 +381,9 @@ export async function createSavingsPlanExecution(
     });
   }
 
+  // Compute and lock APY for this plan at creation time
+  const lockedApy = apyForDays(kind, days);
+
   // Save SavingsPlan in MongoDB
   const plan = await createSavingsPlanRecord({
     userId,
@@ -362,6 +396,7 @@ export async function createSavingsPlanExecution(
     initialDeposit: numDeposit,
     currentAmount: numDeposit,
     interestEarned: 0,
+    apy: lockedApy,
     currency: "USDC",
     chain: "stellar",
     vaultAddress,
@@ -444,16 +479,40 @@ export async function depositSavingsExecution(
 
   // Currency: NGN (Database - No PIN required)
   if (plan.currency === "NGN") {
-    const updatedNgn = await NgnAccount.findOneAndUpdate(
-      { userId, balance: { $gte: amount } },
-      { $inc: { balance: -amount } },
-      { returnDocument: "after" },
-    );
-
-    if (!updatedNgn) {
+    // 1. Enforce cumulative ₦1,000,000 maximum savings cap per user
+    const currentActiveNgnSavings = await getUserActiveNgnSavings(userId);
+    if (currentActiveNgnSavings + amount > 1000000) {
       return {
         ok: false,
-        error: `Insufficient NGN balance for this top-up (₦${amount.toLocaleString()}).`,
+        error: `Savings limit exceeded. Maximum allowed savings across all categories is ₦1,000,000. Current total saved: ₦${currentActiveNgnSavings.toLocaleString()}.`,
+        status: 400,
+      };
+    }
+
+    // 2. Disallow overfunding if a target amount is specified
+    if (plan.targetAmount && plan.targetAmount > 0) {
+      const remainingTarget = Math.max(0, plan.targetAmount - (plan.currentAmount || 0));
+      if (amount > remainingTarget) {
+        return {
+          ok: false,
+          error: remainingTarget === 0
+            ? "This savings goal has already reached its target."
+            : `Top-up exceeds target. Maximum you can deposit into this plan is ₦${remainingTarget.toLocaleString()}.`,
+          status: 400,
+        };
+      }
+    }
+
+    try {
+      await atomicDebitNgnBalance({
+        userId,
+        amount,
+        memo: `savings:deposit:topup:${plan._id}`,
+      });
+    } catch (err: any) {
+      return {
+        ok: false,
+        error: err.message || `Insufficient NGN balance for this top-up (₦${amount.toLocaleString()}).`,
         status: 400,
       };
     }
@@ -503,6 +562,30 @@ export async function depositSavingsExecution(
   }
 
   // ── Currency: USDC (Stellar DeFindex) ────────────────────────────────────
+  // 1. Enforce cumulative $1,000 USDC maximum savings cap per user
+  const currentActiveUsdcSavings = await getUserActiveUsdcSavings(userId);
+  if (currentActiveUsdcSavings + amount > 1000) {
+    return {
+      ok: false,
+      error: `Savings limit exceeded. Maximum allowed savings across all USDC categories is $1,000. Current total saved: $${currentActiveUsdcSavings.toFixed(2)}.`,
+      status: 400,
+    };
+  }
+
+  // 2. Disallow overfunding if a target amount is specified
+  if (plan.targetAmount && plan.targetAmount > 0) {
+    const remainingTarget = Math.max(0, plan.targetAmount - (plan.currentAmount || 0));
+    if (amount > remainingTarget) {
+      return {
+        ok: false,
+        error: remainingTarget === 0
+          ? "This savings goal has already reached its target."
+          : `Top-up exceeds target. Maximum you can deposit into this plan is $${remainingTarget.toFixed(2)} USDC.`,
+        status: 400,
+      };
+    }
+  }
+
   const stellarAddress = wallet.addresses?.xlm || wallet.address;
   const balances = await fetchStellarBalances(stellarAddress);
   const availableUsdc = Number(balances.testnet.usdc) || 0;
@@ -681,13 +764,14 @@ export async function withdrawSavingsExecution(
   const remainingBalance = Math.max(0, (plan.currentAmount || 0) - principalWithdraw);
   const isFullWithdrawal = isLock || remainingBalance === 0;
 
-  // ── Currency: NGN (Database Ledger) ──────────────────────────────────────
+  // ── Currency: NGN (Database Ledger)
   if (plan.currency === "NGN") {
-    // Atomically credit user's NgnAccount with the payout
-    await NgnAccount.updateOne(
-      { userId },
-      { $inc: { balance: netPayout } },
-    );
+    // Atomically credit user's NgnAccount with the payout and invalidate balance cache
+    await atomicCreditNgnBalance({
+      userId,
+      amount: netPayout,
+      memo: `savings:withdraw:${plan._id}`,
+    });
 
     if (isFullWithdrawal) {
       await closeSavingsPlanRecord(planId, userId, {
@@ -897,13 +981,24 @@ export async function joinCircleExecution(
 
   // 1. Process payment: NGN or USDC
   if (plan.currency === "NGN") {
-    const updatedNgn = await NgnAccount.findOneAndUpdate(
-      { userId, balance: { $gte: numDeposit } },
-      { $inc: { balance: -numDeposit } },
-      { returnDocument: "after" },
-    );
+    // Enforce cumulative ₦1,000,000 maximum savings cap per user
+    const currentActiveNgnSavings = await getUserActiveNgnSavings(userId);
+    if (currentActiveNgnSavings + numDeposit > 1000000) {
+      return {
+        ok: false,
+        error: `Savings limit exceeded. Maximum allowed savings across all categories is ₦1,000,000. Current total saved: ₦${currentActiveNgnSavings.toLocaleString()}.`,
+        status: 400,
+      };
+    }
 
-    if (!updatedNgn) {
+    try {
+      await atomicDebitNgnBalance({
+        userId,
+        amount: numDeposit,
+        memo: `savings:deposit:join_circle:${plan._id}`,
+      });
+    } catch (err: any) {
+      console.log("savings error", err)
       return {
         ok: false,
         error: `Insufficient NGN balance for this deposit (₦${numDeposit.toLocaleString()}).`,
@@ -912,6 +1007,16 @@ export async function joinCircleExecution(
     }
   } else {
     // USDC on-chain
+    // Enforce cumulative $1,000 USDC maximum savings cap per user
+    const currentActiveUsdcSavings = await getUserActiveUsdcSavings(userId);
+    if (currentActiveUsdcSavings + numDeposit > 1000) {
+      return {
+        ok: false,
+        error: `Savings limit exceeded. Maximum allowed savings across all USDC categories is $1,000. Current total saved: $${currentActiveUsdcSavings.toFixed(2)}.`,
+        status: 400,
+      };
+    }
+
     if (!pin) {
       return { ok: false, error: "Wallet PIN is required for on-chain deposit", status: 400 };
     }

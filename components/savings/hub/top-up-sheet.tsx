@@ -30,8 +30,39 @@ export function TopUpSheet({
         onSubmit={(event) => {
           event.preventDefault();
           const value = Number(amount);
-          if (value > 0) onConfirm(value);
-          else setError("Enter the amount you want to add");
+          if (value <= 0) {
+            setError("Enter the amount you want to add");
+            return;
+          }
+          // Disallow overfunding if a target is set
+          if (goal.target > 0 && value > remaining) {
+            setError(
+              remaining === 0
+                ? "This goal has already reached its target."
+                : `This exceeds your target. Maximum you can add is ${formatMoney(remaining, goal.currency)}.`
+            );
+            return;
+          }
+          if (goal.currency === "NGN") {
+            if (value > 1000000) {
+              setError("Maximum top-up amount is ₦1,000,000");
+              return;
+            }
+            if (goal.saved + value > 1000000) {
+              setError(`This would exceed the ₦1,000,000 savings limit. Max you can add: ${formatMoney(1000000 - goal.saved, "NGN")}`);
+              return;
+            }
+          } else {
+            if (value > 1000) {
+              setError("Maximum top-up amount is $1,000 USDC");
+              return;
+            }
+            if (goal.saved + value > 1000) {
+              setError(`This would exceed the $1,000 USDC savings limit. Max you can add: ${formatMoney(1000 - goal.saved, "USDC")}`);
+              return;
+            }
+          }
+          onConfirm(value);
         }}
         className="flex flex-col gap-6 pt-2"
       >

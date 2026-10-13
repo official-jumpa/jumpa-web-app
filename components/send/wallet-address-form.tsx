@@ -81,6 +81,46 @@ export function WalletAddressForm({
     onChange({ ...form, ...patch });
   };
 
+  const detectNetworkFromAddress = (rawAddress: string): { network: string; asset: string } | null => {
+    const trimmed = rawAddress.trim();
+    if (!trimmed) return null;
+
+    // Tron: Starts with T, exactly 34 Base58 characters
+    if (/^T[1-9A-HJ-NP-za-km-z]{33}$/.test(trimmed)) {
+      return { network: "Tron", asset: "USDT" };
+    }
+
+    // Stellar: Starts with G, exactly 56 uppercase alphanumeric characters
+    if (/^G[A-Z2-7]{55}$/.test(trimmed)) {
+      return { network: "Stellar Mainnet", asset: "XLM" };
+    }
+
+    // EVM (Ethereum / Base): 0x followed by 40 hex chars
+    if (/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
+      // Keep current network if it's already an EVM chain, otherwise default to Base
+      if (form.network === "Ethereum") {
+        return { network: "Ethereum", asset: "USDC" };
+      }
+      return { network: "Base", asset: "USDC" };
+    }
+
+    // Solana: Base58 string between 32 and 44 characters (excluding Stellar/Tron prefixes)
+    if (/^[1-9A-HJ-NP-za-km-z]{32,44}$/.test(trimmed) && !trimmed.startsWith("T") && !trimmed.startsWith("G")) {
+      return { network: "Solana", asset: "SOL" };
+    }
+
+    return null;
+  };
+
+  const handleAddressChange = (newAddress: string, pasted = false) => {
+    const detected = detectNetworkFromAddress(newAddress);
+    if (detected) {
+      set({ address: newAddress, pasted, network: detected.network, asset: detected.asset });
+    } else {
+      set({ address: newAddress, pasted });
+    }
+  };
+
   const handleNetworkChange = (network: string) => {
     const nextConfig = NETWORK_CONFIGS[network];
     const validAssets = nextConfig ? nextConfig.assets : [];
@@ -158,7 +198,7 @@ export function WalletAddressForm({
           <input
             value={form.address}
             onChange={(event) =>
-              set({ address: event.target.value, pasted: false })
+              handleAddressChange(event.target.value, false)
             }
             placeholder="Enter wallet address"
             autoComplete="off"
@@ -170,7 +210,7 @@ export function WalletAddressForm({
             <>
               <ScanAction />
               <PasteAction
-                onPaste={(text) => set({ address: text.trim(), pasted: true })}
+                onPaste={(text) => handleAddressChange(text.trim(), true)}
               />
             </>
           )}

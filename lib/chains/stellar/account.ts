@@ -125,7 +125,7 @@ export async function fetchStellarBalances(
         return { balances, spendableXlm: Math.max(0, spendable).toFixed(7) };
       },
       { balances: fallback },
-      3500,
+      12000,
     ),
   ]);
 

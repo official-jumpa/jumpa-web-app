@@ -160,7 +160,7 @@ async function fetchTronBalances(address: string): Promise<TronBalancesResult> {
   try {
     const res = await fetch(`https://api.trongrid.io/v1/accounts/${address}`, {
       headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(10000),
     });
     if (res.ok) {
       const data = await res.json();
@@ -194,7 +194,7 @@ async function fetchTronBalances(address: string): Promise<TronBalancesResult> {
   try {
     const res = await fetch(`https://apilist.tronscanapi.com/api/account?address=${address}`, {
       headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(10000),
     });
     if (res.ok) {
       const data = await res.json();
@@ -608,13 +608,23 @@ export async function fetchWalletBalances(
 
   summary.totalUsd = `$${totalUsd}`;
 
-  const nonZeroBalances = tokens
-    .filter((t) => (parseFloat(t.balance) || 0) > 0)
-    .map((t) => `${t.balance} ${t.symbol} [${t.network || "mainnet"}]`)
-    .join(", ");
+  // Group all balances by chain network so every queried chain (including Tron and zero balances) is visible
+  const chainGroups: Record<string, string[]> = {};
+  for (const t of tokens) {
+    const net = t.network || "mainnet";
+    chainGroups[net] ||= [];
+    // Format float balance to at most 3 decimals for concise display
+    const num = parseFloat(t.balance);
+    const displayBal = isNaN(num) ? t.balance : num === 0 ? "0" : Number(num.toFixed(3)).toString();
+    chainGroups[net].push(`${displayBal} ${t.symbol}`);
+  }
+
+  const groupedSummary = Object.entries(chainGroups)
+    .map(([net, items]) => `${net}: ${items.join(", ")}`)
+    .join(" | ");
 
   console.log(
-    `[Balance Service] [${chains?.join(", ") || "ALL"}] Total: $${totalUsd}${nonZeroBalances ? ` (${nonZeroBalances})` : ""}`,
+    `[Balance Service] [${chains?.join(", ") || "ALL"}] Total: $${totalUsd} (${groupedSummary})`,
   );
 
   return {

@@ -104,6 +104,9 @@ export function unifyTokens(tokens: any[]): Asset[] {
   };
 
   for (const t of tokens) {
+    // Exclude testnet tokens from unified mainnet asset balances
+    if (t.isTestnet) continue;
+
     const { symbol, name } = getUnifiedMeta(t.symbol);
     const amount = parseFloat(t.balance) || 0;
     const price = parseFloat(t.priceUsd) || 0;

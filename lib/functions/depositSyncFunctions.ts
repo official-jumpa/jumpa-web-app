@@ -15,7 +15,7 @@ import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { formatUnits, parseAbiItem } from "viem";
 
 export interface DetectedDeposit {
-  chain: "stellar" | "solana" | "base" | "ethereum";
+  chain: "stellar" | "solana" | "base" | "ethereum" | "tron";
   txHash: string;
   fromAddress: string;
   toAddress: string;
@@ -274,7 +274,168 @@ async function detectEvmInbound(
 }
 
 /**
- * Syncs inbound deposits for a given wallet across Stellar, Solana, Base, and Ethereum.
+ * Detects inbound payments on Tron (TRC-20 USDT, TRC-20 USDC, and native TRX)
+ */
+async function detectTronInbound(trxAddress?: string): Promise<DetectedDeposit[]> {
+  if (!trxAddress) return [];
+  const results: DetectedDeposit[] = [];
+  const seenTxHashes = new Set<string>();
+
+  const usdtContract = CONTRACT_ADDRESSES.tron.mainnet.USDT.address;
+  const usdcContract = CONTRACT_ADDRESSES.tron.mainnet.USDC.address;
+
+  // 1. TRC-20 transfers (USDT & USDC) via TronGrid with TronScan fallback
+  try {
+    let trc20Loaded = false;
+    try {
+      const res = await fetch(
+        `https://api.trongrid.io/v1/accounts/${trxAddress}/transactions/trc20?limit=25`,
+        {
+          headers: { Accept: "application/json" },
+          signal: AbortSignal.timeout(10000),
+        },
+      );
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json.data)) {
+          for (const item of json.data) {
+            if (
+              item.to &&
+              item.to.toLowerCase() === trxAddress.toLowerCase() &&
+              item.transaction_id
+            ) {
+              const contractAddr = item.token_info?.address;
+              const isUsdt = contractAddr === usdtContract || item.token_info?.symbol === "USDT";
+              const isUsdc = contractAddr === usdcContract || item.token_info?.symbol === "USDC";
+
+              if (isUsdt || isUsdc) {
+                const decimals = Number(item.token_info?.decimals) || 6;
+                const rawVal = Number(item.value) || 0;
+                const amount = (rawVal / 10 ** decimals).toString();
+
+                if (!seenTxHashes.has(item.transaction_id)) {
+                  seenTxHashes.add(item.transaction_id);
+                  results.push({
+                    chain: "tron",
+                    txHash: item.transaction_id,
+                    fromAddress: item.from || "unknown",
+                    toAddress: item.to,
+                    amount,
+                    token: isUsdt ? "USDT" : "USDC",
+                    timestamp: item.block_timestamp ? new Date(item.block_timestamp) : new Date(),
+                  });
+                }
+              }
+            }
+          }
+          trc20Loaded = true;
+        }
+      }
+    } catch {
+      // TronGrid failed, try TronScan fallback below
+    }
+
+    if (!trc20Loaded) {
+      const res = await fetch(
+        `https://apilist.tronscanapi.com/api/token_trc20/transfers?limit=25&relatedAddress=${trxAddress}`,
+        {
+          headers: { Accept: "application/json" },
+          signal: AbortSignal.timeout(10000),
+        },
+      );
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json.token_transfers)) {
+          for (const item of json.token_transfers) {
+            if (
+              item.to_address &&
+              item.to_address.toLowerCase() === trxAddress.toLowerCase() &&
+              item.transaction_id
+            ) {
+              const contractAddr = item.contract_address;
+              const isUsdt = contractAddr === usdtContract || item.tokenInfo?.tokenAbbr?.toUpperCase() === "USDT";
+              const isUsdc = contractAddr === usdcContract || item.tokenInfo?.tokenAbbr?.toUpperCase() === "USDC";
+
+              if (isUsdt || isUsdc) {
+                const decimals = Number(item.tokenInfo?.tokenDecimal) || 6;
+                const rawVal = Number(item.quant) || 0;
+                const amount = (rawVal / 10 ** decimals).toString();
+
+                if (!seenTxHashes.has(item.transaction_id)) {
+                  seenTxHashes.add(item.transaction_id);
+                  results.push({
+                    chain: "tron",
+                    txHash: item.transaction_id,
+                    fromAddress: item.from_address || "unknown",
+                    toAddress: item.to_address,
+                    amount,
+                    token: isUsdt ? "USDT" : "USDC",
+                    timestamp: item.block_ts ? new Date(item.block_ts) : new Date(),
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // Non-fatal if TRC-20 checks fail
+  }
+
+  // 2. Native TRX transfers via TronScan API
+  try {
+    const res = await fetch(
+      `https://apilist.tronscanapi.com/api/transaction?sort=-timestamp&count=true&limit=25&start=0&address=${trxAddress}`,
+      {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(10000),
+      },
+    );
+    if (res.ok) {
+      const json = await res.json();
+      if (Array.isArray(json.data)) {
+        for (const item of json.data) {
+          // contractType 1 is standard TRX TransferContract
+          const isTransfer = item.contractType === 1;
+          const isTargetTo =
+            (item.toAddress && item.toAddress.toLowerCase() === trxAddress.toLowerCase()) ||
+            (Array.isArray(item.toAddressList) &&
+              item.toAddressList.some((a: string) => a.toLowerCase() === trxAddress.toLowerCase()));
+          const isSuccess = item.confirmed && !item.revert && item.contractRet === "SUCCESS";
+
+          if (isTransfer && isTargetTo && isSuccess && item.hash) {
+            if (!seenTxHashes.has(item.hash)) {
+              seenTxHashes.add(item.hash);
+              const rawAmount = Number(item.amount || item.contractData?.amount) || 0;
+              const amount = (rawAmount / 1_000_000).toString();
+
+              // Ignore micro-dust (< 0.01 TRX)
+              if (Number(amount) >= 0.01) {
+                results.push({
+                  chain: "tron",
+                  txHash: item.hash,
+                  fromAddress: item.ownerAddress || item.contractData?.owner_address || "unknown",
+                  toAddress: trxAddress,
+                  amount,
+                  token: "TRX",
+                  timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // Non-fatal if native TRX transfers check fails
+  }
+
+  return results;
+}
+
+/**
+ * Syncs inbound deposits for a given wallet across Stellar, Solana, Base, Ethereum, and Tron.
  * Idempotently saves new transactions, triggers notifications, and logs user activity.
  */
 export async function syncWalletInboundDeposits(
@@ -285,16 +446,19 @@ export async function syncWalletInboundDeposits(
 
   const newlyDetected: DetectedDeposit[] = [];
 
-  const [stellarDeposits, solanaDeposits, evmDeposits] = await Promise.allSettled([
-    detectStellarInbound(wallet.addresses.xlm),
-    detectSolanaInbound(wallet.addresses.sol),
-    detectEvmInbound(wallet.addresses.eth, wallet.addresses.base),
-  ]);
+  const [stellarDeposits, solanaDeposits, evmDeposits, tronDeposits] =
+    await Promise.allSettled([
+      detectStellarInbound(wallet.addresses.xlm),
+      detectSolanaInbound(wallet.addresses.sol),
+      detectEvmInbound(wallet.addresses.eth, wallet.addresses.base),
+      detectTronInbound(wallet.addresses.trx),
+    ]);
 
   const allDeposits: DetectedDeposit[] = [
     ...(stellarDeposits.status === "fulfilled" ? stellarDeposits.value : []),
     ...(solanaDeposits.status === "fulfilled" ? solanaDeposits.value : []),
     ...(evmDeposits.status === "fulfilled" ? evmDeposits.value : []),
+    ...(tronDeposits.status === "fulfilled" ? tronDeposits.value : []),
   ];
 
   for (const dep of allDeposits) {

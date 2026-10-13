@@ -657,7 +657,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
         userId: params.userId,
         amount: totalDebited,
         reference: `${reference}-rollback`,
-        memo: `Refund for failed transfer attempt: ${transferErr.message}`,
+        memo: `Refund for failed transfer attempt: Bank network unavailable`,
         eventId: `${reference}-rollback`,
       }).catch((rollbackErr) => {
         console.error("[Bellmonie Withdrawal CRITICAL] Rollback credit failed:", rollbackErr);

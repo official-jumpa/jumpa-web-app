@@ -7,18 +7,16 @@
  * cache that serves stale application code or stale money data is worse than no
  * cache at all:
  *
- *   - `/api/*` is never touched, in either direction.
- *   - A page load always goes to the network. The cached page is only what a
- *     failed load falls back to, never what a working one gets.
- *   - The only thing cached is Next's build output, which is content-hashed —
- *     a hit on those cannot be stale by construction.
+ *   - `/api/*` and `?_rsc=*` are never touched, in either direction.
+ *   - Static assets (`/_next/static/*`) are served directly by the browser's
+ *     native HTTP disk cache (they are already immutable and content-hashed).
+ *   - Only failed navigation requests fall back to `/offline.html`.
  *
  * Bump `VERSION` to retire every cache from the previous build.
  */
 
-const VERSION = "v0.1.1";
+const VERSION = "v0.1.2";
 const SHELL = `jumpa-shell-${VERSION}`;
-const ASSETS = `jumpa-assets-${VERSION}`;
 const OFFLINE = "/offline.html";
 
 self.addEventListener("install", (event) => {
@@ -42,7 +40,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key !== SHELL && key !== ASSETS)
+            .filter((key) => key !== SHELL)
             .map((key) => caches.delete(key)),
         ),
       )
@@ -56,38 +54,22 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  // Balances, sessions and transactions: never cached, never served from cache.
-  if (url.pathname.startsWith("/api/")) return;
 
-  // Pages: the network decides. Nobody sees a stale screen or an old build.
-  if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request).catch(async () => {
-        const cached = await caches.match(OFFLINE);
-        return (
-          cached ||
-          new Response("Offline", {
-            status: 503,
-            headers: { "Content-Type": "text/plain" },
-          })
-        );
-      }),
-    );
-    return;
-  }
+  // Only handle navigation requests for offline fallback.
+  // Everything else (Next.js static JS/CSS assets, API routes, RSC chunks)
+  // bypasses the service worker and is handled at native browser speed.
+  if (request.mode !== "navigate") return;
 
-  // Build assets carry a content hash in their path, so a hit is always right.
-  if (url.pathname.startsWith("/_next/static/")) {
-    event.respondWith(
-      caches.match(request).then(
-        (hit) =>
-          hit ||
-          fetch(request).then((response) => {
-            const copy = response.clone();
-            caches.open(ASSETS).then((cache) => cache.put(request, copy));
-            return response;
-          }),
-      ),
-    );
-  }
+  event.respondWith(
+    fetch(request).catch(async () => {
+      const cached = await caches.match(OFFLINE);
+      return (
+        cached ||
+        new Response("Offline", {
+          status: 503,
+          headers: { "Content-Type": "text/plain" },
+        })
+      );
+    }),
+  );
 });

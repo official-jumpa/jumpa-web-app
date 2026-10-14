@@ -94,19 +94,16 @@ export function useSheetDrag(onClose: () => void) {
       const dy = event.clientY - drag.y;
 
       if (!drag.active) {
-        if (Math.abs(dy) < SLOP_PX) return;
-        // Pulling up on the body is a scroll; only the handle reads it as a drag.
-        if (dy < 0 && !drag.fromHandle) {
-          gesture.current = null;
-          return;
-        }
+        // Only allow dragging downwards to dismiss
+        if (dy < SLOP_PX) return;
         drag.active = true;
         panel.setPointerCapture(event.pointerId);
       }
 
       drag.prev = drag.last;
       drag.last = { y: event.clientY, t: event.timeStamp };
-      drag.dy = dy > 0 ? dy : dy * RUBBER;
+      // Clamp to 0 so the sheet never translates upward past its resting place
+      drag.dy = Math.max(0, dy);
       paint(drag.dy, 0);
     },
     [paint],

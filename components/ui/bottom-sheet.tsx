@@ -21,7 +21,7 @@ export function BottomSheet({
   const drag = useSheetDrag(onClose);
 
   return (
-    <div className="fixed inset-0 z-30 mx-auto max-w-app">
+    <div className="fixed inset-0 z-30 mx-auto max-w-app flex items-end">
       <button
         type="button"
         aria-label="Dismiss"
@@ -33,8 +33,7 @@ export function BottomSheet({
       <div
         {...drag.panelProps}
         className={cn(
-          "absolute inset-x-2.5 bottom-[calc(env(safe-area-inset-bottom)+10px)] animate-sheet-up rounded-sheet bg-jumpa-white px-6 pt-3",
-          pb,
+          "relative w-full animate-sheet-up rounded-t-[32px] rounded-b-none bg-jumpa-white px-6 pt-3 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-2xl",
           className,
         )}
       >

@@ -38,7 +38,7 @@ export function SheetPortal({
   if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 mx-auto flex max-w-app items-end px-2.5 pb-[calc(env(safe-area-inset-bottom)+10px)]">
+    <div className="fixed inset-0 z-50 mx-auto flex max-w-app items-end">
       <button
         type="button"
         aria-label="Dismiss"
@@ -53,7 +53,7 @@ export function SheetPortal({
         aria-modal="true"
         {...drag.panelProps}
         className={cn(
-          "relative max-h-[88dvh] w-full animate-sheet-up overflow-y-auto overscroll-contain rounded-sheet border border-jumpa-black/4 bg-jumpa-white px-4 pb-4",
+          "relative max-h-[90dvh] w-full animate-sheet-up overflow-y-auto overscroll-contain rounded-t-[32px] rounded-b-none border-t border-jumpa-black/5 bg-jumpa-white px-4.5 pt-0 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] shadow-2xl",
           className,
         )}
       >
@@ -62,7 +62,7 @@ export function SheetPortal({
             top padding, which is what holds the design's spacing exactly. */}
         <div
           {...drag.handleProps}
-          className="sticky top-0 z-10 -mx-4 flex touch-none cursor-grab justify-center bg-jumpa-white px-4 pt-4 pb-3 active:cursor-grabbing"
+          className="sticky top-0 z-10 -mx-4.5 flex touch-none cursor-grab justify-center bg-jumpa-white px-4.5 pt-4 pb-3 active:cursor-grabbing rounded-t-[32px]"
         >
           <span
             aria-hidden="true"

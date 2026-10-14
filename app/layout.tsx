@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { IosInputZoom } from "@/components/ios-input-zoom";
 import { ServiceWorker } from "@/components/service-worker";
+import { CookieChoicesBanner } from "@/components/ui/cookie-choices-banner";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -170,6 +171,7 @@ export default function RootLayout({
         )}
         <ServiceWorker />
         <IosInputZoom />
+        <CookieChoicesBanner />
         {children}
       </body>
     </html>

@@ -48,70 +48,70 @@ export async function GET(req: NextRequest) {
     const jumpaMasterAccount =
       environment.JUMPA_ACCOUNT_NUMBER || process.env.JUMPA_ACCOUNT_NUMBER;
 
-    // 1. Primary: Bellmonie Name Enquiry
-    const bellmonieBank = findBellmonieBank(bankParam);
-    if (bellmonieBank) {
-      try {
-        const bmRes = await bellmonieBankNameEnquiry({
-          accountNumber: cleanAccount,
-          bankCode: bellmonieBank.code,
-        });
-        if (bmRes?.accountName) {
-          const isBmInternal =
-            Boolean(internalAccount) ||
-            cleanAccount === jumpaMasterAccount;
+    // 1. Primary: Paystack resolution (Fast, resilient, reliable)
+    const bankByCode = supportedBanks.find((b) => b.code === bankParam);
+    const paystackBank = bankByCode || findPaystackBank(bankParam);
 
-          return NextResponse.json({
-            success: true,
-            accountName: bmRes.accountName.trim(),
-            accountNumber: bmRes.accountNumber || cleanAccount,
-            bankName: bellmonieBank.name,
-            bankCode: bellmonieBank.code,
-            isInternal: isBmInternal,
-          });
-        }
-      } catch (bmErr: any) {
-        console.warn(
-          `Bellmonie resolution attempt for ${bellmonieBank.name} failed:`,
-          bmErr.message,
+    if (paystackBank) {
+      try {
+        const accountCheck = await validateAccountNumber(
+          cleanAccount,
+          paystackBank.code,
         );
-      }
-    }
 
-    // 1.5. Check Centiiv banks
-    const { centiivBanks } = await import("@/lib/constants/centiiv-banks");
-    const centiivBank = centiivBanks.find((b) => b.name.toLowerCase() === bankParam.toLowerCase() || b.code === bankParam);
-    if (centiivBank) {
-      try {
-        const bmRes = await bellmonieBankNameEnquiry({
-          accountNumber: cleanAccount,
-          bankCode: centiivBank.code,
-        });
-        if (bmRes?.accountName) {
+        if (accountCheck?.status && accountCheck?.data?.account_name) {
           const isInternal =
             Boolean(internalAccount) ||
             cleanAccount === jumpaMasterAccount;
 
           return NextResponse.json({
             success: true,
-            accountName: bmRes.accountName.trim(),
-            accountNumber: bmRes.accountNumber || cleanAccount,
-            bankName: centiivBank.name,
-            bankCode: centiivBank.code,
+            accountName: accountCheck.data.account_name.trim(),
+            accountNumber: accountCheck.data.account_number || cleanAccount,
+            bankName: paystackBank.name,
+            bankCode: paystackBank.code,
             isInternal,
           });
         }
-      } catch (bmErr: any) {
+      } catch (paystackErr: any) {
         console.warn(
-          `Bank code resolution failed for ${centiivBank.name}:`,
-          bmErr.message
+          `Paystack resolution attempt for ${paystackBank.name} failed:`,
+          paystackErr.message,
         );
       }
     }
 
-    // 2. Fallback to Paystack resolution
-    const bankByCode = supportedBanks.find((b) => b.code === bankParam);
-    const paystackBank = bankByCode || findPaystackBank(bankParam);
+    // 2. Fallback: Bellmonie Name Enquiry (only if not paused)
+    if (!environment.BELLMONIE_PAUSED) {
+      const bellmonieBank = findBellmonieBank(bankParam);
+      if (bellmonieBank) {
+        try {
+          const bmRes = await bellmonieBankNameEnquiry({
+            accountNumber: cleanAccount,
+            bankCode: bellmonieBank.code,
+          });
+          if (bmRes?.accountName) {
+            const isBmInternal =
+              Boolean(internalAccount) ||
+              cleanAccount === jumpaMasterAccount;
+
+            return NextResponse.json({
+              success: true,
+              accountName: bmRes.accountName.trim(),
+              accountNumber: bmRes.accountNumber || cleanAccount,
+              bankName: bellmonieBank.name,
+              bankCode: bellmonieBank.code,
+              isInternal: isBmInternal,
+            });
+          }
+        } catch (bmErr: any) {
+          console.warn(
+            `Bellmonie resolution attempt for ${bellmonieBank.name} failed:`,
+            bmErr.message,
+          );
+        }
+      }
+    }
 
     if (!paystackBank) {
       return NextResponse.json(
@@ -120,30 +120,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const accountCheck = await validateAccountNumber(
-      cleanAccount,
-      paystackBank.code,
+    return NextResponse.json(
+      { error: `Could not verify account with ${paystackBank.name}` },
+      { status: 400 },
     );
-
-    if (!accountCheck?.status || !accountCheck?.data?.account_name) {
-      return NextResponse.json(
-        {
-          error:
-            accountCheck?.message ||
-            `Could not verify account with ${paystackBank.name}`,
-        },
-        { status: 400 },
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      accountName: accountCheck.data.account_name,
-      accountNumber: accountCheck.data.account_number || cleanAccount,
-      bankName: paystackBank.name,
-      bankCode: paystackBank.code,
-      isInternal: Boolean(internalAccount),
-    });
   } catch (err: any) {
     console.error("[Bank Resolve GET] Error:", err);
     return NextResponse.json(

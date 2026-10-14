@@ -20,6 +20,7 @@ import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { decryptMnemonic } from "@/lib/crypto";
 import { executeOfframpTransfer } from "@/lib/chains/offramp-transfer";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
+import { environment } from "@/lib/environment";
 
 // Tiny helper: returns ms elapsed since a start mark
 function elapsed(start: number) {
@@ -137,25 +138,41 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: `Bank "${bankName}" is not supported` }, { status: 400 });
       }
       
-      try {
-        t = performance.now();
-        const bmRes = await bellmonieBankNameEnquiry({ accountNumber, bankCode: centiivBank.code });
-        console.log(`[Offramp] bellmonieBankNameEnquiry: ${elapsed(t)}`);
-        if (!bmRes?.accountName) throw new Error("Bellmonie verification failed");
-      } catch (bmErr: any) {
-        console.warn(`[Offramp] Bellmonie enquiry failed for ${centiivBank.name}, attempting Paystack fallback...`);
-        const paystackBank = findPaystackBank(bankName) || (centiivBank ? findPaystackBank(centiivBank.name) : null);
-        const isAccountValid = paystackBank ? await validateAccountNumber(accountNumber, paystackBank.code) : false;
-        if (!isAccountValid) {
-          return NextResponse.json({ success: false, error: `Account number "${accountNumber}" could not be verified for ${centiivBank.name}.` }, { status: 400 });
+      let verified = false;
+      const paystackBank = findPaystackBank(bankName) || (centiivBank ? findPaystackBank(centiivBank.name) : null);
+      if (paystackBank) {
+        try {
+          const accountCheck = await validateAccountNumber(accountNumber, paystackBank.code);
+          if (accountCheck?.status && accountCheck?.data?.account_name) {
+            verified = true;
+          }
+        } catch (err: any) {
+          console.warn(`[Offramp] Paystack verification failed for ${bankName}:`, err.message);
         }
+      }
+
+      if (!verified && !environment.BELLMONIE_PAUSED) {
+        try {
+          t = performance.now();
+          const bmRes = await bellmonieBankNameEnquiry({ accountNumber, bankCode: centiivBank.code });
+          console.log(`[Offramp] bellmonieBankNameEnquiry: ${elapsed(t)}`);
+          if (bmRes?.accountName) verified = true;
+        } catch (bmErr: any) {
+          console.warn(`[Offramp] Bellmonie enquiry failed for ${centiivBank.name}:`, bmErr.message);
+        }
+      }
+
+      if (!verified) {
+        return NextResponse.json(
+          { success: false, error: `Account number "${accountNumber}" could not be verified for ${centiivBank.name}.` },
+          { status: 400 },
+        );
       }
       
       bankMatch = { name: centiivBank.name, code: centiivBank.code };
 
       // Get temporary wallet from Centiiv
       const { createCentiivOfframp } = await import("@/lib/functions/centiivFunctions");
-      const { environment } = await import("@/lib/environment");
       const effectiveFee = environment.SWITCH_JUMPA_FEE;
       const feePct = effectiveFee / 100;
       // Centiiv accepts up to 4 decimal places on USDC amounts

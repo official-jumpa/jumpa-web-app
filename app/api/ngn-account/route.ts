@@ -14,6 +14,7 @@ import {
 import { connectDB } from "@/lib/db";
 import { NgnAccount } from "@/models/NgnAccount";
 import { User } from "@/models/User";
+import { environment } from "@/lib/environment";
 
 /**
  * GET /api/ngn-account
@@ -79,6 +80,16 @@ export async function POST(req: Request) {
       rateLimit: { tier: "high", action: "ngn_account_create" },
     });
     if (!auth.ok) return auth.response;
+
+    if (environment.BELLMONIE_PAUSED) {
+      return NextResponse.json(
+        {
+          error:
+            "Banking service is temporarily paused for partner maintenance. Please try again later.",
+        },
+        { status: 503 },
+      );
+    }
 
     // 1. Verify user has completed KYC
     const kycVerified = await isUserKycVerified(auth.userId);

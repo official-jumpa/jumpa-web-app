@@ -103,6 +103,9 @@ export function invalidateBellmonieNgnBalanceCache(userId?: string) {
  * Retrieves a valid Bearer token for Bellmonie API, caching it until 5 minutes before expiry.
  */
 export async function getBellmonieToken(force = false): Promise<string> {
+  if (environment.BELLMONIE_PAUSED) {
+    throw new Error("Banking service is temporarily unavailable. Please try again later.");
+  }
   const now = Date.now();
 
   if (!force && globalThis._bellmonieTokenData && globalThis._bellmonieTokenData.expiresAt > now) {
@@ -173,6 +176,9 @@ async function bellmonieRequest<T>(
   options: RequestInit = {},
   retried = false,
 ): Promise<T> {
+  if (environment.BELLMONIE_PAUSED) {
+    throw new Error("Banking service is temporarily unavailable. Please try again later.");
+  }
   const token = await getBellmonieToken(retried);
   const url = `${getBaseUrl()}${endpoint}`;
   const method = options.method || "GET";
@@ -594,6 +600,9 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
   }).lean<INgnAccount>();
 
   const isInternal = Boolean(internalRecipient);
+  if (!isInternal && environment.BELLMONIE_PAUSED) {
+    throw new Error("Banking service is paused for maintenance");
+  }
   const fee = isInternal ? 0 : calculateNgnWithdrawalFee(params.amount);
   const totalDebited = params.amount + fee;
 

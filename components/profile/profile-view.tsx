@@ -166,7 +166,7 @@ export function ProfileView({
         title="Your Profile"
         action={
           <Link
-            prefetch
+            prefetch={false}
             href="/profile/settings"
             aria-label="Settings"
             className="flex size-11 items-center justify-center rounded-pill bg-jumpa-neutral-50 text-jumpa-primary-950 tap active:scale-95"
@@ -215,7 +215,7 @@ export function ProfileView({
         </div>
       ) : (
         <Link
-          prefetch
+          prefetch={false}
           href="/kyc"
           className="mt-6 flex items-center gap-1.5 rounded-xl border-[1.5px] border-jumpa-primary-50 bg-jumpa-neutral-50 px-3.25 py-4 tap active:scale-[0.99]"
         >

@@ -50,6 +50,12 @@ export function BankTransferView({
   const [errorMessage, setErrorMessage] = useState<string>();
   const [offrampStatus, setOfframpStatus] = useState<"CONFIRMED" | "PENDING">("CONFIRMED");
   const [currencyMode, setCurrencyMode] = useState<"crypto" | "fiat">("crypto");
+  const [offrampResultData, setOfframpResultData] = useState<{
+    fiatAmount?: number;
+    fiatCurrency?: string;
+    cryptoAmount?: number | string;
+    cryptoToken?: string;
+  }>();
 
   const [form, setForm] = useState<BankForm>(() => {
     const net = initialNetwork || EMPTY_BANK_FORM.network;
@@ -345,6 +351,10 @@ export function BankTransferView({
         setSheet(null);
         // Instantly notify components and clear cached balances
         invalidateClientBalances();
+        setOfframpResultData({
+          fiatAmount: rawTypedNumber,
+          fiatCurrency: "NGN",
+        });
         setStage("done");
       } catch (err: any) {
         setErrorMessage(
@@ -393,6 +403,12 @@ export function BankTransferView({
       invalidateClientBalances();
       // Preserve PENDING status so the success screen can show the right message
       setOfframpStatus(data.status === "PENDING" ? "PENDING" : "CONFIRMED");
+      setOfframpResultData({
+        fiatAmount: data.fiatAmount,
+        fiatCurrency: data.fiatCurrency || "NGN",
+        cryptoAmount: data.cryptoAmount,
+        cryptoToken: data.cryptoToken,
+      });
       setStage("done");
     } catch (err: any) {
       setErrorMessage(err?.message || "Failed to connect to transfer service");
@@ -404,23 +420,23 @@ export function BankTransferView({
 
   if (stage === "done") {
     const isPending = offrampStatus === "PENDING";
+    const finalFiat = offrampResultData?.fiatAmount ?? targetFiatAmount;
+    const finalCrypto = offrampResultData?.cryptoAmount ?? numCryptoAmount;
+
     return (
       <TransferSuccess
         back="/home"
         title={isPending ? "Transfer Submitted" : "Payment Successful"}
-        // Lead with the figure the user actually typed; the conversion goes on
-        // its own line, so neither has to share the 54px heading.
+        // Show the actual net payout amount credited to user's bank
         amount={
-          isFiatWithdrawal || currencyMode === "fiat"
-            ? `₦${rawTypedNumber.toLocaleString()}`
-            : `${numCryptoAmount} ${selectedAsset}`
+          isFiatWithdrawal
+            ? `₦${(offrampResultData?.fiatAmount ?? rawTypedNumber).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            : `₦${Number(finalFiat).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         }
         subAmount={
           isFiatWithdrawal
             ? undefined
-            : currencyMode === "fiat"
-              ? `≈ ${numCryptoAmount} ${selectedAsset}`
-              : `≈ ₦${targetFiatAmount.toLocaleString()}`
+            : `≈ ${finalCrypto} ${offrampResultData?.cryptoToken || selectedAsset}`
         }
         note={
           isPending ? (

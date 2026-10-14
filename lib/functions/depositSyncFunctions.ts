@@ -158,10 +158,43 @@ async function detectSolanaInbound(solAddress: string): Promise<DetectedDeposit[
               post.mint === CONTRACT_ADDRESSES.solana.mainnet.USDT.mint;
             const tokenSymbol = isUsdc ? "USDC" : isUsdt ? "USDT" : "SPL";
 
+            // Identify sender if another account's balance decreased in the same mint
+            let sender = "external wallet";
+            for (const otherPost of postToken) {
+              if (
+                otherPost.mint === post.mint &&
+                otherPost.owner &&
+                otherPost.owner !== solAddress
+              ) {
+                const otherPre = preToken.find(
+                  (p) =>
+                    p.accountIndex === otherPost.accountIndex &&
+                    p.mint === otherPost.mint,
+                );
+                const otherPreAmount = Number(otherPre?.uiTokenAmount.uiAmount || 0);
+                const otherPostAmount = Number(otherPost.uiTokenAmount.uiAmount || 0);
+                if (otherPreAmount > otherPostAmount) {
+                  sender = otherPost.owner;
+                  break;
+                }
+              }
+            }
+
+            // Fallback to transaction fee payer if specific token sender wasn't a user account
+            if (sender === "external wallet" && accountKeys.length > 0) {
+              const feePayer =
+                typeof accountKeys[0] === "string"
+                  ? accountKeys[0]
+                  : accountKeys[0].pubkey.toBase58();
+              if (feePayer && feePayer !== solAddress) {
+                sender = feePayer;
+              }
+            }
+
             results.push({
               chain: "solana",
               txHash: sigInfo.signature,
-              fromAddress: "unknown",
+              fromAddress: sender,
               toAddress: solAddress,
               amount: diff.toString(),
               token: tokenSymbol,
@@ -470,6 +503,7 @@ export async function syncWalletInboundDeposits(
         { txHash: dep.txHash },
         { "rampDetails.inboundConfirmedTxHash": dep.txHash },
         { "rampDetails.relayTxHash": dep.txHash },
+        { "bridgeDetails.mintTxHash": dep.txHash },
       ],
     });
 
@@ -495,10 +529,14 @@ export async function syncWalletInboundDeposits(
 
     // 3. Trigger Notification
     if (wallet.userId) {
+      const rawSender =
+        dep.fromAddress && dep.fromAddress !== "unknown"
+          ? dep.fromAddress
+          : "external wallet";
       const shortSender =
-        dep.fromAddress && dep.fromAddress.length > 10
-          ? `${dep.fromAddress.slice(0, 6)}...${dep.fromAddress.slice(-4)}`
-          : dep.fromAddress || "external wallet";
+        rawSender.length > 10
+          ? `${rawSender.slice(0, 6)}...${rawSender.slice(-4)}`
+          : rawSender;
 
       await createNotification({
         userId: wallet.userId,

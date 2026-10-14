@@ -1,6 +1,7 @@
 import { connectDB } from "@/lib/db";
 import {
   invalidateBellmonieNgnBalanceCache,
+  queryBellmonieTransferStatus,
   queryBellmonieTransactionByReference,
 } from "@/lib/functions/bellmonieFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
@@ -35,13 +36,17 @@ const refundKeys = (reference: string) => [
 
 async function lookupBellmonie(reference: string) {
   try {
-    const res = await queryBellmonieTransactionByReference(reference);
-    console.log("BellMonie response", res)
+    const res = await queryBellmonieTransferStatus(reference);
     return res?.data ?? res ?? null;
-  } catch (err) {
-    // A 4xx on a lookup means no such transaction; anything else means Bellmonie could not answer.
-    const status = (err as { status?: number })?.status ?? 0;
-    if (status >= 400 && status < 500 && status !== 429) return null;
+  } catch (err: any) {
+    const status = err?.status ?? 0;
+    const msg = err?.data?.message || err?.message || "";
+    const isNotFound =
+      err?.isNotFound ||
+      (status >= 400 && status < 500 && status !== 429) ||
+      (status === 500 && (err?.data?.errorCode === "ERR-00" || /reading 'details'/i.test(msg)));
+
+    if (isNotFound) return null;
     throw err;
   }
 }
@@ -136,6 +141,18 @@ export async function refundFailedNgnWithdrawal({
 
   const refundAmount = Number(tx.amount || 0) + Number(tx.feePaid || 0);
   if (!(refundAmount > 0)) throw new RefundError("Nothing to refund", 400);
+
+  const isInternal =
+    /bloc/i.test(tx.bankDetails?.bankName || "") ||
+    /transfer to/i.test(tx.memo || "") ||
+    /bloc/i.test(tx.toAddress || "");
+
+  if (isInternal) {
+    throw new RefundError(
+      "Internal transfers cannot be refunded as they are executed immediately and atomically",
+      400,
+    );
+  }
 
   // FAILED is Bellmonie's own answer to the transfer request; anything else needs its confirmation.
   if (tx.status !== "FAILED") {
@@ -290,12 +307,18 @@ export async function checkNgnWithdrawals(
   await connectDB();
 
   const txs = await Transaction.find({ _id: { $in: transactionIds } })
-    .select("chain type bankDetails txHash")
+    .select("chain type bankDetails txHash memo toAddress")
     .lean<ITransaction[]>();
   const references = new Map<string, string>();
   for (const tx of txs) {
+    const isInternal =
+      /bloc/i.test(tx.bankDetails?.bankName || "") ||
+      /transfer to/i.test(tx.memo || "") ||
+      /bloc/i.test(tx.toAddress || "");
+
     const reference = tx.bankDetails?.reference || tx.txHash;
-    if (tx.chain === "fiat" && tx.type === "WITHDRAW" && reference) {
+    // Internal transactions are database-only and never hit Bellmonie API
+    if (tx.chain === "fiat" && tx.type === "WITHDRAW" && reference && !isInternal) {
       references.set(String(tx._id), reference);
     }
   }

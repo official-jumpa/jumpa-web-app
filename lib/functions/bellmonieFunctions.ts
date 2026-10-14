@@ -209,13 +209,6 @@ async function bellmonieRequest<T>(
     }
 
     if (!res.ok || (data && data.success === false)) {
-      console.error(`[Bellmonie] API Error [${res.status}] (${duration}ms):`, {
-        url,
-        method,
-        status: res.status,
-        response: data,
-      });
-
       const message =
         data?.message ||
         data?.error ||
@@ -223,6 +216,25 @@ async function bellmonieRequest<T>(
       const err: any = new Error(message);
       err.status = res.status;
       err.data = data;
+
+      // Detect if Bellmonie simply didn't find the reference (404, 400 not found, or their 500 null details bug)
+      const isNotFound =
+        res.status === 404 ||
+        (res.status === 400 && /not found|could not get/i.test(message)) ||
+        (res.status === 500 && (data?.errorCode === "ERR-00" || /reading 'details'/i.test(message)));
+
+      err.isNotFound = isNotFound;
+
+      // Silence not-found lookups completely to avoid flooding database error logs
+      if (!isNotFound) {
+        console.error(`[Bellmonie] API Error [${res.status}] (${duration}ms):`, {
+          url,
+          method,
+          status: res.status,
+          response: data,
+        });
+      }
+
       throw err;
     }
 
@@ -913,6 +925,39 @@ export async function atomicCreditNgnBalance(params: {
 
   console.log(`[Bellmonie Credit] ✅ Atomically credited ₦${params.amount} to user ${params.userId}. New Balance: ₦${newBalance}`);
   return { success: true, newBalance };
+}
+
+/**
+ * Queries Bellmonie for an outbound bank transfer status.
+ * Attempts transfer status endpoints first before falling back to general transactions.
+ */
+export async function queryBellmonieTransferStatus(
+  reference: string,
+): Promise<any> {
+  // Strategy 1: Check transfer status by reference
+  try {
+    const res = await bellmonieRequest<any>(
+      `/v1/transfer/status?reference=${encodeURIComponent(reference)}`,
+      { method: "GET" },
+    );
+    if (res?.data || res?.status) return res;
+  } catch (err: any) {
+    if (!err?.isNotFound) throw err;
+  }
+
+  // Strategy 2: Check transfer by reference path
+  try {
+    const res = await bellmonieRequest<any>(
+      `/v1/transfer/reference/${encodeURIComponent(reference)}`,
+      { method: "GET" },
+    );
+    if (res?.data || res?.status) return res;
+  } catch (err: any) {
+    if (!err?.isNotFound) throw err;
+  }
+
+  // Strategy 3: Check general transactions table
+  return queryBellmonieTransactionByReference(reference);
 }
 
 /**

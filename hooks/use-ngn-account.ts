@@ -10,12 +10,16 @@ interface NgnMemoryCache {
   hasAccount?: boolean;
   balance?: string | null;
   rawBalance?: number;
+  lastFetched?: number;
 }
 
 let ngnMemoryCache: NgnMemoryCache = {};
+let inFlightNgnPromise: Promise<any> | null = null;
+const NGN_CACHE_STALE_MS = 60000; // 60 seconds
 
 export function clearNgnMemoryCache() {
   ngnMemoryCache = {};
+  inFlightNgnPromise = null;
 }
 
 function readNgnCache(): NgnMemoryCache {
@@ -74,53 +78,61 @@ export function useNgnAccount(initialHasAccount?: boolean): UseNgnAccountResult 
     return ngnMemoryCache.hasAccount !== undefined || initialHasAccount !== undefined;
   });
 
-  const fetchNgnAccount = useCallback(async () => {
-    try {
-      const res = await fetch("/api/ngn-account", { cache: "no-store" });
-      if (!res.ok) {
-        if (res.status === 404) {
-          setHasNgnAccount(false);
-          setNgnBalance(null);
-          setRawBalance(0);
-          ngnMemoryCache = { hasAccount: false, balance: null, rawBalance: 0 };
-          try {
-            localStorage.setItem(NGN_CACHE_KEY, JSON.stringify(ngnMemoryCache));
-          } catch {}
-        }
-        return;
-      }
+  const fetchNgnAccount = useCallback(async (force = false) => {
+    // If not forced and we have a very fresh cache within NGN_CACHE_STALE_MS, skip network call
+    const now = Date.now();
+    if (
+      !force &&
+      ngnMemoryCache.hasAccount !== undefined &&
+      ngnMemoryCache.lastFetched &&
+      now - ngnMemoryCache.lastFetched < NGN_CACHE_STALE_MS
+    ) {
+      setIsLoading(false);
+      setIsReady(true);
+      return;
+    }
 
-      const data = await res.json();
-      if (data.hasAccount) {
-        const numBal = Number(data.balance?.availableBalance ?? 0);
-        const formatted = `₦${numBal.toLocaleString("en-NG", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}`;
-        setHasNgnAccount(true);
-        setNgnBalance(formatted);
-        setRawBalance(numBal);
-        ngnMemoryCache = { hasAccount: true, balance: formatted, rawBalance: numBal };
+    // Deduplicate in-flight concurrent requests from multiple components or StrictMode double mounts
+    if (!inFlightNgnPromise) {
+      inFlightNgnPromise = (async () => {
         try {
-          localStorage.setItem(
-            NGN_CACHE_KEY,
-            JSON.stringify(ngnMemoryCache),
-          );
-        } catch {}
-      } else {
-        setHasNgnAccount(false);
-        setNgnBalance(null);
-        setRawBalance(0);
-        ngnMemoryCache = { hasAccount: false, balance: null, rawBalance: 0 };
-        try {
-          localStorage.setItem(
-            NGN_CACHE_KEY,
-            JSON.stringify(ngnMemoryCache),
-          );
-        } catch {}
+          const res = await fetch("/api/ngn-account", { cache: "no-store" });
+          if (!res.ok) {
+            if (res.status === 404) {
+              return { hasAccount: false, balance: null, rawBalance: 0 };
+            }
+            return null;
+          }
+          const data = await res.json();
+          if (data.hasAccount) {
+            const numBal = Number(data.balance?.availableBalance ?? 0);
+            const formatted = `₦${numBal.toLocaleString("en-NG", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}`;
+            return { hasAccount: true, balance: formatted, rawBalance: numBal };
+          }
+          return { hasAccount: false, balance: null, rawBalance: 0 };
+        } catch (err) {
+          console.warn("[useNgnAccount] Failed to fetch NGN account status:", err);
+          return null;
+        } finally {
+          inFlightNgnPromise = null;
+        }
+      })();
+    }
+
+    try {
+      const result = await inFlightNgnPromise;
+      if (result) {
+        setHasNgnAccount(result.hasAccount);
+        setNgnBalance(result.balance);
+        setRawBalance(result.rawBalance);
+        ngnMemoryCache = {
+          ...result,
+          lastFetched: Date.now(),
+        };
       }
-    } catch (err) {
-      console.warn("[useNgnAccount] Failed to fetch NGN account status:", err);
     } finally {
       setIsLoading(false);
       setIsReady(true);
@@ -130,24 +142,29 @@ export function useNgnAccount(initialHasAccount?: boolean): UseNgnAccountResult 
   const lastFetchRef = useRef<number>(0);
 
   useEffect(() => {
-    lastFetchRef.current = Date.now();
-    fetchNgnAccount();
+    const isCached = ngnMemoryCache.hasAccount !== undefined || initialHasAccount !== undefined;
+    if (!isCached) {
+      fetchNgnAccount(false);
+    } else {
+      setIsLoading(false);
+      setIsReady(true);
+    }
 
     // Listen for custom events across components & tabs
     const unsubNgn = onNgnRefresh(() => {
-      fetchNgnAccount();
+      fetchNgnAccount(true);
     });
     const unsubBalance = onBalanceRefresh(() => {
-      fetchNgnAccount();
+      fetchNgnAccount(true);
     });
 
     // Revalidate on tab focus or visibility change (e.g. user returns from banking app)
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
         const now = Date.now();
-        if (now - lastFetchRef.current > 3000) {
+        if (now - lastFetchRef.current > 6000) {
           lastFetchRef.current = now;
-          fetchNgnAccount();
+          fetchNgnAccount(false);
         }
       }
     };
@@ -161,10 +178,10 @@ export function useNgnAccount(initialHasAccount?: boolean): UseNgnAccountResult 
       window.removeEventListener("focus", handleVisibility);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [fetchNgnAccount]);
+  }, [fetchNgnAccount, initialHasAccount]);
 
-  // A pull-to-refresh re-runs the server tree, which this hook never sees.
-  useRefreshSignal(fetchNgnAccount);
+  // A pull-to-refresh forcefully re-fetches from API
+  useRefreshSignal(() => fetchNgnAccount(true));
 
   return {
     hasNgnAccount,

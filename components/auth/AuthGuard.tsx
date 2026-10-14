@@ -100,7 +100,7 @@ export function AuthGuard({
   const [checkingStatus, setCheckingStatus] = useState(
     () => !initialUser && !initialSession,
   );
-  const hasVerifiedOnce = useRef(Boolean(initialUser || initialSession));
+  const hasVerifiedOnce = useRef(Boolean((initialUser || initialSession) && !pathname?.startsWith("/sign-up")));
 
   // 1. Handle unauthenticated users
   useEffect(() => {
@@ -185,6 +185,10 @@ export function AuthGuard({
   // 2. Check onboarding status for authenticated users
   useEffect(() => {
     if (!isPending && isAuthenticated && user?.id) {
+      // If user has valid initial session and is already on /home, do not re-check on mount
+      if (hasVerifiedOnce.current && pathname === "/home") {
+        return;
+      }
       // If user has already completed onboarding, don't re-check on sibling tab switches
       if (
         status?.isComplete &&

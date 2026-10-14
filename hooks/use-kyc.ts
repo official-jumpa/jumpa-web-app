@@ -3,24 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRefreshSignal } from "@/lib/refresh";
 
-const KYC_CACHE_KEY = "jumpa_kyc_completed";
-
 interface KycMemoryCache {
   isCompleted?: boolean;
 }
 
+// In-memory module cache (ephemeral to current tab session, zero localStorage)
 let kycMemoryCache: KycMemoryCache = {};
-
-function readKycCache(): KycMemoryCache {
-  if (typeof window === "undefined") return {};
-  try {
-    const cached = localStorage.getItem(KYC_CACHE_KEY);
-    if (cached !== null) {
-      return { isCompleted: cached === "true" };
-    }
-  } catch {}
-  return {};
-}
 
 export interface UseKycResult {
   isKycComplete: boolean;
@@ -31,18 +19,17 @@ export interface UseKycResult {
 
 /**
  * Hook to detect whether the authenticated user has completed identity verification (KYC).
- * Seeded from localStorage/memory cache for zero-flicker UI, and updated via /api/kyc.
+ * Seeded strictly from server props or memory cache, and validated via DB / Redis cache.
+ * Completely avoids localStorage.
  */
 export function useKyc(initialKycComplete?: boolean): UseKycResult {
   const [isKycComplete, setIsKycComplete] = useState<boolean>(() => {
-    if (initialKycComplete !== undefined) return initialKycComplete;
+    if (initialKycComplete !== undefined) {
+      kycMemoryCache = { isCompleted: initialKycComplete };
+      return initialKycComplete;
+    }
     if (typeof kycMemoryCache.isCompleted === "boolean") {
       return kycMemoryCache.isCompleted;
-    }
-    const fromStorage = readKycCache();
-    if (typeof fromStorage.isCompleted === "boolean") {
-      kycMemoryCache = fromStorage;
-      return fromStorage.isCompleted;
     }
     return false;
   });
@@ -61,9 +48,11 @@ export function useKyc(initialKycComplete?: boolean): UseKycResult {
     );
   });
 
-  const fetchKycStatus = useCallback(async () => {
+  const fetchKycStatus = useCallback(async (isBypassCache = false) => {
     try {
-      const res = await fetch("/api/kyc", { cache: "no-store" });
+      setIsLoading(true);
+      const url = isBypassCache ? "/api/kyc?refresh=true" : "/api/kyc";
+      const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) return;
 
       const data = await res.json();
@@ -75,9 +64,6 @@ export function useKyc(initialKycComplete?: boolean): UseKycResult {
 
       setIsKycComplete(isDone);
       kycMemoryCache = { isCompleted: isDone };
-      try {
-        localStorage.setItem(KYC_CACHE_KEY, String(isDone));
-      } catch {}
     } catch (err) {
       console.warn("[useKyc] Failed to fetch KYC status:", err);
     } finally {
@@ -87,16 +73,24 @@ export function useKyc(initialKycComplete?: boolean): UseKycResult {
   }, []);
 
   useEffect(() => {
-    fetchKycStatus();
-  }, [fetchKycStatus]);
+    // If not already known to be complete, check status
+    if (!kycMemoryCache.isCompleted && !initialKycComplete) {
+      fetchKycStatus(false);
+    } else {
+      setIsLoading(false);
+      setIsReady(true);
+    }
+  }, [fetchKycStatus, initialKycComplete]);
 
-  // A pull-to-refresh re-runs the server tree, which this hook never sees.
-  useRefreshSignal(fetchKycStatus);
+  // Pull-to-refresh forcefully re-fetches from DB and refreshes server & client cache
+  useRefreshSignal(() => {
+    fetchKycStatus(true);
+  });
 
   return {
     isKycComplete,
     isLoading,
     isReady,
-    refresh: fetchKycStatus,
+    refresh: () => fetchKycStatus(true),
   };
 }

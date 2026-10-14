@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import {
   listSavingsPlansByUserId,
-  getSavingsTransactionsByPlanId,
+  getSavingsTransactionsByPlanIds,
 } from "@/lib/functions/savingsFunctions";
 import { getUserById } from "@/lib/functions/userFunctions";
 import { listSavingsPlansQuerySchema } from "@/lib/validations/savings.validation";
@@ -47,17 +47,20 @@ export async function GET(req: NextRequest) {
 
     const now = new Date();
 
+    // Batch fetch all transactions for all plans in 1 query instead of N sequential queries
+    const planIds = plans.map((p) => p._id);
+    const txMap = await getSavingsTransactionsByPlanIds(planIds, 30);
+
     // Map each ISavingsPlan to the SavingsGoal structure with its real transactions
-    const goals: SavingsGoal[] = await Promise.all(
-      plans.map(async (plan) => {
-        const txs = await getSavingsTransactionsByPlanId(plan._id, 30);
-        const activity: SavingsActivity[] = txs.map((tx) => ({
-          id: tx._id,
-          kind: tx.kind === "top_up" ? "deposit" : (tx.kind as any),
-          amount: tx.amount,
-          at: new Date(tx.at || tx.createdAt).toISOString().split("T")[0],
-          by: tx.actorName || undefined,
-        }));
+    const goals: SavingsGoal[] = plans.map((plan) => {
+      const txs = txMap[plan._id] || [];
+      const activity: SavingsActivity[] = txs.map((tx) => ({
+        id: tx._id,
+        kind: tx.kind === "top_up" ? "deposit" : (tx.kind as any),
+        amount: tx.amount,
+        at: new Date(tx.at || tx.createdAt).toISOString().split("T")[0],
+        by: tx.actorName || undefined,
+      }));
 
         const start = new Date(plan.startDate || plan.createdAt || now);
         const startDateFormatted = start.toLocaleDateString("en-GB", {
@@ -131,8 +134,7 @@ export async function GET(req: NextRequest) {
           apy: plan.apy ?? 0,
           closed: closure,
         };
-      }),
-    );
+      });
 
     // Apply currency filter if specified in request
     const filteredGoals = filterCurrency

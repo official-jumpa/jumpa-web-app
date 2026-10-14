@@ -46,7 +46,10 @@ export function WalletHeader({
       } catch {}
     };
 
-    checkUnread();
+    const hasInitialSeed = initialHasUnread !== undefined;
+    if (!hasInitialSeed) {
+      checkUnread();
+    }
     const onWake = () => {
       if (document.visibilityState === "visible") checkUnread();
     };

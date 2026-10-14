@@ -123,7 +123,10 @@ export function FiatAccounts({
     }
 
     // Initial background revalidation on mount
-    loadNgnAccount();
+    const hasInitialData = initialHasNgnAccount !== undefined;
+    if (!hasInitialData) {
+      loadNgnAccount();
+    }
     lastFetchTime = Date.now();
 
     // Revalidate on global balance/ngn events

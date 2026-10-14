@@ -58,7 +58,30 @@ export async function listSavingsPlansByUserId(
     $or: [{ userId }, { "circleConfig.members.userId": userId }],
   };
   if (kind) query.kind = kind;
-  return SavingsPlan.find(query).sort({ createdAt: -1 });
+  return SavingsPlan.find(query).sort({ createdAt: -1 }).lean();
+}
+
+/**
+ * Batches transaction retrieval across multiple savings plans in a single query.
+ */
+export async function getSavingsTransactionsByPlanIds(
+  planIds: string[],
+  limitPerPlan = 30,
+): Promise<Record<string, ISavingsTransaction[]>> {
+  if (!planIds || planIds.length === 0) return {};
+  await connectDB();
+  const txs = await SavingsTransaction.find({ planId: { $in: planIds } })
+    .sort({ at: -1 })
+    .lean<ISavingsTransaction[]>();
+
+  const grouped: Record<string, ISavingsTransaction[]> = {};
+  for (const tx of txs) {
+    if (!grouped[tx.planId]) grouped[tx.planId] = [];
+    if (grouped[tx.planId].length < limitPerPlan) {
+      grouped[tx.planId].push(tx);
+    }
+  }
+  return grouped;
 }
 
 /**

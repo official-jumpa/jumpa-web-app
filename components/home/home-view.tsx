@@ -228,11 +228,23 @@ export function HomeView({
       }
     }
 
-    // Always fetch fresh transactions and balances to ensure updates after transactions show immediately
-    fetchTransactions();
-    fetchBalances(false);
-    fetchSavings();
-    fetchKycStatus();
+    const hasInitialTx = initialTransactions !== undefined;
+    const hasInitialBal = initialBalance !== undefined;
+    const hasInitialSavings = initialSavingsBalance !== undefined;
+    const hasInitialKyc = initialKycComplete !== undefined;
+
+    if (!hasInitialTx) {
+      fetchTransactions();
+    }
+    if (!hasInitialBal) {
+      fetchBalances(false);
+    }
+    if (!hasInitialSavings) {
+      fetchSavings();
+    }
+    if (!hasInitialKyc && !initialKycComplete) {
+      fetchKycStatus();
+    }
 
     // Subscribe to balance refresh events triggered upon transaction completion
     const unsub = onBalanceRefresh(() => {

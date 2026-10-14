@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -67,6 +68,7 @@ export function UserProfileProvider({
     return null;
   });
   const [isLoading, setIsLoading] = useState<boolean>(!initialProfile && !auth?.user);
+  const hasInitializedProfile = useRef(Boolean(initialProfile || auth?.user));
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -86,6 +88,10 @@ export function UserProfileProvider({
 
   useEffect(() => {
     if (auth?.isAuthenticated) {
+      if (hasInitializedProfile.current) {
+        hasInitializedProfile.current = false;
+        return;
+      }
       fetchProfile();
     }
   }, [auth?.isAuthenticated, fetchProfile]);

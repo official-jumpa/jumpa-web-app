@@ -111,13 +111,6 @@ export function NgnConfirm({
 
   useEffect(() => {
     let isMounted = true;
-    try {
-      const savedKyc = localStorage.getItem("jumpa_kyc_completed");
-      if (savedKyc !== null) {
-        setVerified(savedKyc === "true");
-      }
-    } catch { }
-
     async function checkKycAndProfile() {
       try {
         const [kycRes, profileRes] = await Promise.all([
@@ -142,9 +135,6 @@ export function NgnConfirm({
             data?.stage === "completed",
           );
           setVerified(isDone);
-          try {
-            localStorage.setItem("jumpa_kyc_completed", String(isDone));
-          } catch { }
 
           const details = data?.details;
           const newLocked: Record<string, boolean> = {

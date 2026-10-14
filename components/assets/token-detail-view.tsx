@@ -143,7 +143,10 @@ export function TokenDetailView({
       }
     }
 
-    fetchLiveBalance(false);
+    // Only fetch immediately on mount if SSR did not already provide an initial balance
+    if (liveBalance === "0.00" || liveBalance === "...") {
+      fetchLiveBalance(false);
+    }
 
     // Subscribe to balance refresh events
     const unsub = onBalanceRefresh(() => {

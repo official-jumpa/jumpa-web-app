@@ -38,12 +38,21 @@ function toReceipt(transaction: Transaction): Receipt {
 }
 
 /** One entry in full: asset, amount, outcome, then every detail we hold on it. */
-export function TransactionDetail({ id }: { id: string }) {
-  const [transaction, setTransaction] = useState<Transaction | null>(null);
+export function TransactionDetail({
+  id,
+  initialTransaction,
+}: {
+  id: string;
+  initialTransaction?: Transaction | null;
+}) {
+  const [transaction, setTransaction] = useState<Transaction | null>(
+    initialTransaction ?? null,
+  );
   const [missing, setMissing] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
 
   useEffect(() => {
+    if (initialTransaction) return;
     let isMounted = true;
 
     fetch(`/api/transactions/${encodeURIComponent(id)}`)
@@ -58,7 +67,7 @@ export function TransactionDetail({ id }: { id: string }) {
     return () => {
       isMounted = false;
     };
-  }, [id]);
+  }, [id, initialTransaction]);
 
   const rows = transaction?.rows ?? [];
   const mark = transaction?.token || transaction?.chain || "";

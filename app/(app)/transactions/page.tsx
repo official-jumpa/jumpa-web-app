@@ -3,6 +3,7 @@ import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import {
   queryUserTransactions,
   formatDbTransaction,
+  getTransactionById,
 } from "@/lib/functions/transactionFunctions";
 import { TransactionDetail } from "@/components/transactions/transaction-detail";
 import { TransactionsView } from "@/components/transactions/transactions-view";
@@ -25,27 +26,37 @@ export default async function TransactionsPage({
 }: TransactionsPageProps) {
   const { id, chain } = await searchParams;
 
-  if (id) return <TransactionDetail id={id} />;
-
   let initialTransactions: Transaction[] = [];
+  let initialTransactionDetail: Transaction | null = null;
   let accountEmail: string | undefined;
 
   try {
     const session = await getCachedAuthSession();
     accountEmail = session?.user?.email ?? undefined;
     if (session?.user?.id) {
-      const { transactions: rawTx } = await queryUserTransactions({
-        userId: session.user.id,
-        chain: chain?.toLowerCase(),
-        limit: 10,
-        page: 1,
-      });
-      initialTransactions = rawTx.map(formatDbTransaction);
+      if (id) {
+        const tx = await getTransactionById(id, session.user.id);
+        if (tx) {
+          initialTransactionDetail = formatDbTransaction(tx);
+        }
+      } else {
+        const { transactions: rawTx } = await queryUserTransactions({
+          userId: session.user.id,
+          chain: chain?.toLowerCase(),
+          limit: 10,
+          page: 1,
+        });
+        initialTransactions = rawTx.map(formatDbTransaction);
+      }
     } else {
       console.log("No session found");
     }
   } catch (error) {
     console.warn("[TransactionsPage]:", error);
+  }
+
+  if (id) {
+    return <TransactionDetail id={id} initialTransaction={initialTransactionDetail} />;
   }
 
   return (

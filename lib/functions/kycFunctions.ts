@@ -15,6 +15,54 @@ import {
 } from "@/models/KYCSchema";
 import { User } from "@/models/User";
 
+// ── In-Memory KYC Cache Registry
+declare global {
+  var _kycRecordCache:
+    | Map<string, { timestamp: number; data: IKYCSchema }>
+    | undefined;
+}
+
+const kycRecordCache = (globalThis._kycRecordCache ??= new Map<
+  string,
+  { timestamp: number; data: IKYCSchema }
+>());
+
+export const KYC_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Invalidates cached KYC record for a specific user, or all users if no userId is provided.
+ */
+export function invalidateKycCache(userId?: string): void {
+  if (userId) {
+    kycRecordCache.delete(userId);
+  } else {
+    kycRecordCache.clear();
+  }
+}
+
+/**
+ * Retrieves the cached KYC record from memory cache.
+ */
+export function getCachedKycRecord(userId: string): IKYCSchema | null {
+  const entry = kycRecordCache.get(userId);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > KYC_CACHE_TTL_MS) {
+    kycRecordCache.delete(userId);
+    return null;
+  }
+  return entry.data;
+}
+
+/**
+ * Saves a KYC record to memory cache with a 5-minute TTL.
+ */
+export function setCachedKycRecord(
+  userId: string,
+  data: IKYCSchema,
+): void {
+  kycRecordCache.set(userId, { timestamp: Date.now(), data });
+}
+
 /**
  * Retrieves the user's KYC record by user ID.
  */
@@ -216,6 +264,9 @@ export async function completeKycVerification(
     { $set: update },
     { returnDocument: "after", runValidators: true },
   ).lean<IKYCSchema>();
+
+  // Invalidate KYC cache so subsequent queries fetch fresh verified data
+  invalidateKycCache(userId);
 
   return updated ?? null;
 }

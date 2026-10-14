@@ -33,15 +33,7 @@ export function UsdConfirm({ onContinue }: { onContinue: () => void }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Check localStorage cache first
-    try {
-      const savedKyc = localStorage.getItem("jumpa_kyc_completed");
-      if (savedKyc !== null) {
-        setVerified(savedKyc === "true");
-      }
-    } catch {}
-
-    // Fetch live status from /api/kyc
+    // Fetch status from /api/kyc (backed by Redis cache and DB)
     async function checkKyc() {
       try {
         const res = await fetch("/api/kyc");
@@ -53,9 +45,6 @@ export function UsdConfirm({ onContinue }: { onContinue: () => void }) {
               data?.stage === "completed",
           );
           setVerified(isDone);
-          try {
-            localStorage.setItem("jumpa_kyc_completed", String(isDone));
-          } catch {}
         }
       } catch (err) {
         console.warn("[UsdConfirm] Error checking KYC:", err);

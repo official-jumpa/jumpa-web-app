@@ -1,19 +1,29 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   checkMyazaVerificationStatus,
   completeKycVerification,
+  getCachedKycRecord,
   getOrCreateKycRecord,
   parseMyazaBiodata,
+  setCachedKycRecord,
   syncKycToUserProfile,
 } from "@/lib/functions/kycFunctions";
 import { requireAuth } from "@/lib/functions/permissionFunctions";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const auth = await requireAuth({
       rateLimit: { tier: "low", action: "kyc_status" },
     });
     if (!auth.ok) return auth.response;
+
+    const bypassCache = req.nextUrl.searchParams.get("refresh") === "true";
+    if (!bypassCache) {
+      const cached = await getCachedKycRecord(auth.userId);
+      if (cached && (cached.isCompleted || cached.status === "approved")) {
+        return NextResponse.json(cached, { status: 200 });
+      }
+    }
 
     let kycRecord = await getOrCreateKycRecord(auth.userId);
 
@@ -67,6 +77,9 @@ export async function GET() {
         console.warn("[KYC API] Status check against Myaza warning:", pollErr.message);
       }
     }
+
+    // Cache the resolved record in memory
+    setCachedKycRecord(auth.userId, kycRecord);
 
     return NextResponse.json(kycRecord, { status: 200 });
   } catch (error) {

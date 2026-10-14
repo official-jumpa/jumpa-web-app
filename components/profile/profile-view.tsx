@@ -85,13 +85,6 @@ export function ProfileView({
   useEffect(() => {
     if (initialKycVerified !== undefined) return;
 
-    try {
-      const savedKyc = localStorage.getItem("jumpa_kyc_completed");
-      if (savedKyc !== null) {
-        setKycVerified(savedKyc === "true");
-      }
-    } catch { }
-
     async function checkKyc() {
       try {
         const res = await fetch("/api/kyc");
@@ -103,9 +96,6 @@ export function ProfileView({
             data?.stage === "completed",
           );
           setKycVerified(isDone);
-          try {
-            localStorage.setItem("jumpa_kyc_completed", String(isDone));
-          } catch { }
         }
       } catch (err) {
         console.warn("[ProfilePage] Failed to fetch KYC status:", err);

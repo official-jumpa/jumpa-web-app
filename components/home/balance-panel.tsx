@@ -21,6 +21,8 @@ const TRANSFER =
 
 interface BalancePanelProps {
   balance: string;
+  savingsBalance?: string;
+  savingsNgnBalance?: string;
   visible?: boolean;
   onToggleVisible?: () => void;
 }
@@ -32,6 +34,8 @@ interface BalancePanelProps {
  */
 export function BalancePanel({
   balance,
+  savingsBalance,
+  savingsNgnBalance,
   visible: controlledVisible,
   onToggleVisible,
 }: BalancePanelProps) {
@@ -122,7 +126,12 @@ export function BalancePanel({
       </nav>
 
       {sheet === "details" ? (
-        <BalanceSheet balance={balance} onClose={() => setSheet(null)} />
+        <BalanceSheet
+          balance={balance}
+          savingsBalance={savingsBalance}
+          savingsNgnBalance={savingsNgnBalance}
+          onClose={() => setSheet(null)}
+        />
       ) : null}
 
       {sheet === "send" ? (

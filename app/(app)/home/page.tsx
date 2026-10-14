@@ -11,6 +11,10 @@ import { getUserNotifications } from "@/lib/functions/notificationFunctions";
 import { getCachedWalletBalances } from "@/lib/wallet-balances";
 import { unifyTokens } from "@/lib/assets";
 import { getUserNgnAccount } from "@/lib/functions/ngnFunctions";
+import {
+  getUserActiveUsdcSavings,
+  getUserActiveNgnSavings,
+} from "@/lib/functions/savingsFunctions";
 import { ACCOUNT, ASSETS, type Asset, type Transaction } from "@/lib/wallet";
 
 export const metadata: Metadata = {
@@ -26,6 +30,8 @@ export default async function HomePage() {
   const userId = session.user.id;
 
   let initialBalance: string = ACCOUNT.balance;
+  let initialSavingsBalance = "0.00";
+  let initialSavingsNgnBalance = "0.00";
   let initialAssets: Asset[] = ASSETS;
   let initialTransactions: Transaction[] = [];
   let initialKycComplete = false;
@@ -36,12 +42,16 @@ export default async function HomePage() {
   try {
     const [
       balancesResult,
+      savingsUsdcResult,
+      savingsNgnResult,
       txResult,
       kycResult,
       ngnResult,
       notificationsResult,
     ] = await Promise.allSettled([
       getCachedWalletBalances(userId),
+      getUserActiveUsdcSavings(userId),
+      getUserActiveNgnSavings(userId),
       queryUserTransactions({ userId, limit: 5 }),
       getKycRecordByUserId(userId),
       getUserNgnAccount(userId),
@@ -56,6 +66,20 @@ export default async function HomePage() {
       if (Array.isArray(data.tokens) && data.tokens.length > 0) {
         initialAssets = unifyTokens(data.tokens);
       }
+    }
+
+    if (savingsUsdcResult.status === "fulfilled" && typeof savingsUsdcResult.value === "number") {
+      initialSavingsBalance = savingsUsdcResult.value.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
+
+    if (savingsNgnResult.status === "fulfilled" && typeof savingsNgnResult.value === "number") {
+      initialSavingsNgnBalance = savingsNgnResult.value.toLocaleString("en-NG", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
     }
 
     if (txResult.status === "fulfilled" && txResult.value?.transactions) {
@@ -94,6 +118,8 @@ export default async function HomePage() {
   return (
     <HomeView
       initialBalance={initialBalance}
+      initialSavingsBalance={initialSavingsBalance}
+      initialSavingsNgnBalance={initialSavingsNgnBalance}
       initialAssets={initialAssets}
       initialTransactions={initialTransactions}
       initialKycComplete={initialKycComplete}

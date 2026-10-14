@@ -64,96 +64,6 @@ export function savingsHref(
   return `${base}?${query}`;
 }
 
-/** The three landings differ only in this — copy and where the plans come from. */
-export const SAVINGS_PRODUCTS: Record<
-  SavingsKind,
-  {
-    title: string;
-    cta: string;
-    listLabel: string;
-    emptyTitle: string;
-    emptyCaption?: string;
-    /** True where placeholder plans still stand in for real data. */
-    seeded?: boolean;
-  }
-> = {
-  individual: {
-    title: "Individual savings",
-    cta: "Create new",
-    listLabel: "Recent savings",
-    emptyTitle: "No savings plans yet",
-    emptyCaption: "Create a savings target to start earning",
-  },
-  lock: {
-    title: "Locked savings",
-    cta: "Create new",
-    listLabel: "Recent Plans",
-    emptyTitle: "No locked savings plans",
-    emptyCaption: "Lock funds away to earn guaranteed APY",
-  },
-  circle: {
-    title: "Circles",
-    cta: "Create new circle",
-    listLabel: "Recent Plans",
-    emptyTitle: "No recent plans",
-    seeded: true,
-  },
-};
-
-const MEMBERS: SavingsMember[] = [
-  {
-    id: "you",
-    name: "You",
-    role: "Admin Organizer",
-    status: "Joined",
-    avatar: "/images/notifications/avatar-1.webp",
-  },
-  {
-    id: "ella",
-    name: "Ella",
-    role: "Creative Lead",
-    status: "Joined",
-    avatar: "/images/notifications/avatar-2.webp",
-  },
-  {
-    id: "nina",
-    name: "Nina",
-    role: "Invited",
-    status: "Pending",
-    avatar: "/images/notifications/avatar-1.webp",
-  },
-];
-
-const DECEMBER_TRIP = {
-  name: "December Trip",
-  endDate: "September 27",
-  status: "Active" as const,
-  saved: "$0.00",
-  target: "$1000",
-  daysLeft: 43,
-  percent: 0,
-  startDate: "September 27, 2026",
-  endDateLong: "November 27, 2026",
-  frequency: "Wednesday, Weekly",
-};
-
-/** Placeholder plans; only circles (groups) has a placeholder until implemented. */
-export const SAVINGS_PLANS: SavingsPlan[] = [
-  {
-    ...DECEMBER_TRIP,
-    id: "december-hangout",
-    kind: "circle",
-    members: MEMBERS,
-  },
-];
-
-export function plansOf(kind: SavingsKind): SavingsPlan[] {
-  return SAVINGS_PLANS.filter((plan) => plan.kind === kind);
-}
-
-export function findPlan(kind: SavingsKind, id: string) {
-  return SAVINGS_PLANS.find((plan) => plan.kind === kind && plan.id === id);
-}
 
 /**
  * Balance the masthead shows on a product's own landing. The rate is no longer
@@ -177,31 +87,6 @@ export const SAVINGS_CATEGORIES = [
   "Other",
 ];
 
-export type SavingsTerm = {
-  label: string;
-  /** `null` is either an open-ended goal or a custom range. */
-  days: number | null;
-  /** The length is only known once the user picks two dates. */
-  custom?: true;
-};
-
-/** Lock terms in days; `custom` opens the date range. */
-export const LOCK_TERMS: SavingsTerm[] = [
-  { label: "30 DAYS", days: 30 },
-  { label: "60 DAYS", days: 60 },
-  { label: "90 DAYS", days: 90 },
-  { label: "180 DAYS", days: 180 },
-  { label: "1 YEAR", days: 365 },
-  { label: "Custom", days: null, custom: true },
-];
-
-/** Target terms; `null` is an open-ended goal, which hides the end date. */
-export const TARGET_TERMS: SavingsTerm[] = [
-  { label: "30 DAYS", days: 30 },
-  { label: "60 DAYS", days: 60 },
-  { label: "90 DAYS", days: 90 },
-  { label: "No Deadline", days: null },
-];
 
 /** The hub's term picker: whole months, with the twelfth as a full year. */
 export const MONTH_TERMS: readonly { months: number; days: number }[] =
@@ -219,16 +104,8 @@ export function termName(days: number | null): string {
 }
 
 /**
- * ─── Rate card ────────────────────────────────────────────────────────────
- * TODO(product): THESE ARE PLACEHOLDER RATES. Replace every band before launch.
- * Nothing derives them from the vault — `getLiveVaultApy` reports one flat APY
- * per vault with no term structure, so the tiers have to live here until the
- * real rate card exists. Every rate quoted anywhere in savings resolves through
- * `apyForDays` / `rateRange`, so this block is the only thing to change.
- *
- * Bands are ascending and a day count earns the last one it clears. A longer
- * commitment pays more, and a locked plan pays more than a flexible one because
- * the money cannot be pulled out early.
+ * Tiered APY schedule by commitment days and product kind.
+ * Rates resolved via `apyForDays` are locked into the database at plan creation.
  */
 type RateBand = { minDays: number; apy: number };
 
@@ -308,19 +185,6 @@ export function topRate(kind: SavingsKind): string {
   return `${Number(best.toFixed(2))}%`;
 }
 
-/** The rate a term chip prints under its label. */
-export function rateForTerm(
-  kind: SavingsKind,
-  terms: readonly SavingsTerm[],
-  label: string,
-): string | undefined {
-  const option = terms.find((term) => term.label === label);
-  if (!option) return undefined;
-  // A custom range has no rate until both dates are chosen.
-  if (option.custom) return "varies";
-  return formatApy(apyForDays(kind, option.days));
-}
-
 /** Simple interest over the term — what the estimate line quotes. */
 export function projectedYield(
   principal: number,
@@ -331,42 +195,6 @@ export function projectedYield(
   return (principal * (apy / 100) * days) / 365;
 }
 
-export const SAVINGS_FREQUENCIES = ["Daily", "Weekly", "Monthly"];
-
-/** How often a weekly debit repeats. */
-export const WEEK_INTERVALS = ["Every week", "Every 2 weeks", "Every 4 weeks"];
-
-/** Quick-fill fractions of the saved balance on the withdraw amount screen. */
-export const WITHDRAW_PERCENTAGES = [25, 50, 75, 100] as const;
-
-export const WEEKDAYS = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-];
-
-export type FundingSource = {
-  id: string;
-  label: string;
-  balance: string;
-  icon: "dollar" | "naira" | "crypto";
-};
-
-/** Wallets the lock flow can draw from. */
-export const LOCK_SOURCES: FundingSource[] = [
-  { id: "usd", label: "USD Balance", balance: "$0.00", icon: "dollar" },
-  { id: "ngn", label: "NGN Balance", balance: "₦0.00", icon: "naira" },
-];
-
-/** The individual flow draws from the same USD/NGN wallets as lock. */
-export const TARGET_SOURCES: FundingSource[] = [
-  { id: "usd", label: "USD Balance", balance: "$0.00", icon: "dollar" },
-  { id: "ngn", label: "NGN Balance", balance: "₦0.00", icon: "naira" },
-];
 
 /*
  * The intro sheets quote the same range the product cards and the term chips
@@ -381,11 +209,11 @@ export const INDIVIDUAL_SAVINGS_TERMS = [
   "Withdraw anytime with no break fees",
 ];
 
-/** Terms for Locked savings (fixed commitment with early break fee). */
+/** Terms for Locked savings (fixed commitment; early withdrawal forfeits accrued interest). */
 export const LOCK_SAVINGS_TERMS = [
   `Earn ${rateRange("lock")} a year — the longer the lock, the higher the rate`,
-  "You can only make withdrawal after you crossed 50% on your saving goal",
-  "You will pay a break fee of 5% if you want to withdraw before the maturity date",
+  "Lock your funds until your chosen maturity date",
+  "Early withdrawal before maturity forfeits accrued interest",
 ];
 
 /** Backwards-compatible alias */
@@ -393,50 +221,13 @@ export const SAVINGS_TERMS = INDIVIDUAL_SAVINGS_TERMS;
 
 export const CIRCLE_TERMS = [
   `Earn ${rateRange("circle")} a year on the circle's savings`,
-  "Withdrawals require group consensus after 50% of goal",
-  "You will pay a break fee of 5% if you withdraw before the maturity date",
+  "Save together with friends towards a shared goal",
+  "Withdrawal anytime you want or when the circle owner decides",
 ];
 
 /** Placeholder invite link for a circle. */
 export const CIRCLE_INVITE = "jumpa.app/circle/abc123";
 
-/** A date the placeholder screens quote as the maturity date. */
-export const DEFAULT_MATURITY = "2026/09/27";
-
-/** A circle an invite resolves to, as the join screen prints it. */
-export type JoinableCircle = {
-  name: string;
-  target: string;
-  members: number;
-  /** Already in the design's `2026/09/27` form. */
-  targetDate: string;
-};
-
-/**
- * PLACEHOLDER — no service resolves an invite yet, so one circle answers to
- * its own name, its link and the code at the end of it. Replace the whole map
- * with the invite lookup when the API lands.
- */
-const JOINABLE: Record<string, JoinableCircle> = {
-  "december trip": {
-    name: "December Trip",
-    target: "₦500,000",
-    members: 5,
-    targetDate: DEFAULT_MATURITY,
-  },
-};
-
-/** The link's last segment, so `jumpa.app/circle/abc123` and `abc123` agree. */
-const INVITE_CODE = CIRCLE_INVITE.split("/").pop() ?? "";
-
-/** TODO(backend): resolve a name or invite link through the circles API. */
-export function findCircle(ref: string): JoinableCircle | null {
-  const key = ref.trim().toLowerCase();
-  if (!key) return null;
-  if (key === CIRCLE_INVITE || key === INVITE_CODE)
-    return JOINABLE["december trip"];
-  return JOINABLE[key] ?? null;
-}
 
 const pad = (value: number) => String(value).padStart(2, "0");
 

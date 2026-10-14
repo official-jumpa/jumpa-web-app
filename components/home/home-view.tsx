@@ -18,6 +18,8 @@ import { ACCOUNT, ASSETS, type Asset, type Transaction } from "@/lib/wallet";
 // In-memory cache for instant zero-flicker tab returns
 const homeMemoryCache: {
   balance?: string;
+  savingsBalance?: string;
+  savingsNgnBalance?: string;
   assets?: Asset[];
   transactions?: Transaction[];
   kycComplete?: boolean;
@@ -25,6 +27,8 @@ const homeMemoryCache: {
 
 export interface HomeViewProps {
   initialBalance?: string;
+  initialSavingsBalance?: string;
+  initialSavingsNgnBalance?: string;
   initialAssets?: Asset[];
   initialTransactions?: Transaction[];
   initialKycComplete?: boolean;
@@ -35,6 +39,8 @@ export interface HomeViewProps {
 
 export function HomeView({
   initialBalance,
+  initialSavingsBalance,
+  initialSavingsNgnBalance,
   initialAssets,
   initialTransactions,
   initialKycComplete,
@@ -44,6 +50,12 @@ export function HomeView({
 }: HomeViewProps) {
   const [totalBalance, setTotalBalance] = useState<string>(
     () => initialBalance ?? homeMemoryCache.balance ?? ACCOUNT.balance,
+  );
+  const [savingsBalance, setSavingsBalance] = useState<string>(
+    () => initialSavingsBalance ?? homeMemoryCache.savingsBalance ?? "0.00",
+  );
+  const [savingsNgnBalance, setSavingsNgnBalance] = useState<string>(
+    () => initialSavingsNgnBalance ?? homeMemoryCache.savingsNgnBalance ?? "0.00",
   );
   const [assets, setAssets] = useState<Asset[]>(
     () => initialAssets ?? homeMemoryCache.assets ?? ASSETS,
@@ -159,6 +171,42 @@ export function HomeView({
       }
     }
 
+    async function fetchSavings() {
+      try {
+        const res = await fetch("/api/savings", { cache: "no-store" });
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          const goals: any[] = data.goals || [];
+          
+          // Total active savings across USDC goals
+          const usdcActive = goals
+            .filter((g) => g.currency === "USDC" && !g.closed)
+            .reduce((sum, g) => sum + (Number(g.saved) || 0), 0);
+
+          // Total active savings across NGN goals
+          const ngnActive = goals
+            .filter((g) => g.currency === "NGN" && !g.closed)
+            .reduce((sum, g) => sum + (Number(g.saved) || 0), 0);
+
+          const formattedUsdc = usdcActive.toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          });
+          const formattedNgn = ngnActive.toLocaleString("en-NG", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          });
+
+          setSavingsBalance(formattedUsdc);
+          setSavingsNgnBalance(formattedNgn);
+          homeMemoryCache.savingsBalance = formattedUsdc;
+          homeMemoryCache.savingsNgnBalance = formattedNgn;
+        }
+      } catch (err) {
+        console.warn("[HomeView] Error fetching savings balance:", err);
+      }
+    }
+
     // The server prop can be a prefetched snapshot from before verification finished, so check
     // until it reads complete; this call also settles a pending verification with the provider.
     async function fetchKycStatus() {
@@ -183,13 +231,17 @@ export function HomeView({
     // Always fetch fresh transactions and balances to ensure updates after transactions show immediately
     fetchTransactions();
     fetchBalances(false);
+    fetchSavings();
     fetchKycStatus();
 
     // Subscribe to balance refresh events triggered upon transaction completion
     const unsub = onBalanceRefresh(() => {
       homeMemoryCache.balance = undefined;
+      homeMemoryCache.savingsBalance = undefined;
+      homeMemoryCache.savingsNgnBalance = undefined;
       homeMemoryCache.assets = undefined;
       fetchBalances(true);
+      fetchSavings();
       fetchTransactions();
     });
 
@@ -200,6 +252,7 @@ export function HomeView({
         if (now - lastFetchRef > 8000) {
           lastFetchRef = now;
           fetchBalances(false);
+          fetchSavings();
           fetchTransactions();
           fetchKycStatus();
         }
@@ -215,7 +268,7 @@ export function HomeView({
       window.removeEventListener("focus", handleVisibility);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [initialBalance, initialTransactions, initialAssets, initialKycComplete]);
+  }, [initialBalance, initialSavingsBalance, initialSavingsNgnBalance, initialTransactions, initialAssets, initialKycComplete]);
 
   return (
     <>
@@ -227,6 +280,8 @@ export function HomeView({
         />
         <BalancePanel
           balance={totalBalance}
+          savingsBalance={savingsBalance}
+          savingsNgnBalance={savingsNgnBalance}
           visible={balanceVisible}
           onToggleVisible={toggleBalanceVisible}
         />

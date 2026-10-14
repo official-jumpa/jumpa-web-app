@@ -7,7 +7,7 @@ import { environment } from "@/lib/environment";
 const defindexClient = new DefindexClient(
   environment.DEFINDEX_API_KEY,
   environment.DEFINDEX_BASE_URL,
-  "testnet",
+  "mainnet",
 );
 
 /**

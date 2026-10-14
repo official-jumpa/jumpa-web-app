@@ -54,7 +54,7 @@ export class DefindexClient {
   constructor(
     apiKey = environment.DEFINDEX_API_KEY,
     baseUrl = environment.DEFINDEX_BASE_URL,
-    network: "testnet" | "mainnet" = "testnet"
+    network: "testnet" | "mainnet" = "mainnet"
   ) {
     this.apiKey = apiKey || process.env.DEFINDEX_API_KEY || "";
     this.baseUrl = (baseUrl || process.env.DEFINDEX_BASE_URL || "https://api.defindex.io").replace(/\/$/, "");

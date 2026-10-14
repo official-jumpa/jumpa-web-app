@@ -38,7 +38,7 @@ import { SavingsPlan } from "@/models/SavingsPlan";
 const defindexClient = new DefindexClient(
   environment.DEFINDEX_API_KEY,
   environment.DEFINDEX_BASE_URL,
-  "testnet",
+  "mainnet",
 );
 
 export interface CreateSavingsExecutionParams {
@@ -294,7 +294,7 @@ export async function createSavingsPlanExecution(
 
   if (numDeposit > 0) {
     const balances = await fetchStellarBalances(stellarAddress);
-    const availableUsdc = Number(balances.testnet.usdc) || 0;
+    const availableUsdc = Number(balances.mainnet.usdc) || 0;
     if (availableUsdc < numDeposit) {
       return {
         ok: false,
@@ -329,8 +329,8 @@ export async function createSavingsPlanExecution(
 
     await ensureStellarTrustline(
       userKeypair,
-      new StellarSdk.Asset("USDC", CONTRACT_ADDRESSES.stellar.testnet.USDC),
-      "testnet",
+      new StellarSdk.Asset("USDC", CONTRACT_ADDRESSES.stellar.mainnet.USDC),
+      "mainnet",
     );
 
     const depositRes = await defindexClient.deposit(vaultAddress, {
@@ -350,14 +350,14 @@ export async function createSavingsPlanExecution(
 
     const tx = StellarSdk.TransactionBuilder.fromXDR(
       depositRes.xdr,
-      StellarSdk.Networks.TESTNET,
+      StellarSdk.Networks.PUBLIC,
     );
     tx.sign(userKeypair);
 
     const sendRes = await defindexClient.send(tx.toXDR());
     txHash = sendRes.txHash;
     initialShares = String(sendRes.dfTokens || amountStroops);
-    explorerUrl = getExplorerTxUrl("stellar", txHash, true);
+    explorerUrl = getExplorerTxUrl("stellar", txHash, false);
 
     await createTransactionRecord({
       userId,
@@ -365,7 +365,7 @@ export async function createSavingsPlanExecution(
       type: "SAVINGS_DEPOSIT",
       status: "CONFIRMED",
       chain: "stellar",
-      network: "testnet",
+      network: "mainnet",
       fromAddress: stellarAddress,
       toAddress: vaultAddress,
       amount: String(numDeposit),
@@ -588,7 +588,7 @@ export async function depositSavingsExecution(
 
   const stellarAddress = wallet.addresses?.xlm || wallet.address;
   const balances = await fetchStellarBalances(stellarAddress);
-  const availableUsdc = Number(balances.testnet.usdc) || 0;
+  const availableUsdc = Number(balances.mainnet.usdc) || 0;
   if (availableUsdc < amount) {
     return {
       ok: false,
@@ -639,13 +639,13 @@ export async function depositSavingsExecution(
 
   const tx = StellarSdk.TransactionBuilder.fromXDR(
     depositRes.xdr,
-    StellarSdk.Networks.TESTNET,
+    StellarSdk.Networks.PUBLIC,
   );
   tx.sign(userKeypair);
 
   const sendRes = await defindexClient.send(tx.toXDR());
   const txHash = sendRes.txHash;
-  const explorerUrl = getExplorerTxUrl("stellar", txHash, true);
+  const explorerUrl = getExplorerTxUrl("stellar", txHash, false);
 
   const newTotal = (plan.currentAmount || 0) + amount;
   plan.currentAmount = newTotal;
@@ -670,7 +670,7 @@ export async function depositSavingsExecution(
     type: "SAVINGS_DEPOSIT",
     status: "CONFIRMED",
     chain: "stellar",
-    network: "testnet",
+    network: "mainnet",
     fromAddress: stellarAddress,
     toAddress: targetVault,
     amount: String(amount),
@@ -858,13 +858,13 @@ export async function withdrawSavingsExecution(
     if (withdrawRes?.xdr) {
       const tx = StellarSdk.TransactionBuilder.fromXDR(
         withdrawRes.xdr,
-        StellarSdk.Networks.TESTNET,
+        StellarSdk.Networks.PUBLIC,
       );
       tx.sign(userKeypair);
 
       const sendRes = await defindexClient.send(tx.toXDR());
       txHash = sendRes.txHash;
-      explorerUrl = getExplorerTxUrl("stellar", txHash, true);
+      explorerUrl = getExplorerTxUrl("stellar", txHash, false);
     }
   } catch (onChainErr: any) {
     console.warn(
@@ -904,7 +904,7 @@ export async function withdrawSavingsExecution(
     type: "SAVINGS_WITHDRAW",
     status: "CONFIRMED",
     chain: "stellar",
-    network: "testnet",
+    network: "mainnet",
     fromAddress: targetVault,
     toAddress: stellarAddress,
     amount: String(netPayout),
@@ -1027,7 +1027,7 @@ export async function joinCircleExecution(
 
     const stellarAddress = wallet.addresses?.xlm || wallet.address || "";
     const balances = await fetchStellarBalances(stellarAddress);
-    const availableUsdc = Number(balances.testnet.usdc) || 0;
+    const availableUsdc = Number(balances.mainnet.usdc) || 0;
     if (availableUsdc < numDeposit) {
       return {
         ok: false,
@@ -1054,8 +1054,8 @@ export async function joinCircleExecution(
 
     await ensureStellarTrustline(
       userKeypair,
-      new StellarSdk.Asset("USDC", CONTRACT_ADDRESSES.stellar.testnet.USDC),
-      "testnet",
+      new StellarSdk.Asset("USDC", CONTRACT_ADDRESSES.stellar.mainnet.USDC),
+      "mainnet",
     );
 
     const depositRes = await defindexClient.deposit(vaultAddress, {
@@ -1069,11 +1069,11 @@ export async function joinCircleExecution(
       return { ok: false, error: "DeFindex failed to generate deposit transaction", status: 500 };
     }
 
-    const tx = StellarSdk.TransactionBuilder.fromXDR(depositRes.xdr, StellarSdk.Networks.TESTNET);
+    const tx = StellarSdk.TransactionBuilder.fromXDR(depositRes.xdr, StellarSdk.Networks.PUBLIC);
     tx.sign(userKeypair);
     const sendRes = await defindexClient.send(tx.toXDR());
     txHash = sendRes.txHash;
-    explorerUrl = getExplorerTxUrl("stellar", txHash, true);
+    explorerUrl = getExplorerTxUrl("stellar", txHash, false);
   }
 
   // 2. Add member to circle and increment currentAmount

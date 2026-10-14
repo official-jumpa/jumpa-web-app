@@ -16,7 +16,7 @@
  * Bump `VERSION` to retire every cache from the previous build.
  */
 
-const VERSION = "v0.1.0";
+const VERSION = "v0.1.1";
 const SHELL = `jumpa-shell-${VERSION}`;
 const ASSETS = `jumpa-assets-${VERSION}`;
 const OFFLINE = "/offline.html";

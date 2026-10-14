@@ -81,16 +81,6 @@ export async function POST(req: Request) {
     });
     if (!auth.ok) return auth.response;
 
-    if (environment.BELLMONIE_PAUSED) {
-      return NextResponse.json(
-        {
-          error:
-            "Banking service is temporarily paused for partner maintenance. Please try again later.",
-        },
-        { status: 503 },
-      );
-    }
-
     // 1. Verify user has completed KYC
     const kycVerified = await isUserKycVerified(auth.userId);
     if (!kycVerified) {

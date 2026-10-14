@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      if (!verified && !environment.BELLMONIE_PAUSED) {
+      if (!verified) {
         try {
           t = performance.now();
           const bmRes = await bellmonieBankNameEnquiry({ accountNumber, bankCode: centiivBank.code });

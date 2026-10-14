@@ -81,35 +81,33 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 2. Fallback: Bellmonie Name Enquiry (only if not paused)
-    if (!environment.BELLMONIE_PAUSED) {
-      const bellmonieBank = findBellmonieBank(bankParam);
-      if (bellmonieBank) {
-        try {
-          const bmRes = await bellmonieBankNameEnquiry({
-            accountNumber: cleanAccount,
-            bankCode: bellmonieBank.code,
-          });
-          if (bmRes?.accountName) {
-            const isBmInternal =
-              Boolean(internalAccount) ||
-              cleanAccount === jumpaMasterAccount;
+    // 2. Fallback: Bellmonie Name Enquiry
+    const bellmonieBank = findBellmonieBank(bankParam);
+    if (bellmonieBank) {
+      try {
+        const bmRes = await bellmonieBankNameEnquiry({
+          accountNumber: cleanAccount,
+          bankCode: bellmonieBank.code,
+        });
+        if (bmRes?.accountName) {
+          const isBmInternal =
+            Boolean(internalAccount) ||
+            cleanAccount === jumpaMasterAccount;
 
-            return NextResponse.json({
-              success: true,
-              accountName: bmRes.accountName.trim(),
-              accountNumber: bmRes.accountNumber || cleanAccount,
-              bankName: bellmonieBank.name,
-              bankCode: bellmonieBank.code,
-              isInternal: isBmInternal,
-            });
-          }
-        } catch (bmErr: any) {
-          console.warn(
-            `Bellmonie resolution attempt for ${bellmonieBank.name} failed:`,
-            bmErr.message,
-          );
+          return NextResponse.json({
+            success: true,
+            accountName: bmRes.accountName.trim(),
+            accountNumber: bmRes.accountNumber || cleanAccount,
+            bankName: bellmonieBank.name,
+            bankCode: bellmonieBank.code,
+            isInternal: isBmInternal,
+          });
         }
+      } catch (bmErr: any) {
+        console.warn(
+          `Bellmonie resolution attempt for ${bellmonieBank.name} failed:`,
+          bmErr.message,
+        );
       }
     }
 

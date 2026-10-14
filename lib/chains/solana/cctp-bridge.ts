@@ -8,6 +8,11 @@ import {
   ComputeBudgetProgram,
 } from "@solana/web3.js";
 import {
+  createAssociatedTokenAccountIdempotentInstruction,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
+import {
   CONTRACT_ADDRESSES,
   CIRCLE_IRIS_API,
   getSolanaRpcUrl,
@@ -255,9 +260,11 @@ export async function submitSolanaDepositForBurn({
 export async function submitSolanaReceiveMessage({
   messageHex,
   attestationHex,
+  recipientWallet,
 }: {
   messageHex: string;
   attestationHex: string;
+  recipientWallet?: string;
 }): Promise<{ ok: boolean; mintTxHash?: string; error?: string }> {
   try {
     const sponsoredKey = process.env.SPONSORED_FEE_SOLANA_KEY;
@@ -360,9 +367,6 @@ export async function submitSolanaReceiveMessage({
 
     // Fee recipient ATA: fee_recipient is 4BPnUzFDibVcWQ5zzixGodRUHwqDxHYpUPdPYus3Bn56
     const feeRecipient = new PublicKey("4BPnUzFDibVcWQ5zzixGodRUHwqDxHYpUPdPYus3Bn56");
-    const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
-      "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
-    );
     const [feeAta] = PublicKey.findProgramAddressSync(
       [feeRecipient.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), USDC_MINT.toBuffer()],
       ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -420,6 +424,24 @@ export async function submitSolanaReceiveMessage({
       microLamports: 50000,
     });
 
+    // Check if recipient ATA exists; if not, create it idempotently
+    const instructions: TransactionInstruction[] = [modifyComputeUnits, addPriorityFee];
+    const recipientAtaInfo = await connection.getAccountInfo(mintRecipient);
+    if (!recipientAtaInfo) {
+      const ownerWallet = recipientWallet
+        ? new PublicKey(recipientWallet)
+        : mintRecipient;
+      instructions.push(
+        createAssociatedTokenAccountIdempotentInstruction(
+          payerKeypair.publicKey,
+          mintRecipient,
+          ownerWallet,
+          USDC_MINT,
+        ),
+      );
+    }
+    instructions.push(receiveIx);
+
     // Fetch Circle's Address Lookup Table to keep packet below MTU
     const altRes = await connection.getAddressLookupTable(CIRCLE_SOLANA_MAINNET_ALT);
     const lookupTables = altRes.value ? [altRes.value] : [];
@@ -428,7 +450,7 @@ export async function submitSolanaReceiveMessage({
     const messageV0 = new TransactionMessage({
       payerKey: payerKeypair.publicKey,
       recentBlockhash: latestBlockhash.blockhash,
-      instructions: [modifyComputeUnits, addPriorityFee, receiveIx],
+      instructions,
     }).compileToV0Message(lookupTables);
 
     const v0Tx = new VersionedTransaction(messageV0);
@@ -462,11 +484,13 @@ export function relayToSolana({
   userId,
   amount,
   sourceDomain = 27,
+  recipientWallet,
 }: {
   txHash: string;
   userId: string;
   amount: string;
   sourceDomain?: number;
+  recipientWallet?: string;
 }) {
   (async () => {
     try {
@@ -505,6 +529,7 @@ export function relayToSolana({
       const result = await submitSolanaReceiveMessage({
         messageHex: msgObj.message,
         attestationHex: msgObj.attestation,
+        recipientWallet,
       });
 
       if (!result.ok || !result.mintTxHash) {

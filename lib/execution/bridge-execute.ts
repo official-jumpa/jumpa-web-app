@@ -620,6 +620,7 @@ export async function executeBridge(
         userId,
         amount: toAmount,
         sourceDomain,
+        recipientWallet: recipientAddress,
       });
     } else if (toChain === "stellar") {
       const sourceDomain =

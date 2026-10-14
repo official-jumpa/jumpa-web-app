@@ -1,4 +1,4 @@
-import { FOOTER } from "@/lib/landing";
+import { FAQ, FOOTER } from "@/lib/landing";
 import { SITE } from "@/lib/seo";
 import { SUPPORT_EMAIL } from "@/lib/support";
 
@@ -66,6 +66,17 @@ export function siteGraph() {
         description: DESCRIPTION,
         publisher: { "@id": ORG_ID },
         offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      },
+      {
+        "@type": "FAQPage",
+        mainEntity: FAQ.items.map((item) => ({
+          "@type": "Question",
+          name: item.question,
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: item.answer,
+          },
+        })),
       },
     ],
   };

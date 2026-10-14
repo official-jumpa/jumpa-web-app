@@ -10,6 +10,7 @@ export const metadata: Metadata = pageMetadata({
   description:
     "Re-enter your 4-digit transaction PIN to confirm it and secure your payments.",
   path: "/sign-up/pin/confirm",
+  noIndex: true,
 });
 
 export default function ConfirmPinPage() {

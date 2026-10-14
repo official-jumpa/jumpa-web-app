@@ -9,6 +9,7 @@ export const metadata: Metadata = pageMetadata({
   title: "Set login password",
   description: "Choose the 6-digit password you'll use to sign in to Jumpa.",
   path: "/sign-up/password",
+  noIndex: true,
 });
 
 export default function SetLoginPasswordPage() {

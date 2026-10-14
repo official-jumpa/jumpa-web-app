@@ -11,6 +11,7 @@ export const metadata: Metadata = pageMetadata({
   description:
     "Use Face ID or your fingerprint to unlock Jumpa and approve payments faster.",
   path: "/sign-up/biometrics",
+  noIndex: true,
 });
 
 export default function BiometricsPage() {

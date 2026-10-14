@@ -1,7 +1,15 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthScreen } from "@/components/auth/auth-screen";
 import { Button } from "@/components/ui/button";
+
+export const metadata: Metadata = {
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default function SignUpDonePage() {
   return (

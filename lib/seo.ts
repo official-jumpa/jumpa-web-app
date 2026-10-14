@@ -17,6 +17,8 @@ interface PageSeo {
   description: string;
   /** Absolute path, for the canonical and og:url. Root's canonical is the homepage. */
   path?: string;
+  /** If true, instruct search engines not to index this page. */
+  noIndex?: boolean;
 }
 
 /**
@@ -31,7 +33,7 @@ interface PageSeo {
  * `absolute` on the og/twitter titles skips the parent's title template, so
  * the suffix is applied once and only once.
  */
-export function pageMetadata({ title, description, path }: PageSeo): Metadata {
+export function pageMetadata({ title, description, path, noIndex }: PageSeo): Metadata {
   const fullTitle = `${title} | Jumpa`;
   const url = path ? `${SITE}${path}` : SITE;
 
@@ -39,6 +41,14 @@ export function pageMetadata({ title, description, path }: PageSeo): Metadata {
     title,
     description,
     alternates: { canonical: url },
+    ...(noIndex
+      ? {
+          robots: {
+            index: false,
+            follow: false,
+          },
+        }
+      : {}),
     openGraph: {
       title: { absolute: fullTitle },
       description,

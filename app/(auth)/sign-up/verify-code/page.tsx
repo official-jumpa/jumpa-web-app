@@ -10,6 +10,7 @@ export const metadata: Metadata = pageMetadata({
   description:
     "Enter the 6-digit code we emailed you to verify your Jumpa account.",
   path: "/sign-up/verify-code",
+  noIndex: true,
 });
 
 export default function VerifyCodePage() {

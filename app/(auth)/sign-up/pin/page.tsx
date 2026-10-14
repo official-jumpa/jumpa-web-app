@@ -10,6 +10,7 @@ export const metadata: Metadata = pageMetadata({
   description:
     "Create the 4-digit PIN you'll use to authorise payments from your Jumpa wallet.",
   path: "/sign-up/pin",
+  noIndex: true,
 });
 
 export default function SetPinPage() {

@@ -10,6 +10,7 @@ export const metadata: Metadata = pageMetadata({
   description:
     "Re-enter your 6-digit login password to confirm it and continue setting up your wallet.",
   path: "/sign-up/password/confirm",
+  noIndex: true,
 });
 
 export default function ConfirmLoginPasswordPage() {

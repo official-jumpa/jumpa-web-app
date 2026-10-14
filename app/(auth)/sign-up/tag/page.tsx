@@ -10,6 +10,7 @@ export const metadata: Metadata = pageMetadata({
   description:
     "Choose your Jumpa Tag, the unique handle people use to find you and pay you.",
   path: "/sign-up/tag",
+  noIndex: true,
 });
 
 export default function JumpaTagPage() {

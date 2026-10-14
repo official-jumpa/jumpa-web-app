@@ -16,7 +16,7 @@
  * Bump `VERSION` to retire every cache from the previous build.
  */
 
-const VERSION = "v1";
+const VERSION = "v0.1.0";
 const SHELL = `jumpa-shell-${VERSION}`;
 const ASSETS = `jumpa-assets-${VERSION}`;
 const OFFLINE = "/offline.html";
@@ -25,9 +25,14 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(SHELL)
-      .then((cache) => cache.add(OFFLINE))
-      .then(() => self.skipWaiting()),
+      .then((cache) => cache.add(OFFLINE)),
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("activate", (event) => {

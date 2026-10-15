@@ -35,19 +35,39 @@ export function SecuritySettings() {
       <SettingsHeader back={settingsHref()} title="Security" />
 
       <div className="mt-4.25 flex flex-col gap-4">
-        <SettingSection label="Biometrics/Authentications">
-          <SettingCard>
+        <SettingSection label="PINs">
+          {/* hide the biometrics. it will only be used for the app */}
+          {/* <SettingCard>
             <BiometricRows
               account={{ id: ACCOUNT.firstName, name: ACCOUNT.firstName }}
+            />
+          </SettingCard> */}
+
+          <SettingCard>
+            <SettingLink
+              href={settingsHref("transaction-pin")}
+              icon={DialpadCircleIcon}
+              label="Change Transaction PIN"
+            />
+            <SettingRule />
+            <SettingLink
+              href={settingsHref("forgot-transaction-pin")}
+              icon={DialpadCircleIcon}
+              label="Forgot Transaction PIN?"
             />
           </SettingCard>
 
           <SettingCard>
-            <SettingAction
-              onClick={() => setAutoLockOpen(true)}
-              icon={LockIcon}
-              label="Auto-Lock"
-              value={currentOption?.label ?? "15 minutes"}
+            <SettingLink
+              href={settingsHref("login-pin")}
+              icon={DialpadCircleIcon}
+              label="Change Login PIN"
+            />
+            <SettingRule />
+            <SettingLink
+              href={settingsHref("forgot-login-pin")}
+              icon={DialpadCircleIcon}
+              label="Forgot Login PIN?"
             />
           </SettingCard>
         </SettingSection>
@@ -59,38 +79,15 @@ export function SecuritySettings() {
           onSelect={updateTimeoutSetting}
         />
 
-        {/* Both PIN cards sit under the biometrics label — the design gives
-            neither a heading of its own. */}
-        <SettingCard>
-          <SettingLink
-            href={settingsHref("transaction-pin")}
-            icon={DialpadCircleIcon}
-            label="Change Transaction PIN"
-          />
-          <SettingRule />
-          <SettingLink
-            href={settingsHref("forgot-transaction-pin")}
-            icon={DialpadCircleIcon}
-            label="Forgot Transaction PIN?"
-          />
-        </SettingCard>
-
-        <SettingCard>
-          <SettingLink
-            href={settingsHref("login-pin")}
-            icon={DialpadCircleIcon}
-            label="Change Login PIN"
-          />
-          <SettingRule />
-          <SettingLink
-            href={settingsHref("forgot-login-pin")}
-            icon={DialpadCircleIcon}
-            label="Forgot Login PIN?"
-          />
-        </SettingCard>
-
         <SettingSection label="Devices">
           <SettingCard>
+            <SettingAction
+              onClick={() => setAutoLockOpen(true)}
+              icon={LockIcon}
+              label="Auto-Lock"
+              value={currentOption?.label ?? "15 minutes"}
+            />
+            <SettingRule />
             <SettingLink
               href={settingsHref("devices")}
               icon={MobileIcon}
@@ -107,8 +104,7 @@ export function SecuritySettings() {
               icon={KeyIcon}
               label="Export Private Key"
             />
-          </SettingCard>
-          <SettingCard>
+            <SettingRule />
             <SettingLink
               href={settingsHref("seed-phrase")}
               icon={KeyIcon}

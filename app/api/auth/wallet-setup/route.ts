@@ -119,6 +119,7 @@ export async function GET(req: NextRequest) {
       hasTag,
       hasPin,
       needsPinMigration,
+      isV3Wallet: Boolean(wallet && wallet.pinVersion === "v3"),
       nextRoute,
       userStatus: user?.status || "active",
       nickname: user?.nickname ?? null,

@@ -103,22 +103,51 @@ export type SelectWalletInput = z.infer<typeof selectWalletSchema>;
 /**
  * Validation for /api/wallet/change-pin
  */
-export const changePinSchema = z.object({
-  newPin: z
-    .string({ error: "New PIN is required" })
-    .trim()
-    .regex(/^\d{4}$/, "New PIN must be 4 digits."),
-  currentPin: z
-    .string()
-    .trim()
-    .regex(/^\d{4}$/, "Current PIN must be 4 digits.")
-    .optional(),
-  kind: z
-    .enum(["transaction", "login"], {
-      error: "Kind must be either 'transaction' or 'login'",
-    })
-    .default("transaction"),
-});
+export const changePinSchema = z
+  .object({
+    newPin: z.string({ error: "New PIN is required" }).trim(),
+    currentPin: z.string().trim().optional(),
+    otp: z
+      .string()
+      .trim()
+      .regex(/^\d{6}$/, "Verification code must be 6 digits.")
+      .optional(),
+    kind: z
+      .enum(["transaction", "login"], {
+        error: "Kind must be either 'transaction' or 'login'",
+      })
+      .default("transaction"),
+  })
+  .superRefine((data, ctx) => {
+    const isLogin = data.kind === "login";
+    const expectedLen = isLogin ? 6 : 4;
+    const pinRegex = isLogin ? /^\d{6}$/ : /^\d{4}$/;
+    const label = isLogin ? "Login PIN" : "Transaction PIN";
+
+    if (!pinRegex.test(data.newPin)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["newPin"],
+        message: `${label} must be ${expectedLen} digits.`,
+      });
+    }
+
+    if (data.currentPin && !pinRegex.test(data.currentPin)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["currentPin"],
+        message: `Current ${label} must be ${expectedLen} digits.`,
+      });
+    }
+
+    if (!data.currentPin && !data.otp) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["otp"],
+        message: "Verification code is required to reset PIN.",
+      });
+    }
+  });
 
 export type ChangePinInput = z.infer<typeof changePinSchema>;
 

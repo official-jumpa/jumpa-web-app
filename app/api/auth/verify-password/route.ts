@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 
     if (!isValid) {
       return NextResponse.json(
-        { error: "Incorrect password", verified: false },
+        { error: "Incorrect pin", verified: false },
         { status: 400 },
       );
     }

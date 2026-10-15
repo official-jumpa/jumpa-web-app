@@ -123,7 +123,7 @@ export const PIN_FLOWS: Record<PinFlowName, PinFlow> = {
     length: TRANSACTION_SLOTS,
     intro: {
       heading: "Forgot your Transaction PIN?",
-      description: "Verify your identity to create a new transaction PIN.",
+      description: "Verify you own the account to reset your transaction PIN.",
     },
     create: {
       heading: "Set New Transaction PIN",
@@ -174,7 +174,7 @@ export function isPinFlow(value: string): value is PinFlowName {
 }
 
 /** The emailed code that unlocks a `forgot` flow. */
-export const RESET_CODE_LENGTH = 4;
+export const RESET_CODE_LENGTH = 6;
 
 /** Countdown the design prints beside "Resend Code", in seconds. */
-export const RESEND_SECONDS = 260;
+export const RESEND_SECONDS = 60;

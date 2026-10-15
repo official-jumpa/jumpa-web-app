@@ -72,7 +72,7 @@ export function NotificationSettings({
     if (key === "haptics") {
       try {
         localStorage.setItem("jumpa_haptics", String(value));
-      } catch {}
+      } catch { }
     }
 
     // 2. Persist to DB
@@ -95,7 +95,7 @@ export function NotificationSettings({
       <SettingsHeader back={settingsHref()} title="Notifications" />
 
       <div className="mt-4.25 flex flex-col gap-7.25">
-        <SettingSection label="General Notifications">
+        <SettingSection label="General">
           <SettingCard>
             <SettingRow
               icon={BellAltIcon}
@@ -108,28 +108,7 @@ export function NotificationSettings({
                 />
               }
             />
-          </SettingCard>
-        </SettingSection>
-
-        <SettingSection label="Security Notifications">
-          <SettingCard>
-            <SettingRow
-              icon={BellAltIcon}
-              label="New Login Detected"
-              action={
-                <Toggle
-                  label="New login detected"
-                  checked={prefs.newLoginDetected}
-                  onChange={(val) => handleToggle("newLoginDetected", val)}
-                />
-              }
-            />
-          </SettingCard>
-        </SettingSection>
-
-        {/* App Preferences & Feedback */}
-        <SettingSection label="Security Notifications">
-          <SettingCard>
+            <SettingRule />
             <SettingRow
               icon={BellAltIcon}
               label="Haptics"
@@ -150,6 +129,22 @@ export function NotificationSettings({
                   label="In app sounds"
                   checked={prefs.inAppSounds}
                   onChange={(val) => handleToggle("inAppSounds", val)}
+                />
+              }
+            />
+          </SettingCard>
+        </SettingSection>
+
+        <SettingSection label="Security">
+          <SettingCard>
+            <SettingRow
+              icon={BellAltIcon}
+              label="New Login Alert"
+              action={
+                <Toggle
+                  label="New login alert"
+                  checked={prefs.newLoginDetected}
+                  onChange={(val) => handleToggle("newLoginDetected", val)}
                 />
               }
             />

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { SupportSheet } from "@/components/support/support-sheet";
 import { BellIcon } from "@/components/ui/icons/bell";
+import { HeadsetIcon } from "@/components/ui/icons/headset";
 import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
 import { useEffect, useState } from "react";
 import { useAuthContext } from "@/components/auth/AuthGuard";
@@ -13,7 +14,8 @@ import { ACCOUNT } from "@/lib/wallet";
 // No colour here: a second `text-*` from a consumer would not reliably win,
 // since the joins in this file are plain concatenation.
 const CONTROL =
-  "relative flex size-10 items-center justify-center rounded-full bg-jumpa-white/43";
+  "relative flex size-9 items-center justify-center rounded-panel bg-jumpa-primary-500 " +
+  "text-jumpa-white shadow-[inset_0_0_8px_0_var(--color-jumpa-primary-400)] tap active:scale-95";
 
 export function WalletHeader({
   initialHasUnread = false,
@@ -113,21 +115,10 @@ export function WalletHeader({
           type="button"
           onClick={() => setHelpOpen(true)}
           aria-label="Help and support"
-          className={`${CONTROL} tap active:scale-95`}
+          className={CONTROL}
         >
-          {/* HELP tucks into the top-right corner, so the headset is nudged
-              down and left to leave it room inside the 40px disc. */}
-          <Image
-            src="/images/home/supporticon.png"
-            alt=""
-            width={50}
-            height={50}
-            // The optimiser returns nothing for this file, so the glyph never
-            // painted. It is a 762-byte 50px mark — there is nothing to gain.
-            unoptimized
-            className="mt-[3px] mr-0.5 size-5.5"
-          />
-          <span className="absolute -top-px -right-0.5 rounded-pill bg-jumpa-danger-100 px-[3px] text-[6px] leading-[10px] font-bold tracking-wide text-jumpa-danger">
+          <HeadsetIcon className="mt-0.5 size-5" />
+          <span className="absolute -top-0.5 -right-1 rounded-full bg-jumpa-danger px-1 py-0.2 text-[7px] leading-tight font-semibold text-jumpa-white shadow-sm ring-1 ring-jumpa-primary-500">
             HELP
           </span>
         </button>
@@ -136,11 +127,11 @@ export function WalletHeader({
           href="/notifications"
           prefetch={true}
           aria-label="Notifications"
-          className={`${CONTROL} text-jumpa-primary-50`}
+          className={CONTROL}
         >
-          <BellIcon className="size-6" />
+          <BellIcon className="size-5.5" />
           {hasUnread ? (
-            <span className="absolute top-2 right-2 size-2 rounded-full bg-jumpa-danger ring-2 ring-jumpa-primary-600 animate-pulse" />
+            <span className="absolute top-0.5 right-2 size-2 rounded-full bg-jumpa-danger ring-2 ring-jumpa-primary-500 animate-pulse" />
           ) : null}
         </Link>
       </div>

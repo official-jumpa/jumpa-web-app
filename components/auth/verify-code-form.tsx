@@ -240,8 +240,8 @@ export function VerifyCodeForm({
 
       {verified ? (
         <SuccessSheet
-          title="Verification successful"
-          description="Your code has been verified successfully. You can now continue."
+          title="Email Verified"
+          description="Your email has been confirmed. You can now continue to your wallet."
           actionHref={targetActionHref}
           actionLabel="Continue"
         />

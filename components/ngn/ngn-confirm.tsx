@@ -114,7 +114,7 @@ export function NgnConfirm({
     async function checkKycAndProfile() {
       try {
         const [kycRes, profileRes] = await Promise.all([
-          fetch("/api/kyc"),
+          fetch("/api/v1/kyc"),
           fetch("/api/user/profile"),
         ]);
 
@@ -131,8 +131,7 @@ export function NgnConfirm({
           const data = await kycRes.json();
           const isDone = Boolean(
             data?.isCompleted ||
-            data?.status === "approved" ||
-            data?.stage === "completed",
+            data?.status === "approved",
           );
           setVerified(isDone);
 

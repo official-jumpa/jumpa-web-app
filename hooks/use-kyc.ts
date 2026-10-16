@@ -51,7 +51,7 @@ export function useKyc(initialKycComplete?: boolean): UseKycResult {
   const fetchKycStatus = useCallback(async (isBypassCache = false) => {
     try {
       setIsLoading(true);
-      const url = isBypassCache ? "/api/kyc?refresh=true" : "/api/kyc";
+      const url = isBypassCache ? "/api/v1/kyc?refresh=true" : "/api/v1/kyc";
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) return;
 

@@ -849,7 +849,7 @@ export function KycCaptureScreen({
       formData.append("file", selectedFile);
       formData.append("type", "selfie");
 
-      const res = await fetch("/api/kyc/upload", {
+      const res = await fetch("/api/v1/kyc/upload", {
         method: "POST",
         body: formData,
       });
@@ -862,13 +862,11 @@ export function KycCaptureScreen({
       if (res.ok && data.mediaId) {
         setUploadedMediaId(data.mediaId);
       } else {
-        console.error("[KYC Capture] Upload error response:", data);
         setUploadError(
           data.error || "Failed to upload selfie. Please try again.",
         );
       }
-    } catch (err) {
-      console.error("[KYC Capture] Upload network/runtime error:", err);
+    } catch {
       setUploadError("Network connection error while uploading. Please retry.");
     } finally {
       setUploading(false);

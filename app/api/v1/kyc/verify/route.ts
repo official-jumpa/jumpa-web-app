@@ -10,6 +10,14 @@ import { logUserActivity } from "@/lib/functions/userFunctions";
 import { kycVerifySchema } from "@/lib/validations/kyc.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { KYCSchema } from "@/models/KYCSchema";
+import {
+  formatOneLineError,
+  handleExternalApiError,
+  isTimeoutError,
+} from "@/lib/utils/api-best-practices";
+import { environment } from "@/lib/environment";
+
+const VERIFY_TIMEOUT_MS = 15000; // 15s budget for identity matching
 
 const MYAZA_TYPE_MAP: Record<string, string> = {
   nin: "nin",
@@ -62,8 +70,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const isDev = process.env.NODE_ENV !== "production";
-
+    const isDev = !environment.IS_PRODUCTION;
     const MYAZA_DEV_SANDBOX_IDS: Record<string, string> = {
       nin: "00000000001",
       licence: "TST00000001",
@@ -71,18 +78,11 @@ export async function POST(req: NextRequest) {
     };
 
     let effectiveIdNumber = rawIdNumber;
-
     if (isDev) {
-      // In dev mode: substitute with recognized test IDs if arbitrary numbers entered
       if (!effectiveIdNumber || !DEFAULT_SANDBOX_IDS.has(effectiveIdNumber)) {
-        const fallbackId = MYAZA_DEV_SANDBOX_IDS[idType] || "00000000001";
-        console.log(
-          `[Myaza Verify DEV] Substituting user ID "${effectiveIdNumber}" with sandbox test ID: "${fallbackId}"`,
-        );
-        effectiveIdNumber = fallbackId;
+        effectiveIdNumber = MYAZA_DEV_SANDBOX_IDS[idType] || "00000000001";
       }
     } else {
-      // In production: strictly enforce non-empty real IDs and reject sandbox test IDs
       if (DEFAULT_SANDBOX_IDS.has(effectiveIdNumber)) {
         return NextResponse.json(
           { error: "Please provide your real ID number." },
@@ -92,10 +92,10 @@ export async function POST(req: NextRequest) {
     }
 
     const apiKey =
-      process.env.MYAZA_TRUST_SECRET_KEY || process.env.MYAZA_TRUST_SANDBOX_KEY;
-    const baseUrl = process.env.MYAZA_TRUST_BASE_URL;
+      environment.MYAZA_TRUST_SECRET_KEY || environment.MYAZA_TRUST_SANDBOX_KEY;
+    const baseUrl = environment.MYAZA_TRUST_BASE_URL;
     if (!apiKey || !baseUrl) {
-      console.error("[Myaza Verify] Error: Missing API Key or Base URL");
+      console.error("[Myaza] Missing API credentials");
       return NextResponse.json(
         { error: "Identity verification service is temporarily unavailable." },
         { status: 503 },
@@ -104,19 +104,13 @@ export async function POST(req: NextRequest) {
 
     const myazaIdType = MYAZA_TYPE_MAP[idType] || idType;
 
-    // Fetch user KYC record and track deterministic attempt count for idempotency
     const kycRecord = await getOrCreateKycRecord(userId);
     const attemptCount = (kycRecord.attemptCount || 0) + 1;
     await KYCSchema.updateOne({ userId }, { $set: { attemptCount } });
 
-    // Deterministic idempotency key: prevents duplicate charges on re-tries or network retries
     const requestId = `kyc_${userId}_${attemptCount}`;
 
-    // Pure Government-Database Payload:
-    // Only pass the live selfie in mediaIds.
-    // Document images are intentionally omitted so Myaza verifies directly against
-    // source government registries (NIMC, FRSC, NIS) and performs 1:1 facial matching
-    // against the official government photo, completely bypassing error-prone document OCR.
+    // Verified against source government databases using facial matching
     const verifyPayload = {
       country: "NG",
       idType: myazaIdType,
@@ -131,13 +125,6 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    console.log(
-      "[Myaza Verify] Submitting verification for user:",
-      userId,
-      "Payload:",
-      JSON.stringify(verifyPayload, null, 2),
-    );
-
     let response: Response;
     let data: any = null;
 
@@ -149,7 +136,7 @@ export async function POST(req: NextRequest) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(verifyPayload),
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS),
       });
 
       try {
@@ -160,21 +147,20 @@ export async function POST(req: NextRequest) {
           message: `Provider returned status ${response.status}`,
         };
       }
-    } catch (fetchErr) {
-      console.error("[Myaza Verify] Network/timeout exception:", fetchErr);
+    } catch (fetchErr: any) {
+      const isTimeout = isTimeoutError(fetchErr);
+      console.error(
+        `[Myaza:verify] ${isTimeout ? `Verification timed out after ${VERIFY_TIMEOUT_MS}ms` : "Network exception"}: ${formatOneLineError(fetchErr)}`
+      );
       return NextResponse.json(
         {
-          error:
-            "Connection to the verification provider timed out. Please try submitting again.",
+          error: isTimeout
+            ? "Connection timed out. Please try submitting again."
+            : "Unable to reach verification service. Please check your internet connection.",
         },
-        { status: 504 },
+        { status: isTimeout ? 504 : 502 },
       );
     }
-
-    console.log(
-      `[Myaza Verify] Response status: ${response.status} Data:`,
-      JSON.stringify(data, null, 2),
-    );
 
     const statusStr = String(data?.status || "").toLowerCase();
     const verificationId = data?.id || data?.verificationId || null;
@@ -185,7 +171,6 @@ export async function POST(req: NextRequest) {
         statusStr === "success" ||
         data?.success === true);
 
-    // Only treat as processing if explicitly indicated by status or 202 Accepted
     const isProcessing =
       response.ok &&
       (statusStr === "processing" ||
@@ -219,7 +204,6 @@ export async function POST(req: NextRequest) {
           success: true,
           status: "approved",
           verificationId,
-          details: verifiedDetails,
         },
         { status: 200 },
       );
@@ -246,13 +230,13 @@ export async function POST(req: NextRequest) {
           success: true,
           status: "pending",
           verificationId,
-          message: "Your verification is processing.",
+          message: "Your verification is currently processing.",
         },
         { status: 200 },
       );
     }
 
-    // Explicit rejection or error from provider
+    // Intercept failure from provider and map to friendly copy
     const rawMsg = String(data?.message || data?.error || "");
     let userFacingError =
       "Identity verification could not be completed. Please review your details and try again.";
@@ -262,7 +246,7 @@ export async function POST(req: NextRequest) {
         "The verification service is momentarily busy. Please try submitting again in a moment.";
     } else if (/facial|face|match|confidence/i.test(rawMsg)) {
       userFacingError =
-        "Biometric facial match could not be confirmed. Please take a clear, well-lit live selfie looking straight at the camera.";
+        "Facial match could not be confirmed. Please take a clear, well-lit live selfie looking straight at the camera.";
     } else if (
       response.status === 422 ||
       /invalid|not found|id number|record|does not match/i.test(rawMsg)
@@ -272,6 +256,11 @@ export async function POST(req: NextRequest) {
     } else if (rawMsg && rawMsg.length < 120 && !rawMsg.includes("{")) {
       userFacingError = rawMsg;
     }
+
+    // One-line log capped at 400 chars capturing the upstream failure payload
+    console.error(
+      `[Myaza] Upstream failure | Status: ${response.status} | Payload: ${formatOneLineError(data)}`
+    );
 
     await completeKycVerification(userId, {
       verificationId,
@@ -293,19 +282,18 @@ export async function POST(req: NextRequest) {
       req,
     }).catch(() => {});
 
+    // Return sanitized error copy without leaking raw data
     return NextResponse.json(
-      { error: userFacingError, details: data },
-      { status: response.status >= 400 ? response.status : 422 },
+      { error: userFacingError },
+      { status: response.status >= 400 && response.status < 600 ? response.status : 422 },
     );
-  } catch (error) {
-    console.error("[Myaza Verify] Exception:", error);
-    return NextResponse.json(
-      {
-        error:
-          "An unexpected error occurred during verification. Please try again.",
-      },
-      { status: 500 },
-    );
+  } catch (error: any) {
+    return handleExternalApiError({
+      provider: "Myaza",
+      action: "verify",
+      status: 500,
+      rawError: error,
+      customMessage: "An unexpected error occurred during verification. Please try again.",
+    });
   }
 }
-

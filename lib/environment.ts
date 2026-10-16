@@ -225,6 +225,10 @@ export const environment = {
   // Shared with the admin dashboard; empty disables every /api/admin route.
   ADMIN_API_SECRET: process.env.ADMIN_API_SECRET || "",
 
+  // MYAZA KYC TRUST
+  MYAZA_TRUST_SECRET_KEY: process.env.MYAZA_TRUST_SECRET_KEY || "",
+  MYAZA_TRUST_SANDBOX_KEY: process.env.MYAZA_TRUST_SANDBOX_KEY || "",
+  MYAZA_TRUST_BASE_URL: process.env.MYAZA_TRUST_BASE_URL || "https://trust.myaza.app/api/kyc",
 };
 
 export default environment;

@@ -8,8 +8,16 @@ import {
 import { requireAuth } from "@/lib/functions/permissionFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import type { KycIdType } from "@/models/KYCSchema";
+import {
+  formatOneLineError,
+  handleExternalApiError,
+  isTimeoutError,
+} from "@/lib/utils/api-best-practices";
+
+import { environment } from "@/lib/environment";
 
 const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB max upload size
+const UPLOAD_TIMEOUT_MS = 30000; // 30s timeout for media streaming
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,16 +26,18 @@ export async function POST(req: NextRequest) {
     });
     if (!auth.ok) return auth.response;
     const userId = auth.userId;
+
     const apiKey =
-      process.env.MYAZA_TRUST_SECRET_KEY || process.env.MYAZA_TRUST_SANDBOX_KEY;
-    const baseUrl = process.env.MYAZA_TRUST_BASE_URL;
+      environment.MYAZA_TRUST_SECRET_KEY || environment.MYAZA_TRUST_SANDBOX_KEY;
+    const baseUrl = environment.MYAZA_TRUST_BASE_URL;
     if (!apiKey || !baseUrl) {
-      console.error("[Myaza Upload] Error: Missing API Key or Base URL");
+      console.error("[Myaza] Missing API credentials");
       return NextResponse.json(
         { error: "Verification upload service is temporarily unavailable." },
         { status: 503 },
       );
     }
+
     const formData = await req.formData();
     const file = formData.get("file");
     const type = String(formData.get("type") || "document_front");
@@ -38,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     if (!file || typeof file === "string" || !(file instanceof Blob)) {
       return NextResponse.json(
-        { error: "No valid file provided" },
+        { error: "No valid image file provided." },
         { status: 400 },
       );
     }
@@ -57,10 +67,7 @@ export async function POST(req: NextRequest) {
 
     if (!ALLOWED_KYC_MIME_TYPES.includes(mimeType as any)) {
       return NextResponse.json(
-        {
-          error:
-            "Invalid file format. Please upload an image in JPEG, PNG, or PDF format",
-        },
+        { error: "Invalid format. Please upload an image in JPEG or PNG format." },
         { status: 400 },
       );
     }
@@ -71,18 +78,11 @@ export async function POST(req: NextRequest) {
         ? originalName.replace(/\.jpe?g$/i, ".jpeg")
         : `upload_${Date.now()}.${extension}`;
 
-    let uploadBlob = new Blob([buffer], { type: mimeType });
-    let uploadFilename = safeFilename;
-    let uploadMimeType = mimeType;
-
+    const uploadBlob = new Blob([buffer], { type: mimeType });
     const myazaFormData = new FormData();
-    myazaFormData.append("file", uploadBlob, uploadFilename);
+    myazaFormData.append("file", uploadBlob, safeFilename);
     myazaFormData.append("type", type);
-    myazaFormData.append("mimeType", uploadMimeType);
-
-    console.log(
-      `[Myaza Upload] Uploading file for user: ${userId} Type: ${type} Mime: ${uploadMimeType} Size: ${uploadBlob.size}`,
-    );
+    myazaFormData.append("mimeType", mimeType);
 
     let response: Response;
     try {
@@ -90,16 +90,20 @@ export async function POST(req: NextRequest) {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}` },
         body: myazaFormData,
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
       });
-    } catch (fetchErr) {
-      console.error("[Myaza Upload] Network/timeout exception:", fetchErr);
+    } catch (fetchErr: any) {
+      const isTimeout = isTimeoutError(fetchErr);
+      console.error(
+        `[Myaza] ${isTimeout ? `Upload timed out after ${UPLOAD_TIMEOUT_MS}ms` : "Network failure"}: ${formatOneLineError(fetchErr)}`
+      );
       return NextResponse.json(
         {
-          error:
-            "Upload connection timed out. Please check your internet connection and try again.",
+          error: isTimeout
+            ? "Upload timed out. Please check your internet connection and try again."
+            : "Unable to upload image. Please check your connection and retry.",
         },
-        { status: 504 },
+        { status: isTimeout ? 504 : 502 },
       );
     }
 
@@ -111,20 +115,22 @@ export async function POST(req: NextRequest) {
     }
 
     if (!response.ok || !data?.mediaId) {
-      console.error("[Myaza Upload] Error from provider:", data);
-      let errorMsg =
-        data?.message || data?.error || "Failed to upload file. Please try again.";
-      if (typeof errorMsg === "string" && errorMsg.includes("mimeType")) {
-        errorMsg =
-          "Unsupported image format. Please upload a clear photo in JPEG, PNG, or PDF format.";
+      let customError = "Failed to upload file. Please try again.";
+      const rawErrorStr = String(data?.message || data?.error || "");
+
+      if (rawErrorStr.includes("mimeType")) {
+        customError = "Unsupported image format. Please upload a clear photo in JPEG or PNG format.";
       } else if (response.status >= 500) {
-        errorMsg =
-          "The verification upload service is momentarily busy. Please try uploading again.";
+        customError = "The verification upload service is momentarily busy. Please try uploading again.";
       }
-      return NextResponse.json(
-        { error: errorMsg },
-        { status: response.status >= 400 ? response.status : 500 },
-      );
+
+      return handleExternalApiError({
+        provider: "Myaza",
+        action: "upload",
+        status: response.status,
+        rawError: data,
+        customMessage: customError,
+      });
     }
 
     // Persist media ID to user's KYC record in MongoDB
@@ -146,16 +152,19 @@ export async function POST(req: NextRequest) {
       req,
     }).catch(() => {});
 
+    // Minimal client-safe return: only confirmation and mediaId
     return NextResponse.json({
       success: true,
       mediaId: data.mediaId,
       type: data.type || type,
     });
-  } catch (error) {
-    console.error("[Myaza Upload] Exception:", error);
-    return NextResponse.json(
-      { error: "Failed to upload file to Myaza" },
-      { status: 500 },
-    );
+  } catch (error: any) {
+    return handleExternalApiError({
+      provider: "Myaza",
+      action: "upload",
+      status: 500,
+      rawError: error,
+      customMessage: "An unexpected error occurred while uploading. Please try again.",
+    });
   }
 }

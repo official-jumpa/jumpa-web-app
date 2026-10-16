@@ -30,7 +30,7 @@ export function NgnAccountView() {
         );
         const [ngnRes, kycRes] = await Promise.all([
           fetch("/api/ngn-account"),
-          fetch("/api/kyc"),
+          fetch("/api/v1/kyc"),
         ]);
 
         if (ngnRes.ok && isMounted) {
@@ -55,8 +55,7 @@ export function NgnAccountView() {
           const kycData = await kycRes.json();
           const isKycDone = Boolean(
             kycData?.isCompleted ||
-              kycData?.status === "approved" ||
-              kycData?.stage === "completed",
+              kycData?.status === "approved",
           );
           if (!isKycDone) {
             console.log(

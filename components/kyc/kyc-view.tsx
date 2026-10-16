@@ -24,7 +24,6 @@ export interface InitialKycData {
   selfieMediaId?: string | null;
   idNumber?: string | null;
   rejectionReason?: string | null;
-  stepsCompleted?: { document?: boolean; selfie?: boolean; verification?: boolean };
 }
 
 export function KycView({
@@ -39,10 +38,10 @@ export function KycView({
 
   const initialTasks: KycTask[] = [];
   if (!isFailedInitial) {
-    if (initialKycData?.docMediaId || initialKycData?.stepsCompleted?.document) {
+    if (initialKycData?.docMediaId) {
       initialTasks.push("document");
     }
-    if (initialKycData?.selfieMediaId || initialKycData?.stepsCompleted?.selfie) {
+    if (initialKycData?.selfieMediaId) {
       initialTasks.push("selfie");
     }
   }
@@ -97,81 +96,14 @@ export function KycView({
     initialKycData?.verificationId ?? null,
   );
 
-  // Sync existing user KYC status on initial mount. Server data can be a prefetched snapshot from
-  // before verification finished, so re-check it too, or a verified user is sent through again.
-  useEffect(() => {
-    if (initialKycData?.isCompleted) return;
-
-    let isMounted = true;
-    async function loadUserKycStatus() {
-      try {
-        const res = await fetch("/api/kyc", { cache: "no-store" });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!isMounted) return;
-
-        if (data.isCompleted || data.status === "approved") {
-          setVerified(true);
-          if (data.verificationId) setLastVerificationId(data.verificationId);
-          return;
-        }
-
-        // The server already rendered every other state.
-        if (initialKycData !== undefined) return;
-
-        if (data.status === "failed" || data.status === "rejected") {
-          setApiError(
-            data.rejectionReason ||
-              "Your previous verification could not be approved. Please upload your documents again to retry.",
-          );
-          setDone([]);
-          setDocMediaId(null);
-          setSelfieMediaId(null);
-          setStage("tasks");
-          return;
-        }
-
-        if (data.status === "pending") {
-          setIsPendingVerification(true);
-          if (data.verificationId) setLastVerificationId(data.verificationId);
-          setStage("tasks");
-        }
-
-        const restoredTasks: KycTask[] = [];
-        if (data.docMediaId || data.stepsCompleted?.document) {
-          setDocMediaId(data.docMediaId);
-          restoredTasks.push("document");
-        }
-        if (data.selfieMediaId || data.stepsCompleted?.selfie) {
-          setSelfieMediaId(data.selfieMediaId);
-          restoredTasks.push("selfie");
-        }
-        if (data.idNumber) {
-          setDocIdNumber(data.idNumber);
-        }
-        if (restoredTasks.length > 0) {
-          setDone(restoredTasks);
-          setStage("tasks");
-        }
-      } catch (err) {
-        console.warn("[KycView] Could not load initial KYC status:", err);
-      }
-    }
-
-    loadUserKycStatus();
-    return () => {
-      isMounted = false;
-    };
-  }, [initialKycData]);
-
-  // Polling for async verification completion
+  // Polling strictly when verification is pending
   useEffect(() => {
     if (!isPendingVerification) return;
 
     let isMounted = true;
     const interval = setInterval(async () => {
       try {
-        const res = await fetch("/api/kyc");
+        const res = await fetch("/api/v1/kyc");
         if (!res.ok) return;
         const data = await res.json();
         if (!isMounted) return;
@@ -202,7 +134,7 @@ export function KycView({
 
   const handleManualCheckStatus = async () => {
     try {
-      const res = await fetch("/api/kyc");
+      const res = await fetch("/api/v1/kyc");
       if (!res.ok) return;
       const data = await res.json();
       if (data.isCompleted || data.status === "approved") {
@@ -251,22 +183,6 @@ export function KycView({
     setStage("tasks");
   };
 
-  // A failed attempt wipes the selfie server-side and the provider won't take it
-  // again, so follow the record rather than resubmit a dead media ID.
-  const dropStaleSelfie = async () => {
-    try {
-      const res = await fetch("/api/kyc");
-      if (!res.ok) return;
-      const record = (await res.json()) as { selfieMediaId?: string | null };
-      if (record.selfieMediaId) return;
-      setSelfieMediaId(null);
-      setSelfiePreview(null);
-      setDone((tasks) => tasks.filter((task) => task !== "selfie"));
-    } catch {
-      // Leave the selfie as it is; the next attempt reports its own error.
-    }
-  };
-
   const handleExecuteVerification = async () => {
     const finalIdNumber = docIdNumber.trim();
     if (!finalIdNumber) {
@@ -289,8 +205,7 @@ export function KycView({
     };
 
     try {
-      console.log("[KYC View] Submitting to /api/kyc/verify:", payload);
-      const res = await fetch("/api/kyc/verify", {
+      const res = await fetch("/api/v1/kyc/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -308,28 +223,12 @@ export function KycView({
         } else {
           setVerified(true);
         }
-      } else if (res.status === 401) {
-        setApiError("Authentication required. Please log in to complete KYC.");
-      } else if (res.status === 422) {
+      } else {
         const errorMsg =
           typeof data.error === "string"
             ? data.error
             : typeof data.message === "string"
               ? data.message
-              : "Verification failed. Please ensure your document number matches your ID exactly.";
-        setApiError(errorMsg);
-      } else if (res.status >= 500) {
-        const errorMsg =
-          typeof data.error === "string" && !data.error.includes("Internal")
-            ? data.error
-            : "The verification service is momentarily busy. Please try submitting again in a moment.";
-        setApiError(errorMsg);
-      } else {
-        const errorMsg =
-          typeof data.message === "string"
-            ? data.message
-            : typeof data.error === "string"
-              ? data.error
               : "Verification could not be completed. Please try again.";
         setApiError(errorMsg);
       }
@@ -337,7 +236,11 @@ export function KycView({
       console.error("[KYC View] Submission network error:", err);
       setApiError("Unable to reach the verification service. Please check your internet connection and try again.");
     } finally {
-      if (!succeeded) await dropStaleSelfie();
+      if (!succeeded) {
+        setSelfieMediaId(null);
+        setSelfiePreview(null);
+        setDone((tasks) => tasks.filter((task) => task !== "selfie"));
+      }
       setIsSubmitting(false);
     }
   };

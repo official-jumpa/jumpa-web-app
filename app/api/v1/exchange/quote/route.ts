@@ -3,7 +3,18 @@ import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { SwitchService } from "@/lib/switch";
 import { switchQuoteSchema } from "@/lib/validations/switch.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import {
+  formatOneLineError,
+  isTimeoutError,
+} from "@/lib/utils/api-best-practices";
 
+export const dynamic = "force-dynamic";
+
+/**
+ * POST /api/v1/exchange/quote
+ * Returns live conversion rates between crypto and NGN.
+ * Body: { amount: number, asset: string, direction?: "onramp" | "offramp" }
+ */
 export async function POST(req: NextRequest) {
   try {
     const auth = await requireActiveUser({
@@ -15,18 +26,31 @@ export async function POST(req: NextRequest) {
     const validation = switchQuoteSchema.safeParse(body);
     if (!validation.success) {
       const err = formatZodError(validation.error);
-      return NextResponse.json({ success: false, error: err.error }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: err.error },
+        { status: 400 },
+      );
     }
 
-    const { amount, asset, direction = "onramp" } =
-      validation.data;
+    const { amount, asset, direction = "onramp" } = validation.data;
 
-    let result;
+    let result: {
+      success: boolean;
+      data?: {
+        rate: number;
+        source?: { amount: number; currency: string };
+        destination?: { amount: number; currency: string };
+      };
+      message?: string;
+    };
+
     if (asset.toLowerCase().includes("stellar")) {
-      const { getCentiivQuote } = await import("@/lib/functions/centiivFunctions");
+      const { getCentiivQuote } = await import(
+        "@/lib/functions/centiivFunctions"
+      );
       const { environment } = await import("@/lib/environment");
       const effectiveFee = environment.SWITCH_JUMPA_FEE;
-      const feeMultiplier = 1 - (effectiveFee / 100);
+      const feeMultiplier = 1 - effectiveFee / 100;
 
       try {
         if (direction === "offramp") {
@@ -34,9 +58,11 @@ export async function POST(req: NextRequest) {
             fromAsset: "USDC",
             toAsset: "NGN",
             amount,
-            network: "STELLAR"
+            network: "STELLAR",
           });
-          const rawReceivable = parseFloat(centiivQuote.estimatedReceivableAmount);
+          const rawReceivable = parseFloat(
+            centiivQuote.estimatedReceivableAmount,
+          );
           const rawRate = parseFloat(centiivQuote.rate);
           result = {
             success: true,
@@ -44,13 +70,13 @@ export async function POST(req: NextRequest) {
               rate: rawRate * feeMultiplier,
               source: {
                 amount: parseFloat(centiivQuote.totalToPay),
-                currency: "USDC"
+                currency: "USDC",
               },
               destination: {
                 amount: rawReceivable * feeMultiplier,
-                currency: "NGN"
-              }
-            }
+                currency: "NGN",
+              },
+            },
           };
         } else {
           // onramp: NGN -> USDC
@@ -58,27 +84,40 @@ export async function POST(req: NextRequest) {
             fromAsset: "NGN",
             toAsset: "USDC",
             amount,
-            network: "STELLAR"
+            network: "STELLAR",
           });
-          const rawReceivable = parseFloat(centiivQuote.estimatedReceivableAmount);
+          const rawReceivable = parseFloat(
+            centiivQuote.estimatedReceivableAmount,
+          );
           const rawRate = parseFloat(centiivQuote.rate);
           result = {
             success: true,
             data: {
-              rate: rawRate > 0 ? (rawRate < 1 ? rawRate * feeMultiplier : rawRate / feeMultiplier) : rawRate,
+              rate:
+                rawRate > 0
+                  ? rawRate < 1
+                    ? rawRate * feeMultiplier
+                    : rawRate / feeMultiplier
+                  : rawRate,
               source: {
                 amount: parseFloat(centiivQuote.totalToPay),
-                currency: "NGN"
+                currency: "NGN",
               },
               destination: {
                 amount: rawReceivable * feeMultiplier,
-                currency: "USDC"
-              }
-            }
+                currency: "USDC",
+              },
+            },
           };
         }
       } catch (err: any) {
-        result = { success: false, message: err.message || "Failed to fetch Centiiv quote" };
+        console.error(
+          `Centiiv quote error: ${formatOneLineError(err)}`,
+        );
+        result = {
+          success: false,
+          message: err.message || "Failed to fetch rate from Centiiv",
+        };
       }
     } else {
       result =
@@ -89,7 +128,10 @@ export async function POST(req: NextRequest) {
 
     if (!result.success) {
       return NextResponse.json(
-        { success: false, error: result.message || "Quote failed" },
+        {
+          success: false,
+          error: result.message || "Unable to calculate exchange rate",
+        },
         { status: 400 },
       );
     }
@@ -101,7 +143,19 @@ export async function POST(req: NextRequest) {
       destination: result.data?.destination,
     });
   } catch (err: any) {
-    console.error("[Switch Quote API] ✗ Unhandled error:", err);
-    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+    const isTimeout = isTimeoutError(err);
+    console.error(
+      `Quote Error: ${formatOneLineError(err)}`,
+    );
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: isTimeout
+          ? "Rate calculation timed out. Please try again."
+          : "Unable to retrieve exchange rates at this time.",
+      },
+      { status: isTimeout ? 504 : 502 },
+    );
   }
 }

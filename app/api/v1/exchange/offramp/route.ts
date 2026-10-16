@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { SwitchService } from "@/lib/switch";
 import { resolveBankCode } from "@/lib/switch-banks";
@@ -21,29 +20,24 @@ import { decryptMnemonic } from "@/lib/crypto";
 import { executeOfframpTransfer } from "@/lib/chains/offramp-transfer";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { environment } from "@/lib/environment";
+import {
+  formatOneLineError,
+  isTimeoutError,
+} from "@/lib/utils/api-best-practices";
 
-// Tiny helper: returns ms elapsed since a start mark
-function elapsed(start: number) {
-  return `${(performance.now() - start).toFixed(0)}ms`;
-}
+export const dynamic = "force-dynamic";
 
 /**
- * POST /api/switch/offramp
+ * POST /api/v1/exchange/offramp
  * Initiates offramp, and if PIN is provided, executes the automated on-chain transfer
  * to the settlement address, saves the beneficiary, and confirms payment.
  */
 export async function POST(req: NextRequest) {
-  const t0 = performance.now();
-  console.log("[Offramp] ── START ");
-
   try {
-    let t = performance.now();
     const authResult = await requireActiveUser({
       rateLimit: { tier: "high", action: "switch_offramp" },
     });
-    console.log(`[Offramp] requireActiveUser: ${elapsed(t)}`);
     if (!authResult.ok) return authResult.response;
-    const session = authResult.session;
     const userId = authResult.userId;
 
     const body = await req.json().catch(() => ({}));
@@ -74,15 +68,19 @@ export async function POST(req: NextRequest) {
 
     const isStellar = asset.toLowerCase().includes("stellar");
     let bankMatch: { name: string; code: string };
-    let offrampResult: { deposit: any; reference: string; destination: any; rate: number; provider: string };
+    let offrampResult: {
+      deposit: any;
+      reference: string;
+      destination: any;
+      rate: number;
+      provider: string;
+    };
 
     // If PIN is provided, verify it before initiating the transaction
     let phrase: string | undefined;
     let wallet: any;
     if (pin) {
-      t = performance.now();
       wallet = await findWalletForUser(userId);
-      console.log(`[Offramp] findWalletForUser: ${elapsed(t)}`);
 
       if (!wallet) {
         return NextResponse.json(
@@ -91,9 +89,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      t = performance.now();
       const pinCheck = await verifyWalletPin(wallet, pin, { userId });
-      console.log(`[Offramp] verifyWalletPin (bcrypt): ${elapsed(t)}`);
       if (!pinCheck.ok) {
         return NextResponse.json(
           { success: false, error: pinCheck.error },
@@ -102,85 +98,110 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        t = performance.now();
         phrase = decryptMnemonic(
           wallet.encryptedMnemonic,
           wallet.iv,
           wallet.salt,
           pin,
         );
-        console.log(`[Offramp] decryptMnemonic (argon2id): ${elapsed(t)}`);
       } catch {
         return NextResponse.json(
-          { success: false, error: "Failed to get wallet credentials" },
+          { success: false, error: "Failed to verify wallet credentials" },
           { status: 401 },
         );
       }
     }
 
-
     if (isStellar) {
-      const { centiivBanks, findCentiivBank } = await import("@/lib/constants/centiiv-banks");
-      const { bellmonieBankNameEnquiry } = await import("@/lib/functions/bellmonieFunctions");
-      
-      let centiivBank = findCentiivBank(bankName) || centiivBanks.find((b) => b.name.toLowerCase() === bankName.toLowerCase() || b.code === bankName);
-      
-      // Revalidate: if bankName was preloaded from beneficiary (e.g. Paystack code), 
-      // normalize via Paystack then cross-reference with Centiiv
+      const { centiivBanks, findCentiivBank } = await import(
+        "@/lib/constants/centiiv-banks"
+      );
+      const { bellmonieBankNameEnquiry } = await import(
+        "@/lib/functions/bellmonieFunctions"
+      );
+
+      let centiivBank =
+        findCentiivBank(bankName) ||
+        centiivBanks.find(
+          (b) =>
+            b.name.toLowerCase() === bankName.toLowerCase() ||
+            b.code === bankName,
+        );
+
       if (!centiivBank) {
         const paystackBank = findPaystackBank(bankName);
         if (paystackBank) {
-          centiivBank = findCentiivBank(paystackBank.name) || centiivBanks.find((b) => b.name.toLowerCase() === paystackBank.name.toLowerCase());
+          centiivBank =
+            findCentiivBank(paystackBank.name) ||
+            centiivBanks.find(
+              (b) => b.name.toLowerCase() === paystackBank.name.toLowerCase(),
+            );
         }
       }
 
       if (!centiivBank) {
-        return NextResponse.json({ success: false, error: `Bank "${bankName}" is not supported` }, { status: 400 });
+        return NextResponse.json(
+          { success: false, error: `Bank "${bankName}" is not supported` },
+          { status: 400 },
+        );
       }
-      
+
       let verified = false;
-      const paystackBank = findPaystackBank(bankName) || (centiivBank ? findPaystackBank(centiivBank.name) : null);
+      const paystackBank =
+        findPaystackBank(bankName) ||
+        (centiivBank ? findPaystackBank(centiivBank.name) : null);
       if (paystackBank) {
         try {
-          const accountCheck = await validateAccountNumber(accountNumber, paystackBank.code);
+          const accountCheck = await validateAccountNumber(
+            accountNumber,
+            paystackBank.code,
+          );
           if (accountCheck?.status && accountCheck?.data?.account_name) {
             verified = true;
           }
         } catch (err: any) {
-          console.warn(`[Offramp] Paystack verification failed for ${bankName}:`, err.message);
+          console.warn(
+            `[Offramp] Paystack verification failed for ${bankName}: ${formatOneLineError(err)}`,
+          );
         }
       }
 
       if (!verified) {
         try {
-          t = performance.now();
-          const bmRes = await bellmonieBankNameEnquiry({ accountNumber, bankCode: centiivBank.code });
-          console.log(`[Offramp] bellmonieBankNameEnquiry: ${elapsed(t)}`);
+          const bmRes = await bellmonieBankNameEnquiry({
+            accountNumber,
+            bankCode: centiivBank.code,
+          });
           if (bmRes?.accountName) verified = true;
         } catch (bmErr: any) {
-          console.warn(`[Offramp] Bellmonie enquiry failed for ${centiivBank.name}:`, bmErr.message);
+          console.warn(
+            `[Offramp] Bellmonie enquiry failed for ${centiivBank.name}: ${formatOneLineError(bmErr)}`,
+          );
         }
       }
 
       if (!verified) {
         return NextResponse.json(
-          { success: false, error: `Account number "${accountNumber}" could not be verified for ${centiivBank.name}.` },
+          {
+            success: false,
+            error: `Account number "${accountNumber}" could not be verified for ${centiivBank.name}.`,
+          },
           { status: 400 },
         );
       }
-      
+
       bankMatch = { name: centiivBank.name, code: centiivBank.code };
 
-      // Get temporary wallet from Centiiv
-      const { createCentiivOfframp } = await import("@/lib/functions/centiivFunctions");
+      // Get temporary settlement wallet from Centiiv
+      const { createCentiivOfframp } = await import(
+        "@/lib/functions/centiivFunctions"
+      );
       const effectiveFee = environment.SWITCH_JUMPA_FEE;
       const feePct = effectiveFee / 100;
-      // Centiiv accepts up to 4 decimal places on USDC amounts
       const feeAmount = parseFloat((cryptoAmount * feePct).toFixed(4));
       const netCrypto = parseFloat((cryptoAmount - feeAmount).toFixed(4));
 
       try {
-        t = performance.now();
         const centiivOrder = await createCentiivOfframp({
           amount: netCrypto,
           bankCode: centiivBank.code,
@@ -188,8 +209,7 @@ export async function POST(req: NextRequest) {
           accountName: holderName.trim(),
           userId,
         });
-        console.log(`[Offramp] createCentiivOfframp (API): ${elapsed(t)}`);
-        
+
         offrampResult = {
           provider: "centiiv",
           reference: centiivOrder.id,
@@ -205,26 +225,47 @@ export async function POST(req: NextRequest) {
             amount: fiatAmount,
             currency: "NGN",
           },
-          rate: (fiatAmount || 0) / cryptoAmount, // Effective rate after fee
+          rate: (fiatAmount || 0) / cryptoAmount,
         };
       } catch (err: any) {
-        return NextResponse.json({ success: false, error: err.message || "Centiiv offramp initiation failed" }, { status: 500 });
+        console.error(
+          `[Offramp] Centiiv Error: ${formatOneLineError(err)}`,
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              err?.message || "Transfer initiation could not be completed.",
+          },
+          { status: 502 },
+        );
       }
     } else {
-      // Switch Logic
+      // Switch Logic for EVM, Solana, Tron
       const paystackBank = findPaystackBank(bankName);
       if (!paystackBank) {
-        return NextResponse.json({ success: false, error: `Bank "${bankName}" is not supported` }, { status: 400 });
+        return NextResponse.json(
+          { success: false, error: `Bank "${bankName}" is not supported` },
+          { status: 400 },
+        );
       }
 
-      t = performance.now();
-      const isAccountValid = await validateAccountNumber(accountNumber, paystackBank.code);
-      console.log(`[Offramp] validateAccountNumber (Paystack): ${elapsed(t)}`);
-      if (!isAccountValid) {
-        return NextResponse.json({ success: false, error: `Account number "${accountNumber}" could not be verified for ${paystackBank.name}.` }, { status: 400 });
+      const isAccountValid = await validateAccountNumber(
+        accountNumber,
+        paystackBank.code,
+      );
+      if (!isAccountValid?.status) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Account number "${accountNumber}" could not be verified for ${paystackBank.name}.`,
+          },
+          { status: 400 },
+        );
       }
 
-      const switchBank = resolveBankCode(bankName) || resolveBankCode(paystackBank.name);
+      const switchBank =
+        resolveBankCode(bankName) || resolveBankCode(paystackBank.name);
       bankMatch = {
         name: switchBank?.name || paystackBank.name,
         code: switchBank?.code || paystackBank.code,
@@ -236,12 +277,23 @@ export async function POST(req: NextRequest) {
         bank_code: bankMatch.code,
       };
 
-      t = performance.now();
-      const result = await SwitchService.initiateOfframp(cryptoAmount, asset, recipient);
-      console.log(`[Offramp] SwitchService.initiateOfframp: ${elapsed(t)}`);
+      const result = await SwitchService.initiateOfframp(
+        cryptoAmount,
+        asset,
+        recipient,
+      );
 
       if (!result.success || !result.data) {
-        return NextResponse.json({ success: false, error: result.message || "Offramp initiation failed" }, { status: result.status || 500 });
+        console.error(
+          `[Offramp] Switch Error: ${formatOneLineError(result.message)}`,
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error: result.message || "Offramp initiation failed",
+          },
+          { status: result.status || 400 },
+        );
       }
 
       offrampResult = {
@@ -253,7 +305,7 @@ export async function POST(req: NextRequest) {
       };
     }
 
-    const { deposit, reference, destination, rate, provider } = offrampResult;
+    const { deposit, reference, destination } = offrampResult;
     const tokenName =
       cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC";
 
@@ -262,16 +314,18 @@ export async function POST(req: NextRequest) {
     const txChain = rawChain === "ethereum" ? "eth" : rawChain;
     const userFromAddr =
       txChain === "solana"
-        ? (wallet?.addresses?.sol || "")
+        ? wallet?.addresses?.sol || ""
         : txChain === "stellar"
-          ? (wallet?.addresses?.xlm || wallet?.address || "")
+          ? wallet?.addresses?.xlm || wallet?.address || ""
           : txChain === "tron"
-            ? (wallet?.addresses?.trx || "")
-            : (wallet?.addresses?.eth || wallet?.addresses?.base || wallet?.address || "");
+            ? wallet?.addresses?.trx || ""
+            : wallet?.addresses?.eth ||
+              wallet?.addresses?.base ||
+              wallet?.address ||
+              "";
 
     let txRecord: any;
     try {
-      t = performance.now();
       txRecord = await createTransactionRecord({
         userId,
         type: "OFFRAMP",
@@ -285,14 +339,15 @@ export async function POST(req: NextRequest) {
         token: tokenName,
         txHash: reference,
         rampDetails: {
-          provider: (provider || "switch") as "centiiv" | "switch",
+          provider: (offrampResult.provider || "switch") as
+            | "centiiv"
+            | "switch",
           fiatCurrency: "NGN",
           fiatAmount: destination?.amount || fiatAmount || 0,
           reference,
         },
         executedAt: new Date(),
       });
-      console.log(`[Offramp] createTransactionRecord (DB): ${elapsed(t)}`);
 
       logUserActivity({
         userId,
@@ -307,7 +362,11 @@ export async function POST(req: NextRequest) {
           accountNumber,
         },
         req,
-      }).catch((e) => console.error("[Switch Offramp] ActivityLog error:", e));
+      }).catch((e) =>
+        console.warn(
+          `Error: ${formatOneLineError(e)}`,
+        ),
+      );
 
       createNotification({
         userId,
@@ -324,12 +383,13 @@ export async function POST(req: NextRequest) {
         },
         link: "/transactions",
       }).catch((e) =>
-        console.error("[Switch Offramp] Notification error:", e),
+        console.warn(
+          `[Offramp] Notification Error: ${formatOneLineError(e)}`,
+        ),
       );
     } catch (dbErr: any) {
       console.warn(
-        `[Switch Offramp API] [User: ${userId}] DB record notice:`,
-        dbErr.message,
+        `[Offramp] DB Error: ${formatOneLineError(dbErr)}`,
       );
     }
 
@@ -346,12 +406,13 @@ export async function POST(req: NextRequest) {
         currency: "NGN",
       },
     }).catch((e) =>
-      console.error("[Switch Offramp] Beneficiary save error:", e),
+      console.warn(
+        `Error: ${formatOneLineError(e)}`,
+      ),
     );
 
     // If PIN was provided, execute automated on-chain transfer
     if (phrase && deposit.address) {
-      t = performance.now();
       const transferResult = await executeOfframpTransfer({
         mnemonic: phrase,
         asset,
@@ -360,22 +421,21 @@ export async function POST(req: NextRequest) {
         feeRecipient: deposit.feeRecipient,
         feeAmount: deposit.feeAmount,
       });
-      console.log(`[Offramp] executeOfframpTransfer (${txChain} tx): ${elapsed(t)}`);
 
       if (!transferResult.success || !transferResult.txHash) {
         console.error(
-          "[Switch Offramp] On-chain transfer failed:",
-          transferResult.error,
+          `[Offramp] Transfer Error: ${formatOneLineError(transferResult.error)}`,
         );
 
-        // Sanitize on-chain / RPC / node errors for client response
-        let clientError = transferResult.error || "Transfer could not be completed.";
+        let clientError =
+          transferResult.error || "Transfer could not be completed.";
         if (
           /hex string|parseexception|rpc|org\.tron|jsonformat|getlogs|timeout|revert|execution reverted/i.test(
             clientError,
           )
         ) {
-          clientError = "Unable to broadcast transaction to the network. Please try again shortly.";
+          clientError =
+            "Unable to send transaction. Please try again shortly.";
         }
 
         return NextResponse.json(
@@ -387,13 +447,12 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Confirm payment with Switch asynchronously in the background so the user is not delayed
-      if (provider === "switch") {
+      // Confirm payment with Switch asynchronously in the background
+      if (offrampResult.provider === "switch") {
         SwitchService.confirmPayment(reference, transferResult.txHash).catch(
           (switchConfirmErr) => {
             console.warn(
-              "[Switch Offramp] Switch confirmPayment notice:",
-              switchConfirmErr,
+              `[Offramp] Switch Error: ${formatOneLineError(switchConfirmErr)}`,
             );
           },
         );
@@ -401,7 +460,6 @@ export async function POST(req: NextRequest) {
 
       const isTxPending = transferResult.txStatus === "PENDING";
 
-      // Update Transaction in DB
       if (txRecord?._id) {
         await updateTransactionRecord(txRecord._id, {
           status: isTxPending ? "PENDING" : "CONFIRMED",
@@ -410,7 +468,6 @@ export async function POST(req: NextRequest) {
         }).catch(() => {});
       }
 
-      // Invalidate balance cache (skip on PENDING — balance unchanged until confirmed)
       if (!isTxPending) {
         invalidateBalanceCache(userId);
         if (wallet?.address) {
@@ -418,7 +475,6 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      console.log(`[Offramp] ── TOTAL: ${elapsed(t0)} `);
       return NextResponse.json({
         success: true,
         status: isTxPending ? "PENDING" : "CONFIRMED",
@@ -436,32 +492,38 @@ export async function POST(req: NextRequest) {
         ...(isTxPending
           ? {
               message:
-                "Your transfer has been submitted to the blockchain and is awaiting confirmation. Your withdrawal will be processed shortly.",
+                "Your transfer has been submitted and is awaiting confirmation. Your withdrawal will be processed shortly.",
             }
           : {}),
       });
     }
 
-    // Fallback: 2-step flow without PIN
-    console.log(`[Offramp] ── TOTAL (no-PIN): ${elapsed(t0)} `);
+    // Fallback if no PIN
     return NextResponse.json({
       success: true,
       reference,
       depositAddress: deposit.address,
       depositAsset: deposit.asset,
       depositAmount: deposit.amount,
-      depositNotes: deposit.note,
-      rate,
       fiatAmount: destination.amount,
       fiatCurrency: destination.currency,
       resolvedBank: bankMatch.name,
       resolvedBankCode: bankMatch.code,
     });
   } catch (err: any) {
-    console.error("[Switch Offramp API] ✗ Unhandled error:", err);
+    const isTimeout = isTimeoutError(err);
+    console.error(
+      `[Offramp] Error: ${formatOneLineError(err)}`,
+    );
+
     return NextResponse.json(
-      { success: false, error: "Internal server error" },
-      { status: 500 },
+      {
+        success: false,
+        error: isTimeout
+          ? "The withdrawal request timed out. Please try again later."
+          : "Unable to complete withdrawal at this time. Please try again later.",
+      },
+      { status: isTimeout ? 504 : 500 },
     );
   }
 }

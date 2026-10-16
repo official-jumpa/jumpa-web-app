@@ -9,10 +9,17 @@ import { formatZodError } from "@/lib/validations/validation-helper";
 import { connectDB } from "@/lib/db";
 import { NgnAccount } from "@/models/NgnAccount";
 import { environment } from "@/lib/environment";
+import {
+  formatOneLineError,
+  isTimeoutError,
+} from "@/lib/utils/api-best-practices";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 /**
- * GET /api/bank/resolve?accountNumber=...&bank=...
- * Live bank name enquiry prioritizing Bellmonie (with Paystack fallback) and internal wallet detection.
+ * GET /api/v1/bank?accountNumber=...&bank=...
+ * Live bank name enquiry prioritizing Paystack with Bellmonie fallback and internal wallet detection.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -39,14 +46,13 @@ export async function GET(req: NextRequest) {
 
     const { accountNumber: cleanAccount, bank: bankParam } = validation.data;
 
-    // Check if the destination account is an internal Jumpa / Bellmonie / FossaPay wallet
+    // Check if destination account is an internal Jumpa / Bellmonie / FossaPay wallet
     await connectDB();
     const internalAccount = await NgnAccount.findOne({
       accountNumber: cleanAccount,
     }).lean();
 
-    const jumpaMasterAccount =
-      environment.JUMPA_ACCOUNT_NUMBER || process.env.JUMPA_ACCOUNT_NUMBER;
+    const jumpaMasterAccount = environment.JUMPA_ACCOUNT_NUMBER;
 
     // 1. Primary: Paystack resolution (Fast, resilient, reliable)
     const bankByCode = supportedBanks.find((b) => b.code === bankParam);
@@ -61,8 +67,7 @@ export async function GET(req: NextRequest) {
 
         if (accountCheck?.status && accountCheck?.data?.account_name) {
           const isInternal =
-            Boolean(internalAccount) ||
-            cleanAccount === jumpaMasterAccount;
+            Boolean(internalAccount) || cleanAccount === jumpaMasterAccount;
 
           return NextResponse.json({
             success: true,
@@ -75,8 +80,7 @@ export async function GET(req: NextRequest) {
         }
       } catch (paystackErr: any) {
         console.warn(
-          `Paystack resolution attempt for ${paystackBank.name} failed:`,
-          paystackErr.message,
+          `[Bank] Paystack resolution attempt for ${paystackBank.name} failed: ${formatOneLineError(paystackErr)}`,
         );
       }
     }
@@ -91,8 +95,7 @@ export async function GET(req: NextRequest) {
         });
         if (bmRes?.accountName) {
           const isBmInternal =
-            Boolean(internalAccount) ||
-            cleanAccount === jumpaMasterAccount;
+            Boolean(internalAccount) || cleanAccount === jumpaMasterAccount;
 
           return NextResponse.json({
             success: true,
@@ -105,28 +108,35 @@ export async function GET(req: NextRequest) {
         }
       } catch (bmErr: any) {
         console.warn(
-          `Bellmonie resolution attempt for ${bellmonieBank.name} failed:`,
-          bmErr.message,
+          `[Bank] Bellmonie resolution attempt for ${bellmonieBank.name} failed: ${formatOneLineError(bmErr)}`,
         );
       }
     }
 
-    if (!paystackBank) {
+    if (!paystackBank && !bellmonieBank) {
       return NextResponse.json(
-        { error: `Bank "${bankParam}" is not supported` },
+        { error: `The bank "${bankParam}" is not currently supported.` },
         { status: 400 },
       );
     }
 
     return NextResponse.json(
-      { error: `Could not verify account with ${paystackBank.name}` },
+      {
+        error: `Could not verify account name with ${paystackBank?.name || bellmonieBank?.name}. Please check the account number.`,
+      },
       { status: 400 },
     );
   } catch (err: any) {
-    console.error("[Bank Resolve GET] Error:", err);
+    const isTimeout = isTimeoutError(err);
+    console.error(`[Bank] Resolve exception: ${formatOneLineError(err)}`);
+
     return NextResponse.json(
-      { error: err?.message || "Failed to resolve bank account" },
-      { status: 500 },
+      {
+        error: isTimeout
+          ? "The bank verification service timed out. Please try again."
+          : "Unable to verify bank account details at this time. Please try again later.",
+      },
+      { status: isTimeout ? 504 : 502 },
     );
   }
 }

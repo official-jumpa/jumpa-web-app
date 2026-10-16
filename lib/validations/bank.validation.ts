@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Validation schema for resolving bank accounts via /api/bank/resolve
+ * Validation schema for resolving bank accounts via /api/v1/bank
  */
 export const resolveAccountQuerySchema = z.object({
   accountNumber: z

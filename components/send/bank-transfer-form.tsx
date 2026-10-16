@@ -293,7 +293,7 @@ export function BankTransferForm({
   const latest = useRef(form);
   latest.current = form;
 
-  // Real live account name resolution via /api/bank/resolve
+  // Real live account name resolution via /api/v1/bank
   useEffect(() => {
     const cleanRef = digitsOf(reference);
     if (cleanRef.length < minimum || !holder) return;
@@ -305,7 +305,7 @@ export function BankTransferForm({
       try {
         if (!momo) {
           const res = await fetch(
-            `/api/bank/resolve?accountNumber=${cleanRef}&bank=${encodeURIComponent(holder)}`,
+            `/api/v1/bank?accountNumber=${cleanRef}&bank=${encodeURIComponent(holder)}`,
           );
           const data = await res.json();
           if (live) {

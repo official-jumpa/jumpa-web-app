@@ -1,4 +1,5 @@
 import environment from "./environment";
+import { formatOneLineError, isTimeoutError } from "@/lib/utils/api-best-practices";
 
 export interface OnRampResponse {
   success: boolean;
@@ -258,36 +259,41 @@ export class SwitchService {
         payload.developer_recipient = feeRecipient;
       }
 
-      console.log("[SwitchService] Initiating onramp:", JSON.stringify(payload, null, 2));
-
       const response = await fetch(`${this.BASE_URL}/onramp/initiate`, {
         method: "POST",
         headers: this.getHeaders(),
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15000),
       });
 
-      const responseData = await response.json();
+      const responseData = await response.json().catch(() => null);
 
-      console.log(`[SwitchService] Onramp response: ${responseData.success ? "Success" : "Failed"}`);
-
-      if (!response.ok || !responseData.success) {
+      if (!response.ok || !responseData?.success) {
+        console.error(
+          `[Switch] Onramp initiation failed | Status: ${response.status} | Payload: ${formatOneLineError(responseData)}`
+        );
         return {
           success: false,
           status: response.status,
-          message: parseSwitchError(responseData.message || "Failed to initiate transaction"),
-          error: JSON.stringify(responseData)
+          message: parseSwitchError(responseData?.message || "Failed to initiate transaction"),
+          error: responseData ? JSON.stringify(responseData) : "Network error",
         };
       }
 
       return responseData;
 
     } catch (error: any) {
-      console.error("[SwitchService] Error initiating onramp:", error);
+      const isTimeout = isTimeoutError(error);
+      console.error(
+        `[Switch] ${isTimeout ? "Onramp timed out (15s)" : "Onramp exception"}: ${formatOneLineError(error)}`
+      );
       return {
         success: false,
-        status: 500,
-        message: "Internal server error",
-        error: error.message
+        status: isTimeout ? 504 : 500,
+        message: isTimeout
+          ? "The deposit service request timed out. Please try again."
+          : "Unable to initiate deposit at this time. Please try again later.",
+        error: error.message,
       };
     }
   }
@@ -321,23 +327,32 @@ export class SwitchService {
         method: "POST",
         headers: this.getHeaders(),
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(8000),
       });
 
-      const responseData = await response.json();
+      const responseData = await response.json().catch(() => null);
 
-      if (!response.ok || !responseData.success) {
+      if (!response.ok || !responseData?.success) {
+        console.error(
+          `[Switch] Quote failed | Status: ${response.status} | Payload: ${formatOneLineError(responseData)}`
+        );
         return {
           success: false,
-          message: parseSwitchError(responseData.message || "Failed to fetch quote")
+          message: parseSwitchError(responseData?.message || "Failed to fetch quote")
         };
       }
 
       return responseData;
     } catch (error: any) {
-      console.error("[SwitchService] Error fetching quote:", error);
+      const isTimeout = isTimeoutError(error);
+      console.error(
+        `[Switch] ${isTimeout ? "Quote timed out (8s)" : "Quote exception"}: ${formatOneLineError(error)}`
+      );
       return {
         success: false,
-        message: "Internal server error",
+        message: isTimeout
+          ? "Quote request timed out. Please try again."
+          : "Unable to calculate exchange rate at this time.",
         error: error.message
       };
     }
@@ -440,24 +455,32 @@ export class SwitchService {
         method: "POST",
         headers: this.getHeaders(),
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(8000),
       });
 
-      const responseData = await response.json();
-      console.log("[SwitchService] response from switch get offramp quote", responseData)
+      const responseData = await response.json().catch(() => null);
 
-      if (!response.ok || !responseData.success) {
+      if (!response.ok || !responseData?.success) {
+        console.error(
+          `[Switch] Offramp quote failed | Status: ${response.status} | Payload: ${formatOneLineError(responseData)}`
+        );
         return {
           success: false,
-          message: parseSwitchError(responseData.message || "Failed to fetch quote")
+          message: parseSwitchError(responseData?.message || "Failed to fetch quote")
         };
       }
 
       return responseData;
     } catch (error: any) {
-      console.error("[SwitchService] Error fetching offramp quote:", error);
+      const isTimeout = isTimeoutError(error);
+      console.error(
+        `[Switch] ${isTimeout ? "Offramp quote timed out (8s)" : "Offramp quote exception"}: ${formatOneLineError(error)}`
+      );
       return {
         success: false,
-        message: "Internal server error",
+        message: isTimeout
+          ? "Quote request timed out. Please try again."
+          : "Unable to calculate exchange rate at this time.",
         error: error.message
       };
     }
@@ -505,35 +528,40 @@ export class SwitchService {
         payload.developer_recipient = feeRecipient;
       }
 
-      console.log("[SwitchService] Initiating offramp:", payload);
-
       const response = await fetch(`${this.BASE_URL}/offramp/initiate`, {
         method: "POST",
         headers: this.getHeaders(),
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15000),
       });
 
-      const responseData = await response.json();
-      console.log(`[SwitchService] Offramp: ${responseData.success ? "Success" : "Failed"}`);
-      console.log("response from switch", responseData)
+      const responseData = await response.json().catch(() => null);
 
-      if (!response.ok || !responseData.success) {
+      if (!response.ok || !responseData?.success) {
+        console.error(
+          `[Switch] Offramp initiation failed | Status: ${response.status} | Payload: ${formatOneLineError(responseData)}`
+        );
         return {
           success: false,
           status: response.status,
-          message: parseSwitchError(responseData.message || "Failed to initiate transaction"),
-          error: JSON.stringify(responseData)
+          message: parseSwitchError(responseData?.message || "Failed to initiate transaction"),
+          error: responseData ? JSON.stringify(responseData) : "Network error"
         };
       }
 
       return responseData;
 
     } catch (error: any) {
-      console.error("[SwitchService] Error initiating offramp:", error);
+      const isTimeout = isTimeoutError(error);
+      console.error(
+        `[Switch] ${isTimeout ? "Offramp timed out (15s)" : "Offramp exception"}: ${formatOneLineError(error)}`
+      );
       return {
         success: false,
-        status: 500,
-        message: "Internal server error",
+        status: isTimeout ? 504 : 500,
+        message: isTimeout
+          ? "The withdrawal service request timed out. Please try again."
+          : "Unable to initiate withdrawal at this time. Please try again shortly.",
         error: error.message
       };
     }
@@ -541,30 +569,36 @@ export class SwitchService {
 
   static async getTransactionStatus(reference: string): Promise<any> {
     try {
-      console.log(`[SwitchService] Fetching status for reference: ${reference}`);
-      const response = await fetch(`${this.BASE_URL}/status?reference=${reference}`, {
+      const response = await fetch(`${this.BASE_URL}/status?reference=${encodeURIComponent(reference)}`, {
         method: "GET",
         headers: this.getHeaders(),
+        signal: AbortSignal.timeout(8000),
       });
 
-      const responseData = await response.json();
-      const statusStr = responseData.success ? responseData.data?.status || "Unknown" : "Failed";
-      console.log(`[SwitchService] Status for reference ${reference}: ${statusStr}`);
+      const responseData = await response.json().catch(() => null);
 
-      if (!response.ok || !responseData.success) {
+      if (!response.ok || !responseData?.success) {
+        console.error(
+          `[Switch] Status check failed (${reference}) | Status: ${response.status} | Payload: ${formatOneLineError(responseData)}`
+        );
         return {
           success: false,
-          message: responseData.message || "Failed to fetch transaction status",
-          error: JSON.stringify(responseData)
+          message: responseData?.message || "Failed to fetch transaction status",
+          error: responseData ? JSON.stringify(responseData) : "Network error"
         };
       }
 
       return responseData;
     } catch (error: any) {
-      console.error(`[SwitchService] Error fetching status for reference ${reference}:`, error);
+      const isTimeout = isTimeoutError(error);
+      console.error(
+        `[Switch] ${isTimeout ? "Status check timed out (8s)" : "Status check exception"}: ${formatOneLineError(error)}`
+      );
       return {
         success: false,
-        message: "Internal server error",
+        message: isTimeout
+          ? "Status check timed out."
+          : "Internal server error",
         error: error.message
       };
     }
@@ -572,7 +606,6 @@ export class SwitchService {
 
   static async confirmPayment(reference: string, hash?: string): Promise<any> {
     try {
-      console.log(`[SwitchService] Confirming payment for reference: ${reference}, hash: ${hash}`);
       const payload: Record<string, string> = { reference };
       if (hash) payload.hash = hash;
 
@@ -580,22 +613,27 @@ export class SwitchService {
         method: "POST",
         headers: this.getHeaders(),
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000),
       });
 
-      const responseData = await response.json();
-      console.log(`[SwitchService] response for reference ${reference}: ${responseData.success ? "Success" : "Failed"}`);
+      const responseData = await response.json().catch(() => null);
 
-      if (!response.ok || !responseData.success) {
+      if (!response.ok || !responseData?.success) {
+        console.error(
+          `[Switch] Confirm payment failed (${reference}) | Status: ${response.status} | Payload: ${formatOneLineError(responseData)}`
+        );
         return {
           success: false,
-          message: responseData.message || "Failed to confirm payment",
-          error: JSON.stringify(responseData)
+          message: responseData?.message || "Failed to confirm payment",
+          error: responseData ? JSON.stringify(responseData) : "Network error"
         };
       }
 
       return responseData;
     } catch (error: any) {
-      console.error(`[SwitchService] Error confirming payment for reference ${reference}:`, error);
+      console.error(
+        `[Switch] Confirm payment exception (${reference}): ${formatOneLineError(error)}`
+      );
       return {
         success: false,
         message: "Internal server error",

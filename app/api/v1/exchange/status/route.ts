@@ -10,11 +10,21 @@ import {
 } from "@/lib/functions/transactionFunctions";
 import { getCentiivRequestStatus } from "@/lib/functions/centiivFunctions";
 import { settleOnrampTransferCustom } from "@/lib/chains/onramp-transfer-custom";
+import {
+  formatOneLineError,
+  isTimeoutError,
+} from "@/lib/utils/api-best-practices";
 
+export const dynamic = "force-dynamic";
+
+/**
+ * GET /api/v1/exchange/status?reference=...
+ * Consolidated status verification for onramp deposits and offramp payouts.
+ */
 export async function GET(req: NextRequest) {
   try {
     const auth = await requireActiveUser({
-      rateLimit: { tier: "low", action: "onramp_status_poll" },
+      rateLimit: { tier: "low", action: "exchange_status_poll" },
     });
     if (!auth.ok) return auth.response;
 
@@ -23,32 +33,35 @@ export async function GET(req: NextRequest) {
     const validation = switchStatusQuerySchema.safeParse({ reference });
     if (!validation.success) {
       const err = formatZodError(validation.error);
-      return NextResponse.json({ success: false, error: err.error }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: err.error },
+        { status: 400 },
+      );
     }
 
-    // Return instantly if already settled in our database
-    const existingTx = await findTransactionByReference(validation.data.reference);
+    // Return instantly if already settled in local database
+    const existingTx = await findTransactionByReference(
+      validation.data.reference,
+    );
 
     const isCustomPendingSettlement =
       existingTx?.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
       existingTx?.rampDetails?.settlementStatus !== "COMPLETED";
 
-    if (existingTx && existingTx.status === "CONFIRMED" && !isCustomPendingSettlement) {
+    if (
+      existingTx &&
+      existingTx.status === "CONFIRMED" &&
+      !isCustomPendingSettlement
+    ) {
       return NextResponse.json({
         success: true,
         status: "COMPLETED",
         isCompleted: true,
         isAwaiting: false,
+        isAwaitingDeposit: false,
+        isProcessing: false,
         isFailed: false,
         message: "Transaction completed",
-        data: {
-          status: "COMPLETED",
-          reference: validation.data.reference,
-          meta: {
-            hash: existingTx.txHash,
-            explorer_url: existingTx.explorerUrl,
-          },
-        },
       });
     }
 
@@ -56,28 +69,36 @@ export async function GET(req: NextRequest) {
     const provider = existingTx?.rampDetails?.provider || "switch";
 
     let rawStatus = "";
-    let resultData: any = {};
     let txHash: string | undefined;
 
     if (provider === "centiiv") {
-      const centiivRes = await getCentiivRequestStatus(validation.data.reference);
-      rawStatus = centiivRes.status.toUpperCase();
-      resultData = centiivRes;
-      txHash = centiivRes.txHash;
+      const centiivRes = await getCentiivRequestStatus(
+        validation.data.reference,
+      );
+      rawStatus = (centiivRes?.status || "").toUpperCase();
+      txHash = centiivRes?.txHash;
     } else {
-      const result = await SwitchService.getTransactionStatus(validation.data.reference);
+      const result = await SwitchService.getTransactionStatus(
+        validation.data.reference,
+      );
       if (!result.success) {
+        console.error(
+          `Status check failed for ${validation.data.reference}: ${formatOneLineError(result.message)}`,
+        );
         return NextResponse.json(
-          { success: false, error: result.message || "Failed to fetch transaction status" },
+          {
+            success: false,
+            error:
+              result.message || "Failed to fetch transaction status from provider",
+          },
           { status: 400 },
         );
       }
       rawStatus = (result.data?.status || "").toUpperCase();
-      resultData = result.data;
       txHash = result.data?.meta?.hash;
     }
 
-    // Normalize status for UI consumers
+    // Normalize status indicators for UI consumers
     const isCompleted = [
       "COMPLETED",
       "SUCCESS",
@@ -87,25 +108,31 @@ export async function GET(req: NextRequest) {
       "FULFILLED",
     ].includes(rawStatus);
 
-    // Nothing has arrived yet. `PENDING` sits here deliberately: providers use
-    // it for both sides of the deposit, so it must not claim money landed.
-    const isAwaitingDeposit = ["AWAITING_DEPOSIT", "INITIATED", "PENDING"].includes(
-      rawStatus,
-    );
+    const isAwaitingDeposit = [
+      "AWAITING_DEPOSIT",
+      "INITIATED",
+      "PENDING",
+    ].includes(rawStatus);
 
-    // The deposit is confirmed and the payout is in flight.
     const isProcessing = ["PROCESSING", "IN_PROGRESS", "CONFIRMING"].includes(
       rawStatus,
     );
 
     const isAwaiting = isAwaitingDeposit || isProcessing;
 
-    const isFailed = ["FAILED", "EXPIRED", "CANCELLED", "REJECTED", "REFUNDED"].includes(rawStatus);
+    const isFailed = [
+      "FAILED",
+      "EXPIRED",
+      "CANCELLED",
+      "REJECTED",
+      "REFUNDED",
+    ].includes(rawStatus);
 
-    let humanMessage = "Awaiting deposit. Waiting for a few seconds before trying again.";
+    let humanMessage =
+      "Awaiting deposit. Waiting for a few seconds before trying again.";
     if (isCompleted) {
       humanMessage = "Transaction completed";
-      let explorerUrl = resultData?.meta?.explorer_url || null;
+      let explorerUrl: string | null = null;
 
       // Handle custom onramp settlement if applicable
       if (
@@ -126,14 +153,12 @@ export async function GET(req: NextRequest) {
           if (settlementRes.success && settlementRes.txHash) {
             txHash = settlementRes.txHash;
             explorerUrl = `https://stellar.expert/explorer/public/tx/${settlementRes.txHash}`;
-            if (resultData?.meta) {
-              resultData.meta.hash = txHash;
-              resultData.meta.explorer_url = explorerUrl;
-            }
           } else if (settlementRes.duplicatePrevented) {
-            console.log(`[StatusRoute] Settlement already completed or settling for ${existingTx._id}`);
+            // Already settling or completed
           } else if (!settlementRes.success) {
-            console.error(`[StatusRoute] Custom settlement error: ${settlementRes.error}`);
+            console.error(
+              `Custom settlement error: ${formatOneLineError(settlementRes.error)}`,
+            );
             return NextResponse.json({
               success: true,
               status: "PROCESSING",
@@ -143,11 +168,12 @@ export async function GET(req: NextRequest) {
               isProcessing: true,
               isFailed: false,
               message: "Deposit received. Finalizing delivery to your wallet...",
-              data: resultData,
             });
           }
         } catch (settleErr: any) {
-          console.error(`[StatusRoute] Error executing custom settlement:`, settleErr);
+          console.error(
+            `Error: ${formatOneLineError(settleErr)}`,
+          );
         }
       } else {
         try {
@@ -159,18 +185,23 @@ export async function GET(req: NextRequest) {
           });
           invalidateBalanceCache(session.user.id);
         } catch (dbErr: any) {
-          console.warn("Err updating transaction status:", dbErr?.message);
+          console.warn(
+            `DB Error: ${formatOneLineError(dbErr)}`,
+          );
         }
       }
     } else if (isFailed) {
-      humanMessage = "Transaction failed or expired. Please initiate a new transaction.";
+      humanMessage =
+        "Transaction failed or expired. Please initiate a new transaction.";
       try {
         await updateTransactionByReference(validation.data.reference, {
           status: "FAILED",
           updatedAt: new Date(),
         });
       } catch (dbErr: any) {
-        console.warn("Err updating failed transaction status:", dbErr?.message);
+        console.warn(
+          `Error: ${formatOneLineError(dbErr)}`,
+        );
       }
     } else if (isProcessing) {
       humanMessage = "Deposit received. Processing payout...";
@@ -179,6 +210,7 @@ export async function GET(req: NextRequest) {
         "We haven't seen your transfer yet. Send the exact amount to the account above, then check again.";
     }
 
+    // Minimal client-safe return: Discards raw resultData payload completely!
     return NextResponse.json({
       success: true,
       status: rawStatus,
@@ -188,10 +220,21 @@ export async function GET(req: NextRequest) {
       isProcessing,
       isFailed,
       message: humanMessage,
-      data: resultData,
     });
   } catch (err: any) {
-    console.error("error:", err);
-    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 });
+    const isTimeout = isTimeoutError(err);
+    console.error(
+      `Error: ${formatOneLineError(err)}`,
+    );
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: isTimeout
+          ? "Status check timed out. Please try again."
+          : "Unable to verify transaction status at this time.",
+      },
+      { status: isTimeout ? 504 : 500 },
+    );
   }
 }

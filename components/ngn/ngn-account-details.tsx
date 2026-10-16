@@ -135,7 +135,7 @@ export function NgnAccountDetails({
 
     async function fetchNgnTransactions() {
       try {
-        const res = await fetch("/api/transactions?chain=fiat&limit=10", { cache: "no-store" });
+        const res = await fetch("/api/v1/transactions?chain=fiat&limit=10", { cache: "no-store" });
         if (res.ok && isMounted) {
           const data = await res.json();
           if (Array.isArray(data.transactions)) {
@@ -222,7 +222,7 @@ export function NgnAccountDetails({
         toast.success("Balance updated");
       }
 
-      const txRes = await fetch("/api/transactions?chain=fiat&limit=10", {
+      const txRes = await fetch("/api/v1/transactions?chain=fiat&limit=10", {
         cache: "no-store",
       });
       if (txRes.ok) {

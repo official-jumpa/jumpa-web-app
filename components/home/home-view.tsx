@@ -120,7 +120,7 @@ export function HomeView({
 
     async function fetchTransactions() {
       try {
-        const res = await fetch("/api/transactions?limit=5", { cache: "no-store" });
+        const res = await fetch("/api/v1/transactions?limit=5", { cache: "no-store" });
         if (res.ok && isMounted) {
           const data = await res.json();
           if (Array.isArray(data.transactions)) {

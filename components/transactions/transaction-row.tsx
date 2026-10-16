@@ -48,7 +48,7 @@ export function TransactionRow({
   /** The chain mark on the tile. Off on a fiat-only screen, where no token is involved. */
   badge?: boolean;
 }) {
-  const { id, kind, chain, title, detail, amount, status, carrier, createdAt } =
+  const { id, displayId, kind, chain, title, detail, amount, status, carrier, createdAt } =
     transaction;
   const { Icon, spin } = GLYPH[kind] ?? GLYPH.send;
 
@@ -126,10 +126,12 @@ export function TransactionRow({
 
   if (!id) return <div className="flex items-center gap-1.5">{body}</div>;
 
+  const targetId = (id || displayId || "").replace(/^tx_/i, "").toLowerCase();
+
   return (
     <Link
       prefetch={false}
-      href={`/transactions?id=${encodeURIComponent(id)}`}
+      href={`/transactions?id=${encodeURIComponent(targetId)}`}
       className="tap flex items-center gap-1.5 text-left active:scale-[0.98]"
     >
       {body}

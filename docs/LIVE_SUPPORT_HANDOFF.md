@@ -155,7 +155,7 @@ This is the single biggest win and it is nearly free. Every primitive exists:
 
 - `getTransactionById` / `formatDbTransaction` / `detailRows` already produce the rows
 - `ChatCard`, `CardStats`, `CardTitle`, `CopyButton` already render them in a thread
-- `GET /api/transactions/[id]` is already session-scoped
+- `GET /api/v1/transactions/[id]` is already session-scoped
 
 Two entry points:
 

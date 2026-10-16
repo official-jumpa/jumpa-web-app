@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/auth/copy-button";
 import { ReceiptSheet } from "@/components/transactions/receipt-sheet";
+import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { getAssetLogo } from "@/lib/assets";
@@ -24,7 +25,7 @@ function toReceipt(transaction: Transaction): Receipt {
     ? formatTxTimestamp(transaction.createdAt)
     : transaction.timestamp || "";
   return {
-    reference: transaction.id,
+    reference: transaction.displayId || transaction.id.replace(/^tx_/i, "").toUpperCase(),
     title: transaction.heading || transaction.title,
     amount: transaction.headline || transaction.amount,
     status: STATUS_LABEL[transaction.status],
@@ -55,7 +56,8 @@ export function TransactionDetail({
     if (initialTransaction) return;
     let isMounted = true;
 
-    fetch(`/api/transactions/${encodeURIComponent(id)}`)
+    const cleanId = id.replace(/^tx_/i, "").toLowerCase();
+    fetch(`/api/v1/transactions/${encodeURIComponent(cleanId)}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
       .then((data) => {
         if (isMounted) setTransaction(data.transaction);
@@ -151,7 +153,19 @@ export function TransactionDetail({
               >
                 <dt className="shrink-0">{row.label}</dt>
                 <dd className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate text-right">{row.value}</span>
+                  {row.link ? (
+                    <a
+                      href={row.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 truncate text-right text-jumpa-primary-600 underline decoration-jumpa-primary-300 hover:text-jumpa-primary-700 active:opacity-80"
+                    >
+                      <span className="truncate">{row.value}</span>
+                      <ArrowUpRightIcon className="size-3 shrink-0" />
+                    </a>
+                  ) : (
+                    <span className="truncate text-right">{row.value}</span>
+                  )}
                   {/* The printed value is shortened; copy hands over the whole of it. */}
                   {row.copy ? (
                     <CopyButton

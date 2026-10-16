@@ -120,7 +120,7 @@ export function HomeView({
 
     async function fetchTransactions() {
       try {
-        const res = await fetch("/api/transactions?limit=5", { cache: "no-store" });
+        const res = await fetch("/api/v1/transactions?limit=5", { cache: "no-store" });
         if (res.ok && isMounted) {
           const data = await res.json();
           if (Array.isArray(data.transactions)) {
@@ -212,13 +212,12 @@ export function HomeView({
     async function fetchKycStatus() {
       if (homeMemoryCache.kycComplete) return;
       try {
-        const res = await fetch("/api/kyc", { cache: "no-store" });
+        const res = await fetch("/api/v1/kyc", { cache: "no-store" });
         if (res.ok && isMounted) {
           const data = await res.json();
           const isDone = Boolean(
             data?.isCompleted ||
-              data?.status === "approved" ||
-              data?.stage === "completed",
+              data?.status === "approved",
           );
           setKycComplete(isDone);
           homeMemoryCache.kycComplete = isDone;

@@ -19,9 +19,8 @@ import { Referral } from "@/models/Referral";
 import { Wallet } from "@/models/Wallet";
 
 import { detectUserCountry } from "./location";
-import { recordUserActivity } from "./functions/userFunctions";
+import { recordUserActivity, shouldSendNotification } from "./functions/userFunctions";
 import { createNotification } from "./functions/notificationFunctions";
-import { shouldSendNotification } from "./functions/userPreferenceFunctions";
 import { formatSignInDescription, parseUserAgent } from "./user-agent";
 import { sendLoginAlertEmail } from "./email-notifications";
 import { syncWalletInboundDeposits } from "./functions/depositSyncFunctions";

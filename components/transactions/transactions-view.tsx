@@ -108,7 +108,7 @@ export function TransactionsView({
       const queryStr = buildFilterParams(selectedFilters);
 
       try {
-        const res = await fetch(`/api/transactions?${queryStr}`);
+        const res = await fetch(`/api/v1/transactions?${queryStr}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (isMounted && Array.isArray(data.transactions)) {
@@ -135,6 +135,10 @@ export function TransactionsView({
   const visible = transactions.filter((transaction) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
+    const cleanQ = q.replace(/^(?:JUMPA-tx_|JUMPA-|Jumpa_|tx_)/i, "").trim();
+    const rawId = (transaction.id || (transaction as any)._id || "").toLowerCase();
+    const cleanId = rawId.replace(/^(?:JUMPA-tx_|JUMPA-|Jumpa_|tx_)/i, "");
+    const displayId = ((transaction as any).displayId || "").toLowerCase();
     const dateStr = transaction.createdAt
       ? formatTxDate(transaction.createdAt).toLowerCase()
       : (transaction.detail || "").toLowerCase();
@@ -142,7 +146,9 @@ export function TransactionsView({
       transaction.title.toLowerCase().includes(q) ||
       dateStr.includes(q) ||
       transaction.amount.toLowerCase().includes(q) ||
-      (transaction.chain && transaction.chain.toLowerCase().includes(q))
+      (transaction.chain && transaction.chain.toLowerCase().includes(q)) ||
+      (cleanQ && cleanId.includes(cleanQ)) ||
+      (cleanQ && displayId.includes(cleanQ))
     );
   });
 

@@ -57,7 +57,7 @@ export function DataPlans({
     setFetchError(null);
     try {
       const res = await fetch(
-        `/api/bills/data-plans?phone=${encodeURIComponent(phone)}&_t=${Date.now()}`,
+        `/api/v1/bills/data?phone=${encodeURIComponent(phone)}&_t=${Date.now()}`,
         {
           cache: "no-store",
           headers: {
@@ -239,12 +239,6 @@ export function DataPlans({
                       <span className="text-sm leading-4.5 font-bold text-jumpa-black">
                         {formatDataVolume(plan.size, plan.productName || plan.validity)}
                       </span>
-                      {/* No way to correctly determine hot deals for now */}
-                      {/* {plan.hot ? (
-                        <span className="rounded-pill bg-jumpa-danger px-1.5 py-0.5 text-[8px] leading-3 font-bold text-jumpa-white">
-                          Hot Deals
-                        </span>
-                      ) : null} */}
                     </span>
                     <span className="truncate text-xs leading-4 text-jumpa-neutral-500">
                       {plan.validity}

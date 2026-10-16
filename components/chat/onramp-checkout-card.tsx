@@ -85,7 +85,7 @@ export function OnrampCheckoutCard({
 
       try {
         const res = await fetch(
-          `/api/onramp/status?reference=${encodeURIComponent(card.reference)}`,
+          `/api/v1/exchange/status?reference=${encodeURIComponent(card.reference)}`,
         );
         const data = await res.json();
 

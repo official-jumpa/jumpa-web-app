@@ -27,6 +27,11 @@ export interface IBillPayment {
   status: BillStatus;
   errorMessage?: string | null;
 
+  // Refund tracking & idempotency
+  refundedAt?: Date | null;
+  refundedBy?: string | null;
+  refundReference?: string | null;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -67,6 +72,10 @@ const BillPaymentSchema = new Schema<IBillPayment>(
       index: true,
     },
     errorMessage: { type: String, default: null },
+
+    refundedAt: { type: Date, default: null, index: true },
+    refundedBy: { type: String, default: null },
+    refundReference: { type: String, default: null },
   },
   { timestamps: true, _id: false },
 );

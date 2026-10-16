@@ -1,35 +1,35 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { AccountSheet } from "@/components/settings/account-sheet";
+import { settingsHref } from "@/components/settings/sections";
 import { SettingAction } from "@/components/settings/setting-row";
 import {
   SettingCard,
   SettingRule,
   SettingSection,
 } from "@/components/settings/setting-section";
-import { CheckIcon } from "@/components/ui/icons/check";
 import { LogOutIcon } from "@/components/ui/icons/log-out";
 import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
 import { TrashAltIcon } from "@/components/ui/icons/trash-alt";
+import { UserDeleteIcon } from "@/components/ui/icons/user-delete";
 import { authClient } from "@/lib/auth-client";
 
 type Sheet = "logout" | "delete" | null;
 
-const COPY = "text-xs leading-4 text-jumpa-neutral-500";
+const COPY = "text-xs leading-4.5 text-jumpa-neutral-500";
 
 /** Log out and delete account. Both confirm before they run. */
 export function AccountActions() {
   const [sheet, setSheet] = useState<Sheet>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [acknowledged, setAcknowledged] = useState(false);
 
   const close = () => {
     if (pending) return;
     setSheet(null);
     setError(null);
-    setAcknowledged(false);
   };
 
   const run = async (endpoint: string, fallback: string) => {
@@ -106,46 +106,37 @@ export function AccountActions() {
 
       {sheet === "delete" ? (
         <AccountSheet
-          icon={<TrashAltIcon className="size-7" />}
+          icon={<UserDeleteIcon className="size-7" />}
           tone="danger"
           title="Delete your account?"
           error={error}
+          cancelVariant="brand"
+          cancelLabel="Keep My Account"
+          confirmVariant="light"
           confirmLabel="Yes, Delete Account"
           pendingLabel="Deleting…"
           pending={pending}
-          disabled={!acknowledged}
+          swapButtons={true}
           onConfirm={() =>
             run("/api/auth/delete-account", "Could not delete the account.")
           }
           onClose={close}
         >
-          <p className={`text-center ${COPY}`}>
-            This removes your profile, chat history and transaction records from
-            Jumpa. It cannot be undone.
-          </p>
-
-          <p className="flex items-start gap-3 rounded-tile bg-jumpa-danger-50 px-3 py-2.5 text-xs leading-4 text-jumpa-danger">
-            <SealAlertIcon className="size-5 shrink-0" />
-            Your wallet is self-custodial, so your funds are not deleted, but
-            only your recovery phrase can reach them afterwards.
-          </p>
-
-          {/* The confirm button stays inert until this is ticked. */}
-          <label className="flex cursor-pointer items-center gap-3 rounded-tile bg-jumpa-neutral-50 px-3 py-3 text-xs leading-4 font-medium text-jumpa-black">
-            <input
-              type="checkbox"
-              checked={acknowledged}
-              onChange={(event) => setAcknowledged(event.target.checked)}
-              className="peer sr-only"
-            />
-            <span
-              aria-hidden="true"
-              className="flex size-5 shrink-0 items-center justify-center rounded-md border-2 border-jumpa-neutral-250 text-transparent transition-colors peer-checked:border-jumpa-danger peer-checked:bg-jumpa-danger peer-checked:text-jumpa-white"
-            >
-              <CheckIcon className="size-3.5" />
-            </span>
-            I have my recovery phrase saved
-          </label>
+          <div className="rounded-panel bg-jumpa-danger-50 p-3 text-left">
+            <div className="flex items-start gap-2.5">
+              <p className="text-xs leading-4.5 text-jumpa-neutral-700">
+                This <span className="font-semibold text-jumpa-danger">permanently deletes</span> your profile and account history. Your funds will remain in your wallet, but make sure you have{" "}
+                <Link
+                  href={settingsHref("private-key")}
+                  onClick={close}
+                  className="font-semibold text-jumpa-anchor-950 underline underline-offset-2 hover:text-jumpa-anchor-900"
+                >
+                  exported your private key.
+                </Link>{" "}
+                Jumpa cannot recover your account for you once its deleted.
+              </p>
+            </div>
+          </div>
         </AccountSheet>
       ) : null}
     </>

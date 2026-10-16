@@ -9,7 +9,7 @@ import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 
 import { cookies } from "next/headers";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
-import { getUserPreferences } from "@/lib/functions/userPreferenceFunctions";
+import { getUserPreferences } from "@/lib/functions/userFunctions";
 import { AutoLockProvider } from "@/components/auth/auto-lock-provider";
 
 export { AuthGuard, useAuthContext };
@@ -36,7 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     const cookieStore = await cookies();
     isUnlocked = cookieStore.get("jumpa_unlocked")?.value === "true";
   } catch (err) {
-    console.warn("[AppLayout] Session resolution:", err);
+    console.warn("[AppLayout] Error:", err);
   }
 
   const initialUser = (session?.user as any) ?? null;

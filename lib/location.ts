@@ -1,17 +1,11 @@
 import { headers } from "next/headers";
+import { getCanonicalCountryName } from "@/lib/countries";
 
 /**
- * Converts a 2-letter ISO country code (e.g. "NG", "US") to full English country name.
+ * Converts a 2-letter ISO country code (e.g. "NG", "US") or alias to full English country name.
  */
 export function getCountryNameFromCode(code: string): string {
-  try {
-    const clean = code.trim().toUpperCase();
-    if (clean.length !== 2) return clean;
-    const displayNames = new Intl.DisplayNames(["en"], { type: "region" });
-    return displayNames.of(clean) || clean;
-  } catch {
-    return code;
-  }
+  return getCanonicalCountryName(code) || code.trim();
 }
 
 /**

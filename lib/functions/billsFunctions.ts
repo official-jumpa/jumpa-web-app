@@ -18,6 +18,7 @@ import {
 import { generateId } from "@/lib/schema-ids";
 import { hasActiveNgnAccount } from "@/lib/functions/ngnFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
+import { formatOneLineError, isTimeoutError } from "@/lib/utils/api-best-practices";
 
 /**
  * Formats a phone number to standard Nigerian 11-digit format (e.g. 08031234567).
@@ -69,60 +70,68 @@ export async function getCarrierDataPlans(phone: string): Promise<{
   const normalized = normalizePhoneNumber(phone);
 
   if (!token) {
-    console.error("API key is not configured");
-    throw new Error("API key is not configured");
+    console.error("[SmartSMS] Missing API key configuration");
+    throw new Error("Data bundle service is currently unavailable");
   }
 
   const url = `${environment.SMART_SMS_BASE_URL}/internet_data/products/?phone=${encodeURIComponent(
     normalized,
   )}&token=${encodeURIComponent(token)}`;
 
-  console.log(`Fetching bill plans: ${normalized}`);
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(8000),
+    });
 
-  const res = await fetch(url, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.error(
+        `[SmartSMS] Failed to fetch plans | Status: ${res.status} | Payload: ${formatOneLineError(text)}`
+      );
+      throw new Error("Unable to retrieve data plans at this time");
+    }
 
-  if (!res.ok) {
-    const text = await res.text();
-    console.error(`HTTP error (${res.status}): ${text}`);
-    throw new Error(`Failed to fetch data plans (${res.status})`);
+    const json = await res.json();
+    if (!json.success || !json.data?.products || !Array.isArray(json.data.products)) {
+      const errMsg = json.comment || json.error || "No data products returned";
+      console.error(
+        `[SmartSMS] Provider returned no products | Payload: ${formatOneLineError(json)}`
+      );
+      throw new Error(errMsg);
+    }
+
+    const detectedNetwork = detectCarrierFromProductType(json.data?.product_type);
+
+    const plans = json.data.products
+      .map((p: any, idx: number): DataPlan => {
+        const rawPrice =
+          parseFloat(String(p.value || "").replace(/[^0-9.]/g, "")) || 0;
+        const period = parsePlanPeriod(p.validity, p.product_name);
+        return {
+          id: `smart_${idx}_${String(p.volume || "").replace(/\s/g, "")}`,
+          size: formatDataVolume(p.volume, p.product_name),
+          period,
+          validity: formatPlanValidity(p.product_name, p.validity),
+          price: `₦${rawPrice.toLocaleString()}`,
+          productName: p.product_name,
+          numericPrice: rawPrice,
+        };
+      })
+      .sort((a: DataPlan, b: DataPlan) => (a.numericPrice || 0) - (b.numericPrice || 0));
+
+    return {
+      plans,
+      detectedNetwork,
+    };
+  } catch (err: any) {
+    if (isTimeoutError(err)) {
+      console.error(`[SmartSMS] query timed out after 8000ms: ${formatOneLineError(err)}`);
+      throw new Error("Carrier data query timed out. Please try again.");
+    }
+    throw err;
   }
-
-  const json = await res.json();
-  if (!json.success || !json.data?.products || !Array.isArray(json.data.products)) {
-    const errMsg = json.comment || json.error || "No data products";
-    console.error("Error", json);
-    throw new Error(errMsg);
-  }
-
-  console.log(`Successfully retrieved ${json.data.products.length} plans for ${normalized}`);
-
-  const detectedNetwork = detectCarrierFromProductType(json.data?.product_type);
-
-  const plans = json.data.products
-    .map((p: any, idx: number): DataPlan => {
-      const rawPrice =
-        parseFloat(String(p.value || "").replace(/[^0-9.]/g, "")) || 0;
-      const period = parsePlanPeriod(p.validity, p.product_name);
-      return {
-        id: `smart_${idx}_${String(p.volume || "").replace(/\s/g, "")}`,
-        size: formatDataVolume(p.volume, p.product_name),
-        period,
-        validity: formatPlanValidity(p.product_name, p.validity),
-        price: `₦${rawPrice.toLocaleString()}`,
-        hot: p.percent && parseFloat(p.percent) < 0,
-        productName: p.product_name,
-        numericPrice: rawPrice,
-      };
-    })
-    .sort((a: DataPlan, b: DataPlan) => (a.numericPrice || 0) - (b.numericPrice || 0));
-
-  return {
-    plans,
-    detectedNetwork,
-  };
 }
 
 export {
@@ -131,6 +140,80 @@ export {
   transferToOfficialJumpaBlocAccount as transferToOfficialJumpaWallet,
   refundFromOfficialJumpaBlocAccount as refundFromOfficialJumpaWallet,
 };
+
+/**
+ * Safely refunds a confirmed failed bill payment back to the user's Naira account.
+ * Atomically marks `refundedAt` on the BillPayment document to prevent double-refunding.
+ */
+export async function safeRefundBillPayment({
+  billId,
+  userId,
+  amount,
+  narration,
+}: {
+  billId: string;
+  userId: string;
+  amount: number;
+  narration: string;
+}): Promise<boolean> {
+  await connectDB();
+  const refundRef = `ref_${billId}`;
+
+  // Atomic claim lock: only claim if refundedAt is null
+  const claimed = await BillPayment.findOneAndUpdate(
+    { _id: billId, refundedAt: null },
+    {
+      $set: {
+        status: "FAILED",
+        refundedAt: new Date(),
+        refundedBy: "system",
+        refundReference: refundRef,
+      },
+    },
+    { returnDocument: "after" },
+  );
+
+  if (!claimed) {
+    console.warn(
+      `[Bills] Bill ${billId} was already refunded or does not exist. Skipping duplicate refund.`,
+    );
+    return false;
+  }
+
+  const success = await refundFromOfficialJumpaBlocAccount({
+    userId,
+    amount,
+    narration,
+    reference: refundRef,
+  });
+
+  if (!success) {
+    // If credit failed, release the lock so it can be safely retried
+    await BillPayment.updateOne(
+      { _id: billId, refundReference: refundRef },
+      { $set: { refundedAt: null, refundReference: null } },
+    );
+    throw new Error(`Failed to credit refund back to user account for bill ${billId}`);
+  }
+
+  return true;
+}
+
+/**
+ * Reconciles a stalled PENDING bill payment.
+ */
+export async function reconcilePendingBill(billId: string) {
+  await connectDB();
+  const bill = await BillPayment.findById(billId);
+  if (!bill) throw new Error("Bill payment not found");
+  return {
+    id: bill._id,
+    status: bill.status,
+    refundedAt: bill.refundedAt,
+    refundReference: bill.refundReference,
+    isPending: bill.status === "PENDING",
+  };
+}
 
 /**
  * Executes an airtime purchase.
@@ -190,42 +273,74 @@ export async function purchaseAirtime(params: {
   formData.append("token", token);
   formData.append("ref_id", refId);
 
+  // 4. Downstream Provider Call (Isolated provider boundary)
+  let res: Response;
+  let data: any = null;
+
   try {
-    console.log(`Sending to SmartSMS: ref_id=${refId}, phone=${normalizedPhone}, amount=${params.amount}`);
-    const res = await fetch(`${environment.SMART_SMS_BASE_URL}/airtime/buy/`, {
+    res = await fetch(`${environment.SMART_SMS_BASE_URL}/airtime/buy/`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: formData.toString(),
+      signal: AbortSignal.timeout(20000), // 20s timeout
     });
-
-    const data = await res.json();
-    console.log(`SmartSMS response (HTTP ${res.status}):`, data);
-
-    if (!res.ok || !data.success) {
-      const errMsg = data.comment || data.error || "Airtime recharge failed";
-      console.error(`Provider rejected order ${refId}:`, errMsg, data);
-      await BillPayment.updateOne(
-        { _id: order._id },
-        { status: "FAILED", errorMessage: errMsg, rawProviderResponse: data },
-      );
-      throw new Error(errMsg);
-    }
-
-    // 2. Mark BillPayment SUCCESS
+    data = await res.json().catch(() => null);
+  } catch (fetchErr: any) {
+    const isTimeout = isTimeoutError(fetchErr);
+    console.error(
+      `[Airtime] Order ${refId} network exception | ${isTimeout ? "Timed out (20s)" : "Error"}: ${formatOneLineError(fetchErr)}`,
+    );
+    // Tier 3: Ambiguous Failure / Timeout -> DO NOT REFUND!
+    // Leave status in PENDING, record error message for user and support audit
     await BillPayment.updateOne(
       { _id: order._id },
       {
-        status: "SUCCESS",
-        providerReference: data.data?.id,
-        providerDescription: data.data?.description,
-        providerBalanceAfter: data.data?.balance,
-        rawProviderResponse: data,
+        errorMessage: isTimeout
+          ? "Response timed out - pending verification"
+          : (fetchErr.message || "Network error"),
       },
     );
+    throw fetchErr;
+  }
 
-    const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
+  // 5. Tier 2: Confirmed Provider Rejection
+  if (!res.ok || !data?.success) {
+    const rawErr = data?.comment || data?.error || `HTTP ${res.status}`;
+    console.error(
+      `[Airtime] Rejected order ${refId} | Status: ${res.status} | Payload: ${formatOneLineError(data || rawErr)}`,
+    );
+    await BillPayment.updateOne(
+      { _id: order._id },
+      { status: "FAILED", errorMessage: rawErr, rawProviderResponse: data },
+    );
+    // Safe to refund: Provider confirmed refusal
+    await safeRefundBillPayment({
+      billId: order._id,
+      userId: params.userId,
+      amount: params.amount,
+      narration: `Refund for airtime (${normalizedPhone})`,
+    }).catch((refundErr) =>
+      console.error(`[Airtime] Refund failed for ${refId}: ${formatOneLineError(refundErr)}`),
+    );
+    throw new Error(rawErr || "Airtime recharge failed");
+  }
 
-    // 3. Record confirmed transaction in Transaction history
+  // 6. Tier 1: Confirmed Provider Success
+  await BillPayment.updateOne(
+    { _id: order._id },
+    {
+      status: "SUCCESS",
+      providerReference: data.data?.id,
+      providerDescription: data.data?.description,
+      providerBalanceAfter: data.data?.balance,
+      rawProviderResponse: data,
+    },
+  );
+
+  const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
+
+  // Post-success steps: Internal DB persistence (Failure here MUST NEVER trigger a refund)
+  try {
     await Transaction.create({
       userId: params.userId,
       type: "AIRTIME",
@@ -248,8 +363,6 @@ export async function purchaseAirtime(params: {
       executedAt: new Date(),
     });
 
-    console.log(`Order ${refId} SUCCESSFUL. Provider ref: ${data.data?.id}, Balance after: ${data.data?.balance}`);
-
     logUserActivity({
       userId: params.userId,
       action: "AIRTIME_PURCHASED",
@@ -261,29 +374,15 @@ export async function purchaseAirtime(params: {
         refId,
       },
     }).catch(() => {});
-
-    return {
-      success: true,
-      type: "AIRTIME",
-      orderId: order._id,
-      reference: refId,
-      providerData: data.data,
-    };
-  } catch (err: any) {
-    console.error(`Order ${refId} failed:`, err?.message || err);
-    await BillPayment.updateOne(
-      { _id: order._id },
-      { status: "FAILED", errorMessage: err.message },
-    );
-    // Refund debited amount from official Jumpa wallet back to user's Bloc MFB account on downstream failure
-    await refundFromOfficialJumpaBlocAccount({
-      userId: params.userId,
-      amount: params.amount,
-      narration: `Refund for failed airtime (${normalizedPhone})`,
-      reference: `ref_${refId}`,
-    }).catch((refundErr) => console.error("Airtime refund failed:", refundErr));
-    throw err;
+  } catch (postErr) {
+    console.error(`[Airtime] error for ${refId}:`, postErr);
   }
+
+  // Minimal client-safe return: only success and reference for receipt
+  return {
+    success: true,
+    reference: refId,
+  };
 }
 
 /**
@@ -351,45 +450,77 @@ export async function purchaseData(params: {
   formData.append("token", token);
   formData.append("ref_id", refId);
 
+  // 4. Downstream Provider Call (Isolated provider boundary)
+  let res: Response;
+  let data: any = null;
+
   try {
-    console.log(`Sending to SmartSMS: ref_id=${refId}, phone=${normalizedPhone}, product=${params.productName}`);
-    const res = await fetch(
+    res = await fetch(
       `${environment.SMART_SMS_BASE_URL}/internet_data/buy/`,
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formData.toString(),
+        signal: AbortSignal.timeout(20000), // 20s timeout
       },
     );
-
-    const data = await res.json();
-    console.log(`SmartSMS response (HTTP ${res.status}):`, data);
-
-    if (!res.ok || !data.success) {
-      const errMsg = data.comment || data.error || "Data purchase failed";
-      console.error(`Provider rejected order ${refId}:`, errMsg, data);
-      await BillPayment.updateOne(
-        { _id: order._id },
-        { status: "FAILED", errorMessage: errMsg, rawProviderResponse: data },
-      );
-      throw new Error(errMsg);
-    }
-
-    // 2. Mark BillPayment SUCCESS
+    data = await res.json().catch(() => null);
+  } catch (fetchErr: any) {
+    const isTimeout = isTimeoutError(fetchErr);
+    console.error(
+      `[Data] Order ${refId} network exception | ${isTimeout ? "Timed out (20s)" : "Error"}: ${formatOneLineError(fetchErr)}`,
+    );
+    // Tier 3: Ambiguous Failure / Timeout -> DO NOT REFUND!
+    // Leave status in PENDING, record error message for user and support audit
     await BillPayment.updateOne(
       { _id: order._id },
       {
-        status: "SUCCESS",
-        providerReference: data.data?.id,
-        providerDescription: data.data?.description,
-        providerBalanceAfter: data.data?.balance,
-        rawProviderResponse: data,
+        errorMessage: isTimeout
+          ? "Response timed out - pending verification"
+          : (fetchErr.message || "Network error"),
       },
     );
+    throw fetchErr;
+  }
 
-    const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
+  // 5. Tier 2: Confirmed Provider Rejection
+  if (!res.ok || !data?.success) {
+    const rawErr = data?.comment || data?.error || `HTTP ${res.status}`;
+    console.error(
+      `[Data] Order ${refId} | Status: ${res.status} | Payload: ${formatOneLineError(data || rawErr)}`,
+    );
+    await BillPayment.updateOne(
+      { _id: order._id },
+      { status: "FAILED", errorMessage: rawErr, rawProviderResponse: data },
+    );
+    // Safe to refund: Provider confirmed refusal
+    await safeRefundBillPayment({
+      billId: order._id,
+      userId: params.userId,
+      amount: params.amount,
+      narration: `Refund for data (${params.productName})`,
+    }).catch((refundErr) =>
+      console.error(`[Data] Refund failed for ${refId}: ${formatOneLineError(refundErr)}`),
+    );
+    throw new Error(rawErr || "Data purchase failed");
+  }
 
-    // 3. Record confirmed transaction in Transaction history
+  // 6. Tier 1: Confirmed Provider Success
+  await BillPayment.updateOne(
+    { _id: order._id },
+    {
+      status: "SUCCESS",
+      providerReference: data.data?.id,
+      providerDescription: data.data?.description,
+      providerBalanceAfter: data.data?.balance,
+      rawProviderResponse: data,
+    },
+  );
+
+  const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
+
+  // Post-success steps: Internal DB persistence (Failure here MUST NEVER trigger a refund)
+  try {
     await Transaction.create({
       userId: params.userId,
       type: "DATA",
@@ -412,8 +543,6 @@ export async function purchaseData(params: {
       executedAt: new Date(),
     });
 
-    console.log(`Order ${refId} SUCCESSFUL. Provider ref: ${data.data?.id}, Balance after: ${data.data?.balance}`);
-
     logUserActivity({
       userId: params.userId,
       action: "DATA_PURCHASED",
@@ -428,28 +557,14 @@ export async function purchaseData(params: {
         refId,
       },
     }).catch(() => {});
-
-    return {
-      success: true,
-      type: "DATA",
-      orderId: order._id,
-      reference: refId,
-      providerData: data.data,
-    };
-  } catch (err: any) {
-    console.error(`Order ${refId} failed:`, err?.message || err);
-    await BillPayment.updateOne(
-      { _id: order._id },
-      { status: "FAILED", errorMessage: err.message },
-    );
-    // Refund debited amount from official Jumpa wallet back to user's Bloc MFB account on downstream failure
-    await refundFromOfficialJumpaBlocAccount({
-      userId: params.userId,
-      amount: params.amount,
-      narration: `Refund for failed data (${params.productName})`,
-      reference: `ref_${refId}`,
-    }).catch((refundErr) => console.error("Data refund failed:", refundErr));
-    throw err;
+  } catch (postErr) {
+    console.error(`[Data] error for ${refId}:`, postErr);
   }
+
+  // Minimal client-safe return: only success and reference for receipt
+  return {
+    success: true,
+    reference: refId,
+  };
 }
 

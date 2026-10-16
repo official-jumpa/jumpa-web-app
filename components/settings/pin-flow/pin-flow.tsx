@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useAuthContext } from "@/components/auth/AuthGuard";
 import { SuccessSheet } from "@/components/auth/success-sheet";
 import { CodeStep } from "@/components/settings/pin-flow/code-step";
 import {
@@ -12,6 +13,8 @@ import { PinStage } from "@/components/settings/pin-flow/pin-stage";
 import { PinStep } from "@/components/settings/pin-flow/pin-step";
 import { settingsHref } from "@/components/settings/sections";
 import { Button } from "@/components/ui/button";
+import { emailOtp } from "@/lib/auth-client";
+import { normalizeEmail } from "@/lib/utils/email-policy";
 import {
   PIN_FLOWS,
   type PinFlowName,
@@ -23,7 +26,7 @@ import {
  * intro -> identity -> code. Both end on the same success sheet.
  */
 type Stage =
-  | "intro"
+  | "not-supported"
   | "identity"
   | "code"
   | "current"
@@ -33,7 +36,6 @@ type Stage =
 
 /** The step behind each one, so the header can walk back without history. */
 const PREVIOUS: Partial<Record<Stage, Stage>> = {
-  identity: "intro",
   code: "identity",
   confirm: "create",
 };
@@ -48,15 +50,54 @@ const BACK = settingsHref("security");
 export function PinFlow({ name }: { name: PinFlowName }) {
   const flow = PIN_FLOWS[name];
   const router = useRouter();
+  const auth = useAuthContext();
+  const userEmail = auth?.user?.email || "";
 
   const [stage, setStage] = useState<Stage>(
-    flow.mode === "forgot" ? "intro" : "current",
+    flow.mode === "forgot" ? "identity" : "current",
   );
-  const [contact, setContact] = useState("");
+  const [contact, setContact] = useState(userEmail);
   const [currentPin, setCurrentPin] = useState("");
+  const [verifiedOtp, setVerifiedOtp] = useState("");
   const [created, setCreated] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [checkingCode, setCheckingCode] = useState(false);
+  const [isV3, setIsV3] = useState<boolean | null>(null);
   const [error, setError] = useState<string>();
+
+  // Check if wallet is v3 on mount for forgot flows
+  useEffect(() => {
+    if (flow.mode !== "forgot" || flow.kind !== "transaction") return;
+
+    let active = true;
+    fetch("/api/auth/wallet-setup")
+      .then((res) => res.json())
+      .then((data) => {
+        if (!active) return;
+        const v3 = Boolean(data.isV3Wallet);
+        setIsV3(v3);
+        if (!v3) {
+          setStage("not-supported");
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        // Fallback default to true, server route /api/wallet/change-pin enforces strictly
+        setIsV3(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [flow.mode, flow.kind]);
+
+  // Keep contact in sync with user email if initially empty
+  useEffect(() => {
+    if (userEmail && !contact) {
+      setContact(userEmail);
+    }
+  }, [userEmail, contact]);
 
   const clearError = useCallback(() => setError(undefined), []);
 
@@ -76,11 +117,103 @@ export function PinFlow({ name }: { name: PinFlowName }) {
   );
 
   const checkCurrent = useCallback(
-    (pin: string) => {
-      setCurrentPin(pin);
-      step("create");
+    async (pin: string) => {
+      clearError();
+      setBusy(true);
+      try {
+        if (flow.kind === "login") {
+          const res = await fetch("/api/auth/verify-password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password: pin }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            setError(data.error || "Incorrect current login PIN");
+            return;
+          }
+        } else {
+          const res = await fetch("/api/wallet/verify-pin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pin }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            setError(data.error || "Incorrect transaction PIN");
+            return;
+          }
+        }
+
+        setCurrentPin(pin);
+        step("create");
+      } catch {
+        setError("Failed to verify current PIN. Please check your connection.");
+      } finally {
+        setBusy(false);
+      }
     },
-    [step],
+    [clearError, flow.kind, step],
+  );
+
+  const handleSendOtp = useCallback(
+    async (emailToVerify: string) => {
+      clearError();
+      setSendingCode(true);
+      const target = normalizeEmail(emailToVerify);
+      try {
+        const res = await emailOtp.sendVerificationOtp({
+          email: target,
+          type: "email-verification",
+        });
+
+        if (res.error) {
+          setError(res.error.message || "Failed to send verification code");
+          return;
+        }
+
+        setContact(target);
+        step("code");
+      } catch (err: any) {
+        setError(err?.message || "Failed to send verification code. Try again.");
+      } finally {
+        setSendingCode(false);
+      }
+    },
+    [clearError, step],
+  );
+
+  const handleVerifyOtp = useCallback(
+    async (otpCode: string) => {
+      clearError();
+      setCheckingCode(true);
+      try {
+        const target = normalizeEmail(contact || userEmail);
+        const res = await fetch("/api/auth/email-otp/check-verification-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: target,
+            type: "email-verification",
+            otp: otpCode,
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setError(data.error || data.message || "Invalid or expired verification code");
+          return;
+        }
+
+        setVerifiedOtp(otpCode);
+        step("create");
+      } catch (err: any) {
+        setError(err?.message || "Failed to verify code. Try again.");
+      } finally {
+        setCheckingCode(false);
+      }
+    },
+    [clearError, contact, userEmail, step],
   );
 
   const confirmCreated = useCallback(
@@ -97,11 +230,16 @@ export function PinFlow({ name }: { name: PinFlowName }) {
           body: JSON.stringify({
             currentPin: currentPin || undefined,
             newPin: pin,
+            otp: verifiedOtp || undefined,
             kind: flow.kind,
           }),
         });
         const data = await res.json();
         if (!res.ok) {
+          // If code was expired/invalid, let user return to code step
+          if (data.error && /code|otp|expired/i.test(data.error)) {
+            step("code");
+          }
           setError(data.error || "Failed to update PIN");
           return;
         }
@@ -112,21 +250,21 @@ export function PinFlow({ name }: { name: PinFlowName }) {
         setBusy(false);
       }
     },
-    [created, currentPin, flow.kind, step],
+    [created, currentPin, flow.kind, verifiedOtp, step],
   );
 
   const title = flow.title;
 
-  if (stage === "intro" && flow.intro) {
+  if (stage === "not-supported") {
     return (
       <PinStage
         title={title}
-        heading={flow.intro.heading}
-        description={flow.intro.description}
+        heading="Wallet Cannot Be Recovered"
+        description="Your wallet cannot be recovered this way. Please contact support for further assistance"
         onBack={goBack}
         footer={
-          <Button variant="gradient" size="lg" onClick={() => step("identity")}>
-            Continue
+          <Button variant="brand" size="lg" onClick={() => router.push(BACK)}>
+            Back to Security
           </Button>
         }
       />
@@ -142,11 +280,9 @@ export function PinFlow({ name }: { name: PinFlowName }) {
         onBack={goBack}
       >
         <IdentityStep
-          value={contact}
-          onSend={(next) => {
-            setContact(next);
-            step("code");
-          }}
+          value={contact || userEmail}
+          sending={sendingCode}
+          onSend={handleSendOtp}
         />
       </PinStage>
     );
@@ -163,9 +299,10 @@ export function PinFlow({ name }: { name: PinFlowName }) {
         <CodeStep
           contact={contact}
           error={error}
+          checking={checkingCode}
           onEdit={clearError}
-          onResend={clearError}
-          onSubmit={() => step("create")}
+          onResend={() => handleSendOtp(contact)}
+          onSubmit={handleVerifyOtp}
         />
       </PinStage>
     );
@@ -185,6 +322,7 @@ export function PinFlow({ name }: { name: PinFlowName }) {
           length={flow.length}
           note={flow.note}
           error={error}
+          busy={busy}
           onEdit={clearError}
           onSubmit={checkCurrent}
         />

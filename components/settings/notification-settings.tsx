@@ -40,7 +40,7 @@ export function NotificationSettings({
   // Client-side fallback if initialPreferences was not provided
   const loadPreferences = useCallback(async () => {
     try {
-      const res = await fetch("/api/user/preference");
+      const res = await fetch("/api/v1/user");
       if (!res.ok) return;
       const data = await res.json();
       if (data?.preferences) {
@@ -77,7 +77,7 @@ export function NotificationSettings({
 
     // 2. Persist to DB
     try {
-      const res = await fetch("/api/user/preference", {
+      const res = await fetch("/api/v1/user", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [key]: value }),

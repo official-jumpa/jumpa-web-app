@@ -33,21 +33,20 @@ export function UsdConfirm({ onContinue }: { onContinue: () => void }) {
   useEffect(() => {
     let isMounted = true;
 
-    // Fetch status from /api/kyc (backed by Redis cache and DB)
+    // Fetch status from /api/v1/kyc
     async function checkKyc() {
       try {
-        const res = await fetch("/api/kyc");
+        const res = await fetch("/api/v1/kyc");
         if (res.ok && isMounted) {
           const data = await res.json();
           const isDone = Boolean(
             data?.isCompleted ||
-              data?.status === "approved" ||
-              data?.stage === "completed",
+              data?.status === "approved",
           );
           setVerified(isDone);
         }
       } catch (err) {
-        console.warn("[UsdConfirm] Error checking KYC:", err);
+        console.warn("[UsdConfirm] Error", err);
       }
     }
 

@@ -321,7 +321,7 @@ export async function requireAuth(
     return {
       ok: false,
       response: NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
+        { error: "You are currently not logged in", code: "UNAUTHORIZED" },
         { status: 401 },
       ),
     };

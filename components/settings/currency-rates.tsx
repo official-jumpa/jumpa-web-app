@@ -39,7 +39,7 @@ export function CurrencyRates() {
 
     async function loadRates() {
       try {
-        const res = await fetch("/api/rates");
+        const res = await fetch("/api/v1/rates");
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled && data?.tokens && data?.fiatRates) {
@@ -53,8 +53,8 @@ export function CurrencyRates() {
     }
 
     void loadRates();
-    // Poll every 60 seconds
-    const interval = setInterval(loadRates, 60000);
+    // Poll every 30 minutes
+    const interval = setInterval(loadRates, 30 * 60 * 1000);
     return () => {
       cancelled = true;
       clearInterval(interval);

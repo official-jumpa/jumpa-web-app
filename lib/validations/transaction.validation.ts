@@ -16,6 +16,7 @@ export const transactionQuerySchema = z.object({
   duration: z.string().trim().optional(),
   card: z.string().trim().optional(),
   token: z.string().trim().optional(),
+  search: z.string().trim().optional(),
 });
 
 export type TransactionQueryInput = z.infer<typeof transactionQuerySchema>;

@@ -72,7 +72,7 @@ export function UserProfileProvider({
 
   const fetchProfile = useCallback(async () => {
     try {
-      const res = await fetch("/api/user/profile");
+      const res = await fetch("/api/v1/user");
       if (res.ok) {
         const data = await res.json();
         if (data.profile) {
@@ -104,8 +104,8 @@ export function UserProfileProvider({
       setProfile((prev) => (prev ? { ...prev, ...updates } : (updates as UserProfile)));
 
       try {
-        // 2. Persist to unified profile endpoint
-        const res = await fetch("/api/user/profile", {
+        // 2. Persist to unified user endpoint
+        const res = await fetch("/api/v1/user", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(updates),

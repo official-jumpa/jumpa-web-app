@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Validation for switch quote (/api/switch/quote)
+ * Validation for exchange quote (/api/v1/exchange/quote)
  */
 export const switchQuoteSchema = z.object({
   amount: z
@@ -24,7 +24,7 @@ export const switchQuoteSchema = z.object({
 export type SwitchQuoteInput = z.infer<typeof switchQuoteSchema>;
 
 /**
- * Validation for switch onramp initiation (/api/switch/onramp)
+ * Validation for exchange onramp initiation (/api/v1/exchange/onramp)
  */
 export const switchOnrampSchema = z.object({
   fiatAmount: z
@@ -53,7 +53,7 @@ export const switchOnrampSchema = z.object({
 export type SwitchOnrampInput = z.infer<typeof switchOnrampSchema>;
 
 /**
- * Validation for switch offramp initiation (/api/switch/offramp)
+ * Validation for exchange offramp initiation (/api/v1/exchange/offramp)
  */
 export const switchOfframpSchema = z.object({
   cryptoAmount: z
@@ -102,7 +102,7 @@ export const switchOfframpSchema = z.object({
 export type SwitchOfframpInput = z.infer<typeof switchOfframpSchema>;
 
 /**
- * Validation for switch status checks (/api/onramp/status)
+ * Validation for exchange status checks (/api/v1/exchange/status)
  */
 export const switchStatusQuerySchema = z.object({
   reference: z

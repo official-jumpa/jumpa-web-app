@@ -26,12 +26,11 @@ export default async function KycPage() {
           docMediaId: record.docMediaId || null,
           selfieMediaId: record.selfieMediaId || null,
           idNumber: record.idNumber || null,
-          stepsCompleted: record.stepsCompleted || undefined,
         };
       }
     }
   } catch (err) {
-    console.warn("[KycPage SSR]:", err);
+    console.warn("[KycPage]", err);
   }
 
   return <KycView initialKycData={initialKycData} />;

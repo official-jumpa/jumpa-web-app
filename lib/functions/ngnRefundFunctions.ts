@@ -277,7 +277,7 @@ export async function refundFailedNgnWithdrawal({
     title: "Transfer Failed & Refunded",
     body: `Your transfer of ₦${Number(tx.amount).toLocaleString()} to ${recipient} could not be completed, so ₦${refundAmount.toLocaleString()} has been returned to your Naira balance.`,
     metadata: { reference, refundAmount, refundedBy },
-    link: `/transactions?id=${receiptId}`,
+    link: `/transactions?id=${receiptId.replace(/^tx_/i, "").toLowerCase()}`,
   }).catch(() => { });
 
   console.log(

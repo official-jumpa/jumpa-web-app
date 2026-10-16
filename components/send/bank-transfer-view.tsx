@@ -168,7 +168,7 @@ export function BankTransferView({
     async function loadRate() {
       try {
         const assetKey = `${selectedChain}:${selectedAsset.toLowerCase()}`;
-        const res = await fetch("/api/switch/quote", {
+        const res = await fetch("/api/v1/exchange/quote", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -371,7 +371,7 @@ export function BankTransferView({
     const assetKey = `${selectedChain}:${selectedAsset.toLowerCase()}`;
 
     try {
-      const res = await fetch("/api/switch/offramp", {
+      const res = await fetch("/api/v1/exchange/offramp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

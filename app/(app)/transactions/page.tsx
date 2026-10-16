@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import {
   queryUserTransactions,
@@ -25,6 +26,11 @@ export default async function TransactionsPage({
   searchParams,
 }: TransactionsPageProps) {
   const { id, chain } = await searchParams;
+
+  if (id && (id.toLowerCase().startsWith("tx_") || /[A-Z]/.test(id))) {
+    const cleanId = id.replace(/^tx_/i, "").toLowerCase();
+    redirect(`/transactions?id=${encodeURIComponent(cleanId)}`);
+  }
 
   let initialTransactions: Transaction[] = [];
   let initialTransactionDetail: Transaction | null = null;

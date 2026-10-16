@@ -124,10 +124,14 @@ export type TransactionDetailRow = {
   value: string;
   /** Full text behind a shortened value — renders a copy control on the row. */
   copy?: string;
+  /** Clickable URL (e.g. block explorer link or carrier receipt). */
+  link?: string;
 };
 
 export type Transaction = {
   id: string;
+  /** Clean user-facing identifier without tx_ prefix (e.g. "WNZ3888ZLMN06AOI") */
+  displayId?: string;
   kind: TransactionKind;
   title: string;
   /** Exact epoch milliseconds timestamp. */
@@ -149,6 +153,8 @@ export type Transaction = {
   heading?: string;
   /** Detail screen date line, e.g. "May 26, 2026 |  02:34pm". */
   timestamp?: string;
+  /** Block explorer URL for on-chain transactions. */
+  explorerUrl?: string;
   /** The rows under "Transaction details". */
   rows?: TransactionDetailRow[];
 };

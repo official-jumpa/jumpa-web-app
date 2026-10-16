@@ -230,6 +230,10 @@ export const environment = {
   /** Comma-separated; the dashboard's admin list, emailed unclaimed-ticket and SLA alerts. Grants nothing here. */
   ADMIN_EMAILS: process.env.ADMIN_EMAILS || "",
 
+  // MYAZA KYC TRUST
+  MYAZA_TRUST_SECRET_KEY: process.env.MYAZA_TRUST_SECRET_KEY || "",
+  MYAZA_TRUST_SANDBOX_KEY: process.env.MYAZA_TRUST_SANDBOX_KEY || "",
+  MYAZA_TRUST_BASE_URL: process.env.MYAZA_TRUST_BASE_URL || "https://trust.myaza.app/api/kyc",
 };
 
 export default environment;

@@ -1,5 +1,6 @@
 import { supportedBanks } from "@/lib/constants/banks";
 import { environment } from "@/lib/environment";
+import { formatOneLineError, isTimeoutError } from "@/lib/utils/api-best-practices";
 
 export interface ResolvedAccountData {
   account_number: string;
@@ -199,10 +200,6 @@ export async function validateAccountNumber(
   }
 
   try {
-    console.log(
-      `[Paystack Resolve] Querying Paystack for account: ${cleanAccount} (Bank code: ${cleanBankCode})`,
-    );
-
     const response = await fetch(
       `https://api.paystack.co/bank/resolve?account_number=${cleanAccount}&bank_code=${cleanBankCode}`,
       {
@@ -211,22 +208,33 @@ export async function validateAccountNumber(
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
+        signal: AbortSignal.timeout(8000),
       },
     );
 
-    const result = (await response.json()) as PaystackResolveResponse;
-    console.log("[Paystack Resolve API] Result:", {
-      status: result.status,
-      message: result.message,
-      account_name: result.data?.account_name,
-    });
+    const result = (await response.json().catch(() => null)) as PaystackResolveResponse | null;
+
+    if (!response.ok || !result?.status) {
+      console.error(
+        `[Paystack]Status: ${response.status} | Payload: ${formatOneLineError(result)}`
+      );
+      return {
+        status: false,
+        message: result?.message || "Could not verify bank account with provider",
+      };
+    }
 
     return result;
   } catch (error: any) {
-    console.error("[Paystack Resolve API] Fetch error:", error);
+    const isTimeout = isTimeoutError(error);
+    console.error(
+      `[Paystack] ${isTimeout ? "Timed out (8s)" : "Resolve exception"}: ${formatOneLineError(error)}`
+    );
     return {
       status: false,
-      message: error?.message || "Failed to reach bank verification service",
+      message: isTimeout
+        ? "Bank verification request timed out. Please try again."
+        : "Failed to reach bank verification service",
     };
   }
 }

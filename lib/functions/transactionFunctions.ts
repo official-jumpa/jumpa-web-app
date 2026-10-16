@@ -6,6 +6,9 @@ import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import type { TransactionDetailRow, TransactionKind } from "@/lib/wallet";
 import { detectCarrierFromPhone } from "@/lib/bills";
+import { getExplorerTxUrl, getSolanaRpcUrl } from "@/lib/blockchain";
+import { getHorizonServer } from "@/lib/chains/stellar/client";
+import { Connection } from "@solana/web3.js";
 
 // Types & Provider Interfaces 
 
@@ -52,11 +55,20 @@ function formatDecimal(val: string | number, maxDecimals = 4): string {
   });
 }
 
-function exchangeRate(from?: string, to?: string): string {
-  const a = parseFloat(String(from || ""));
-  const b = parseFloat(String(to || ""));
+function exchangeRate(
+  fromAmount?: string | number,
+  toAmount?: string | number,
+  fromToken?: string,
+  toToken?: string,
+): string {
+  const a = parseFloat(String(fromAmount || ""));
+  const b = parseFloat(String(toAmount || ""));
   if (!a || !b) return "";
-  return formatDecimal(b / a, 4);
+  const rate = formatDecimal(b / a, 4);
+  if (fromToken && toToken) {
+    return `1 ${fromToken} = ${rate} ${toToken}`;
+  }
+  return rate;
 }
 
 function timeTaken(tx: any): string {
@@ -172,7 +184,7 @@ const centiivSyncHandler: RampProviderSyncHandler = {
       return {
         status: "FAILED",
         rawStatus,
-        reason: `Centiiv status: ${rawStatus}`,
+        reason: `Centiiv status: ${rawStatus}`, // TODO: reset the reasons in the db. normalise them before showing them in the UI
       };
     }
 
@@ -241,7 +253,7 @@ async function _applySyncResult(
           userId: tx.userId,
           action: "ONRAMP_COMPLETED",
           details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
-        }).catch(() => {});
+        }).catch(() => { });
         createNotification({
           userId: tx.userId,
           tab: "transactions",
@@ -250,13 +262,13 @@ async function _applySyncResult(
           body: `${tx.amount} ${tx.token} successfully deposited to your wallet`,
           metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
           link: "/transactions",
-        }).catch(() => {});
+        }).catch(() => { });
       } else if (isWithdraw) {
         logUserActivity({
           userId: tx.userId,
           action: "OFFRAMP_COMPLETED",
           details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
-        }).catch(() => {});
+        }).catch(() => { });
         createNotification({
           userId: tx.userId,
           tab: "transactions",
@@ -265,9 +277,137 @@ async function _applySyncResult(
           body: `${tx.amount} ${tx.token} sent to your bank account`,
           metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
           link: "/transactions",
-        }).catch(() => {});
+        }).catch(() => { });
+      } else if (tx.type === "SWAP") {
+        logUserActivity({
+          userId: tx.userId,
+          action: "SWAP_EXECUTED",
+          details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
+        }).catch(() => { });
+        createNotification({
+          userId: tx.userId,
+          tab: "transactions",
+          type: "SWAP_COMPLETED",
+          title: "Swap Successful",
+          body: `Swap of ${tx.amount} ${tx.token} successfully completed`,
+          metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
+          link: "/transactions",
+        }).catch(() => { });
       }
     }
+  }
+
+  return tx;
+}
+
+/**
+ * Checks on-chain status of a Stellar transaction via Horizon.
+ */
+export async function checkStellarOnChainStatus(
+  txHash: string,
+  network: "mainnet" | "testnet" = "mainnet",
+): Promise<{ found: boolean; successful: boolean; ledger?: number; createdAt?: string }> {
+  try {
+    const server = getHorizonServer(network);
+    const horizonTx: any = await server.transactions().transaction(txHash).call();
+    return {
+      found: true,
+      successful: horizonTx.successful === true,
+      ledger: horizonTx.ledger_attr,
+      createdAt: horizonTx.created_at,
+    };
+  } catch (err: any) {
+    if (err?.response?.status === 404 || err?.status === 404) {
+      return { found: false, successful: false };
+    }
+    throw err;
+  }
+}
+
+/**
+ * Checks on-chain status of a Solana transaction via JSON-RPC polling.
+ */
+export async function checkSolanaOnChainStatus(
+  txHash: string,
+): Promise<{ found: boolean; successful: boolean; pending?: boolean }> {
+  try {
+    const connection = new Connection(getSolanaRpcUrl(), "confirmed");
+    const { value } = await connection.getSignatureStatuses([txHash]);
+    const status = value?.[0];
+    if (!status) {
+      return { found: false, successful: false };
+    }
+    if (status.confirmationStatus === "confirmed" || status.confirmationStatus === "finalized") {
+      return {
+        found: true,
+        successful: !status.err,
+        pending: false,
+      };
+    }
+    return { found: true, pending: true, successful: false };
+  } catch (err: any) {
+    console.warn(`[OnChain Sync] Solana status check error for ${txHash}:`, err?.message || err);
+    return { found: false, successful: false };
+  }
+}
+
+/**
+ * Syncs a single PENDING on-chain transaction (e.g. SWAP, BRIDGE, TRANSFER) against
+ * the blockchain (Stellar or Solana).
+ */
+export async function syncPendingOnChainTransaction(tx: any): Promise<any> {
+  if (!tx || tx.status !== "PENDING" || !tx.txHash) {
+    return tx;
+  }
+
+  const isStellar =
+    tx.chain === "stellar" ||
+    (!tx.chain && (tx.network === "mainnet" || tx.network === "testnet"));
+  const isSolana = tx.chain === "solana";
+
+  try {
+    if (isStellar) {
+      const net = (tx.network as "mainnet" | "testnet") || "mainnet";
+      let onChain = await checkStellarOnChainStatus(tx.txHash, net);
+      if (!onChain.found) {
+        const altNet = net === "mainnet" ? "testnet" : "mainnet";
+        const altCheck = await checkStellarOnChainStatus(tx.txHash, altNet);
+        if (altCheck.found) onChain = altCheck;
+      }
+
+      if (onChain.found) {
+        if (onChain.successful) {
+          const explorer = tx.explorerUrl || getExplorerTxUrl("stellar", tx.txHash, net === "testnet");
+          return await _applySyncResult(tx, "CONFIRMED", tx.txHash, explorer);
+        } else {
+          return await _applySyncResult(
+            tx,
+            "FAILED",
+            tx.txHash,
+            tx.explorerUrl,
+            "Transaction failed on Stellar network",
+          );
+        }
+      }
+    } else if (isSolana) {
+      const onChain = await checkSolanaOnChainStatus(tx.txHash);
+      if (onChain.found && !onChain.pending) {
+        if (onChain.successful) {
+          const explorer = tx.explorerUrl || getExplorerTxUrl("solana", tx.txHash, false);
+          return await _applySyncResult(tx, "CONFIRMED", tx.txHash, explorer);
+        } else {
+          return await _applySyncResult(
+            tx,
+            "FAILED",
+            tx.txHash,
+            tx.explorerUrl,
+            "Transaction failed on Solana network",
+          );
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[Transaction Sync] Error syncing pending tx ${tx._id}:`, err);
   }
 
   return tx;
@@ -305,6 +445,29 @@ export async function syncPendingRampTransaction(tx: any): Promise<any> {
 }
 
 /**
+ * Dispatches sync for any PENDING transaction — whether ramp or on-chain.
+ */
+export async function syncPendingTransaction(tx: any): Promise<any> {
+  const isCustomPendingSettlement =
+    tx?.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
+    tx?.rampDetails?.settlementStatus !== "COMPLETED";
+
+  if (!tx || (!isCustomPendingSettlement && tx.status !== "PENDING")) {
+    return tx;
+  }
+
+  if (tx.rampDetails?.reference) {
+    return syncPendingRampTransaction(tx);
+  }
+
+  if (tx.txHash) {
+    return syncPendingOnChainTransaction(tx);
+  }
+
+  return tx;
+}
+
+/**
  * Lists transactions belonging to an authenticated user, ordered newest first.
  */
 export async function listTransactionsByUserId(
@@ -323,9 +486,8 @@ export async function listTransactionsByUserId(
         tx.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
         tx.rampDetails?.settlementStatus !== "COMPLETED";
 
-      return (tx.status === "PENDING" || isCustomPendingSettlement) &&
-        tx.rampDetails?.reference
-        ? syncPendingRampTransaction(tx)
+      return (tx.status === "PENDING" || isCustomPendingSettlement)
+        ? syncPendingTransaction(tx)
         : Promise.resolve(tx);
     }),
   );
@@ -339,9 +501,30 @@ export async function getTransactionById(
   userId: string,
 ): Promise<ITransaction | null> {
   await connectDB();
-  const tx = await Transaction.findOne({ _id: id, userId }).lean();
+  const cleanId = id.trim();
+  const withoutPrefix = cleanId.replace(/^tx_/i, "");
+  const withPrefix = `tx_${withoutPrefix}`;
+
+  const candidates = Array.from(
+    new Set([
+      cleanId,
+      cleanId.toLowerCase(),
+      cleanId.toUpperCase(),
+      withPrefix,
+      withPrefix.toLowerCase(),
+      withoutPrefix,
+      withoutPrefix.toLowerCase(),
+      withoutPrefix.toUpperCase(),
+    ]),
+  );
+
+  const tx = await Transaction.findOne({
+    _id: { $in: candidates },
+    userId,
+  }).lean();
+
   if (!tx) return null;
-  return syncPendingRampTransaction(tx);
+  return syncPendingTransaction(tx);
 }
 
 // Transaction Formatting Engine
@@ -367,7 +550,7 @@ interface TxTypeDescriptor {
   kind: TransactionKind;
   isIncoming: (tx: any) => boolean;
   getTitle: (tx: any) => string;
-  getRows: (tx: any, status: string) => Array<[string, unknown, string?]>;
+  getRows: (tx: any, status: string) => Array<[string, unknown, string?, string?]>;
 }
 
 const DEFAULT_DESCRIPTOR: TxTypeDescriptor = {
@@ -390,11 +573,18 @@ const DEFAULT_DESCRIPTOR: TxTypeDescriptor = {
     return tx.token || "Transaction";
   },
   getRows: (tx) => {
-    const rows: [string, unknown, string?][] = [
-      ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
+    const isIncoming = DEFAULT_DESCRIPTOR.isIncoming(tx);
+    const rows: [string, unknown, string?, string?][] = [
+      ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`.trim()],
     ];
-    if (tx.toAddress) rows.push(["To", shortenKey(tx.toAddress)]);
-    if (tx.fromAddress) rows.push(["From", shortenKey(tx.fromAddress)]);
+    if (isIncoming) {
+      if (tx.fromAddress) rows.push(["Sender", shortenKey(tx.fromAddress), tx.fromAddress]);
+      if (tx.toAddress) rows.push(["Recipient", shortenKey(tx.toAddress), tx.toAddress]);
+    } else {
+      if (tx.toAddress) rows.push(["Recipient", shortenKey(tx.toAddress), tx.toAddress]);
+      if (tx.fromAddress) rows.push(["Sender", shortenKey(tx.fromAddress), tx.fromAddress]);
+    }
+    if (tx.memo) rows.push(["Memo", tx.memo]);
     return rows;
   },
 };
@@ -411,31 +601,45 @@ const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
     },
     getRows: (tx) => {
       const swap = tx.swapDetails;
-      if (!swap) return [["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`]];
-      return [
+      if (!swap) return [["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`.trim()]];
+      const rows: [string, unknown, string?, string?][] = [
         ["Amount sent", `${formatDecimal(swap.fromAmount, 4)} ${swap.fromToken}`],
         ["Amount received", `${formatDecimal(swap.toAmount, 4)} ${swap.toToken}`],
-        ["Exchange rate", exchangeRate(swap.fromAmount, swap.toAmount)],
-        ["Slippage", swap.slippage ? `${swap.slippage}%` : ""],
+        ["Rate", exchangeRate(swap.fromAmount, swap.toAmount, swap.fromToken, swap.toToken)],
       ];
+      if (swap.slippage) rows.push(["Slippage", `${swap.slippage}%`]);
+      return rows;
     },
   },
 
   BRIDGE: {
     kind: "bridge",
     isIncoming: () => false,
-    getTitle: (tx) => `Bridged to ${tx.bridgeDetails?.toChain || "Asset"}`,
+    getTitle: (tx) =>
+      `Bridged to ${tx.bridgeDetails?.toChain
+        ? tx.bridgeDetails.toChain.charAt(0).toUpperCase() + tx.bridgeDetails.toChain.slice(1)
+        : "Asset"
+      }`,
     getRows: (tx) => {
       const bridge = tx.bridgeDetails;
-      const rows: [string, unknown, string?][] = [
-        ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
-      ];
-      if (bridge?.fromChain) rows.push(["Source Chain", bridge.fromChain]);
-      if (bridge?.toChain) rows.push(["Destination Chain", bridge.toChain]);
-      if (bridge?.fromToken && bridge?.toToken) {
-        rows.push(["Asset Pair", `${bridge.fromToken} → ${bridge.toToken}`]);
+      const rows: [string, unknown, string?, string?][] = [];
+      if (bridge?.fromAmount && bridge?.fromToken) {
+        rows.push(["Amount sent", `${formatDecimal(bridge.fromAmount, 4)} ${bridge.fromToken}`]);
+      } else {
+        rows.push(["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`.trim()]);
       }
-      if (bridge?.fee) rows.push(["Bridge Fee", bridge.fee]);
+      if (bridge?.toAmount && bridge?.toToken) {
+        rows.push(["Amount received", `${formatDecimal(bridge.toAmount, 4)} ${bridge.toToken}`]);
+      }
+      if (bridge?.fromChain) {
+        rows.push(["Source Chain", bridge.fromChain.charAt(0).toUpperCase() + bridge.fromChain.slice(1)]);
+      }
+      if (bridge?.toChain) {
+        rows.push(["Destination Chain", bridge.toChain.charAt(0).toUpperCase() + bridge.toChain.slice(1)]);
+      }
+      if (bridge?.fee) rows.push(["Bridge fee", bridge.fee]);
+      if (bridge?.relayerFee) rows.push(["Relayer fee", bridge.relayerFee]);
+      if (tx.toAddress) rows.push(["Recipient", shortenKey(tx.toAddress), tx.toAddress]);
       return rows;
     },
   },
@@ -456,7 +660,22 @@ const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
       if (sender) return `Transfer from ${sender}`;
       return `Deposit ${tx.token}`;
     },
-    getRows: (tx) => buildRampOrBankRows(tx),
+    getRows: (tx) => {
+      if (tx.chain && tx.chain !== "fiat") {
+        const rows: [string, unknown, string?, string?][] = [
+          ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`.trim()],
+        ];
+        if (tx.fromAddress && tx.fromAddress !== "unknown" && tx.fromAddress !== "NGN_BANK_TRANSFER") {
+          rows.push(["Sender", shortenKey(tx.fromAddress), tx.fromAddress]);
+        }
+        if (tx.toAddress) {
+          rows.push(["Recipient", shortenKey(tx.toAddress), tx.toAddress]);
+        }
+        if (tx.memo) rows.push(["Memo", tx.memo]);
+        return rows;
+      }
+      return buildRampOrBankRows(tx);
+    },
   },
 
   OFFRAMP: {
@@ -478,14 +697,7 @@ const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
       if (recipient) return `Transfer to ${recipient}`;
       return `Withdraw ${tx.token}`;
     },
-    getRows: (tx) => {
-      const rows = buildRampOrBankRows(tx);
-      if (tx.refundedAt) {
-        const total = Number(tx.amount || 0) + Number(tx.feePaid || 0);
-        rows.push(["Refunded", `${formatDecimal(total, 2)} ${tx.token || ""} to your balance`]);
-      }
-      return rows;
-    },
+    getRows: (tx) => buildRampOrBankRows(tx),
   },
 
   FAUCET: {
@@ -493,8 +705,8 @@ const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
     isIncoming: () => true,
     getTitle: (tx) => `Claim ${tx.token}`,
     getRows: (tx) => [
-      ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
-      ["To", shortenKey(tx.toAddress)],
+      ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`.trim()],
+      ["Recipient", shortenKey(tx.toAddress), tx.toAddress],
     ],
   },
 
@@ -503,11 +715,10 @@ const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
     isIncoming: () => false,
     getTitle: () => "Deposited to Savings",
     getRows: (tx) => {
-      const rows: [string, unknown, string?][] = [
-        ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
+      const rows: [string, unknown, string?, string?][] = [
+        ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`.trim()],
       ];
-      if (tx.savingsDetails?.planId) rows.push(["Plan ID", tx.savingsDetails.planId]);
-      if (tx.savingsDetails?.vaultAddress) rows.push(["Vault", shortenKey(tx.savingsDetails.vaultAddress)]);
+      if (tx.savingsDetails?.planId) rows.push(["Plan", tx.savingsDetails.planId]);
       return rows;
     },
   },
@@ -517,10 +728,10 @@ const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
     isIncoming: () => true, // Funds return to wallet -> positive sign
     getTitle: () => "Withdrew from Savings",
     getRows: (tx) => {
-      const rows: [string, unknown, string?][] = [
-        ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
+      const rows: [string, unknown, string?, string?][] = [
+        ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`.trim()],
       ];
-      if (tx.savingsDetails?.penaltyFee) rows.push(["Penalty Fee", tx.savingsDetails.penaltyFee]);
+      if (tx.savingsDetails?.planId) rows.push(["Plan", tx.savingsDetails.planId]);
       return rows;
     },
   },
@@ -529,22 +740,42 @@ const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
     kind: "airtime",
     isIncoming: () => false,
     getTitle: (tx) => tx.memo || "Airtime Recharge",
-    getRows: (tx) => [
-      ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
-      ["Recipient Phone", tx.toAddress, tx.toAddress],
-      ["Description", tx.memo],
-    ],
+    getRows: (tx) => {
+      const carrier = resolveCarrier(tx, "AIRTIME");
+      const rows: [string, unknown, string?, string?][] = [
+        ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || "NGN"}`.trim()],
+      ];
+      if (carrier) rows.push(["Network", carrier.toUpperCase()]);
+      if (tx.toAddress) rows.push(["Phone Number", tx.toAddress, tx.toAddress]);
+      if (tx.memo) rows.push(["Description", tx.memo]);
+      rows.push(["Payment Method", "Naira Wallet"]);
+      if (tx.txHash) {
+        const displayRef = cleanReference(tx.txHash);
+        rows.push(["Reference", displayRef, tx.txHash]);
+      }
+      return rows;
+    },
   },
 
   DATA: {
     kind: "data",
     isIncoming: () => false,
     getTitle: (tx) => tx.memo || "Data Subscription",
-    getRows: (tx) => [
-      ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
-      ["Recipient Phone", tx.toAddress, tx.toAddress],
-      ["Description", tx.memo],
-    ],
+    getRows: (tx) => {
+      const carrier = resolveCarrier(tx, "DATA");
+      const rows: [string, unknown, string?, string?][] = [
+        ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || "NGN"}`.trim()],
+      ];
+      if (carrier) rows.push(["Network", carrier.toUpperCase()]);
+      if (tx.toAddress) rows.push(["Phone Number", tx.toAddress, tx.toAddress]);
+      if (tx.memo) rows.push(["Description", tx.memo]);
+      rows.push(["Payment Method", "Naira Wallet"]);
+      if (tx.txHash) {
+        const displayRef = cleanReference(tx.txHash);
+        rows.push(["Reference", displayRef, tx.txHash]);
+      }
+      return rows;
+    },
   },
 };
 
@@ -563,7 +794,7 @@ function cleanReference(ref?: string): string {
   return stripped;
 }
 
-function buildRampOrBankRows(tx: any): Array<[string, unknown, string?]> {
+function buildRampOrBankRows(tx: any): Array<[string, unknown, string?, string?]> {
   const isWithdraw =
     tx.type === "WITHDRAW" ||
     tx.type === "OFFRAMP" ||
@@ -572,20 +803,49 @@ function buildRampOrBankRows(tx: any): Array<[string, unknown, string?]> {
   const numAmount = Number(tx.amount || 0);
   const feePaidNum = Number(tx.feePaid || 0);
 
-  const rows: [string, unknown, string?][] = [
-    ["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`],
-  ];
-
-  if (isWithdraw && feePaidNum > 0) {
-    rows.push(["Withdrawal fee", `${formatDecimal(feePaidNum, 4)} ${tx.token || ""}`]);
-    const totalDebit = numAmount + feePaidNum;
-    rows.push(["Total debited", `${formatDecimal(totalDebit, 4)} ${tx.token || ""}`]);
-  } else if (!isWithdraw && feePaidNum > 0) {
-    rows.push(["Deposit fee", `${formatDecimal(feePaidNum, 4)} ${tx.token || ""}`]);
-  }
+  const rows: [string, unknown, string?, string?][] = [];
 
   const ramp = tx.rampDetails;
   const bank = tx.bankDetails || ramp?.bankDetails;
+
+  const isOnChain = Boolean(tx.chain && tx.chain !== "fiat");
+
+  if (tx.type === "ONRAMP") {
+    if (ramp?.fiatAmount) {
+      rows.push(["Fiat amount", `${ramp.fiatCurrency || "NGN"} ${formatDecimal(ramp.fiatAmount, 2)}`]);
+    }
+    rows.push(["Asset", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`.trim()]);
+    if (feePaidNum > 0 && !isOnChain) {
+      rows.push(["Deposit fee", `${formatDecimal(feePaidNum, 4)} ${tx.token || ""}`.trim()]);
+    }
+    if (ramp?.fiatAmount && numAmount > 0) {
+      const unitRate = formatDecimal(Number(ramp.fiatAmount) / numAmount, 2);
+      rows.push(["Rate", `1 ${tx.token || "Asset"} = ${ramp.fiatCurrency || "NGN"} ${unitRate}`]);
+    }
+  } else if (tx.type === "OFFRAMP") {
+    rows.push(["Asset", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`.trim()]);
+    if (ramp?.fiatAmount) {
+      rows.push(["Fiat amount", `${ramp.fiatCurrency || "NGN"} ${formatDecimal(ramp.fiatAmount, 2)}`]);
+    }
+    if (feePaidNum > 0 && !isOnChain) {
+      rows.push(["Withdrawal fee", `${formatDecimal(feePaidNum, 4)} ${tx.token || ""}`.trim()]);
+    }
+    if (ramp?.fiatAmount && numAmount > 0) {
+      const unitRate = formatDecimal(Number(ramp.fiatAmount) / numAmount, 2);
+      rows.push(["Rate", `1 ${tx.token || "Asset"} = ${ramp.fiatCurrency || "NGN"} ${unitRate}`]);
+    }
+  } else {
+    rows.push(["Amount", `${formatDecimal(tx.amount, 4)} ${tx.token || ""}`.trim()]);
+    if (isWithdraw && feePaidNum > 0) {
+      if (!isOnChain) {
+        rows.push(["Withdrawal fee", `${formatDecimal(feePaidNum, 4)} ${tx.token || ""}`.trim()]);
+        const totalDebit = numAmount + feePaidNum;
+        rows.push(["Total debited", `${formatDecimal(totalDebit, 4)} ${tx.token || ""}`.trim()]);
+      }
+    } else if (!isWithdraw && feePaidNum > 0 && !isOnChain) {
+      rows.push(["Deposit fee", `${formatDecimal(feePaidNum, 4)} ${tx.token || ""}`.trim()]);
+    }
+  }
 
   if (bank) {
     if (isWithdraw) {
@@ -594,7 +854,7 @@ function buildRampOrBankRows(tx: any): Array<[string, unknown, string?]> {
       if (bank.bankName) rows.push(["Recipient Bank", bank.bankName]);
       if (bank.accountNumber) rows.push(["Recipient Account", bank.accountNumber, bank.accountNumber]);
     } else {
-      // Receiver's view: show who sent the money and their details
+      // Receiver's view: show who sent the money
       if (bank.senderName) {
         rows.push(["Sender", bank.senderName]);
       } else if (tx.fromAddress && tx.fromAddress !== "NGN_BANK_TRANSFER") {
@@ -603,24 +863,27 @@ function buildRampOrBankRows(tx: any): Array<[string, unknown, string?]> {
       if (bank.senderBank) rows.push(["Sender Bank", bank.senderBank]);
       if (bank.senderAccountNumber) rows.push(["Sender Account", bank.senderAccountNumber, bank.senderAccountNumber]);
     }
+  } else if (tx.fromAddress && tx.fromAddress !== "NGN_BANK_TRANSFER" && tx.fromAddress !== "unknown") {
+    rows.push(["Sender", shortenKey(tx.fromAddress), tx.fromAddress]);
+  }
 
-    const ref = bank.reference || tx.txHash;
-    if (ref) {
-      const displayRef = cleanReference(ref);
-      rows.push(["Reference", displayRef, ref]);
-    }
-  } else if (ramp) {
-    rows.push([
-      "Fiat amount",
-      ramp.fiatAmount ? `${ramp.fiatCurrency} ${ramp.fiatAmount}` : "",
-    ]);
-    if (ramp.reference) {
-      const displayRef = cleanReference(ramp.reference);
-      rows.push(["Reference", displayRef, ramp.reference]);
-    }
+  // Session ID from bank verification (vital for user bank inquiries, no provider or channel)
+  if (tx.bankVerification?.sessionId) {
+    rows.push(["Session ID", tx.bankVerification.sessionId, tx.bankVerification.sessionId]);
+  }
+
+  const ref = bank?.reference || ramp?.reference || (tx.chain === "fiat" ? tx.txHash : undefined);
+  if (ref) {
+    const displayRef = cleanReference(ref);
+    rows.push(["Reference", displayRef, ref]);
+  }
+
+  if (tx.refundedAt) {
+    rows.push(["Refund status", "Refunded to your Naira balance"]);
   }
 
   if (tx.memo) rows.push(["Description", tx.memo]);
+
   return rows;
 }
 
@@ -642,42 +905,70 @@ function resolveCarrier(tx: any, typeUpper: string): string | undefined {
 function detailRows(tx: any, status: string, descriptor: TxTypeDescriptor): TransactionDetailRow[] {
   const rows = descriptor.getRows(tx, status);
 
-  if (tx.chain && tx.chain !== "fiat") {
+  const isOnChain = Boolean(tx.chain && tx.chain !== "fiat");
+  const isRealTxHash =
+    Boolean(tx.txHash) &&
+    !tx.txHash.startsWith("bll_") &&
+    !tx.txHash.endsWith("-refund") &&
+    !tx.txHash.endsWith("-rollback");
+
+  if (isOnChain) {
+    const chainLabel = tx.chain ? tx.chain.charAt(0).toUpperCase() + tx.chain.slice(1) : "";
     rows.push(
-      ["Network", `${tx.chain} ${tx.network || ""}`.trim()],
-      // ["Network fee", tx.feePaid],
+      ["Network", `${chainLabel} ${tx.network || ""}`.trim()],
     );
-    if (status !== "failed") {
-      rows.push(["Transaction hash", shortenKey(tx.txHash), tx.txHash]);
+    if (tx.feePaid && Number(tx.feePaid) > 0) {
+      rows.push(["Network fee", `${formatDecimal(tx.feePaid, 6)} ${tx.token || ""}`.trim()]);
+    }
+    if (isRealTxHash && status !== "failed") {
+      const explorerUrl = tx.explorerUrl || getExplorerTxUrl(tx.chain, tx.txHash, tx.network === "testnet");
+      rows.push(["Transaction hash", shortenKey(tx.txHash), tx.txHash, explorerUrl]);
     }
   }
 
-  if (status === "failed") rows.push(["Reason", tx.errorMessage]);
+  // Deduplicate fee: If withdrawal fee and network fee are the same, remove withdrawal fee
+  const withdrawalFeeIdx = rows.findIndex(([label]) => label === "Withdrawal fee");
+  const networkFeeIdx = rows.findIndex(([label]) => label === "Network fee");
+  if (withdrawalFeeIdx !== -1 && networkFeeIdx !== -1) {
+    rows.splice(withdrawalFeeIdx, 1);
+  }
+
+  const cleanId = String(tx._id || tx.id || "").replace(/^tx_/i, "").toLowerCase();
+  if (cleanId) {
+    rows.push(["Transaction ID", cleanId, cleanId]);
+  }
 
   return rows
     .filter(([, value]) => value !== undefined && value !== null && `${value}`.trim() !== "")
-    .map(([label, value, copy]) => ({
+    .map(([label, value, copy, link]) => ({
       label,
       value: `${value}`.trim(),
-      ...(copy ? { copy } : {}),
+      ...(copy ? { copy: String(copy).trim() } : {}),
+      ...(link ? { link: String(link).trim() } : {}),
     }));
 }
 
-export function formatDbTransaction(tx: any) {
+function getBaseTransactionFields(tx: any) {
+  const rawId = String(tx._id || tx.id || "");
+  const displayId = rawId.replace(/^tx_/i, "").toUpperCase();
+
   const typeUpper = (tx.type || "").toUpperCase();
   const token = (tx.token || "").toUpperCase();
 
-  const isCard = tx.rampDetails?.provider === "mercuryo" || tx.kind === "card";
-  const descriptor = isCard
-    ? {
-        ...DEFAULT_DESCRIPTOR,
+  const isCard = tx.kind === "card" || tx.rampDetails?.provider === "mercuryo";
+  const descriptor =
+    TX_DESCRIPTORS[typeUpper] ||
+    (isCard
+      ? {
         kind: "card" as TransactionKind,
+        isIncoming: () => true,
         getTitle: (t: any) => t.title || "Card deposit",
+        getRows: (t: any) => buildRampOrBankRows(t),
       }
-    : TX_DESCRIPTORS[typeUpper] ||
-      (token === "AIRTIME" ? TX_DESCRIPTORS.AIRTIME : undefined) ||
-      (token === "DATA" ? TX_DESCRIPTORS.DATA : undefined) ||
-      DEFAULT_DESCRIPTOR;
+      : undefined) ||
+    (token === "AIRTIME" ? TX_DESCRIPTORS.AIRTIME : undefined) ||
+    (token === "DATA" ? TX_DESCRIPTORS.DATA : undefined) ||
+    DEFAULT_DESCRIPTOR;
 
   const kind = descriptor.kind;
   const isIncoming = descriptor.isIncoming(tx);
@@ -718,7 +1009,8 @@ export function formatDbTransaction(tx: any) {
   const carrier = resolveCarrier(tx, typeUpper);
 
   return {
-    id: tx._id,
+    id: rawId,
+    displayId,
     kind,
     title,
     createdAt: createdAtMs,
@@ -727,12 +1019,72 @@ export function formatDbTransaction(tx: any) {
     chain: tx.chain,
     carrier,
     token: tx.swapDetails?.fromToken || tx.token,
-    headline: `${formatDecimal(tx.swapDetails?.fromAmount ?? rawAmount, 4)} ${
-      tx.swapDetails?.fromToken || tokenPart
-    }`.trim(),
-    heading: `${isNgnRefund(tx) ? "Refund" : (SUBJECT[kind] ?? "Transaction")} ${OUTCOME[status]}`,
-    rows: detailRows(tx, status, descriptor),
+    rawAmount,
+    tokenPart,
+    descriptor,
   };
+}
+
+/**
+ * Returns a lean summary DTO designed specifically for list cards
+ */
+export function formatTransactionSummary(tx: any) {
+  const base = getBaseTransactionFields(tx);
+  return {
+    id: base.id,
+    displayId: base.displayId,
+    kind: base.kind,
+    title: base.title,
+    createdAt: base.createdAt,
+    amount: base.amount,
+    status: base.status,
+    chain: base.chain,
+    carrier: base.carrier,
+  };
+}
+
+/**
+ * Returns a rich detail DTO for receipts and single transaction inspection.
+ */
+export function formatTransactionDetail(tx: any) {
+  const base = getBaseTransactionFields(tx);
+
+  const isOnChain = Boolean(tx.chain && tx.chain !== "fiat");
+  const isRealTxHash =
+    Boolean(tx.txHash) &&
+    !tx.txHash.startsWith("bll_") &&
+    !tx.txHash.endsWith("-refund") &&
+    !tx.txHash.endsWith("-rollback");
+
+  const explorerUrl =
+    isOnChain && isRealTxHash
+      ? tx.explorerUrl || getExplorerTxUrl(tx.chain, tx.txHash, tx.network === "testnet")
+      : undefined;
+
+  return {
+    id: base.id,
+    displayId: base.displayId,
+    kind: base.kind,
+    title: base.title,
+    createdAt: base.createdAt,
+    amount: base.amount,
+    status: base.status,
+    chain: base.chain,
+    carrier: base.carrier,
+    token: base.token,
+    explorerUrl,
+    headline: `${formatDecimal(tx.swapDetails?.fromAmount ?? base.rawAmount, 4)} ${tx.swapDetails?.fromToken || base.tokenPart
+      }`.trim(),
+    heading: `${isNgnRefund(tx) ? "Refund" : (SUBJECT[base.kind] ?? "Transaction")} ${OUTCOME[base.status]}`,
+    rows: detailRows(tx, base.status, base.descriptor),
+  };
+}
+
+/**
+ * Legacy compatibility alias pointing to formatTransactionDetail
+ */
+export function formatDbTransaction(tx: any) {
+  return formatTransactionDetail(tx);
 }
 
 const DURATION_DAYS: Record<string, number> = {
@@ -782,6 +1134,7 @@ export async function queryUserTransactions(params: {
   duration?: string;
   card?: string;
   token?: string;
+  search?: string;
 }): Promise<{ transactions: any[]; total: number }> {
   await connectDB();
 
@@ -835,6 +1188,24 @@ export async function queryUserTransactions(params: {
     }
   }
 
+  if (params.search) {
+    const rawSearch = params.search.trim();
+    const cleanSearch = rawSearch.replace(/^(?:JUMPA-tx_|JUMPA-|Jumpa_|tx_)/i, "").trim();
+    const escapedRaw = rawSearch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escapedClean = cleanSearch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    filterClauses.push({
+      $or: [
+        { _id: new RegExp(escapedRaw, "i") },
+        { _id: new RegExp(`tx_${escapedClean}`, "i") },
+        { txHash: new RegExp(escapedRaw, "i") },
+        { "rampDetails.reference": new RegExp(escapedRaw, "i") },
+        { title: new RegExp(escapedRaw, "i") },
+        { memo: new RegExp(escapedRaw, "i") },
+      ],
+    });
+  }
+
   const query = filterClauses.length === 1 ? filterClauses[0] : { $and: filterClauses };
 
   const [rawTransactions, total] = await Promise.all([
@@ -848,8 +1219,8 @@ export async function queryUserTransactions(params: {
 
   const transactions = await Promise.all(
     rawTransactions.map((tx) =>
-      tx.status === "PENDING" && tx.rampDetails?.reference
-        ? syncPendingRampTransaction(tx)
+      tx.status === "PENDING"
+        ? syncPendingTransaction(tx)
         : Promise.resolve(tx),
     ),
   );
@@ -857,7 +1228,7 @@ export async function queryUserTransactions(params: {
   return { transactions, total };
 }
 
-// ── Status Updates & Lookups ─────────────────────────────────────────────────
+// ── Status Updates & Lookups 
 
 export async function updateTransactionStatus(params: {
   id: string;
@@ -958,7 +1329,10 @@ export async function resolveAllPendingTransactions(options?: {
 
   const pendingTxs = await Transaction.find({
     status: "PENDING",
-    "rampDetails.reference": { $exists: true, $ne: null },
+    $or: [
+      { "rampDetails.reference": { $exists: true, $ne: null } },
+      { txHash: { $exists: true, $ne: null } },
+    ],
   }).lean();
 
   console.log(
@@ -974,48 +1348,64 @@ export async function resolveAllPendingTransactions(options?: {
   };
 
   for (const tx of pendingTxs) {
-    const reference = tx.rampDetails?.reference;
-    if (!reference) continue;
-
-    const handler = getProviderHandler(tx.rampDetails?.provider);
     const isStale = tx.createdAt && new Date(tx.createdAt) < cutoffTime;
 
-    try {
-      const syncRes = await handler.checkStatus(reference, tx);
+    // 1. Ramp provider transactions (Switch or Centiiv)
+    if (tx.rampDetails?.reference) {
+      const reference = tx.rampDetails.reference;
+      const handler = getProviderHandler(tx.rampDetails?.provider);
 
-      if (syncRes.status === "CONFIRMED") {
-        await _applySyncResult(tx, "CONFIRMED", syncRes.txHash, syncRes.explorerUrl);
-        result.confirmed++;
-        result.details.push({
-          id: tx._id,
-          reference,
-          type: tx.type,
-          amount: tx.amount,
-          token: tx.token,
-          previousStatus: "PENDING",
-          newStatus: "CONFIRMED",
-          providerStatus: syncRes.rawStatus,
-        });
-      } else if (syncRes.status === "FAILED" || isStale) {
-        const reason =
-          syncRes.status === "FAILED"
-            ? syncRes.reason || `Provider failed: ${syncRes.rawStatus}`
-            : `Order expired (> ${staleHours}h)`;
+      try {
+        const syncRes = await handler.checkStatus(reference, tx);
 
-        await _applySyncResult(tx, "FAILED", undefined, undefined, reason);
-        result.failed++;
-        result.details.push({
-          id: tx._id,
-          reference,
-          type: tx.type,
-          amount: tx.amount,
-          token: tx.token,
-          previousStatus: "PENDING",
-          newStatus: "FAILED",
-          providerStatus: syncRes.rawStatus || "EXPIRED",
-          reason,
-        });
-      } else {
+        if (syncRes.status === "CONFIRMED") {
+          await _applySyncResult(tx, "CONFIRMED", syncRes.txHash, syncRes.explorerUrl);
+          result.confirmed++;
+          result.details.push({
+            id: tx._id,
+            reference,
+            type: tx.type,
+            amount: tx.amount,
+            token: tx.token,
+            previousStatus: "PENDING",
+            newStatus: "CONFIRMED",
+            providerStatus: syncRes.rawStatus,
+          });
+        } else if (syncRes.status === "FAILED" || isStale) {
+          const reason =
+            syncRes.status === "FAILED"
+              ? syncRes.reason || `Provider failed: ${syncRes.rawStatus}`
+              : `Order expired (> ${staleHours}h)`;
+
+          await _applySyncResult(tx, "FAILED", undefined, undefined, reason);
+          result.failed++;
+          result.details.push({
+            id: tx._id,
+            reference,
+            type: tx.type,
+            amount: tx.amount,
+            token: tx.token,
+            previousStatus: "PENDING",
+            newStatus: "FAILED",
+            providerStatus: syncRes.rawStatus || "EXPIRED",
+            reason,
+          });
+        } else {
+          result.stillPending++;
+          result.details.push({
+            id: tx._id,
+            reference,
+            type: tx.type,
+            amount: tx.amount,
+            token: tx.token,
+            previousStatus: "PENDING",
+            newStatus: "PENDING",
+            providerStatus: syncRes.rawStatus,
+            reason: "Within active deposit window",
+          });
+        }
+      } catch (err: any) {
+        console.error(`[ResolveTx] ⚠️ Error resolving ref ${reference}:`, err?.message || err);
         result.stillPending++;
         result.details.push({
           id: tx._id,
@@ -1025,24 +1415,169 @@ export async function resolveAllPendingTransactions(options?: {
           token: tx.token,
           previousStatus: "PENDING",
           newStatus: "PENDING",
-          providerStatus: syncRes.rawStatus,
-          reason: "Within active deposit window",
+          providerStatus: "ERROR",
+          reason: err?.message || "Error contacting provider",
         });
       }
-    } catch (err: any) {
-      console.error(`[ResolveTx] ⚠️ Error resolving ref ${reference}:`, err?.message || err);
-      result.stillPending++;
-      result.details.push({
-        id: tx._id,
-        reference,
-        type: tx.type,
-        amount: tx.amount,
-        token: tx.token,
-        previousStatus: "PENDING",
-        newStatus: "PENDING",
-        providerStatus: "ERROR",
-        reason: err?.message || "Error contacting provider",
-      });
+      continue;
+    }
+
+    // 2. On-chain transactions (SWAP, BRIDGE, TRANSFER) with txHash
+    if (tx.txHash) {
+      const txHash = tx.txHash;
+      const isStellar =
+        tx.chain === "stellar" ||
+        (!tx.chain && (tx.network === "mainnet" || tx.network === "testnet"));
+      const isSolana = tx.chain === "solana";
+
+      try {
+        if (isStellar) {
+          const net = (tx.network as "mainnet" | "testnet") || "mainnet";
+          let onChain = await checkStellarOnChainStatus(txHash, net);
+          if (!onChain.found) {
+            const altNet = net === "mainnet" ? "testnet" : "mainnet";
+            const altCheck = await checkStellarOnChainStatus(txHash, altNet);
+            if (altCheck.found) onChain = altCheck;
+          }
+
+          if (onChain.found) {
+            if (onChain.successful) {
+              const explorer = tx.explorerUrl || getExplorerTxUrl("stellar", txHash, net === "testnet");
+              await _applySyncResult(tx, "CONFIRMED", txHash, explorer);
+              result.confirmed++;
+              result.details.push({
+                id: tx._id,
+                reference: txHash,
+                type: tx.type,
+                amount: tx.amount,
+                token: tx.token,
+                previousStatus: "PENDING",
+                newStatus: "CONFIRMED",
+                providerStatus: "STELLAR_ONCHAIN_SUCCESS",
+              });
+            } else {
+              const reason = "Transaction failed on Stellar network";
+              await _applySyncResult(tx, "FAILED", txHash, tx.explorerUrl, reason);
+              result.failed++;
+              result.details.push({
+                id: tx._id,
+                reference: txHash,
+                type: tx.type,
+                amount: tx.amount,
+                token: tx.token,
+                previousStatus: "PENDING",
+                newStatus: "FAILED",
+                providerStatus: "STELLAR_ONCHAIN_FAILED",
+                reason,
+              });
+            }
+          } else if (isStale) {
+            const reason = `On-chain tx dropped / not found in ledger (> ${staleHours}h)`;
+            await _applySyncResult(tx, "FAILED", txHash, tx.explorerUrl, reason);
+            result.failed++;
+            result.details.push({
+              id: tx._id,
+              reference: txHash,
+              type: tx.type,
+              amount: tx.amount,
+              token: tx.token,
+              previousStatus: "PENDING",
+              newStatus: "FAILED",
+              providerStatus: "ONCHAIN_DROPPED",
+              reason,
+            });
+          } else {
+            result.stillPending++;
+            result.details.push({
+              id: tx._id,
+              reference: txHash,
+              type: tx.type,
+              amount: tx.amount,
+              token: tx.token,
+              previousStatus: "PENDING",
+              newStatus: "PENDING",
+              providerStatus: "MEMPOOL_PENDING",
+              reason: "Awaiting on-chain confirmation",
+            });
+          }
+        } else if (isSolana) {
+          const onChain = await checkSolanaOnChainStatus(txHash);
+          if (onChain.found && !onChain.pending) {
+            if (onChain.successful) {
+              const explorer = tx.explorerUrl || getExplorerTxUrl("solana", txHash, false);
+              await _applySyncResult(tx, "CONFIRMED", txHash, explorer);
+              result.confirmed++;
+              result.details.push({
+                id: tx._id,
+                reference: txHash,
+                type: tx.type,
+                amount: tx.amount,
+                token: tx.token,
+                previousStatus: "PENDING",
+                newStatus: "CONFIRMED",
+                providerStatus: "SOLANA_ONCHAIN_SUCCESS",
+              });
+            } else {
+              const reason = "Transaction failed on Solana network";
+              await _applySyncResult(tx, "FAILED", txHash, tx.explorerUrl, reason);
+              result.failed++;
+              result.details.push({
+                id: tx._id,
+                reference: txHash,
+                type: tx.type,
+                amount: tx.amount,
+                token: tx.token,
+                previousStatus: "PENDING",
+                newStatus: "FAILED",
+                providerStatus: "SOLANA_ONCHAIN_FAILED",
+                reason,
+              });
+            }
+          } else if (isStale) {
+            const reason = `On-chain tx dropped / not found (> ${staleHours}h)`;
+            await _applySyncResult(tx, "FAILED", txHash, tx.explorerUrl, reason);
+            result.failed++;
+            result.details.push({
+              id: tx._id,
+              reference: txHash,
+              type: tx.type,
+              amount: tx.amount,
+              token: tx.token,
+              previousStatus: "PENDING",
+              newStatus: "FAILED",
+              providerStatus: "ONCHAIN_DROPPED",
+              reason,
+            });
+          } else {
+            result.stillPending++;
+            result.details.push({
+              id: tx._id,
+              reference: txHash,
+              type: tx.type,
+              amount: tx.amount,
+              token: tx.token,
+              previousStatus: "PENDING",
+              newStatus: "PENDING",
+              providerStatus: "SOLANA_PENDING",
+              reason: "Awaiting confirmation",
+            });
+          }
+        }
+      } catch (err: any) {
+        console.error(`[ResolveTx] ⚠️ Error resolving on-chain tx ${txHash}:`, err?.message || err);
+        result.stillPending++;
+        result.details.push({
+          id: tx._id,
+          reference: txHash,
+          type: tx.type,
+          amount: tx.amount,
+          token: tx.token,
+          previousStatus: "PENDING",
+          newStatus: "PENDING",
+          providerStatus: "ERROR",
+          reason: err?.message || "Error contacting blockchain node",
+        });
+      }
     }
   }
 

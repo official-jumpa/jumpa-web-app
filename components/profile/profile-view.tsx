@@ -87,13 +87,12 @@ export function ProfileView({
 
     async function checkKyc() {
       try {
-        const res = await fetch("/api/kyc");
+        const res = await fetch("/api/v1/kyc");
         if (res.ok) {
           const data = await res.json();
           const isDone = Boolean(
             data?.isCompleted ||
-            data?.status === "approved" ||
-            data?.stage === "completed",
+            data?.status === "approved",
           );
           setKycVerified(isDone);
         }

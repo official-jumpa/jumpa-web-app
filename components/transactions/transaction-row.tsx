@@ -53,7 +53,7 @@ export function TransactionRow({
   /** Turns the row into a picker choice instead of a link to its detail. */
   onSelect?: (transaction: Transaction) => void;
 }) {
-  const { id, kind, chain, title, detail, amount, status, carrier, createdAt } =
+  const { id, displayId, kind, chain, title, detail, amount, status, carrier, createdAt } =
     transaction;
   const { Icon, spin } = GLYPH[kind] ?? GLYPH.send;
 
@@ -131,6 +131,8 @@ export function TransactionRow({
 
   if (!id) return <div className="flex items-center gap-1.5">{body}</div>;
 
+  const targetId = (id || displayId || "").replace(/^tx_/i, "").toLowerCase();
+
   if (onSelect) {
     return (
       <button
@@ -146,7 +148,7 @@ export function TransactionRow({
   return (
     <Link
       prefetch={false}
-      href={`/transactions?id=${encodeURIComponent(id)}`}
+      href={`/transactions?id=${encodeURIComponent(targetId)}`}
       className={ROW}
     >
       {body}

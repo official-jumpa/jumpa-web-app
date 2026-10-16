@@ -1,21 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { FieldError } from "@/components/ui/field-error";
 import { MailIcon } from "@/components/ui/icons/mail";
 import { TextField } from "@/components/ui/text-field";
 import { RESET_CODE_LENGTH } from "@/lib/pin-flows";
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE = /^\+?[\d\s-]{7,}$/;
-
 export const IDENTITY_COPY = {
-  heading: "Enter registered phone/email",
-  description: `A ${RESET_CODE_LENGTH}-digit code will be sent to your registered mail or phone number.`,
+  heading: "Security Challenge",
+  description: `A ${RESET_CODE_LENGTH}-digit code will be sent to your registered email address below.`,
 };
 
-/** Takes the address the reset code goes to. Either a mail address or a number. */
+/** Displays the non-editable registered email address to which the reset code is sent. */
 export function IdentityStep({
   value,
   sending,
@@ -25,46 +20,32 @@ export function IdentityStep({
   sending?: boolean;
   onSend: (contact: string) => void;
 }) {
-  const [contact, setContact] = useState(value);
-  const [error, setError] = useState<string>();
-
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
-    const trimmed = contact.trim();
-    if (!EMAIL.test(trimmed) && !PHONE.test(trimmed)) {
-      setError("Enter the email address or phone number on your account.");
-      return;
-    }
-    setError(undefined);
-    onSend(trimmed);
+    onSend(value.trim());
   };
 
   return (
     <form onSubmit={submit} className="mt-8 flex flex-1 flex-col">
       <div className="flex flex-col gap-2">
         <TextField
-          label="Enter mail/phone number"
-          type="text"
+          label="" //intentionally kept empty
+          type="email"
           name="contact"
-          inputMode="email"
-          autoComplete="email"
-          placeholder="you@example.com"
-          value={contact}
-          onChange={(event) => {
-            setContact(event.target.value);
-            if (error) setError(undefined);
-          }}
-          aria-invalid={error ? true : undefined}
+          value={value}
+          readOnly
+          tabIndex={-1}
+          aria-readonly="true"
+          className="select-none"
           icon={<MailIcon />}
         />
-        <FieldError>{error}</FieldError>
       </div>
 
       <Button
         type="submit"
         variant="gradient"
         size="lg"
-        disabled={sending}
+        disabled={sending || !value}
         className="mt-auto disabled:opacity-50"
       >
         {sending ? "Sending code…" : "Send Code"}

@@ -14,6 +14,10 @@ export function AccountSheet({
   pendingLabel,
   pending,
   disabled,
+  confirmVariant: customConfirmVariant,
+  cancelVariant = "light",
+  cancelLabel = "No, Cancel",
+  swapButtons = false,
   onConfirm,
   onClose,
 }: {
@@ -26,11 +30,43 @@ export function AccountSheet({
   pendingLabel: string;
   pending: boolean;
   disabled?: boolean;
+  confirmVariant?: ButtonVariant;
+  cancelVariant?: ButtonVariant;
+  cancelLabel?: string;
+  /** When true, renders Cancel first (as the recommended primary action) followed by Confirm. */
+  swapButtons?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }) {
   const danger = tone === "danger";
-  const confirmVariant: ButtonVariant = danger ? "danger" : "gradientSheet";
+  const defaultConfirmVariant: ButtonVariant = danger ? "danger" : "gradientSheet";
+  const resolvedConfirmVariant = customConfirmVariant ?? defaultConfirmVariant;
+
+  const confirmBtn = (
+    <Button
+      key="confirm"
+      variant={resolvedConfirmVariant}
+      size="lg"
+      className={swapButtons ? "mt-2" : "mt-5"}
+      disabled={pending || disabled}
+      onClick={onConfirm}
+    >
+      {pending ? pendingLabel : confirmLabel}
+    </Button>
+  );
+
+  const cancelBtn = (
+    <Button
+      key="cancel"
+      variant={cancelVariant}
+      size="lg"
+      className={swapButtons ? "mt-5 font-semibold" : "mt-2 font-semibold"}
+      disabled={pending}
+      onClick={onClose}
+    >
+      {cancelLabel}
+    </Button>
+  );
 
   return (
     <BottomSheet onClose={onClose} pb="pb-5">
@@ -54,29 +90,23 @@ export function AccountSheet({
       {error ? (
         <p
           role="alert"
-          className="mt-3 rounded-tile bg-jumpa-danger-50 px-3 py-2 text-center text-xs leading-4 font-medium text-jumpa-danger"
+          className="mt-3 rounded-panel bg-jumpa-danger-50 px-3.5 py-2.5 text-center text-xs leading-4 font-medium text-jumpa-danger"
         >
           {error}
         </p>
       ) : null}
 
-      <Button
-        variant={confirmVariant}
-        size="lg"
-        className="mt-5"
-        disabled={pending || disabled}
-        onClick={onConfirm}
-      >
-        {pending ? pendingLabel : confirmLabel}
-      </Button>
-      <Button
-        size="lg"
-        className="mt-2 font-semibold"
-        disabled={pending}
-        onClick={onClose}
-      >
-        No, Cancel
-      </Button>
+      {swapButtons ? (
+        <>
+          {cancelBtn}
+          {confirmBtn}
+        </>
+      ) : (
+        <>
+          {confirmBtn}
+          {cancelBtn}
+        </>
+      )}
     </BottomSheet>
   );
 }

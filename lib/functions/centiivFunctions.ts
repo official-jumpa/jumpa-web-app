@@ -11,6 +11,7 @@ import {
   BASE_FEE,
   Memo,
 } from "@stellar/stellar-sdk";
+import { formatOneLineError, isTimeoutError } from "@/lib/utils/api-best-practices";
 
 const PUBLIC_KEY = environment.CENTIIV_PUBLIC_KEY || environment.CENTIIV_API_KEY;
 const SECRET_KEY = environment.CENTIIV_SECRET_KEY || environment.CENTIIV_API_KEY;
@@ -26,36 +27,51 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     ...options.headers,
   };
 
-  const res = await fetch(url, { ...options, headers });
-  const data = await res.json();
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers,
+      signal: options.signal || AbortSignal.timeout(15000),
+    });
+    const data = await res.json().catch(() => null);
 
-  if (!res.ok) {
-    let errorMsg = data.message || `Centiiv HTTP ${res.status}`;
+    if (!res.ok) {
+      console.error(
+        `[Centiiv](${endpoint}) | Status: ${res.status} | Payload: ${formatOneLineError(data)}`
+      );
+      let errorMsg = data?.message || `Centiiv ${res.status}`;
 
-    // Custom error parsing
-    if (errorMsg.toLowerCase().includes("below the minimum transaction amount")) {
-      const match = errorMsg.match(/minimum transaction amount of ([\d.]+)/i);
-      if (match && match[1]) {
-        errorMsg = `The minimum transfer amount is ${match[1]}.`;
-      } else {
-        errorMsg = "Amount is below the minimum allowed limit for this transfer.";
+      // Custom error parsing
+      if (errorMsg.toLowerCase().includes("below the minimum transaction amount")) {
+        const match = errorMsg.match(/minimum transaction amount of ([\d.]+)/i);
+        if (match && match[1]) {
+          errorMsg = `The minimum transfer amount is ${match[1]}.`;
+        } else {
+          errorMsg = "Amount is below the minimum allowed limit for this transfer.";
+        }
+      } else if (errorMsg.toLowerCase().includes("exceeds the maximum")) {
+        const match = errorMsg.match(/maximum transaction amount of ([\d.]+)/i);
+        if (match && match[1]) {
+          errorMsg = `The maximum transfer amount is ${match[1]}.`;
+        } else {
+          errorMsg = "Amount exceeds the maximum allowed limit for this transfer.";
+        }
       }
-    } else if (errorMsg.toLowerCase().includes("exceeds the maximum")) {
-      const match = errorMsg.match(/maximum transaction amount of ([\d.]+)/i);
-      if (match && match[1]) {
-        errorMsg = `The maximum transfer amount is ${match[1]}.`;
-      } else {
-        errorMsg = "Amount exceeds the maximum allowed limit for this transfer.";
-      }
+
+      const error: any = new Error(errorMsg);
+      error.status = res.status;
+      error.response = data;
+      throw error;
     }
 
-    const error: any = new Error(errorMsg);
-    error.status = res.status;
-    error.response = data;
-    throw error;
+    return data as T;
+  } catch (err: any) {
+    if (isTimeoutError(err)) {
+      console.error(`[Centiiv] Request timed out after 15s: ${formatOneLineError(err)}`);
+      throw new Error("The transfer service request timed out. Please try again.");
+    }
+    throw err;
   }
-
-  return data as T;
 }
 
 export async function getCentiivQuote(params: {

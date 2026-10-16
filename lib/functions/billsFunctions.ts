@@ -18,6 +18,7 @@ import {
 import { generateId } from "@/lib/schema-ids";
 import { hasActiveNgnAccount } from "@/lib/functions/ngnFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
+import { formatOneLineError, isTimeoutError } from "@/lib/utils/api-best-practices";
 
 /**
  * Formats a phone number to standard Nigerian 11-digit format (e.g. 08031234567).
@@ -69,60 +70,68 @@ export async function getCarrierDataPlans(phone: string): Promise<{
   const normalized = normalizePhoneNumber(phone);
 
   if (!token) {
-    console.error("API key is not configured");
-    throw new Error("API key is not configured");
+    console.error("[SmartSMS] Missing API key configuration");
+    throw new Error("Data bundle service is currently unavailable");
   }
 
   const url = `${environment.SMART_SMS_BASE_URL}/internet_data/products/?phone=${encodeURIComponent(
     normalized,
   )}&token=${encodeURIComponent(token)}`;
 
-  console.log(`Fetching bill plans: ${normalized}`);
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(8000),
+    });
 
-  const res = await fetch(url, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-  });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.error(
+        `[SmartSMS] Failed to fetch plans | Status: ${res.status} | Payload: ${formatOneLineError(text)}`
+      );
+      throw new Error("Unable to retrieve data plans at this time");
+    }
 
-  if (!res.ok) {
-    const text = await res.text();
-    console.error(`HTTP error (${res.status}): ${text}`);
-    throw new Error(`Failed to fetch data plans (${res.status})`);
+    const json = await res.json();
+    if (!json.success || !json.data?.products || !Array.isArray(json.data.products)) {
+      const errMsg = json.comment || json.error || "No data products returned";
+      console.error(
+        `[SmartSMS] Provider returned no products | Payload: ${formatOneLineError(json)}`
+      );
+      throw new Error(errMsg);
+    }
+
+    const detectedNetwork = detectCarrierFromProductType(json.data?.product_type);
+
+    const plans = json.data.products
+      .map((p: any, idx: number): DataPlan => {
+        const rawPrice =
+          parseFloat(String(p.value || "").replace(/[^0-9.]/g, "")) || 0;
+        const period = parsePlanPeriod(p.validity, p.product_name);
+        return {
+          id: `smart_${idx}_${String(p.volume || "").replace(/\s/g, "")}`,
+          size: formatDataVolume(p.volume, p.product_name),
+          period,
+          validity: formatPlanValidity(p.product_name, p.validity),
+          price: `₦${rawPrice.toLocaleString()}`,
+          productName: p.product_name,
+          numericPrice: rawPrice,
+        };
+      })
+      .sort((a: DataPlan, b: DataPlan) => (a.numericPrice || 0) - (b.numericPrice || 0));
+
+    return {
+      plans,
+      detectedNetwork,
+    };
+  } catch (err: any) {
+    if (isTimeoutError(err)) {
+      console.error(`[SmartSMS] query timed out after 8000ms: ${formatOneLineError(err)}`);
+      throw new Error("Carrier data query timed out. Please try again.");
+    }
+    throw err;
   }
-
-  const json = await res.json();
-  if (!json.success || !json.data?.products || !Array.isArray(json.data.products)) {
-    const errMsg = json.comment || json.error || "No data products";
-    console.error("Error", json);
-    throw new Error(errMsg);
-  }
-
-  console.log(`Successfully retrieved ${json.data.products.length} plans for ${normalized}`);
-
-  const detectedNetwork = detectCarrierFromProductType(json.data?.product_type);
-
-  const plans = json.data.products
-    .map((p: any, idx: number): DataPlan => {
-      const rawPrice =
-        parseFloat(String(p.value || "").replace(/[^0-9.]/g, "")) || 0;
-      const period = parsePlanPeriod(p.validity, p.product_name);
-      return {
-        id: `smart_${idx}_${String(p.volume || "").replace(/\s/g, "")}`,
-        size: formatDataVolume(p.volume, p.product_name),
-        period,
-        validity: formatPlanValidity(p.product_name, p.validity),
-        price: `₦${rawPrice.toLocaleString()}`,
-        hot: p.percent && parseFloat(p.percent) < 0,
-        productName: p.product_name,
-        numericPrice: rawPrice,
-      };
-    })
-    .sort((a: DataPlan, b: DataPlan) => (a.numericPrice || 0) - (b.numericPrice || 0));
-
-  return {
-    plans,
-    detectedNetwork,
-  };
 }
 
 export {
@@ -191,24 +200,25 @@ export async function purchaseAirtime(params: {
   formData.append("ref_id", refId);
 
   try {
-    console.log(`Sending to SmartSMS: ref_id=${refId}, phone=${normalizedPhone}, amount=${params.amount}`);
     const res = await fetch(`${environment.SMART_SMS_BASE_URL}/airtime/buy/`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: formData.toString(),
+      signal: AbortSignal.timeout(15000),
     });
 
-    const data = await res.json();
-    console.log(`SmartSMS response (HTTP ${res.status}):`, data);
+    const data = await res.json().catch(() => null);
 
-    if (!res.ok || !data.success) {
-      const errMsg = data.comment || data.error || "Airtime recharge failed";
-      console.error(`Provider rejected order ${refId}:`, errMsg, data);
+    if (!res.ok || !data?.success) {
+      const rawErr = data?.comment || data?.error || `HTTP ${res.status}`;
+      console.error(
+        `[SmartSMS:Airtime] Rejected order ${refId} | Status: ${res.status} | Payload: ${formatOneLineError(data || rawErr)}`
+      );
       await BillPayment.updateOne(
         { _id: order._id },
-        { status: "FAILED", errorMessage: errMsg, rawProviderResponse: data },
+        { status: "FAILED", errorMessage: rawErr, rawProviderResponse: data },
       );
-      throw new Error(errMsg);
+      throw new Error(rawErr || "Airtime recharge failed");
     }
 
     // 2. Mark BillPayment SUCCESS
@@ -248,8 +258,6 @@ export async function purchaseAirtime(params: {
       executedAt: new Date(),
     });
 
-    console.log(`Order ${refId} SUCCESSFUL. Provider ref: ${data.data?.id}, Balance after: ${data.data?.balance}`);
-
     logUserActivity({
       userId: params.userId,
       action: "AIRTIME_PURCHASED",
@@ -262,18 +270,19 @@ export async function purchaseAirtime(params: {
       },
     }).catch(() => {});
 
+    // Minimal client-safe return: only success and reference for receipt
     return {
       success: true,
-      type: "AIRTIME",
-      orderId: order._id,
       reference: refId,
-      providerData: data.data,
     };
   } catch (err: any) {
-    console.error(`Order ${refId} failed:`, err?.message || err);
+    const isTimeout = isTimeoutError(err);
+    console.error(
+      `[SmartSMS:Airtime] Order ${refId} failed | ${isTimeout ? "Timed out (15s)" : "Error"}: ${formatOneLineError(err)}`
+    );
     await BillPayment.updateOne(
       { _id: order._id },
-      { status: "FAILED", errorMessage: err.message },
+      { status: "FAILED", errorMessage: isTimeout ? "Timeout" : err.message },
     );
     // Refund debited amount from official Jumpa wallet back to user's Bloc MFB account on downstream failure
     await refundFromOfficialJumpaBlocAccount({
@@ -281,7 +290,9 @@ export async function purchaseAirtime(params: {
       amount: params.amount,
       narration: `Refund for failed airtime (${normalizedPhone})`,
       reference: `ref_${refId}`,
-    }).catch((refundErr) => console.error("Airtime refund failed:", refundErr));
+    }).catch((refundErr) =>
+      console.error(`[SmartSMS] Refund failed for ${refId}: ${formatOneLineError(refundErr)}`)
+    );
     throw err;
   }
 }
@@ -352,27 +363,28 @@ export async function purchaseData(params: {
   formData.append("ref_id", refId);
 
   try {
-    console.log(`Sending to SmartSMS: ref_id=${refId}, phone=${normalizedPhone}, product=${params.productName}`);
     const res = await fetch(
       `${environment.SMART_SMS_BASE_URL}/internet_data/buy/`,
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formData.toString(),
+        signal: AbortSignal.timeout(15000),
       },
     );
 
-    const data = await res.json();
-    console.log(`SmartSMS response (HTTP ${res.status}):`, data);
+    const data = await res.json().catch(() => null);
 
-    if (!res.ok || !data.success) {
-      const errMsg = data.comment || data.error || "Data purchase failed";
-      console.error(`Provider rejected order ${refId}:`, errMsg, data);
+    if (!res.ok || !data?.success) {
+      const rawErr = data?.comment || data?.error || `HTTP ${res.status}`;
+      console.error(
+        `[SmartSMS:Data] Rejected order ${refId} | Status: ${res.status} | Payload: ${formatOneLineError(data || rawErr)}`
+      );
       await BillPayment.updateOne(
         { _id: order._id },
-        { status: "FAILED", errorMessage: errMsg, rawProviderResponse: data },
+        { status: "FAILED", errorMessage: rawErr, rawProviderResponse: data },
       );
-      throw new Error(errMsg);
+      throw new Error(rawErr || "Data purchase failed");
     }
 
     // 2. Mark BillPayment SUCCESS
@@ -412,8 +424,6 @@ export async function purchaseData(params: {
       executedAt: new Date(),
     });
 
-    console.log(`Order ${refId} SUCCESSFUL. Provider ref: ${data.data?.id}, Balance after: ${data.data?.balance}`);
-
     logUserActivity({
       userId: params.userId,
       action: "DATA_PURCHASED",
@@ -429,18 +439,19 @@ export async function purchaseData(params: {
       },
     }).catch(() => {});
 
+    // Minimal client-safe return: only success and reference for receipt
     return {
       success: true,
-      type: "DATA",
-      orderId: order._id,
       reference: refId,
-      providerData: data.data,
     };
   } catch (err: any) {
-    console.error(`Order ${refId} failed:`, err?.message || err);
+    const isTimeout = isTimeoutError(err);
+    console.error(
+      `[SmartSMS:Data] Order ${refId} failed | ${isTimeout ? "Timed out (15s)" : "Error"}: ${formatOneLineError(err)}`
+    );
     await BillPayment.updateOne(
       { _id: order._id },
-      { status: "FAILED", errorMessage: err.message },
+      { status: "FAILED", errorMessage: isTimeout ? "Timeout" : err.message },
     );
     // Refund debited amount from official Jumpa wallet back to user's Bloc MFB account on downstream failure
     await refundFromOfficialJumpaBlocAccount({
@@ -448,7 +459,9 @@ export async function purchaseData(params: {
       amount: params.amount,
       narration: `Refund for failed data (${params.productName})`,
       reference: `ref_${refId}`,
-    }).catch((refundErr) => console.error("Data refund failed:", refundErr));
+    }).catch((refundErr) =>
+      console.error(`[SmartSMS:Data] Refund failed for ${refId}: ${formatOneLineError(refundErr)}`)
+    );
     throw err;
   }
 }

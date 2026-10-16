@@ -157,8 +157,6 @@ export type DataPlan = {
   /** "Monthly plan (30 days)" — the line under the size. */
   validity: string;
   price: string;
-  /** Red badge beside the size on promoted plans. */
-  hot?: boolean;
   productName?: string;
   numericPrice?: number;
 };

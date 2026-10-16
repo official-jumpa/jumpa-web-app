@@ -101,7 +101,7 @@ export function AirtimeView() {
     setFailure(null);
 
     try {
-      const res = await fetch("/api/bills/airtime", {
+      const res = await fetch("/api/v1/bills/airtime", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

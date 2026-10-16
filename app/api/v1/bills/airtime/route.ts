@@ -4,9 +4,13 @@ import { verifyWalletPinAndLockout } from "@/lib/functions/walletFunctions";
 import { purchaseAirtime } from "@/lib/functions/billsFunctions";
 import { buyAirtimeSchema } from "@/lib/validations/bills.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import {
+  formatOneLineError,
+  isTimeoutError,
+} from "@/lib/utils/api-best-practices";
 
 /**
- * POST /api/bills/airtime
+ * POST /api/v1/bills/airtime
  * Recharges airtime on a mobile phone.
  * Body: { phone: string, amount: number, network?: string, pin: string }
  */
@@ -21,16 +25,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    console.log(`Incoming request for user: ${auth.userId}, phone: ${body.phone}, amount: ₦${body.amount}, network: ${body.network}`);
 
     const validation = buyAirtimeSchema.safeParse(body);
     if (!validation.success) {
-      console.warn(
-        `Validation failed for user ${auth.userId}:`,
-        validation.error.format(),
-        "Payload:",
-        { ...body, pin: body.pin ? "****" : undefined },
-      );
       return NextResponse.json(formatZodError(validation.error), {
         status: 400,
       });
@@ -41,7 +38,6 @@ export async function POST(req: NextRequest) {
     const targetAddress = cookieAddress || auth.address;
 
     // Verify 4-digit security PIN with lockout & rate limiting
-    console.log(`Verifying PIN for user: ${auth.userId}, wallet: ${targetAddress}`);
     const pinCheck = await verifyWalletPinAndLockout(
       auth.userId,
       pin,
@@ -49,10 +45,6 @@ export async function POST(req: NextRequest) {
     );
 
     if (!pinCheck.valid) {
-      console.warn(
-        `PIN verification rejected for user ${auth.userId}:`,
-        pinCheck.error,
-      );
       return NextResponse.json(
         { error: pinCheck.error || "Incorrect PIN" },
         { status: pinCheck.statusCode || 400 },
@@ -60,7 +52,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Execute airtime recharge
-    console.log(`Initiating purchase: phone=${phone}, amount=₦${amount}, network=${network}`);
     const result = await purchaseAirtime({
       phone,
       amount,
@@ -69,30 +60,49 @@ export async function POST(req: NextRequest) {
       walletAddress: targetAddress,
     });
 
-    console.log(
-      `Airtime purchase SUCCESSFUL for user ${auth.userId}: orderId=${result.orderId}, ref=${result.reference}`,
-    );
-
+    // Minimal client-safe return: only success and reference for receipt
     return NextResponse.json({
       success: true,
-      type: "AIRTIME",
-      message: "Airtime recharge successful",
-      orderId: result.orderId,
       reference: result.reference,
-      providerData: result.providerData,
     });
   } catch (err: any) {
-    const msg = (err.message || "").toLowerCase();
+    const msg = (err?.message || "").toLowerCase();
+    const isTimeout = isTimeoutError(err);
+
+    console.error(
+      `[Airtime] Error: ${formatOneLineError(err)}`,
+    );
+
     const isClientError =
       msg.includes("naira account") ||
       msg.includes("balance") ||
       msg.includes("insufficient") ||
       msg.includes("funds") ||
       msg.includes("pin");
+
+    if (isClientError) {
+      return NextResponse.json(
+        { error: err.message || "Failed to process airtime recharge" },
+        { status: 400 },
+      );
+    }
+
+    if (isTimeout) {
+      return NextResponse.json(
+        {
+          error:
+            "The recharge service took too long to respond. Please check your transaction history before trying again.",
+        },
+        { status: 504 },
+      );
+    }
+
     return NextResponse.json(
-      { error: err.message || "Failed to process airtime recharge" },
-      { status: isClientError ? 400 : 500 },
+      {
+        error:
+          "Unable to complete airtime recharge at this time. Please try again shortly.",
+      },
+      { status: 502 },
     );
   }
 }
-

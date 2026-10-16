@@ -84,7 +84,7 @@ export function MobileDataView() {
       plan.numericPrice || parseFloat(plan.price.replace(/[^0-9.]/g, "")) || 0;
 
     try {
-      const res = await fetch("/api/bills/data", {
+      const res = await fetch("/api/v1/bills/data", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

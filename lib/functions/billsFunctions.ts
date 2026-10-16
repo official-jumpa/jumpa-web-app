@@ -142,6 +142,80 @@ export {
 };
 
 /**
+ * Safely refunds a confirmed failed bill payment back to the user's Naira account.
+ * Atomically marks `refundedAt` on the BillPayment document to prevent double-refunding.
+ */
+export async function safeRefundBillPayment({
+  billId,
+  userId,
+  amount,
+  narration,
+}: {
+  billId: string;
+  userId: string;
+  amount: number;
+  narration: string;
+}): Promise<boolean> {
+  await connectDB();
+  const refundRef = `ref_${billId}`;
+
+  // Atomic claim lock: only claim if refundedAt is null
+  const claimed = await BillPayment.findOneAndUpdate(
+    { _id: billId, refundedAt: null },
+    {
+      $set: {
+        status: "FAILED",
+        refundedAt: new Date(),
+        refundedBy: "system",
+        refundReference: refundRef,
+      },
+    },
+    { returnDocument: "after" },
+  );
+
+  if (!claimed) {
+    console.warn(
+      `[Bills] Bill ${billId} was already refunded or does not exist. Skipping duplicate refund.`,
+    );
+    return false;
+  }
+
+  const success = await refundFromOfficialJumpaBlocAccount({
+    userId,
+    amount,
+    narration,
+    reference: refundRef,
+  });
+
+  if (!success) {
+    // If credit failed, release the lock so it can be safely retried
+    await BillPayment.updateOne(
+      { _id: billId, refundReference: refundRef },
+      { $set: { refundedAt: null, refundReference: null } },
+    );
+    throw new Error(`Failed to credit refund back to user account for bill ${billId}`);
+  }
+
+  return true;
+}
+
+/**
+ * Reconciles a stalled PENDING bill payment.
+ */
+export async function reconcilePendingBill(billId: string) {
+  await connectDB();
+  const bill = await BillPayment.findById(billId);
+  if (!bill) throw new Error("Bill payment not found");
+  return {
+    id: bill._id,
+    status: bill.status,
+    refundedAt: bill.refundedAt,
+    refundReference: bill.refundReference,
+    isPending: bill.status === "PENDING",
+  };
+}
+
+/**
  * Executes an airtime purchase.
  * Pre-creates a BillPayment record in PENDING state, passes its _id as ref_id, and updates status upon completion.
  */
@@ -199,43 +273,74 @@ export async function purchaseAirtime(params: {
   formData.append("token", token);
   formData.append("ref_id", refId);
 
+  // 4. Downstream Provider Call (Isolated provider boundary)
+  let res: Response;
+  let data: any = null;
+
   try {
-    const res = await fetch(`${environment.SMART_SMS_BASE_URL}/airtime/buy/`, {
+    res = await fetch(`${environment.SMART_SMS_BASE_URL}/airtime/buy/`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: formData.toString(),
-      signal: AbortSignal.timeout(30000), // allow up to 30 seconds
+      signal: AbortSignal.timeout(20000), // 20s timeout
     });
-
-    const data = await res.json().catch(() => null);
-
-    if (!res.ok || !data?.success) {
-      const rawErr = data?.comment || data?.error || `HTTP ${res.status}`;
-      console.error(
-        `[SmartSMS:Airtime] Rejected order ${refId} | Status: ${res.status} | Payload: ${formatOneLineError(data || rawErr)}`
-      );
-      await BillPayment.updateOne(
-        { _id: order._id },
-        { status: "FAILED", errorMessage: rawErr, rawProviderResponse: data },
-      );
-      throw new Error(rawErr || "Airtime recharge failed");
-    }
-
-    // 2. Mark BillPayment SUCCESS
+    data = await res.json().catch(() => null);
+  } catch (fetchErr: any) {
+    const isTimeout = isTimeoutError(fetchErr);
+    console.error(
+      `[Airtime] Order ${refId} network exception | ${isTimeout ? "Timed out (20s)" : "Error"}: ${formatOneLineError(fetchErr)}`,
+    );
+    // Tier 3: Ambiguous Failure / Timeout -> DO NOT REFUND!
+    // Leave status in PENDING, record error message for user and support audit
     await BillPayment.updateOne(
       { _id: order._id },
       {
-        status: "SUCCESS",
-        providerReference: data.data?.id,
-        providerDescription: data.data?.description,
-        providerBalanceAfter: data.data?.balance,
-        rawProviderResponse: data,
+        errorMessage: isTimeout
+          ? "Response timed out - pending verification"
+          : (fetchErr.message || "Network error"),
       },
     );
+    throw fetchErr;
+  }
 
-    const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
+  // 5. Tier 2: Confirmed Provider Rejection
+  if (!res.ok || !data?.success) {
+    const rawErr = data?.comment || data?.error || `HTTP ${res.status}`;
+    console.error(
+      `[Airtime] Rejected order ${refId} | Status: ${res.status} | Payload: ${formatOneLineError(data || rawErr)}`,
+    );
+    await BillPayment.updateOne(
+      { _id: order._id },
+      { status: "FAILED", errorMessage: rawErr, rawProviderResponse: data },
+    );
+    // Safe to refund: Provider confirmed refusal
+    await safeRefundBillPayment({
+      billId: order._id,
+      userId: params.userId,
+      amount: params.amount,
+      narration: `Refund for airtime (${normalizedPhone})`,
+    }).catch((refundErr) =>
+      console.error(`[Airtime] Refund failed for ${refId}: ${formatOneLineError(refundErr)}`),
+    );
+    throw new Error(rawErr || "Airtime recharge failed");
+  }
 
-    // 3. Record confirmed transaction in Transaction history
+  // 6. Tier 1: Confirmed Provider Success
+  await BillPayment.updateOne(
+    { _id: order._id },
+    {
+      status: "SUCCESS",
+      providerReference: data.data?.id,
+      providerDescription: data.data?.description,
+      providerBalanceAfter: data.data?.balance,
+      rawProviderResponse: data,
+    },
+  );
+
+  const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
+
+  // Post-success steps: Internal DB persistence (Failure here MUST NEVER trigger a refund)
+  try {
     await Transaction.create({
       userId: params.userId,
       type: "AIRTIME",
@@ -269,32 +374,15 @@ export async function purchaseAirtime(params: {
         refId,
       },
     }).catch(() => {});
-
-    // Minimal client-safe return: only success and reference for receipt
-    return {
-      success: true,
-      reference: refId,
-    };
-  } catch (err: any) {
-    const isTimeout = isTimeoutError(err);
-    console.error(
-      `[SmartSMS:Airtime] Order ${refId} failed | ${isTimeout ? "Timed out (15s)" : "Error"}: ${formatOneLineError(err)}`
-    );
-    await BillPayment.updateOne(
-      { _id: order._id },
-      { status: "FAILED", errorMessage: isTimeout ? "Timeout" : err.message },
-    );
-    // Refund debited amount from official Jumpa wallet back to user's Bloc MFB account on downstream failure
-    await refundFromOfficialJumpaBlocAccount({
-      userId: params.userId,
-      amount: params.amount,
-      narration: `Refund for failed airtime (${normalizedPhone})`,
-      reference: `ref_${refId}`,
-    }).catch((refundErr) =>
-      console.error(`[SmartSMS] Refund failed for ${refId}: ${formatOneLineError(refundErr)}`)
-    );
-    throw err;
+  } catch (postErr) {
+    console.error(`[Airtime] error for ${refId}:`, postErr);
   }
+
+  // Minimal client-safe return: only success and reference for receipt
+  return {
+    success: true,
+    reference: refId,
+  };
 }
 
 /**
@@ -362,46 +450,77 @@ export async function purchaseData(params: {
   formData.append("token", token);
   formData.append("ref_id", refId);
 
+  // 4. Downstream Provider Call (Isolated provider boundary)
+  let res: Response;
+  let data: any = null;
+
   try {
-    const res = await fetch(
+    res = await fetch(
       `${environment.SMART_SMS_BASE_URL}/internet_data/buy/`,
       {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: formData.toString(),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(20000), // 20s timeout
       },
     );
-
-    const data = await res.json().catch(() => null);
-
-    if (!res.ok || !data?.success) {
-      const rawErr = data?.comment || data?.error || `HTTP ${res.status}`;
-      console.error(
-        `[SmartSMS:Data] Rejected order ${refId} | Status: ${res.status} | Payload: ${formatOneLineError(data || rawErr)}`
-      );
-      await BillPayment.updateOne(
-        { _id: order._id },
-        { status: "FAILED", errorMessage: rawErr, rawProviderResponse: data },
-      );
-      throw new Error(rawErr || "Data purchase failed");
-    }
-
-    // 2. Mark BillPayment SUCCESS
+    data = await res.json().catch(() => null);
+  } catch (fetchErr: any) {
+    const isTimeout = isTimeoutError(fetchErr);
+    console.error(
+      `[Data] Order ${refId} network exception | ${isTimeout ? "Timed out (20s)" : "Error"}: ${formatOneLineError(fetchErr)}`,
+    );
+    // Tier 3: Ambiguous Failure / Timeout -> DO NOT REFUND!
+    // Leave status in PENDING, record error message for user and support audit
     await BillPayment.updateOne(
       { _id: order._id },
       {
-        status: "SUCCESS",
-        providerReference: data.data?.id,
-        providerDescription: data.data?.description,
-        providerBalanceAfter: data.data?.balance,
-        rawProviderResponse: data,
+        errorMessage: isTimeout
+          ? "Response timed out - pending verification"
+          : (fetchErr.message || "Network error"),
       },
     );
+    throw fetchErr;
+  }
 
-    const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
+  // 5. Tier 2: Confirmed Provider Rejection
+  if (!res.ok || !data?.success) {
+    const rawErr = data?.comment || data?.error || `HTTP ${res.status}`;
+    console.error(
+      `[Data] Order ${refId} | Status: ${res.status} | Payload: ${formatOneLineError(data || rawErr)}`,
+    );
+    await BillPayment.updateOne(
+      { _id: order._id },
+      { status: "FAILED", errorMessage: rawErr, rawProviderResponse: data },
+    );
+    // Safe to refund: Provider confirmed refusal
+    await safeRefundBillPayment({
+      billId: order._id,
+      userId: params.userId,
+      amount: params.amount,
+      narration: `Refund for data (${params.productName})`,
+    }).catch((refundErr) =>
+      console.error(`[Data] Refund failed for ${refId}: ${formatOneLineError(refundErr)}`),
+    );
+    throw new Error(rawErr || "Data purchase failed");
+  }
 
-    // 3. Record confirmed transaction in Transaction history
+  // 6. Tier 1: Confirmed Provider Success
+  await BillPayment.updateOne(
+    { _id: order._id },
+    {
+      status: "SUCCESS",
+      providerReference: data.data?.id,
+      providerDescription: data.data?.description,
+      providerBalanceAfter: data.data?.balance,
+      rawProviderResponse: data,
+    },
+  );
+
+  const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
+
+  // Post-success steps: Internal DB persistence (Failure here MUST NEVER trigger a refund)
+  try {
     await Transaction.create({
       userId: params.userId,
       type: "DATA",
@@ -438,31 +557,14 @@ export async function purchaseData(params: {
         refId,
       },
     }).catch(() => {});
-
-    // Minimal client-safe return: only success and reference for receipt
-    return {
-      success: true,
-      reference: refId,
-    };
-  } catch (err: any) {
-    const isTimeout = isTimeoutError(err);
-    console.error(
-      `[SmartSMS:Data] Order ${refId} failed | ${isTimeout ? "Timed out (15s)" : "Error"}: ${formatOneLineError(err)}`
-    );
-    await BillPayment.updateOne(
-      { _id: order._id },
-      { status: "FAILED", errorMessage: isTimeout ? "Timeout" : err.message },
-    );
-    // Refund debited amount from official Jumpa wallet back to user's Bloc MFB account on downstream failure
-    await refundFromOfficialJumpaBlocAccount({
-      userId: params.userId,
-      amount: params.amount,
-      narration: `Refund for failed data (${params.productName})`,
-      reference: `ref_${refId}`,
-    }).catch((refundErr) =>
-      console.error(`[SmartSMS:Data] Refund failed for ${refId}: ${formatOneLineError(refundErr)}`)
-    );
-    throw err;
+  } catch (postErr) {
+    console.error(`[Data] error for ${refId}:`, postErr);
   }
+
+  // Minimal client-safe return: only success and reference for receipt
+  return {
+    success: true,
+    reference: refId,
+  };
 }
 

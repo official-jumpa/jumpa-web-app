@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "The data subscription request timed out. Please check your transaction history before trying again.",
+            "Your order is pending, please check the status shortly before trying again.",
         },
         { status: 504 },
       );

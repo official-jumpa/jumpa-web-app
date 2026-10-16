@@ -10,26 +10,28 @@ async function main() {
     staleHours = Number(args[staleIndex + 1]) || 1;
   }
 
-  console.log(`Checking tx with stale threshold: ${staleHours} hours\n`);
+  console.log(`Checking transactions with stale threshold: ${staleHours} hour(s)\n`);
 
   try {
     const result = await resolveAllPendingTransactions({ staleHours });
 
-    console.log(`Checked: ${result.totalChecked} pending tx(s), confirmed: ${result.confirmed}, failed/expired: ${result.failed}, still pending: ${result.stillPending}`);
+    console.log(
+      `Checked: ${result.totalChecked} pending tx(s), confirmed: ${result.confirmed}, failed/expired: ${result.failed}, still pending: ${result.stillPending}`,
+    );
 
     if (result.details.length > 0) {
       console.log("Transaction Details:", JSON.stringify(result.details, null, 2));
     } else {
-      console.log("No pending txs found");
+      console.log("No pending transactions found");
     }
 
     console.log("\n✅ Job Done");
-    process.exit(0); //terminate the session
+    process.exit(0); // terminate the session
   } catch (err: any) {
     console.error("\n❌ Error resolving transactions:", err?.message || err);
     process.exitCode = 1;
   } finally {
-    await mongoose.disconnect().catch(() => { });
+    await mongoose.disconnect().catch(() => {});
   }
 }
 

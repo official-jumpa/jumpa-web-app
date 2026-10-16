@@ -6,7 +6,9 @@ import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import type { TransactionDetailRow, TransactionKind } from "@/lib/wallet";
 import { detectCarrierFromPhone } from "@/lib/bills";
-import { getExplorerTxUrl } from "@/lib/blockchain";
+import { getExplorerTxUrl, getSolanaRpcUrl } from "@/lib/blockchain";
+import { getHorizonServer } from "@/lib/chains/stellar/client";
+import { Connection } from "@solana/web3.js";
 
 // Types & Provider Interfaces 
 
@@ -251,7 +253,7 @@ async function _applySyncResult(
           userId: tx.userId,
           action: "ONRAMP_COMPLETED",
           details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
-        }).catch(() => {});
+        }).catch(() => { });
         createNotification({
           userId: tx.userId,
           tab: "transactions",
@@ -260,13 +262,13 @@ async function _applySyncResult(
           body: `${tx.amount} ${tx.token} successfully deposited to your wallet`,
           metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
           link: "/transactions",
-        }).catch(() => {});
+        }).catch(() => { });
       } else if (isWithdraw) {
         logUserActivity({
           userId: tx.userId,
           action: "OFFRAMP_COMPLETED",
           details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
-        }).catch(() => {});
+        }).catch(() => { });
         createNotification({
           userId: tx.userId,
           tab: "transactions",
@@ -275,9 +277,137 @@ async function _applySyncResult(
           body: `${tx.amount} ${tx.token} sent to your bank account`,
           metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
           link: "/transactions",
-        }).catch(() => {});
+        }).catch(() => { });
+      } else if (tx.type === "SWAP") {
+        logUserActivity({
+          userId: tx.userId,
+          action: "SWAP_EXECUTED",
+          details: { txId: tx._id, amount: tx.amount, token: tx.token, txHash },
+        }).catch(() => { });
+        createNotification({
+          userId: tx.userId,
+          tab: "transactions",
+          type: "SWAP_COMPLETED",
+          title: "Swap Successful",
+          body: `Swap of ${tx.amount} ${tx.token} successfully completed`,
+          metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
+          link: "/transactions",
+        }).catch(() => { });
       }
     }
+  }
+
+  return tx;
+}
+
+/**
+ * Checks on-chain status of a Stellar transaction via Horizon.
+ */
+export async function checkStellarOnChainStatus(
+  txHash: string,
+  network: "mainnet" | "testnet" = "mainnet",
+): Promise<{ found: boolean; successful: boolean; ledger?: number; createdAt?: string }> {
+  try {
+    const server = getHorizonServer(network);
+    const horizonTx: any = await server.transactions().transaction(txHash).call();
+    return {
+      found: true,
+      successful: horizonTx.successful === true,
+      ledger: horizonTx.ledger_attr,
+      createdAt: horizonTx.created_at,
+    };
+  } catch (err: any) {
+    if (err?.response?.status === 404 || err?.status === 404) {
+      return { found: false, successful: false };
+    }
+    throw err;
+  }
+}
+
+/**
+ * Checks on-chain status of a Solana transaction via JSON-RPC polling.
+ */
+export async function checkSolanaOnChainStatus(
+  txHash: string,
+): Promise<{ found: boolean; successful: boolean; pending?: boolean }> {
+  try {
+    const connection = new Connection(getSolanaRpcUrl(), "confirmed");
+    const { value } = await connection.getSignatureStatuses([txHash]);
+    const status = value?.[0];
+    if (!status) {
+      return { found: false, successful: false };
+    }
+    if (status.confirmationStatus === "confirmed" || status.confirmationStatus === "finalized") {
+      return {
+        found: true,
+        successful: !status.err,
+        pending: false,
+      };
+    }
+    return { found: true, pending: true, successful: false };
+  } catch (err: any) {
+    console.warn(`[OnChain Sync] Solana status check error for ${txHash}:`, err?.message || err);
+    return { found: false, successful: false };
+  }
+}
+
+/**
+ * Syncs a single PENDING on-chain transaction (e.g. SWAP, BRIDGE, TRANSFER) against
+ * the blockchain (Stellar or Solana).
+ */
+export async function syncPendingOnChainTransaction(tx: any): Promise<any> {
+  if (!tx || tx.status !== "PENDING" || !tx.txHash) {
+    return tx;
+  }
+
+  const isStellar =
+    tx.chain === "stellar" ||
+    (!tx.chain && (tx.network === "mainnet" || tx.network === "testnet"));
+  const isSolana = tx.chain === "solana";
+
+  try {
+    if (isStellar) {
+      const net = (tx.network as "mainnet" | "testnet") || "mainnet";
+      let onChain = await checkStellarOnChainStatus(tx.txHash, net);
+      if (!onChain.found) {
+        const altNet = net === "mainnet" ? "testnet" : "mainnet";
+        const altCheck = await checkStellarOnChainStatus(tx.txHash, altNet);
+        if (altCheck.found) onChain = altCheck;
+      }
+
+      if (onChain.found) {
+        if (onChain.successful) {
+          const explorer = tx.explorerUrl || getExplorerTxUrl("stellar", tx.txHash, net === "testnet");
+          return await _applySyncResult(tx, "CONFIRMED", tx.txHash, explorer);
+        } else {
+          return await _applySyncResult(
+            tx,
+            "FAILED",
+            tx.txHash,
+            tx.explorerUrl,
+            "Transaction failed on Stellar network",
+          );
+        }
+      }
+    } else if (isSolana) {
+      const onChain = await checkSolanaOnChainStatus(tx.txHash);
+      if (onChain.found && !onChain.pending) {
+        if (onChain.successful) {
+          const explorer = tx.explorerUrl || getExplorerTxUrl("solana", tx.txHash, false);
+          return await _applySyncResult(tx, "CONFIRMED", tx.txHash, explorer);
+        } else {
+          return await _applySyncResult(
+            tx,
+            "FAILED",
+            tx.txHash,
+            tx.explorerUrl,
+            "Transaction failed on Solana network",
+          );
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[Transaction Sync] Error syncing pending tx ${tx._id}:`, err);
   }
 
   return tx;
@@ -315,6 +445,29 @@ export async function syncPendingRampTransaction(tx: any): Promise<any> {
 }
 
 /**
+ * Dispatches sync for any PENDING transaction — whether ramp or on-chain.
+ */
+export async function syncPendingTransaction(tx: any): Promise<any> {
+  const isCustomPendingSettlement =
+    tx?.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
+    tx?.rampDetails?.settlementStatus !== "COMPLETED";
+
+  if (!tx || (!isCustomPendingSettlement && tx.status !== "PENDING")) {
+    return tx;
+  }
+
+  if (tx.rampDetails?.reference) {
+    return syncPendingRampTransaction(tx);
+  }
+
+  if (tx.txHash) {
+    return syncPendingOnChainTransaction(tx);
+  }
+
+  return tx;
+}
+
+/**
  * Lists transactions belonging to an authenticated user, ordered newest first.
  */
 export async function listTransactionsByUserId(
@@ -333,9 +486,8 @@ export async function listTransactionsByUserId(
         tx.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
         tx.rampDetails?.settlementStatus !== "COMPLETED";
 
-      return (tx.status === "PENDING" || isCustomPendingSettlement) &&
-        tx.rampDetails?.reference
-        ? syncPendingRampTransaction(tx)
+      return (tx.status === "PENDING" || isCustomPendingSettlement)
+        ? syncPendingTransaction(tx)
         : Promise.resolve(tx);
     }),
   );
@@ -372,7 +524,7 @@ export async function getTransactionById(
   }).lean();
 
   if (!tx) return null;
-  return syncPendingRampTransaction(tx);
+  return syncPendingTransaction(tx);
 }
 
 // Transaction Formatting Engine
@@ -464,10 +616,9 @@ const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
     kind: "bridge",
     isIncoming: () => false,
     getTitle: (tx) =>
-      `Bridged to ${
-        tx.bridgeDetails?.toChain
-          ? tx.bridgeDetails.toChain.charAt(0).toUpperCase() + tx.bridgeDetails.toChain.slice(1)
-          : "Asset"
+      `Bridged to ${tx.bridgeDetails?.toChain
+        ? tx.bridgeDetails.toChain.charAt(0).toUpperCase() + tx.bridgeDetails.toChain.slice(1)
+        : "Asset"
       }`,
     getRows: (tx) => {
       const bridge = tx.bridgeDetails;
@@ -809,11 +960,11 @@ function getBaseTransactionFields(tx: any) {
     TX_DESCRIPTORS[typeUpper] ||
     (isCard
       ? {
-          kind: "card" as TransactionKind,
-          isIncoming: () => true,
-          getTitle: (t: any) => t.title || "Card deposit",
-          getRows: (t: any) => buildRampOrBankRows(t),
-        }
+        kind: "card" as TransactionKind,
+        isIncoming: () => true,
+        getTitle: (t: any) => t.title || "Card deposit",
+        getRows: (t: any) => buildRampOrBankRows(t),
+      }
       : undefined) ||
     (token === "AIRTIME" ? TX_DESCRIPTORS.AIRTIME : undefined) ||
     (token === "DATA" ? TX_DESCRIPTORS.DATA : undefined) ||
@@ -875,7 +1026,7 @@ function getBaseTransactionFields(tx: any) {
 }
 
 /**
- * Returns a lean summary DTO designed specifically for list cards (75% smaller, no rows).
+ * Returns a lean summary DTO designed specifically for list cards
  */
 export function formatTransactionSummary(tx: any) {
   const base = getBaseTransactionFields(tx);
@@ -922,9 +1073,8 @@ export function formatTransactionDetail(tx: any) {
     carrier: base.carrier,
     token: base.token,
     explorerUrl,
-    headline: `${formatDecimal(tx.swapDetails?.fromAmount ?? base.rawAmount, 4)} ${
-      tx.swapDetails?.fromToken || base.tokenPart
-    }`.trim(),
+    headline: `${formatDecimal(tx.swapDetails?.fromAmount ?? base.rawAmount, 4)} ${tx.swapDetails?.fromToken || base.tokenPart
+      }`.trim(),
     heading: `${isNgnRefund(tx) ? "Refund" : (SUBJECT[base.kind] ?? "Transaction")} ${OUTCOME[base.status]}`,
     rows: detailRows(tx, base.status, base.descriptor),
   };
@@ -1069,8 +1219,8 @@ export async function queryUserTransactions(params: {
 
   const transactions = await Promise.all(
     rawTransactions.map((tx) =>
-      tx.status === "PENDING" && tx.rampDetails?.reference
-        ? syncPendingRampTransaction(tx)
+      tx.status === "PENDING"
+        ? syncPendingTransaction(tx)
         : Promise.resolve(tx),
     ),
   );
@@ -1078,7 +1228,7 @@ export async function queryUserTransactions(params: {
   return { transactions, total };
 }
 
-// ── Status Updates & Lookups ─────────────────────────────────────────────────
+// ── Status Updates & Lookups 
 
 export async function updateTransactionStatus(params: {
   id: string;
@@ -1179,7 +1329,10 @@ export async function resolveAllPendingTransactions(options?: {
 
   const pendingTxs = await Transaction.find({
     status: "PENDING",
-    "rampDetails.reference": { $exists: true, $ne: null },
+    $or: [
+      { "rampDetails.reference": { $exists: true, $ne: null } },
+      { txHash: { $exists: true, $ne: null } },
+    ],
   }).lean();
 
   console.log(
@@ -1195,48 +1348,64 @@ export async function resolveAllPendingTransactions(options?: {
   };
 
   for (const tx of pendingTxs) {
-    const reference = tx.rampDetails?.reference;
-    if (!reference) continue;
-
-    const handler = getProviderHandler(tx.rampDetails?.provider);
     const isStale = tx.createdAt && new Date(tx.createdAt) < cutoffTime;
 
-    try {
-      const syncRes = await handler.checkStatus(reference, tx);
+    // 1. Ramp provider transactions (Switch or Centiiv)
+    if (tx.rampDetails?.reference) {
+      const reference = tx.rampDetails.reference;
+      const handler = getProviderHandler(tx.rampDetails?.provider);
 
-      if (syncRes.status === "CONFIRMED") {
-        await _applySyncResult(tx, "CONFIRMED", syncRes.txHash, syncRes.explorerUrl);
-        result.confirmed++;
-        result.details.push({
-          id: tx._id,
-          reference,
-          type: tx.type,
-          amount: tx.amount,
-          token: tx.token,
-          previousStatus: "PENDING",
-          newStatus: "CONFIRMED",
-          providerStatus: syncRes.rawStatus,
-        });
-      } else if (syncRes.status === "FAILED" || isStale) {
-        const reason =
-          syncRes.status === "FAILED"
-            ? syncRes.reason || `Provider failed: ${syncRes.rawStatus}`
-            : `Order expired (> ${staleHours}h)`;
+      try {
+        const syncRes = await handler.checkStatus(reference, tx);
 
-        await _applySyncResult(tx, "FAILED", undefined, undefined, reason);
-        result.failed++;
-        result.details.push({
-          id: tx._id,
-          reference,
-          type: tx.type,
-          amount: tx.amount,
-          token: tx.token,
-          previousStatus: "PENDING",
-          newStatus: "FAILED",
-          providerStatus: syncRes.rawStatus || "EXPIRED",
-          reason,
-        });
-      } else {
+        if (syncRes.status === "CONFIRMED") {
+          await _applySyncResult(tx, "CONFIRMED", syncRes.txHash, syncRes.explorerUrl);
+          result.confirmed++;
+          result.details.push({
+            id: tx._id,
+            reference,
+            type: tx.type,
+            amount: tx.amount,
+            token: tx.token,
+            previousStatus: "PENDING",
+            newStatus: "CONFIRMED",
+            providerStatus: syncRes.rawStatus,
+          });
+        } else if (syncRes.status === "FAILED" || isStale) {
+          const reason =
+            syncRes.status === "FAILED"
+              ? syncRes.reason || `Provider failed: ${syncRes.rawStatus}`
+              : `Order expired (> ${staleHours}h)`;
+
+          await _applySyncResult(tx, "FAILED", undefined, undefined, reason);
+          result.failed++;
+          result.details.push({
+            id: tx._id,
+            reference,
+            type: tx.type,
+            amount: tx.amount,
+            token: tx.token,
+            previousStatus: "PENDING",
+            newStatus: "FAILED",
+            providerStatus: syncRes.rawStatus || "EXPIRED",
+            reason,
+          });
+        } else {
+          result.stillPending++;
+          result.details.push({
+            id: tx._id,
+            reference,
+            type: tx.type,
+            amount: tx.amount,
+            token: tx.token,
+            previousStatus: "PENDING",
+            newStatus: "PENDING",
+            providerStatus: syncRes.rawStatus,
+            reason: "Within active deposit window",
+          });
+        }
+      } catch (err: any) {
+        console.error(`[ResolveTx] ⚠️ Error resolving ref ${reference}:`, err?.message || err);
         result.stillPending++;
         result.details.push({
           id: tx._id,
@@ -1246,24 +1415,169 @@ export async function resolveAllPendingTransactions(options?: {
           token: tx.token,
           previousStatus: "PENDING",
           newStatus: "PENDING",
-          providerStatus: syncRes.rawStatus,
-          reason: "Within active deposit window",
+          providerStatus: "ERROR",
+          reason: err?.message || "Error contacting provider",
         });
       }
-    } catch (err: any) {
-      console.error(`[ResolveTx] ⚠️ Error resolving ref ${reference}:`, err?.message || err);
-      result.stillPending++;
-      result.details.push({
-        id: tx._id,
-        reference,
-        type: tx.type,
-        amount: tx.amount,
-        token: tx.token,
-        previousStatus: "PENDING",
-        newStatus: "PENDING",
-        providerStatus: "ERROR",
-        reason: err?.message || "Error contacting provider",
-      });
+      continue;
+    }
+
+    // 2. On-chain transactions (SWAP, BRIDGE, TRANSFER) with txHash
+    if (tx.txHash) {
+      const txHash = tx.txHash;
+      const isStellar =
+        tx.chain === "stellar" ||
+        (!tx.chain && (tx.network === "mainnet" || tx.network === "testnet"));
+      const isSolana = tx.chain === "solana";
+
+      try {
+        if (isStellar) {
+          const net = (tx.network as "mainnet" | "testnet") || "mainnet";
+          let onChain = await checkStellarOnChainStatus(txHash, net);
+          if (!onChain.found) {
+            const altNet = net === "mainnet" ? "testnet" : "mainnet";
+            const altCheck = await checkStellarOnChainStatus(txHash, altNet);
+            if (altCheck.found) onChain = altCheck;
+          }
+
+          if (onChain.found) {
+            if (onChain.successful) {
+              const explorer = tx.explorerUrl || getExplorerTxUrl("stellar", txHash, net === "testnet");
+              await _applySyncResult(tx, "CONFIRMED", txHash, explorer);
+              result.confirmed++;
+              result.details.push({
+                id: tx._id,
+                reference: txHash,
+                type: tx.type,
+                amount: tx.amount,
+                token: tx.token,
+                previousStatus: "PENDING",
+                newStatus: "CONFIRMED",
+                providerStatus: "STELLAR_ONCHAIN_SUCCESS",
+              });
+            } else {
+              const reason = "Transaction failed on Stellar network";
+              await _applySyncResult(tx, "FAILED", txHash, tx.explorerUrl, reason);
+              result.failed++;
+              result.details.push({
+                id: tx._id,
+                reference: txHash,
+                type: tx.type,
+                amount: tx.amount,
+                token: tx.token,
+                previousStatus: "PENDING",
+                newStatus: "FAILED",
+                providerStatus: "STELLAR_ONCHAIN_FAILED",
+                reason,
+              });
+            }
+          } else if (isStale) {
+            const reason = `On-chain tx dropped / not found in ledger (> ${staleHours}h)`;
+            await _applySyncResult(tx, "FAILED", txHash, tx.explorerUrl, reason);
+            result.failed++;
+            result.details.push({
+              id: tx._id,
+              reference: txHash,
+              type: tx.type,
+              amount: tx.amount,
+              token: tx.token,
+              previousStatus: "PENDING",
+              newStatus: "FAILED",
+              providerStatus: "ONCHAIN_DROPPED",
+              reason,
+            });
+          } else {
+            result.stillPending++;
+            result.details.push({
+              id: tx._id,
+              reference: txHash,
+              type: tx.type,
+              amount: tx.amount,
+              token: tx.token,
+              previousStatus: "PENDING",
+              newStatus: "PENDING",
+              providerStatus: "MEMPOOL_PENDING",
+              reason: "Awaiting on-chain confirmation",
+            });
+          }
+        } else if (isSolana) {
+          const onChain = await checkSolanaOnChainStatus(txHash);
+          if (onChain.found && !onChain.pending) {
+            if (onChain.successful) {
+              const explorer = tx.explorerUrl || getExplorerTxUrl("solana", txHash, false);
+              await _applySyncResult(tx, "CONFIRMED", txHash, explorer);
+              result.confirmed++;
+              result.details.push({
+                id: tx._id,
+                reference: txHash,
+                type: tx.type,
+                amount: tx.amount,
+                token: tx.token,
+                previousStatus: "PENDING",
+                newStatus: "CONFIRMED",
+                providerStatus: "SOLANA_ONCHAIN_SUCCESS",
+              });
+            } else {
+              const reason = "Transaction failed on Solana network";
+              await _applySyncResult(tx, "FAILED", txHash, tx.explorerUrl, reason);
+              result.failed++;
+              result.details.push({
+                id: tx._id,
+                reference: txHash,
+                type: tx.type,
+                amount: tx.amount,
+                token: tx.token,
+                previousStatus: "PENDING",
+                newStatus: "FAILED",
+                providerStatus: "SOLANA_ONCHAIN_FAILED",
+                reason,
+              });
+            }
+          } else if (isStale) {
+            const reason = `On-chain tx dropped / not found (> ${staleHours}h)`;
+            await _applySyncResult(tx, "FAILED", txHash, tx.explorerUrl, reason);
+            result.failed++;
+            result.details.push({
+              id: tx._id,
+              reference: txHash,
+              type: tx.type,
+              amount: tx.amount,
+              token: tx.token,
+              previousStatus: "PENDING",
+              newStatus: "FAILED",
+              providerStatus: "ONCHAIN_DROPPED",
+              reason,
+            });
+          } else {
+            result.stillPending++;
+            result.details.push({
+              id: tx._id,
+              reference: txHash,
+              type: tx.type,
+              amount: tx.amount,
+              token: tx.token,
+              previousStatus: "PENDING",
+              newStatus: "PENDING",
+              providerStatus: "SOLANA_PENDING",
+              reason: "Awaiting confirmation",
+            });
+          }
+        }
+      } catch (err: any) {
+        console.error(`[ResolveTx] ⚠️ Error resolving on-chain tx ${txHash}:`, err?.message || err);
+        result.stillPending++;
+        result.details.push({
+          id: tx._id,
+          reference: txHash,
+          type: tx.type,
+          amount: tx.amount,
+          token: tx.token,
+          previousStatus: "PENDING",
+          newStatus: "PENDING",
+          providerStatus: "ERROR",
+          reason: err?.message || "Error contacting blockchain node",
+        });
+      }
     }
   }
 

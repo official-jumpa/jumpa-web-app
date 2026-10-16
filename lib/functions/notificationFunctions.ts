@@ -5,7 +5,7 @@ import {
   Notification,
   type NotificationTab,
 } from "@/models/Notification";
-import { shouldSendNotification } from "@/lib/functions/userPreferenceFunctions";
+import { shouldSendNotification } from "@/lib/functions/userFunctions";
 
 /**
  * Creates and persists a new in-app notification respecting the user's notification preferences.

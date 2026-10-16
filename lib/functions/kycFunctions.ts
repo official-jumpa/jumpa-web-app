@@ -14,6 +14,7 @@ import {
   type KycStatus,
 } from "@/models/KYCSchema";
 import { User } from "@/models/User";
+import { getCountryNameFromCode } from "@/lib/location";
 
 // ── In-Memory KYC Cache Registry
 declare global {
@@ -291,10 +292,9 @@ export async function syncKycToUserProfile(
     if (parts) userUpdates.name = parts;
   }
 
-  if (details.nationality) {
-    userUpdates.country = details.nationality;
-  } else if (details.address?.country) {
-    userUpdates.country = details.address.country;
+  const rawCountry = details.nationality || details.address?.country;
+  if (rawCountry) {
+    userUpdates.country = getCountryNameFromCode(rawCountry);
   }
 
   if (Object.keys(userUpdates).length > 0) {

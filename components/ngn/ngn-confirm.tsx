@@ -115,7 +115,7 @@ export function NgnConfirm({
       try {
         const [kycRes, profileRes] = await Promise.all([
           fetch("/api/v1/kyc"),
-          fetch("/api/user/profile"),
+          fetch("/api/v1/user"),
         ]);
 
         let freshPhone = user?.phoneNumber || "";

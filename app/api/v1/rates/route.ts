@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/v1/rates
  * Returns real-time crypto prices (USD) and fiat exchange rates (NGN, GHS, KES, ZAR).
- * Multi-source resilient pipeline with 60s in-memory server cache and HTTP caching headers.
+ * Multi-source resilient pipeline with 1-hour in-memory server cache and HTTP caching headers.
  */
 export async function GET() {
   const auth = await requireActiveUser({
@@ -27,7 +27,7 @@ export async function GET() {
 
     return NextResponse.json(rates, {
       headers: {
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=7200",
       },
     });
   } catch (err: any) {

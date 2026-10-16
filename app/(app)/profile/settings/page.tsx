@@ -19,7 +19,7 @@ import {
   statementTitle,
 } from "@/lib/statements";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
-import { getUserPreferences } from "@/lib/functions/userPreferenceFunctions";
+import { getUserPreferences } from "@/lib/functions/userFunctions";
 
 interface SettingsPageProps {
   searchParams: Promise<{ section?: string; kind?: string }>;

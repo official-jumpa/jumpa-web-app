@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { getCanonicalCountryName } from "@/lib/countries";
 
 /**
  * Validates a 4-digit numeric transaction PIN.
@@ -33,7 +34,6 @@ export type WalletSetupInput = z.infer<typeof walletSetupSchema>;
  * Validation for updating user profile settings.
  */
 export const updateProfileSchema = z.object({
-  name: z.string().trim().min(3, "Name cannot be empty").max(50, "Name cannot exceed 50 characters").optional(),
   nickname: z
     .string()
     .trim()
@@ -55,11 +55,66 @@ export const updateProfileSchema = z.object({
       message: "Jumpa tag must be 3 to 20 alphanumeric characters or underscores",
     })
     .optional(),
-  country: z.string().trim().length(2, "Country code must be a 2-letter ISO code").optional(),
+  country: z
+    .string()
+    .trim()
+    .transform((v) => getCanonicalCountryName(v))
+    .refine((v): v is string => v !== null, {
+      message: "Please enter a valid country name",
+    })
+    .optional(),
   image: z.string().url("Image must be a valid URL").optional(),
 });
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
+/**
+ * Validation schema for updating user preferences.
+ */
+export const updatePreferencesSchema = z.object({
+  pushNotifications: z.boolean("Must be true or false").optional(),
+  emailNotifications: z.boolean("Must be true or false").optional(),
+  newLoginDetected: z.boolean("Must be true or false").optional(),
+  haptics: z.boolean("Must be true or false").optional(),
+  inAppSounds: z.boolean("Must be true or false").optional(),
+  autoLockTimeout: z
+    .enum(["15m", "30m", "1h", "4h", "7d"])
+    .optional(),
+});
+
+export type UpdatePreferencesInput = z.infer<typeof updatePreferencesSchema>;
+
+/**
+ * Validation schema for user profile and preference updates.
+ * Supports both grouped structures ({ profile?, preferences? }) and flat convenience fields.
+ */
+export const updateUserSchema = z
+  .object({
+    // Grouped shapes
+    profile: updateProfileSchema.optional(),
+    preferences: updatePreferencesSchema.optional(),
+
+    // Flat convenience shapes
+    nickname: updateProfileSchema.shape.nickname,
+    jumpaTag: updateProfileSchema.shape.jumpaTag,
+    country: updateProfileSchema.shape.country,
+    image: updateProfileSchema.shape.image,
+    pushNotifications: updatePreferencesSchema.shape.pushNotifications,
+    emailNotifications: updatePreferencesSchema.shape.emailNotifications,
+    newLoginDetected: updatePreferencesSchema.shape.newLoginDetected,
+    haptics: updatePreferencesSchema.shape.haptics,
+    inAppSounds: updatePreferencesSchema.shape.inAppSounds,
+    autoLockTimeout: updatePreferencesSchema.shape.autoLockTimeout,
+  })
+  .refine(
+    (data) => {
+      // Must contain at least one defined property
+      return Object.values(data).some((val) => val !== undefined);
+    },
+    { message: "Invalid fields provided" },
+  );
+
+export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 
 /**
  * Validation for updating user nickname.

@@ -233,7 +233,7 @@ export function AutoLockProvider({
       setUnlockedCookie(newOption);
 
       try {
-        await fetch("/api/user/preference", {
+        await fetch("/api/v1/user", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ autoLockTimeout: newOption }),

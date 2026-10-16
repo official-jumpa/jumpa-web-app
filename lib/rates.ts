@@ -85,7 +85,7 @@ declare global {
   var _liveRatesCache: { timestamp: number; data: LiveRatesResult } | undefined;
 }
 
-const CACHE_TTL_MS = 60 * 1000; // 1 minute in-memory cache
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour in-memory cache
 
 const COINGECKO_MAP: Record<string, string> = {
   XLM: "stellar",

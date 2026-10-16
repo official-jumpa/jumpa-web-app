@@ -1,8 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { requireAuth } from "@/lib/functions/permissionFunctions";
-import { getUserById, recordUserActivity } from "@/lib/functions/userFunctions";
-import { getUserPreferences } from "@/lib/functions/userPreferenceFunctions";
+import { getUserById, recordUserActivity, getUserPreferences } from "@/lib/functions/userFunctions";
 
 const TIMEOUT_SECONDS: Record<string, number> = {
   "15m": 15 * 60,

@@ -4,6 +4,7 @@ import Image from "next/image";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import {
+  type AttachmentExtra,
   AttachmentMenu,
   type AttachmentSource,
 } from "@/components/chat/attachment-menu";
@@ -54,6 +55,10 @@ interface ChatComposerProps {
   tone?: keyof typeof TONES;
   /** Focuses on mount. Off where the composer is not the point of the screen. */
   autoFocus?: boolean;
+  /** Something outside the field is ready to go, so an empty field can still send. */
+  staged?: boolean;
+  /** Rows the + menu offers under the file sources. */
+  menuExtras?: AttachmentExtra[];
 }
 
 /** Message entry with MediaRecorder audio capture, Vercy Storage, and Gemini 2.5 transcription. */
@@ -65,6 +70,8 @@ export function ChatComposer({
   placeholder = "Tap to start typing...",
   tone = "dock",
   autoFocus = true,
+  staged = false,
+  menuExtras,
 }: ChatComposerProps) {
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
@@ -211,8 +218,8 @@ export function ChatComposer({
     .filter((item) => item !== undefined) as ChatAttachment[];
   const storing = pending.length !== ready.length;
   // Anything held turns the mic into a send button, even before it is stored.
-  const sendMode = hasText || pending.length > 0;
-  const canSend = !disabled && !storing && (hasText || ready.length > 0);
+  const sendMode = hasText || pending.length > 0 || staged;
+  const canSend = !disabled && !storing && (hasText || ready.length > 0 || staged);
 
   const send = () => {
     if (!canSend) return;
@@ -369,6 +376,7 @@ export function ChatComposer({
           <AttachmentMenu
             onPick={openPicker}
             onClose={() => setMenuOpen(false)}
+            extras={menuExtras}
           />
         ) : null}
 

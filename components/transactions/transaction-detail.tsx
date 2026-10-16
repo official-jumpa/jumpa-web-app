@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/auth/copy-button";
+import { TransactionHelpButton } from "@/components/support/transaction-help-button";
 import { ReceiptSheet } from "@/components/transactions/receipt-sheet";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { ScreenHeader } from "@/components/ui/screen-header";
@@ -177,6 +178,8 @@ export function TransactionDetail({
           Download Receipt
         </button>
       ) : null}
+
+      {transaction ? <TransactionHelpButton transactionId={transaction.id} /> : null}
 
       {transaction && receiptOpen ? (
         <ReceiptSheet

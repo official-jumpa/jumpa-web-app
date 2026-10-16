@@ -23,7 +23,10 @@ export type NotificationType =
   | "JUMPA_TAG_SET"
   | "WALLET_CREATED"
   | "WALLET_IMPORTED"
-  | "SECURITY_ALERT";
+  | "SECURITY_ALERT"
+  | "SUPPORT_AGENT_REPLIED"
+  | "SUPPORT_TICKET_UPDATED"
+  | "SUPPORT_TICKET_RESOLVED";
 
 export interface INotification {
   _id: string;

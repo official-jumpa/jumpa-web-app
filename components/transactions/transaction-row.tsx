@@ -34,6 +34,8 @@ const GLYPH: Record<
   invest: { Icon: MoneyWithdrawalIcon },
 };
 
+const ROW = "tap flex items-center gap-1.5 text-left active:scale-[0.98]";
+
 /** Hairline between rows. `-mb-px` keeps it out of the flow — Figma draws it as a zero-height line. */
 export function TransactionRule() {
   return <span className="-mb-px h-px w-full bg-jumpa-neutral-95" />;
@@ -43,10 +45,13 @@ export function TransactionRule() {
 export function TransactionRow({
   transaction,
   badge = true,
+  onSelect,
 }: {
   transaction: Transaction;
   /** The chain mark on the tile. Off on a fiat-only screen, where no token is involved. */
   badge?: boolean;
+  /** Turns the row into a picker choice instead of a link to its detail. */
+  onSelect?: (transaction: Transaction) => void;
 }) {
   const { id, kind, chain, title, detail, amount, status, carrier, createdAt } =
     transaction;
@@ -126,11 +131,23 @@ export function TransactionRow({
 
   if (!id) return <div className="flex items-center gap-1.5">{body}</div>;
 
+  if (onSelect) {
+    return (
+      <button
+        type="button"
+        onClick={() => onSelect(transaction)}
+        className={cn(ROW, "w-full")}
+      >
+        {body}
+      </button>
+    );
+  }
+
   return (
     <Link
       prefetch={false}
       href={`/transactions?id=${encodeURIComponent(id)}`}
-      className="tap flex items-center gap-1.5 text-left active:scale-[0.98]"
+      className={ROW}
     >
       {body}
     </Link>

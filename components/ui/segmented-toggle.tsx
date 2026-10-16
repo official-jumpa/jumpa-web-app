@@ -62,7 +62,27 @@ const INVERSE: Variant = {
   offText: "text-jumpa-primary-100",
 };
 
-const VARIANTS = { chip: CHIP, split: SPLIT, inverse: INVERSE } as const;
+/** Full-width filter over a list — a white thumb on a grey track, like iOS. */
+const TRACK: Variant = {
+  display: "flex",
+  grid: "grid",
+  frame:
+    "gap-1 rounded-pill bg-jumpa-neutral-50 p-1 ring-1 ring-jumpa-neutral-60 ring-inset",
+  gap: 1,
+  pad: 1,
+  option:
+    "flex h-9 flex-1 items-center justify-center gap-1.5 rounded-pill text-xs leading-4 font-semibold",
+  thumb: "bg-jumpa-white shadow-jumpa-sm",
+  onText: "text-jumpa-black",
+  offText: "text-jumpa-neutral-500",
+};
+
+const VARIANTS = {
+  chip: CHIP,
+  split: SPLIT,
+  inverse: INVERSE,
+  track: TRACK,
+} as const;
 
 /**
  * Not-yet-live tone, shared by both variants: the pill stays in place so the

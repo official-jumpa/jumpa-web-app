@@ -9,6 +9,14 @@ import { ImageIcon } from "@/components/ui/icons/image";
 /** Which hidden input the chosen row opens. */
 export type AttachmentSource = "image" | "file" | "camera";
 
+/** A row a screen adds under the three file sources, e.g. sharing a transaction. */
+export interface AttachmentExtra {
+  id: string;
+  Icon: ComponentType<SVGProps<SVGSVGElement>>;
+  title: string;
+  onPick: () => void;
+}
+
 const OPTIONS: {
   id: AttachmentSource;
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
@@ -27,9 +35,11 @@ const OPTIONS: {
 export function AttachmentMenu({
   onPick,
   onClose,
+  extras = [],
 }: {
   onPick: (source: AttachmentSource) => void;
   onClose: () => void;
+  extras?: AttachmentExtra[];
 }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -55,22 +65,46 @@ export function AttachmentMenu({
         <ul className="flex flex-col">
           {OPTIONS.map(({ id, Icon, title }) => (
             <li key={id}>
-              <button
-                type="button"
-                onClick={() => onPick(id)}
-                className="tap flex w-full items-center gap-2.5 rounded-surface px-2 py-2 text-left active:scale-[0.98] hover:bg-jumpa-neutral-50"
-              >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-jumpa-neutral-50">
-                  <Icon className="size-4.5 text-jumpa-primary-600" />
-                </span>
-                <span className="text-sm font-medium text-jumpa-black">
-                  {title}
-                </span>
-              </button>
+              <MenuRow Icon={Icon} title={title} onClick={() => onPick(id)} />
+            </li>
+          ))}
+          {extras.map((extra) => (
+            <li key={extra.id}>
+              <MenuRow
+                Icon={extra.Icon}
+                title={extra.title}
+                onClick={() => {
+                  onClose();
+                  extra.onPick();
+                }}
+              />
             </li>
           ))}
         </ul>
       </div>
     </>
+  );
+}
+
+function MenuRow({
+  Icon,
+  title,
+  onClick,
+}: {
+  Icon: ComponentType<SVGProps<SVGSVGElement>>;
+  title: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="tap flex w-full items-center gap-2.5 rounded-surface px-2 py-2 text-left active:scale-[0.98] hover:bg-jumpa-neutral-50"
+    >
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-jumpa-neutral-50">
+        <Icon className="size-4.5 text-jumpa-primary-600" />
+      </span>
+      <span className="text-sm font-medium text-jumpa-black">{title}</span>
+    </button>
   );
 }

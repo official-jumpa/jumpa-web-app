@@ -3,12 +3,14 @@
 import { useSyncExternalStore } from "react";
 import { formatClock } from "@/lib/chat";
 import { formatNotificationTime } from "@/lib/notifications";
+import { formatDeadline } from "@/lib/support-tickets";
 import { formatTxDate } from "@/lib/wallet";
 
 const FORMAT = {
   clock: formatClock,
   notification: formatNotificationTime,
   history: formatTxDate,
+  deadline: formatDeadline,
 } as const;
 
 const subscribe = () => () => {};

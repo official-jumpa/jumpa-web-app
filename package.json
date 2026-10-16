@@ -10,7 +10,8 @@
     "lint": "biome check",
     "format": "biome format --write",
     "resolve-pending-txs": "node --import tsx script/resolve-transactions.ts",
-    "check-deposits": "node --import tsx script/check-deposits.ts"
+    "check-deposits": "node --import tsx script/check-deposits.ts",
+    "support-sla": "node --import tsx script/support-sla.ts"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",

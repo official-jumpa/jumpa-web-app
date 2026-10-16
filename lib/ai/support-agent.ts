@@ -1,5 +1,14 @@
-import { sanitizeDSML } from "@/lib/ai/jumpaAgent";
+import { z } from "zod";
+import { parseDSMLToolCalls, sanitizeDSML } from "@/lib/ai/jumpaAgent";
 import { environment } from "@/lib/environment";
+import { JUMPA_COMMUNITY_WHATSAPP_URL, SUPPORT_EMAIL } from "@/lib/support";
+import { describeSupportHours } from "@/lib/support-hours";
+import {
+  TICKET_CATEGORIES,
+  TICKET_PRIORITIES,
+  type TicketCategory,
+  type TicketPriority,
+} from "@/lib/support-tickets";
 
 export interface SupportChatMessage {
   role: "user" | "assistant" | "system";
@@ -12,17 +21,88 @@ export interface SupportAgentContext {
   email?: string | null;
 }
 
+/** The assistant decided a person has to take this. */
+export interface SupportHandoff {
+  category: TicketCategory;
+  priority: TicketPriority;
+  /** One line for the agent: why a person is needed. */
+  reason: string;
+  /** What the user wants and what they already gave, so nobody asks twice. */
+  summary: string;
+}
+
+export interface SupportAgentResult {
+  reply: string;
+  handoff?: SupportHandoff;
+}
+
+const ESCALATE_TOOL_NAME = "escalate_to_human";
+
+const ESCALATE_TOOL = {
+  type: "function",
+  function: {
+    name: ESCALATE_TOOL_NAME,
+    description:
+      "Hand this conversation to a person on the Jumpa support team. Call it instead of replying when section 11 says a person is needed.",
+    parameters: {
+      type: "object",
+      properties: {
+        category: {
+          type: "string",
+          enum: [...TICKET_CATEGORIES],
+          description: "What the problem is about.",
+        },
+        priority: {
+          type: "string",
+          enum: [...TICKET_PRIORITIES],
+          description: "high only for fraud, a compromised account or money missing.",
+        },
+        reason: {
+          type: "string",
+          description: "One short line for the agent: why a person is needed.",
+        },
+        summary: {
+          type: "string",
+          description:
+            "2-4 sentences for the agent: what the user wants, what they have tried, and every amount, date, bank, address and reference they gave.",
+        },
+      },
+      required: ["category", "priority", "reason", "summary"],
+    },
+  },
+} as const;
+
+/** Lenient on purpose: once the model chose a person, bad args must not undo that. */
+const handoffSchema = z.object({
+  category: z.enum(TICKET_CATEGORIES).catch("other"),
+  priority: z.enum(TICKET_PRIORITIES).catch("normal"),
+  reason: z.string().trim().max(200).catch(""),
+  summary: z.string().trim().max(1200).catch(""),
+});
+
+function toHandoff(args: unknown): SupportHandoff {
+  const parsed = handoffSchema.parse(args ?? {});
+  return {
+    ...parsed,
+    reason: parsed.reason || "The assistant could not resolve this",
+    summary: parsed.summary,
+  };
+}
+
+/** Said when no provider answers; the screen's "Talk to a human" is always there. */
+const UNAVAILABLE_REPLY =
+  "I can't answer right now. Tap Talk to a human and someone from the team will pick this up.";
+
 /**
- * Builds the comprehensive Jumpa Support Specialist system prompt.
- * Contains the complete service catalog and strict guardrails to decline
- * anything outside of Jumpa's offerings.
+ * Builds the Jumpa Support system prompt: the service catalog, the guardrails,
+ * and when to hand over to a person.
  */
 export function buildSupportSystemPrompt(context?: SupportAgentContext): string {
   const userGreeting = context?.userName
     ? `The user's name is ${context.userName}.`
     : context?.jumpaTag
-    ? `The user's Jumpa tag is @${context.jumpaTag}.`
-    : "The user is an authenticated Jumpa member.";
+      ? `The user's Jumpa tag is @${context.jumpaTag}.`
+      : "The user is an authenticated Jumpa member.";
 
   return `You are Jumpa Support, the official AI customer support for the Jumpa web app.
 ${userGreeting}
@@ -30,6 +110,7 @@ ${userGreeting}
 ### YOUR ROLE & IDENTITY:
 - You provide top-tier, empathetic, accurate, and concise customer support for Jumpa users.
 - You guide users through Jumpa's features, troubleshoot issues, clarify policies, explain fees, and direct them to the appropriate screens in the app.
+- You are the first line of support. A person on the Jumpa team takes over when you hand the conversation to them (section 11).
 
 ---
 
@@ -47,15 +128,17 @@ ${userGreeting}
    - Do NOT mention any third-party backend partners, APIs, or infrastructure providers (e.g., Switch, Centiiv, Bellmonie, YellowCard, Strowallet, etc.) to the user under any circumstance.
    - Always refer to services as Jumpa services (e.g., "Jumpa Naira account", "Jumpa virtual card", "bank transfer").
 4. **SECURITY & PRIVACY (MANDATORY)**:
-   - NEVER ask for, accept, or store the user's 12/24-word recovery phrase (mnemonic), private keys, or PINs.
-   - If a user shares a recovery phrase or PIN, IMMEDIATELY warn them:
-     "Please never share your recovery phrase or PIN with anyone, including Jumpa support. Jumpa will never ask for your recovery phrase."
+   - NEVER ask for, accept, or store the user's 12/24-word recovery phrase (mnemonic), private keys, 4-digit transaction PIN or 6-digit login password.
+   - If a user shares a recovery phrase, PIN or password, IMMEDIATELY warn them:
+     "Please never share your recovery phrase, PIN or password with anyone, including Jumpa support. Jumpa will never ask for them."
 5. **NO FINANCIAL / SPECULATION ADVICE**:
    - Never advise on buying, selling, or holding any token, and do not speculate on prices.
 6. **NO EMOJIS**:
    - Do NOT use emojis anywhere in your responses. Keep the tone clean, modern, and professional.
-7. **VISUAL INTELLIGENCE & ATTACHED SCREENSHOTS / RECEIPTS**:
-   - When users attach screenshots, payment receipts, or error screens, visual intelligence analysis is provided. Use the extracted details (bank name, account number, session ID, transaction hash, error text, amount, status) directly to resolve their issue.
+7. **ATTACHED SCREENSHOTS, RECEIPTS & TRANSACTIONS**:
+   - When users attach screenshots, payment receipts, or error screens, an analysis of the image is provided.
+   - When users attach a transaction from their history, its details are provided in the conversation.
+   - Use those details (bank name, account number, session ID, transaction hash, error text, amount, status) directly to resolve their issue. Never invent a status the details do not show.
 
 ---
 
@@ -123,134 +206,132 @@ ${userGreeting}
    - **Device / Session Management**: View active logged-in devices and revoke sessions in Settings > Devices.
    - **Account Deletion**: Accounts can be deleted in Settings > Danger Zone > Delete Account with a 30-day grace period. Funds on-chain remain safe and recoverable via the secret recovery phrase.
 
-11. **ESCALATION & SUPPORT CONTACTS**:
-   - **Jumpa WhatsApp Community**: For unresolved issues or direct escalation with our team: [Jumpa WhatsApp Community](https://chat.whatsapp.com/KExp42DN6gr9yPkSUpIa6L?mode=gi_t).
-   - **Email Support**: support@usejumpa.com.
-   - **FAQs**: Accessible under Help & Support > Jumpa FAQs (/support?view=faqs).`;
+11. **HANDING OVER TO A PERSON (CRITICAL)**:
+   - The support team works ${describeSupportHours()}. Outside those hours a handed-over conversation waits for the next opening, and the user is told when.
+   - **Call the \`${ESCALATE_TOOL_NAME}\` tool instead of replying** when:
+     * the user asks for a person, an agent or customer care;
+     * money is missing, a transfer or deposit has not arrived, or the user was debited without the result they paid for;
+     * the answer needs someone to look up their account or a specific transaction (you cannot see the ledger or the providers);
+     * the user reports fraud, a scam, a hacked or compromised account, or activity they did not make — priority **high**;
+     * the user disputes a charge, a rate or a refund;
+     * the user is still stuck after you have tried twice, or is clearly frustrated.
+   - When you call the tool, **write no reply text**. The app tells the user a person is coming.
+   - Fill \`summary\` so the agent never has to ask again: what the user wants, what they tried, and every amount, date, bank, address and reference they gave.
+   - Do NOT hand over for a question the catalog above answers. Answer it.
+   - Never promise an outcome, a refund or a time. Never tell the user to email or message anyone else instead of handing over.
+   - If the user asks for another way to reach the team, or where to meet other Jumpa users, the team also watches the [Jumpa WhatsApp community](${JUMPA_COMMUNITY_WHATSAPP_URL}) and reads ${SUPPORT_EMAIL}. Handing over here is still the way to get their own account or transaction looked at.
+   - **FAQs**: Jumpa FAQs are available under Help & Support > Jumpa FAQs (/support?view=faqs).`;
 }
 
-/**
- * Executes a completion call against DeepSeek with toolChoice: "none"
- * specifically for support inquiries.
- */
+interface Provider {
+  name: string;
+  url: string;
+  key: string | undefined;
+  model: string;
+  timeoutMs: number;
+  headers?: Record<string, string>;
+}
+
+function providers(): Provider[] {
+  const all: Provider[] = [
+    {
+      name: "DeepSeek",
+      url: "https://api.deepseek.com/chat/completions",
+      key: process.env.DEEPSEEK_API,
+      model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+      timeoutMs: 10_000,
+    },
+    {
+      name: "OpenRouter",
+      url: "https://openrouter.ai/api/v1/chat/completions",
+      key: process.env.OPENROUTER_API_KEY || environment.OPENROUTER_API_KEY,
+      model: process.env.OPENROUTER_CHAT_MODEL || "deepseek/deepseek-chat",
+      timeoutMs: 20_000,
+      headers: { "HTTP-Referer": "https://usejumpa.com", "X-Title": "Jumpa" },
+    },
+  ];
+  return all.filter((p) => p.key);
+}
+
+interface ProviderToolCall {
+  function?: { name?: string; arguments?: string };
+}
+
+/** Native `tool_calls` first; DeepSeek sometimes writes them into the text as DSML. */
+function findHandoff(content: string, toolCalls: ProviderToolCall[] | undefined) {
+  const native = toolCalls?.find((c) => c.function?.name === ESCALATE_TOOL_NAME);
+  if (native) {
+    try {
+      return toHandoff(JSON.parse(native.function?.arguments || "{}"));
+    } catch {
+      return toHandoff({});
+    }
+  }
+  const dsml = parseDSMLToolCalls(content).find((c) => c.toolName === ESCALATE_TOOL_NAME);
+  return dsml ? toHandoff(dsml.toolArgs) : undefined;
+}
+
+/** One provider, one attempt. `null` means try the next one. */
+async function callProvider(
+  provider: Provider,
+  messages: SupportChatMessage[],
+): Promise<SupportAgentResult | null> {
+  try {
+    const res = await fetch(provider.url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${provider.key}`,
+        ...provider.headers,
+      },
+      body: JSON.stringify({
+        model: provider.model,
+        messages,
+        tools: [ESCALATE_TOOL],
+        tool_choice: "auto",
+        temperature: 0.2,
+        max_tokens: 1024,
+      }),
+      signal: AbortSignal.timeout(provider.timeoutMs),
+    });
+    if (!res.ok) {
+      console.warn(`[SupportAgent] ${provider.name} returned`, res.status, await res.text());
+      return null;
+    }
+
+    const data = await res.json();
+    const message = data.choices?.[0]?.message;
+    const content: string = message?.content || "";
+    const handoff = findHandoff(content, message?.tool_calls);
+    const reply = sanitizeDSML(content).trim();
+
+    if (handoff) return { reply, handoff };
+    return reply ? { reply } : null;
+  } catch (err) {
+    console.warn(`[SupportAgent] ${provider.name} failed:`, (err as Error).message);
+    return null;
+  }
+}
+
+/** Answers, or hands over. Never throws: an outage reads as a reply. */
 export async function runSupportAgentCompletion(
   messages: SupportChatMessage[],
   context?: SupportAgentContext,
-): Promise<string> {
-  const deepseekApiKey = process.env.DEEPSEEK_API;
-  const openRouterKey =
-    process.env.OPENROUTER_API_KEY || environment.OPENROUTER_API_KEY;
-
-  if (!deepseekApiKey && !openRouterKey) {
-    console.warn("[SupportAgent] API key missing");
-    return "Our support assistant is temporarily unavailable. Please email us at support@usejumpa.com and our team will assist you immediately.";
+): Promise<SupportAgentResult> {
+  const list = providers();
+  if (!list.length) {
+    console.warn("[SupportAgent] No provider key configured");
+    return { reply: UNAVAILABLE_REPLY };
   }
 
-  const systemPrompt = buildSupportSystemPrompt(context);
-  const fullMessages: SupportChatMessage[] = [
-    { role: "system", content: systemPrompt },
+  const full: SupportChatMessage[] = [
+    { role: "system", content: buildSupportSystemPrompt(context) },
     ...messages,
   ];
 
-  // 1. Direct DeepSeek Primary
-  const callDirectDeepSeek = async (): Promise<string | null> => {
-    if (!deepseekApiKey) return null;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-    try {
-      const res = await fetch("https://api.deepseek.com/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${deepseekApiKey}`,
-        },
-        body: JSON.stringify({
-          model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
-          messages: fullMessages,
-          temperature: 0.2,
-          max_tokens: 1024,
-        }),
-        signal: controller.signal,
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        console.warn("[SupportAgent] Primary DeepSeek returned status:", res.status, errText);
-        return null;
-      }
-
-      const data = await res.json();
-      const rawReply = data.choices?.[0]?.message?.content || "";
-      const cleanReply = sanitizeDSML(rawReply).trim();
-      return cleanReply || null;
-    } catch (err: any) {
-      console.warn("[SupportAgent] Primary DeepSeek failed or timed out (10s):", err.message);
-      return null;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  };
-
-  // 2. OpenRouter Fallback
-  const callOpenRouter = async (): Promise<string | null> => {
-    if (!openRouterKey) return null;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
-    try {
-      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${openRouterKey}`,
-          "HTTP-Referer": "https://usejumpa.com",
-          "X-Title": "Jumpa",
-        },
-        body: JSON.stringify({
-          model: process.env.OPENROUTER_CHAT_MODEL || "deepseek/deepseek-chat",
-          messages: fullMessages,
-          temperature: 0.2,
-          max_tokens: 1024,
-        }),
-        signal: controller.signal,
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        console.error("[SupportAgent] OpenRouter fallback returned status:", res.status, errText);
-        return null;
-      }
-
-      const data = await res.json();
-      const rawReply = data.choices?.[0]?.message?.content || "";
-      const cleanReply = sanitizeDSML(rawReply).trim();
-      return cleanReply || null;
-    } catch (err: any) {
-      console.error("[SupportAgent] OpenRouter fallback error:", err.message);
-      return null;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  };
-
-  try {
-    if (deepseekApiKey) {
-      const primaryRes = await callDirectDeepSeek();
-      if (primaryRes) {
-        return primaryRes;
-      }
-    }
-
-    if (openRouterKey) {
-      console.log("[SupportAgent] Falling back to OpenRouter...");
-      const fallbackRes = await callOpenRouter();
-      if (fallbackRes) {
-        return fallbackRes;
-      }
-    }
-
-    return "I'm having a little trouble connecting to our support network right now. Please try again in a moment, or reach out to us at support@usejumpa.com.";
-  } catch (err) {
-    console.error("[SupportAgent Network Error]", err);
-    return "I couldn't complete your request due to a connection issue. Please check your network and try again, or write to support@usejumpa.com.";
+  for (const provider of list) {
+    const result = await callProvider(provider, full);
+    if (result) return result;
   }
+  return { reply: UNAVAILABLE_REPLY };
 }

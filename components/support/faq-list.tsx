@@ -3,13 +3,13 @@
 import { useCallback, useRef, useState } from "react";
 import { MinusIcon } from "@/components/ui/icons/minus";
 import { PlusIcon } from "@/components/ui/icons/plus";
-import { FAQS } from "@/lib/support";
+import { FAQS, type Faq } from "@/lib/support";
 
 /**
  * One question per row, expanding in place with a smooth height animation.
  * A shared open index keeps one row open at a time, as the design draws it.
  */
-export function FaqList() {
+export function FaqList({ items = FAQS }: { items?: Faq[] }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const toggle = useCallback((index: number) => {
@@ -18,7 +18,7 @@ export function FaqList() {
 
   return (
     <div className="flex flex-col gap-2">
-      {FAQS.map(({ question, answer }, index) => {
+      {items.map(({ question, answer }, index) => {
         const isOpen = openIndex === index;
 
         return (

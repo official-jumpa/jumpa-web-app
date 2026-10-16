@@ -222,8 +222,13 @@ export const environment = {
   BELLMONIE_BUSINESS_PREFIX:
     process.env.BELLMONIE_BUSINESS_PREFIX || "JUMPA",
 
-  // Shared with the admin dashboard; empty disables every /api/admin route.
-  ADMIN_API_SECRET: process.env.ADMIN_API_SECRET || "",
+  // LIVE SUPPORT — all optional; an empty value only switches that alert off.
+  /** Slack or Discord incoming webhook pinged on every handoff. */
+  SUPPORT_WEBHOOK_URL: process.env.SUPPORT_WEBHOOK_URL || "",
+  /** The dashboard's ticket page; the ticket id is appended. */
+  SUPPORT_DASHBOARD_URL: process.env.SUPPORT_DASHBOARD_URL || "",
+  /** Comma-separated; the dashboard's admin list, emailed unclaimed-ticket and SLA alerts. Grants nothing here. */
+  ADMIN_EMAILS: process.env.ADMIN_EMAILS || "",
 
 };
 

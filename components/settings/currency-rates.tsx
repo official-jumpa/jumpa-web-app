@@ -39,7 +39,7 @@ export function CurrencyRates() {
 
     async function loadRates() {
       try {
-        const res = await fetch("/api/rates");
+        const res = await fetch("/api/v1/rates");
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled && data?.tokens && data?.fiatRates) {

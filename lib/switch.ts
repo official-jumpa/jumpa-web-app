@@ -372,13 +372,14 @@ export class SwitchService {
         method: "POST",
         headers: this.getHeaders(),
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(8000),
       });
 
-      const responseData = await response.json();
-      if (!response.ok || !responseData.success) {
+      const responseData = await response.json().catch(() => null);
+      if (!response.ok || !responseData?.success) {
         return {
           success: false,
-          message: parseSwitchError(responseData.message || "Failed to fetch onramp rate"),
+          message: parseSwitchError(responseData?.message || "Failed to fetch onramp rate"),
         };
       }
 
@@ -387,7 +388,7 @@ export class SwitchService {
         rate: responseData.data?.rate,
       };
     } catch (error: any) {
-      console.error("[SwitchService] Error fetching onramp rate:", error);
+      console.error(`[SwitchService] Error fetching onramp rate: ${formatOneLineError(error)}`);
       return { success: false, message: error.message };
     }
   }
@@ -406,13 +407,14 @@ export class SwitchService {
         method: "POST",
         headers: this.getHeaders(),
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(8000),
       });
 
-      const responseData = await response.json();
-      if (!response.ok || !responseData.success) {
+      const responseData = await response.json().catch(() => null);
+      if (!response.ok || !responseData?.success) {
         return {
           success: false,
-          message: parseSwitchError(responseData.message || "Failed to fetch offramp rate"),
+          message: parseSwitchError(responseData?.message || "Failed to fetch offramp rate"),
         };
       }
 
@@ -421,7 +423,7 @@ export class SwitchService {
         rate: responseData.data?.rate,
       };
     } catch (error: any) {
-      console.error("[SwitchService] Error fetching offramp rate:", error);
+      console.error(`[SwitchService] Error fetching offramp rate: ${formatOneLineError(error)}`);
       return { success: false, message: error.message };
     }
   }

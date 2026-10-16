@@ -1,9 +1,11 @@
 import { FLAGS } from "@/lib/flags";
 import { COUNTRIES } from "@/lib/transfer";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 /**
  * Token and Fiat definitions for Currency Rates & Pricing feeds.
- * Real-time rates are dynamically fetched from the Coinbase Exchange Rates API.
+ * Multi-source real-time feed: CoinGecko (primary for all tokens including TRX),
+ * Switch & Centiiv (live Jumpa onramp NGN rates), and Open Exchange Rates (African/global fiats).
  */
 
 export interface RateToken {
@@ -85,9 +87,162 @@ declare global {
 
 const CACHE_TTL_MS = 60 * 1000; // 1 minute in-memory cache
 
+const COINGECKO_MAP: Record<string, string> = {
+  XLM: "stellar",
+  USDC: "usd-coin",
+  USDT: "tether",
+  ETH: "ethereum",
+  SOL: "solana",
+  TRX: "tron",
+};
+
 /**
- * Fetches real-time crypto and fiat rates from Coinbase Public Exchange Rates API.
- * In case of temporary network failure, smoothly falls back to secondary sources or cache.
+ * Fetches crypto USD prices across multiple sources (CoinGecko primary, Coinbase & Kraken fallbacks).
+ */
+async function fetchCryptoPrices(): Promise<Record<string, number>> {
+  const prices: Record<string, number> = {};
+
+  // 1. Primary: CoinGecko Simple Price (supports all 6 tokens including TRX in 1 fast call)
+  try {
+    const cgIds = Object.values(COINGECKO_MAP).join(",");
+    const res = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds}&vs_currencies=usd`,
+      {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(5000),
+      },
+    );
+    if (res.ok) {
+      const data = await res.json();
+      for (const [symbol, id] of Object.entries(COINGECKO_MAP)) {
+        if (data[id]?.usd) {
+          prices[symbol] = data[id].usd;
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[Rates Service] CoinGecko fetch failed: ${formatOneLineError(err)}`);
+  }
+
+  // 2. Secondary fallback: Coinbase for XLM, USDC, USDT, ETH, SOL
+  const missingSymbols = RATE_TOKENS.map((t) => t.symbol).filter((s) => !prices[s]);
+  if (missingSymbols.length > 0) {
+    try {
+      const res = await fetch("https://api.coinbase.com/v2/exchange-rates?currency=USD", {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const rawRates = json?.data?.rates;
+        if (rawRates) {
+          for (const sym of missingSymbols) {
+            if (sym !== "TRX" && rawRates[sym]) {
+              const num = parseFloat(rawRates[sym]);
+              if (num > 0) prices[sym] = 1 / num;
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[Rates Service] Coinbase fallback failed: ${formatOneLineError(err)}`);
+    }
+
+    // Secondary fallback for TRX specifically: Kraken public ticker
+    if (!prices["TRX"]) {
+      try {
+        const res = await fetch("https://api.kraken.com/0/public/Ticker?pair=TRXUSD", {
+          signal: AbortSignal.timeout(4000),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const last = parseFloat(data?.result?.TRXUSD?.c?.[0]);
+          if (last > 0) prices["TRX"] = last;
+        }
+      } catch (err: any) {
+        console.warn(`[Rates Service] Kraken TRX fallback failed: ${formatOneLineError(err)}`);
+      }
+    }
+  }
+
+  return prices;
+}
+
+/**
+ * Fetches fiat exchange rates per USD.
+ * - NGN is fetched directly from Jumpa's live onramp provider (Switch/Centiiv) to match actual user pricing.
+ * - Secondary fiats (GHS, KES, ZAR) are fetched from Open Exchange Rates.
+ */
+async function fetchFiatRates(): Promise<Record<string, { symbol: string; perUsd: number }>> {
+  const liveFiat: Record<string, { symbol: string; perUsd: number }> = {
+    USD: { symbol: "$", perUsd: 1 },
+  };
+
+  // 1. Regional African & global fiats from Open Exchange Rates
+  try {
+    const res = await fetch("https://open.er-api.com/v6/latest/USD", {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      for (const [code, info] of Object.entries(FIAT_CURRENCIES)) {
+        if (code === "USD") continue;
+        if (data.rates?.[code]) {
+          liveFiat[code] = {
+            symbol: info.symbol,
+            perUsd: Math.round(data.rates[code] * 100) / 100,
+          };
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[Rates Service] Open ER-API fetch failed: ${formatOneLineError(err)}`);
+  }
+
+  // 2. Override NGN with Switch live rate (without developer fee markup)
+  try {
+    const { SwitchService } = await import("@/lib/switch");
+    const switchRateRes = await SwitchService.getOfframpRate("tron:usdt");
+    if (switchRateRes.success && switchRateRes.rate && switchRateRes.rate > 0) {
+      liveFiat["NGN"] = {
+        symbol: "₦",
+        perUsd: Math.round(switchRateRes.rate * 100) / 100,
+      };
+    } else {
+      const onrampRes = await SwitchService.getOnrampRate("tron:usdt");
+      if (onrampRes.success && onrampRes.rate && onrampRes.rate > 0) {
+        liveFiat["NGN"] = {
+          symbol: "₦",
+          perUsd: Math.round(onrampRes.rate * 100) / 100,
+        };
+      } else {
+        // Fallback: Try Centiiv
+        const { getCentiivQuote } = await import("@/lib/functions/centiivFunctions");
+        const centiivQuote = await getCentiivQuote({
+          fromAsset: "USDC",
+          toAsset: "NGN",
+          amount: 10,
+          network: "STELLAR",
+        });
+        const centiivRate = parseFloat(centiivQuote.rate);
+        if (centiivRate > 0) {
+          liveFiat["NGN"] = {
+            symbol: "₦",
+            perUsd: Math.round(centiivRate * 100) / 100,
+          };
+        }
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[Rates Service] Switch NGN rate fetch failed: ${formatOneLineError(err)}`);
+  }
+
+  return liveFiat;
+}
+
+/**
+ * Fetches real-time crypto and fiat rates.
+ * In-memory 60s cache with fallback to stale cache on upstream failure.
  */
 export async function getLiveRates(): Promise<LiveRatesResult> {
   const now = Date.now();
@@ -96,61 +251,21 @@ export async function getLiveRates(): Promise<LiveRatesResult> {
   }
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
+    const [prices, liveFiat] = await Promise.all([
+      fetchCryptoPrices(),
+      fetchFiatRates(),
+    ]);
 
-    const res = await fetch("https://api.coinbase.com/v2/exchange-rates?currency=USD", {
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-      next: { revalidate: 60 },
-    });
-    clearTimeout(timeout);
-
-    if (!res.ok) {
-      throw new Error(`Coinbase API returned HTTP ${res.status}`);
-    }
-
-    const json = await res.json();
-    const rawRates = json?.data?.rates;
-
-    if (!rawRates || typeof rawRates !== "object") {
-      throw new Error("Invalid response");
-    }
-
-    // 1. Calculate live crypto USD prices (1 USD = X Crypto => 1 Crypto = 1 / X USD)
     const liveTokens: RateToken[] = RATE_TOKENS.map((token) => {
-      const rateVal = rawRates[token.symbol];
-      if (rateVal) {
-        const num = parseFloat(rateVal);
-        if (num > 0) {
-          const usdPrice = 1 / num;
-          return {
-            ...token,
-            usd: usdPrice > 100 ? Math.round(usdPrice * 100) / 100 : Number(usdPrice.toPrecision(4)),
-          };
-        }
+      const usdPrice = prices[token.symbol];
+      if (usdPrice && usdPrice > 0) {
+        return {
+          ...token,
+          usd: usdPrice > 100 ? Math.round(usdPrice * 100) / 100 : Number(usdPrice.toPrecision(4)),
+        };
       }
       return token;
     });
-
-    // 2. Calculate live fiat per USD rates (1 USD = X Fiat)
-    const liveFiat: Record<string, { symbol: string; perUsd: number }> = {};
-    for (const [code, info] of Object.entries(FIAT_CURRENCIES)) {
-      if (code === "USD") {
-        liveFiat.USD = { symbol: "$", perUsd: 1 };
-        continue;
-      }
-      const rateVal = rawRates[code];
-      if (rateVal) {
-        const num = parseFloat(rateVal);
-        if (num > 0) {
-          liveFiat[code] = {
-            symbol: info.symbol,
-            perUsd: Math.round(num * 100) / 100,
-          };
-        }
-      }
-    }
 
     const result: LiveRatesResult = {
       tokens: liveTokens,
@@ -164,37 +279,12 @@ export async function getLiveRates(): Promise<LiveRatesResult> {
     };
 
     return result;
-  } catch (err) {
-    console.warn("[Rates Service] Live rate fetch failed, trying secondary fallback:", err);
+  } catch (err: any) {
+    console.warn(`[Rates Service] Rate compilation failed: ${formatOneLineError(err)}`);
 
-    // If we have an existing cache, reuse it
+    // If an existing cache exists, reuse it gracefully
     if (globalThis._liveRatesCache) {
       return globalThis._liveRatesCache.data;
-    }
-
-    // Try secondary Open Exchange Rate API for fiat
-    try {
-      const res = await fetch("https://open.er-api.com/v6/latest/USD");
-      if (res.ok) {
-        const data = await res.json();
-        const liveFiat: Record<string, { symbol: string; perUsd: number }> = {
-          USD: { symbol: "$", perUsd: 1 },
-        };
-        for (const [code, info] of Object.entries(FIAT_CURRENCIES)) {
-          if (data.rates?.[code]) {
-            liveFiat[code] = { symbol: info.symbol, perUsd: data.rates[code] };
-          }
-        }
-        const fallbackResult = {
-          tokens: RATE_TOKENS,
-          fiatRates: liveFiat,
-          timestamp: now,
-        };
-        globalThis._liveRatesCache = { timestamp: now, data: fallbackResult };
-        return fallbackResult;
-      }
-    } catch {
-      // Ignore secondary error
     }
 
     return {

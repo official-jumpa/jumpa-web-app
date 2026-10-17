@@ -88,7 +88,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       await rateTicket(auth.userId, id, body.score, body.comment);
     }
 
-    dispatchSupportEvents(events);
+    await dispatchSupportEvents(events);
     await markTicketSeen(auth.userId, id);
     const thread = await getTicketThread(auth.userId, id);
     if (!thread) return NOT_FOUND();

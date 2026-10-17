@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       context: supportContext(auth.user),
       ...parsed.data,
     });
-    dispatchSupportEvents(events);
+    await dispatchSupportEvents(events);
     await markTicketSeen(auth.userId, ticketId);
     const thread = await getTicketThread(auth.userId, ticketId);
     return NextResponse.json({ ticketId, thread }, { status: 201 });

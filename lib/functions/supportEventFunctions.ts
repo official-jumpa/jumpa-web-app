@@ -1,4 +1,3 @@
-import { after } from "next/server";
 import { connectDB } from "@/lib/db";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import {
@@ -25,9 +24,21 @@ import type { INotification } from "@/models/Notification";
 import type { ISupportTicket } from "@/models/SupportTicket";
 import { User } from "@/models/User";
 
-/** Runs the events after the response is sent, so a slow webhook never slows a reply. */
-export function dispatchSupportEvents(events: SupportEvent[]): void {
-  if (events.length) after(() => runSupportEvents(events));
+/** Longest a reply waits on its alerts; the alerts keep going if the host allows it. */
+const ALERT_WAIT_MS = 8_000;
+
+/**
+ * Sends the alerts before the reply returns. Not `after()`: a host that freezes
+ * the server once the response is out drops that work with no error.
+ */
+export async function dispatchSupportEvents(
+  events: SupportEvent[],
+): Promise<void> {
+  if (!events.length) return;
+  await Promise.race([
+    runSupportEvents(events),
+    new Promise((resolve) => setTimeout(resolve, ALERT_WAIT_MS)),
+  ]);
 }
 
 /** Each event is isolated: one failed email does not stop the next alert. */

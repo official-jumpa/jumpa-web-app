@@ -71,7 +71,7 @@ export function SupportThread({
   useEffect(() => {
     if (!transactionId) return;
     let cancelled = false;
-    fetch(`/api/transactions/${encodeURIComponent(transactionId)}`, {
+    fetch(`/api/v1/transactions/${encodeURIComponent(transactionId)}`, {
       cache: "no-store",
     })
       .then((res) => (res.ok ? res.json() : null))

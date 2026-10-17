@@ -28,7 +28,7 @@ export function TransactionPicker({
   useEffect(() => {
     let cancelled = false;
     setLoad({ state: "loading" });
-    fetch(`/api/transactions?limit=${RECENT}`, { cache: "no-store" })
+    fetch(`/api/v1/transactions?limit=${RECENT}`, { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
       .then((data: { transactions?: Transaction[] }) => {
         if (!cancelled)

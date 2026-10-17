@@ -972,7 +972,7 @@ export async function POST(req: NextRequest) {
             chain: resolvedTxChain,
           },
           {
-            lead: "Date ",
+            lead: "Time ",
             // The server runs in UTC; `at` lets the card render on the viewer's clock.
             value: new Date().toLocaleTimeString("en-US", {
               hour: "2-digit",

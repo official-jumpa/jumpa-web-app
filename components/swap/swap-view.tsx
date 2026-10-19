@@ -62,9 +62,13 @@ export interface StellarBalances {
  * A native token can't be swapped to zero: XLM keeps a fee on top of its
  * reserve, SOL keeps fees plus rent for the account and the output token's.
  */
-const NATIVE_HOLDBACK: Record<string, { amount: number; reason: string }> = {
+const NATIVE_HOLDBACK: Record<
+  string,
+  { amount: number; reason: string; ifHeld?: number }
+> = {
   XLM: { amount: 0.01, reason: "Stellar's account reserve and fees" },
-  SOL: { amount: 0.005, reason: "network fees and account rent" },
+  // Measured against Jupiter: ~0.0053 SOL to open the output token's account, ~0.0007 once it exists.
+  SOL: { amount: 0.0056, ifHeld: 0.001, reason: "network fees and account rent" },
 };
 
 /** The reserve when Horizon gave no figure: two base reserves plus a USDC trustline. */
@@ -179,6 +183,15 @@ export function SwapView({
     return formatBalance(getRawBalance(token));
   }
 
+  /** A held output token already has its account, so there is no rent to keep back. */
+  function holdbackFor(token: string) {
+    const holdback = NATIVE_HOLDBACK[token.toUpperCase()];
+    if (holdback?.ifHeld === undefined || getRawBalance(toToken) <= 0) {
+      return holdback;
+    }
+    return { ...holdback, amount: holdback.ifHeld };
+  }
+
   /** The most that can actually leave the wallet — what MAX fills and Review allows. */
   function spendableFor(token: string): number {
     const t = token.toUpperCase();
@@ -187,13 +200,13 @@ export function SwapView({
       const net = Number.parseFloat(stellarBalances.xlmSpendable ?? "");
       spendable = Number.isFinite(net) ? net : spendable - FALLBACK_XLM_RESERVE;
     }
-    return Math.max(0, spendable - (NATIVE_HOLDBACK[t]?.amount ?? 0));
+    return Math.max(0, spendable - (holdbackFor(t)?.amount ?? 0));
   }
 
   function fillMax() {
     const max = spendableFor(fromToken);
     if (max <= 0) {
-      const holdback = NATIVE_HOLDBACK[fromToken.toUpperCase()];
+      const holdback = holdbackFor(fromToken);
       setError(
         holdback
           ? `No ${fromToken} available to swap — your balance covers ${holdback.reason}.`
@@ -510,7 +523,7 @@ export function SwapView({
                 onClick={() => {
                   const numAmount = Number(amount);
                   const available = spendableFor(fromToken);
-                  const holdback = NATIVE_HOLDBACK[fromToken.toUpperCase()];
+                  const holdback = holdbackFor(fromToken);
 
                   if (!numAmount || numAmount <= 0) {
                     setError("Enter an amount to swap");

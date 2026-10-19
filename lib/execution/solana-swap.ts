@@ -149,9 +149,14 @@ export async function executeSolanaSwap(
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
+      const raw = `Jupiter swap order failed (${res.status}): ${errText || res.statusText}`;
+      // A 400 here means the wallet can't cover fees and rent after the swap.
+      if (res.status !== 400) return { ok: false, error: raw, status: 400 };
+      console.error("[executeSolanaSwap]", raw);
       return {
         ok: false,
-        error: `Jupiter swap order failed (${res.status}): ${errText || res.statusText}`,
+        error:
+          "Solana needs a little SOL left in your wallet for network fees. Try a slightly smaller amount. Nothing left your wallet.",
         status: 400,
       };
     }

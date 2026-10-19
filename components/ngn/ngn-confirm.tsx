@@ -114,7 +114,7 @@ export function NgnConfirm({
     async function checkKycAndProfile() {
       try {
         const [kycRes, profileRes] = await Promise.all([
-          fetch("/api/v1/kyc"),
+          fetch("/api/v1/kyc?fields=details"),
           fetch("/api/v1/user"),
         ]);
 

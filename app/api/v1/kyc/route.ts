@@ -12,10 +12,10 @@ import { requireAuth } from "@/lib/functions/permissionFunctions";
 import { formatOneLineError, handleExternalApiError } from "@/lib/utils/api-best-practices";
 
 /**
- * Projects a raw database KYC record into a minimal, client-safe DTO.
- * Explicitly strips sensitive fields.
+ * Projects a raw database KYC record into a client-safe DTO.
+ * Only includes detailed biodata (names, dob, address, id info) if specifically requested via fields=details.
  */
-function toClientKycDto(record: any) {
+function toClientKycDto(record: any, includeDetails = false) {
   if (!record) {
     return {
       isCompleted: false,
@@ -23,8 +23,8 @@ function toClientKycDto(record: any) {
       verificationId: null,
       docMediaId: null,
       selfieMediaId: null,
-      idNumber: null,
       rejectionReason: null,
+      ...(includeDetails ? { idType: null, idNumber: null, details: null } : {}),
     };
   }
 
@@ -34,15 +34,34 @@ function toClientKycDto(record: any) {
       record.stage === "completed"
   );
 
-  return {
+  const baseDto: Record<string, any> = {
     isCompleted,
     status: record.status || null,
     verificationId: record.verificationId || null,
     docMediaId: record.docMediaId || null,
     selfieMediaId: record.selfieMediaId || null,
-    idNumber: record.idNumber || null,
     rejectionReason: record.rejectionReason || null,
   };
+
+  if (includeDetails) {
+    baseDto.idType = record.idType || null;
+    baseDto.idNumber = record.idNumber || null;
+    baseDto.details = record.details
+      ? {
+          firstName: record.details.firstName || null,
+          middleName: record.details.middleName || null,
+          lastName: record.details.lastName || null,
+          fullName: record.details.fullName || null,
+          dateOfBirth: record.details.dateOfBirth || null,
+          gender: record.details.gender || null,
+          phone: record.details.phone || null,
+          address: record.details.address || null,
+          nationality: record.details.nationality || null,
+        }
+      : null;
+  }
+
+  return baseDto;
 }
 
 export async function GET(req: NextRequest) {
@@ -52,11 +71,12 @@ export async function GET(req: NextRequest) {
     });
     if (!auth.ok) return auth.response;
 
+    const includeDetails = req.nextUrl.searchParams.get("fields") === "details";
     const bypassCache = req.nextUrl.searchParams.get("refresh") === "true";
     if (!bypassCache) {
       const cached = await getCachedKycRecord(auth.userId);
       if (cached && (cached.isCompleted || cached.status === "approved")) {
-        return NextResponse.json(toClientKycDto(cached), { status: 200 });
+        return NextResponse.json(toClientKycDto(cached, includeDetails), { status: 200 });
       }
     }
 
@@ -118,7 +138,7 @@ export async function GET(req: NextRequest) {
 
     setCachedKycRecord(auth.userId, kycRecord);
 
-    return NextResponse.json(toClientKycDto(kycRecord), { status: 200 });
+    return NextResponse.json(toClientKycDto(kycRecord, includeDetails), { status: 200 });
   } catch (error: any) {
     return handleExternalApiError({
       provider: "Myaza",

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { HomeView } from "@/components/home/home-view";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import {
@@ -23,11 +22,7 @@ export const metadata: Metadata = {
 
 export default async function HomePage() {
   const session = await getCachedAuthSession();
-  if (!session?.user?.id) {
-    redirect("/onboarding");
-  }
-
-  const userId = session.user.id;
+  const userId = session?.user?.id;
 
   let initialBalance: string = ACCOUNT.balance;
   let initialSavingsBalance = "0.00";
@@ -39,7 +34,8 @@ export default async function HomePage() {
   let initialNgnBalance: string | null = null;
   let initialHasUnread = false;
 
-  try {
+  if (userId) {
+    try {
     const [
       balancesResult,
       savingsUsdcResult,
@@ -111,8 +107,9 @@ export default async function HomePage() {
         (notifData.tabCounts?.activities || 0);
       initialHasUnread = unreadCount > 0 || (notifData.notifications?.length ?? 0) > 0;
     }
-  } catch (err) {
-    console.warn("[HomePage SSR] Prefetch fallback:", err);
+    } catch (err) {
+      console.warn("[HomePage SSR] Prefetch fallback:", err);
+    }
   }
 
   return (

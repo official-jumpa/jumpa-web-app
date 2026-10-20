@@ -15,7 +15,7 @@
  * Bump `VERSION` to retire every cache from the previous build.
  */
 
-const VERSION = "v0.1.0";
+const VERSION = "v0.1.1";
 const SHELL = `jumpa-shell-${VERSION}`;
 const OFFLINE = "/offline.html";
 
@@ -61,7 +61,7 @@ self.addEventListener("fetch", (event) => {
   if (request.mode !== "navigate") return;
 
   event.respondWith(
-    fetch(request).catch(async () => {
+    fetch(request, { credentials: "include" }).catch(async () => {
       const cached = await caches.match(OFFLINE);
       return (
         cached ||

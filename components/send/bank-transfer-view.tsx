@@ -121,9 +121,10 @@ export function BankTransferView({
     let isMounted = true;
     async function loadBalance() {
       try {
-        const res = await fetch("/api/wallet/balance");
+        const res = await fetch("/api/v1/wallet?fields=balance");
         if (!res.ok) return;
-        const data = await res.json();
+        const json = await res.json();
+        const data = json.data;
         if (!isMounted) return;
 
         if (Array.isArray(data.tokens)) {

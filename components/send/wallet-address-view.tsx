@@ -51,7 +51,7 @@ export function WalletAddressView({
   );
   const [amount, setAmount] = useState("");
   const [liveBalance, setLiveBalance] = useState("$0.00");
-  /** Live price for the selected asset, straight off `/api/wallet/balance`. */
+  /** Live price for the selected asset, straight off `/api/v1/wallet`. */
   const [priceUsd, setPriceUsd] = useState<string>();
 
   const [recentWallets, setRecentWallets] = useState<WalletContact[]>([]);
@@ -69,9 +69,10 @@ export function WalletAddressView({
     let isMounted = true;
     async function loadBalance() {
       try {
-        const res = await fetch("/api/wallet/balance");
+        const res = await fetch("/api/v1/wallet?fields=balance");
         if (!res.ok) return;
-        const data = await res.json();
+        const json = await res.json();
+        const data = json.data;
         if (!isMounted) return;
 
         const isTestnet = currentConfig.network === "testnet";
@@ -166,7 +167,7 @@ export function WalletAddressView({
     setPinError(false);
 
     try {
-      const res = await fetch("/api/wallet/send", {
+      const res = await fetch("/api/v1/wallet/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -179,20 +180,20 @@ export function WalletAddressView({
         }),
       });
 
-      const data = await res.json();
+      const json = await res.json();
 
-      if (!res.ok) {
-        if (res.status === 401 && data.error?.toLowerCase().includes("pin")) {
+      if (!res.ok || !json.success) {
+        if (res.status === 401 && json.error?.toLowerCase().includes("pin")) {
           setPinError(true);
         } else {
-          fail(data.error);
+          fail(json.error);
         }
         return;
       }
 
       setTxResult({
-        txHash: data.txHash,
-        explorerUrl: data.explorerUrl,
+        txHash: json.data.txHash,
+        explorerUrl: json.data.explorerUrl,
       });
 
       // Instantly notify and clear cached balances

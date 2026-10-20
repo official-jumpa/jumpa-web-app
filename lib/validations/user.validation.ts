@@ -11,7 +11,7 @@ export const pinSchema = z
   .regex(/^\d{4}$/, "PIN must be exactly 4 digits");
 
 /**
- * Validation for /api/wallet/verify-pin.
+ * Validation for /api/v1/wallet/pin?action=verify.
  */
 export const verifyPinSchema = z.object({
   pin: pinSchema,

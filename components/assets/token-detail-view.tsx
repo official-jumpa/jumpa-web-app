@@ -56,7 +56,7 @@ export function TokenDetailView({
     setLiveBalance(asset.balance);
   }, [asset.balance]);
 
-  // Sync balance from localStorage or live /api/wallet/balance on client mount
+  // Sync balance from localStorage or live /api/v1/wallet on client mount
   useEffect(() => {
     let isMounted = true;
 
@@ -88,11 +88,14 @@ export function TokenDetailView({
     async function fetchLiveBalance(forceRefresh = false) {
       try {
         const res = await fetch(
-          forceRefresh ? "/api/wallet/balance?refresh=true" : "/api/wallet/balance",
+          forceRefresh
+            ? "/api/v1/wallet?fields=balance&refresh=true"
+            : "/api/v1/wallet?fields=balance",
           { cache: "no-store" }
         );
         if (!res.ok) return;
-        const data = await res.json();
+        const json = await res.json();
+        const data = json.data;
         if (!isMounted || !Array.isArray(data.tokens)) return;
 
         const symbolUpper = asset.symbol.toUpperCase();

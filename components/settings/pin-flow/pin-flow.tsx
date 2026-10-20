@@ -83,7 +83,7 @@ export function PinFlow({ name }: { name: PinFlowName }) {
       })
       .catch(() => {
         if (!active) return;
-        // Fallback default to true, server route /api/wallet/change-pin enforces strictly
+        // Fallback default to true, server route /api/v1/wallet/pin?action=update enforces strictly
         setIsV3(true);
       });
 
@@ -133,13 +133,13 @@ export function PinFlow({ name }: { name: PinFlowName }) {
             return;
           }
         } else {
-          const res = await fetch("/api/wallet/verify-pin", {
+          const res = await fetch("/api/v1/wallet/pin?action=verify", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ pin }),
           });
           const data = await res.json().catch(() => ({}));
-          if (!res.ok) {
+          if (!res.ok || data.success === false) {
             setError(data.error || "Incorrect transaction PIN");
             return;
           }
@@ -224,7 +224,7 @@ export function PinFlow({ name }: { name: PinFlowName }) {
       }
       setBusy(true);
       try {
-        const res = await fetch("/api/wallet/change-pin", {
+        const res = await fetch("/api/v1/wallet/pin?action=update", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

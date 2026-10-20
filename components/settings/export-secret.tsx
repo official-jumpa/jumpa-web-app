@@ -55,21 +55,12 @@ export function ExportSecret({ kind }: { kind: ExportKind }) {
   const unlock = async (pin: string) => {
     setChecking(true);
     try {
-      const list = await fetch("/api/wallet/list");
-      const wallets = await list.json();
-      if (!Array.isArray(wallets) || wallets.length === 0) {
-        setProblem("We couldn't find your wallet. Sign in again and retry.");
-        return;
-      }
-
-      const wallet = wallets.find((w) => w.isSelected) ?? wallets[0];
       const targetChain = kind === "seed-phrase" ? "phrase" : selectedChain;
 
-      const res = await fetch("/api/wallet/export-key", {
+      const res = await fetch("/api/v1/wallet/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          address: wallet.address,
           pin,
           chain: targetChain,
         }),
@@ -81,14 +72,15 @@ export function ExportSecret({ kind }: { kind: ExportKind }) {
         setWrongPin(true);
         return;
       }
-      if (!res.ok) {
+      if (!res.ok || data.success === false) {
         setProblem(
-          "We couldn't unlock your wallet just now. Try again in a moment.",
+          data?.error ||
+            "We couldn't unlock your wallet just now. Try again in a moment.",
         );
         return;
       }
 
-      setSecret(kind === "seed-phrase" ? data.phrase : data.privateKey);
+      setSecret(data.data.value);
       setActiveExportedChain(selectedChain);
       setShowPinSheet(false);
       setRevealed(false);

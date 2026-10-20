@@ -141,11 +141,14 @@ export function HomeView({
     async function fetchBalances(forceRefresh = false) {
       try {
         const res = await fetch(
-          forceRefresh ? "/api/wallet/balance?refresh=true" : "/api/wallet/balance",
+          forceRefresh
+            ? "/api/v1/wallet?fields=balance&refresh=true"
+            : "/api/v1/wallet?fields=balance",
           { cache: "no-store" }
         );
         if (res.ok && isMounted) {
-          const balanceData = await res.json();
+          const json = await res.json();
+          const balanceData = json.data;
           if (balanceData.totalUsd) {
             setTotalBalance(balanceData.totalUsd);
             homeMemoryCache.balance = balanceData.totalUsd;

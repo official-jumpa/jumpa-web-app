@@ -28,11 +28,14 @@ export function useWalletBalance() {
   const fetchLive = useCallback(async (forceRefresh = false) => {
     try {
       const res = await fetch(
-        forceRefresh ? "/api/wallet/balance?refresh=true" : "/api/wallet/balance",
+        forceRefresh
+          ? "/api/v1/wallet?fields=balance&refresh=true"
+          : "/api/v1/wallet?fields=balance",
         { cache: "no-store" }
       );
       if (!res.ok) return;
-      const data = await res.json();
+      const json = await res.json();
+      const data = json.data;
       const total = Number.parseFloat(data.totalUsd) || 0;
       const held = (data.tokens ?? [])
         .filter(

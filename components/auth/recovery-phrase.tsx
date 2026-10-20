@@ -22,12 +22,12 @@ export function RecoveryPhrase({ nextHref }: { nextHref: string }) {
     } else {
       async function generatePhrase() {
         try {
-          const res = await fetch("/api/wallet/generate-phrase");
-          const data = await res.json();
-          if (data.phrase) {
-            setGeneratedPhrase(data.phrase);
+          const res = await fetch("/api/v1/wallet?action=new");
+          const json = await res.json();
+          if (json.data?.phrase) {
+            setGeneratedPhrase(json.data.phrase);
             if (typeof window !== "undefined") {
-              sessionStorage.setItem("setupPhrase", data.phrase);
+              sessionStorage.setItem("setupPhrase", json.data.phrase);
             }
           }
         } catch (err) {

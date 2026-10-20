@@ -2,7 +2,7 @@ import { z } from "zod";
 import { pinSchema } from "./user.validation";
 
 /**
- * Validation for /api/wallet/send
+ * Validation for /api/v1/wallet/send
  */
 export const sendTokenSchema = z.object({
   recipient: z
@@ -37,15 +37,10 @@ export const sendTokenSchema = z.object({
 export type SendTokenInput = z.infer<typeof sendTokenSchema>;
 
 /**
- * Validation for /api/wallet/export-key
+ * Validation for /api/v1/wallet/export
  */
 export const exportKeySchema = z.object({
-  address: z
-    .string({
-      error: "Wallet address is required",
-    })
-    .trim()
-    .min(1, "Wallet address is required"),
+  address: z.string().trim().optional(),
   pin: pinSchema,
   chain: z.string().trim().default("eth"),
 });
@@ -101,7 +96,7 @@ export const selectWalletSchema = z.object({
 export type SelectWalletInput = z.infer<typeof selectWalletSchema>;
 
 /**
- * Validation for /api/wallet/change-pin
+ * Validation for /api/v1/wallet/pin?action=update
  */
 export const changePinSchema = z
   .object({

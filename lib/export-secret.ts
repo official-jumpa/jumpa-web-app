@@ -52,7 +52,7 @@ interface ExportCopy {
   lead: string;
   strong: string;
   tail: string;
-  /** Default `chain` for POST /api/wallet/export-key. */
+  /** Default `chain` for POST /api/v1/wallet/export. */
   chain: string;
 }
 

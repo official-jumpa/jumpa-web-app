@@ -109,10 +109,11 @@ export function ProfileView({
 
     async function fetchWallet() {
       try {
-        const res = await fetch("/api/wallet/balance");
+        const res = await fetch("/api/v1/wallet");
         if (res.ok) {
-          const data = await res.json();
-          if (data.addresses) {
+          const json = await res.json();
+          const data = json.data;
+          if (data?.addresses) {
             setWalletAddresses(data.addresses);
           } else if (data.address) {
             setWalletAddresses({ xlm: data.address });

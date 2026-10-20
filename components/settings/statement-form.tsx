@@ -174,12 +174,13 @@ export function StatementForm({
   const authorise = async (pin: string) => {
     setPending(true);
     try {
-      const res = await fetch("/api/wallet/verify-pin", {
+      const res = await fetch("/api/v1/wallet/pin?action=verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin }),
       });
-      if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
         setPinError(true);
         return;
       }

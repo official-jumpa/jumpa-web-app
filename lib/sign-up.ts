@@ -134,13 +134,14 @@ export async function checkTagAvailability(
 
   try {
     const res = await fetch(
-      `/api/auth/wallet-setup?checkTag=${encodeURIComponent(handle)}`,
+      `/api/v1/user/tag?check=${encodeURIComponent(handle)}`,
     );
     if (res.ok) {
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      const payload = data.data ?? data;
       return {
-        available: Boolean(data.available),
-        suggestions: Array.isArray(data.suggestions) ? data.suggestions : [],
+        available: Boolean(payload.available),
+        suggestions: Array.isArray(payload.suggestions) ? payload.suggestions : [],
       };
     }
   } catch (e) {

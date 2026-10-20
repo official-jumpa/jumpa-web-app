@@ -71,11 +71,11 @@ export function PinFlow({ name }: { name: PinFlowName }) {
     if (flow.mode !== "forgot" || flow.kind !== "transaction") return;
 
     let active = true;
-    fetch("/api/auth/wallet-setup")
+    fetch("/api/v1/user/onboarding")
       .then((res) => res.json())
       .then((data) => {
         if (!active) return;
-        const v3 = Boolean(data.isV3Wallet);
+        const v3 = Boolean(data.data?.isV3Wallet ?? data.isV3Wallet);
         setIsV3(v3);
         if (!v3) {
           setStage("not-supported");
@@ -122,7 +122,7 @@ export function PinFlow({ name }: { name: PinFlowName }) {
       setBusy(true);
       try {
         if (flow.kind === "login") {
-          const res = await fetch("/api/auth/verify-password", {
+          const res = await fetch("/api/auth/lock", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ password: pin }),

@@ -1,7 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { requireAuth } from "@/lib/functions/permissionFunctions";
-import { getUserById, recordUserActivity, getUserPreferences } from "@/lib/functions/userFunctions";
+import {
+  getUserById,
+  recordUserActivity,
+  getUserPreferences,
+} from "@/lib/functions/userFunctions";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 const TIMEOUT_SECONDS: Record<string, number> = {
   "15m": 15 * 60,
@@ -12,8 +17,8 @@ const TIMEOUT_SECONDS: Record<string, number> = {
 };
 
 /**
- * POST /api/auth/verify-password
- * Verifies the user's 6-digit login password and sets the jumpa_unlocked cookie.
+ * POST /api/auth/lock
+ * Verifies 6-digit login password, records activity, and issues jumpa_unlocked cookie.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -23,11 +28,12 @@ export async function POST(req: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const body = await req.json().catch(() => ({}));
-    const password = typeof body.password === "string" ? body.password.trim() : "";
+    const password =
+      typeof body.password === "string" ? body.password.trim() : "";
 
     if (!password) {
       return NextResponse.json(
-        { error: "Password is required", verified: false },
+        { success: false, error: "Password is required", verified: false },
         { status: 400 },
       );
     }
@@ -35,28 +41,31 @@ export async function POST(req: NextRequest) {
     const user = await getUserById(auth.userId);
     if (!user) {
       return NextResponse.json(
-        { error: "User not found", verified: false },
+        { success: false, error: "User not found", verified: false },
         { status: 404 },
       );
     }
 
     if (!user.loginPasswordHash) {
       return NextResponse.json(
-        { error: "Login password is not set", verified: false },
+        {
+          success: false,
+          error: "Login password is not set on this account",
+          verified: false,
+        },
         { status: 400 },
       );
     }
 
     const isValid = await bcrypt.compare(password, user.loginPasswordHash);
-
     if (!isValid) {
       return NextResponse.json(
-        { error: "Incorrect pin", verified: false },
+        { success: false, error: "Incorrect login password", verified: false },
         { status: 400 },
       );
     }
 
-    await recordUserActivity({
+    recordUserActivity({
       userId: auth.userId,
       action: "LOGIN_PASSWORD_VERIFIED",
       details: { method: "auto_lock_unlock" },
@@ -71,13 +80,17 @@ export async function POST(req: NextRequest) {
       }
     } catch {}
 
-    const response = NextResponse.json(
-      { success: true, verified: true, timeout: timeoutSetting },
-      { status: 200 },
-    );
-
-    const isSecure = process.env.NODE_ENV === "production";
     const maxAgeSec = TIMEOUT_SECONDS[timeoutSetting] || 15 * 60;
+    const isSecure = process.env.NODE_ENV === "production";
+
+    const response = NextResponse.json({
+      success: true,
+      data: {
+        verified: true,
+        timeout: timeoutSetting,
+      },
+    });
+
     response.cookies.set("jumpa_unlocked", "true", {
       path: "/",
       maxAge: maxAgeSec,
@@ -87,26 +100,34 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error: any) {
-    console.error("[VerifyPassword] Error:", error);
+    console.error(`[lock] Error: ${formatOneLineError(error)}`);
     return NextResponse.json(
-      { error: error?.message || "Failed to verify password", verified: false },
+      {
+        success: false,
+        error: error?.message || "Failed to verify password",
+      },
       { status: 500 },
     );
   }
 }
 
 /**
- * DELETE /api/auth/verify-password
+ * DELETE /api/auth/lock
  * Immediately locks the app by expiring the jumpa_unlocked cookie.
  */
 export async function DELETE() {
-  const response = NextResponse.json({ success: true, locked: true });
+  const response = NextResponse.json({
+    success: true,
+    locked: true,
+    data: { locked: true },
+  });
+
   response.cookies.set("jumpa_unlocked", "", {
     path: "/",
     maxAge: 0,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
   });
+
   return response;
 }
-

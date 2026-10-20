@@ -114,9 +114,10 @@ export function AuthGuard({
       setCheckingStatus(true);
     }
     try {
-      const res = await fetch("/api/auth/wallet-setup");
+      const res = await fetch("/api/v1/user/onboarding");
       if (!res.ok) throw new Error("Failed to load status");
-      const data: OnboardingStatus = await res.json();
+      const json = await res.json().catch(() => ({}));
+      const data: OnboardingStatus = json.data ?? json;
 
       setStatus(data);
       if (data.nickname !== undefined || data.jumpaTag !== undefined) {
@@ -128,16 +129,10 @@ export function AuthGuard({
       hasVerifiedOnce.current = true;
       setCheckingStatus(false);
 
-      // If user is on an onboarding step they have ALREADY completed, forward them to the next required step
-      const fromBank =
-        typeof window !== "undefined" &&
-        new URLSearchParams(window.location.search).get("from") === "bank";
-      if (
-        (pathname?.startsWith("/sign-up/phone") && data.hasPhone && !fromBank) ||
-        (pathname?.startsWith("/sign-up/password") && data.hasPassword) ||
-        (pathname?.startsWith("/sign-up/pin") && data.hasPin)
-      ) {
-        if (data.nextRoute) {
+      // Progressive onboarding check for protected (app) pages:
+      // If user hasn't finished setup, forward to their next required step
+      if (!data.isComplete) {
+        if (data.nextRoute && data.nextRoute !== "/home") {
           router.replace(data.nextRoute);
         } else if (!data.hasPhone) {
           router.replace("/sign-up/phone");
@@ -147,60 +142,25 @@ export function AuthGuard({
           router.replace("/sign-up/pin");
         } else if (data.needsPinMigration) {
           router.replace("/migrate-pin");
-        } else {
-          router.replace("/home");
         }
-        return;
-      }
-
-      // If on an auth/signup/migration page that they still need, don't interrupt
-      //delete once everyone has migrated to v2
-      if (
-        pathname?.startsWith("/sign-up") ||
-        pathname?.startsWith("/onboarding") ||
-        pathname?.startsWith("/migrate-pin")
-      ) {
-        return;
-      }
-
-      // Sequential onboarding check: Phone -> Password -> PIN / Migration
-      if (data.nextRoute && data.nextRoute !== "/home") {
-        router.replace(data.nextRoute);
-      } else if (!data.hasPhone) {
-        router.replace("/sign-up/phone");
-      } else if (!data.hasPassword) {
-        router.replace("/sign-up/password");
-      } else if (!data.hasPin) {
-        router.replace("/sign-up/pin");
-      } else if (data.needsPinMigration) {
-        router.replace("/migrate-pin");//delete once everyone has migrated to v2
       }
     } catch (err) {
       console.error("[AuthGuard] Status check error:", err);
       hasVerifiedOnce.current = true;
       setCheckingStatus(false);
     }
-  }, [pathname, router]);
+  }, [router]);
 
   // 2. Check onboarding status for authenticated users
   useEffect(() => {
     if (!isPending && isAuthenticated && user?.id) {
-      // If user has valid initial session and is already on /home, do not re-check on mount
-      if (hasVerifiedOnce.current && pathname === "/home") {
-        return;
-      }
-      // If user has already completed onboarding, don't re-check on sibling tab switches
-      if (
-        status?.isComplete &&
-        !pathname?.startsWith("/sign-up") &&
-        !pathname?.startsWith("/onboarding") &&
-        !pathname?.startsWith("/migrate-pin")
-      ) {
+      // If user has already verified onboarding as complete, don't re-check on sibling tab switches
+      if (status?.isComplete) {
         return;
       }
       checkStatus();
     }
-  }, [isPending, isAuthenticated, user?.id, checkStatus, status?.isComplete, pathname]);
+  }, [isPending, isAuthenticated, user?.id, checkStatus, status?.isComplete]);
 
   // While checking session or onboarding status, show clean loading shell only when user is not yet known
   if (isPending || (!user && checkingStatus)) {

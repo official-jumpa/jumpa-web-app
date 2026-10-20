@@ -92,7 +92,7 @@ export function AutoLockModal({ onUnlock }: AutoLockModalProps) {
       if (typeof window !== "undefined") {
         document.cookie = "jumpa_unlocked=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT;";
       }
-      await fetch("/api/auth/verify-password", { method: "DELETE" }).catch(() => {});
+      await fetch("/api/auth/lock", { method: "DELETE" }).catch(() => {});
       await authClient.signOut();
       window.location.href = "/sign-in";
     } catch {

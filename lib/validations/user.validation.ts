@@ -22,7 +22,7 @@ export const verifyPinSchema = z.object({
 export type VerifyPinInput = z.infer<typeof verifyPinSchema>;
 
 /**
- * Validation for /api/auth/wallet-setup.
+ * Validation for wallet creation (POST /api/v1/wallet).
  */
 export const walletSetupSchema = z.object({
   pin: pinSchema,
@@ -153,7 +153,7 @@ export function isWeakPassword(value: string): boolean {
 }
 
 /**
- * Validation for setting login password (POST /api/auth/wallet-setup?step=password)
+ * Validation for setting login password (POST /api/v1/user/password)
  */
 export const setLoginPasswordSchema = z.object({
   password: z
@@ -169,7 +169,7 @@ export const setLoginPasswordSchema = z.object({
 export type SetLoginPasswordInput = z.infer<typeof setLoginPasswordSchema>;
 
 /**
- * Validation for setting unique Jumpa tag (POST /api/auth/wallet-setup?step=tag)
+ * Validation for setting unique Jumpa tag (POST /api/v1/user/tag)
  */
 export const setJumpaTagSchema = z.object({
   tag: z
@@ -190,7 +190,7 @@ export const setJumpaTagSchema = z.object({
 export type SetJumpaTagInput = z.infer<typeof setJumpaTagSchema>;
 
 /**
- * Validation for checking Jumpa tag availability (GET /api/auth/wallet-setup?checkTag=)
+ * Validation for checking Jumpa tag availability (GET /api/v1/user/tag?check=)
  */
 export const checkTagQuerySchema = z.object({
   checkTag: z
@@ -211,7 +211,7 @@ export const checkTagQuerySchema = z.object({
 export type CheckTagQueryInput = z.infer<typeof checkTagQuerySchema>;
 
 /**
- * Validation for PIN migration (POST /api/auth/wallet-setup?step=migrate-pin)
+ * Validation for PIN migration (POST /api/v1/wallet/pin?action=migrate)
  */
 export const migratePinSchema = z
   .object({

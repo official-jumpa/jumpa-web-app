@@ -95,10 +95,12 @@ export function VerifyCodeForm({
 
         // Resolve user onboarding / destination route
         try {
-          const res = await fetch("/api/auth/wallet-setup");
+          const res = await fetch("/api/v1/user/onboarding");
           if (res.ok) {
-            const data = await res.json();
-            setTargetActionHref(data.nextRoute || SIGN_UP_FLOW.phone);
+            const data = await res.json().catch(() => ({}));
+            const next =
+              data.data?.nextRoute || data.nextRoute || SIGN_UP_FLOW.phone;
+            setTargetActionHref(next);
           } else {
             setTargetActionHref(SIGN_UP_FLOW.phone);
           }

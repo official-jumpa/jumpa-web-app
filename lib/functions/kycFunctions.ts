@@ -15,6 +15,7 @@ import {
 } from "@/models/KYCSchema";
 import { User } from "@/models/User";
 import { getCountryNameFromCode } from "@/lib/location";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 // ── In-Memory KYC Cache Registry
 declare global {
@@ -380,6 +381,7 @@ export async function sendMyazaPhoneOtp(params: {
       codeLength: 6,
       via: "sms",
     }),
+    signal: AbortSignal.timeout(20000),
   });
 
   const data = await res.json().catch(() => null);
@@ -387,7 +389,7 @@ export async function sendMyazaPhoneOtp(params: {
   if (!res.ok || !data?.challengeId) {
     const errorMsg =
       data?.error || data?.message || "Failed to dispatch verification code";
-    console.error("[Myaza Phone OTP Send] Error:", errorMsg, data);
+    console.error(`[myaza_otp] send error: ${formatOneLineError(errorMsg)}`);
     throw new Error(errorMsg);
   }
 
@@ -452,6 +454,7 @@ export async function verifyMyazaPhoneOtp(params: {
       code: code.trim(),
       country: "NG",
     }),
+    signal: AbortSignal.timeout(20000),
   });
 
   const data = await res.json().catch(() => null);
@@ -461,7 +464,7 @@ export async function verifyMyazaPhoneOtp(params: {
       data?.error === "invalid_code"
         ? `Invalid code.${typeof data?.attemptsRemaining === "number" ? ` ${data.attemptsRemaining} attempt(s) remaining.` : ""}`
         : data?.error || data?.message || "Verification code failed";
-    console.error("[Myaza Phone OTP Check] Error:", errorMsg, data);
+    console.error(`[myaza_otp] check error: ${formatOneLineError(errorMsg)}`);
     throw new Error(errorMsg);
   }
 
@@ -507,7 +510,6 @@ export async function verifyMyazaPhoneOtp(params: {
     success: true,
     verified: true,
     phone: canonicalPhone,
-    token: data.token,
   };
 }
 

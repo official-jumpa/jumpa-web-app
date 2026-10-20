@@ -21,14 +21,15 @@ export function AuthRedirect() {
         const { data: session } = await authClient.getSession();
         if (!active || !session?.user) return;
 
-        const res = await fetch("/api/auth/wallet-setup");
+        const res = await fetch("/api/v1/user/onboarding");
         if (!active) return;
         if (!res.ok) {
           router.replace("/home");
           return;
         }
 
-        const status = await res.json();
+        const json = await res.json().catch(() => ({}));
+        const status = json.data ?? json;
         if (status.nextRoute) {
           router.replace(status.nextRoute);
         } else if (!status.hasPhone) {

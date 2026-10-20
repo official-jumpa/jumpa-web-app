@@ -32,11 +32,15 @@ export function AccountActions() {
     setError(null);
   };
 
-  const run = async (endpoint: string, fallback: string) => {
+  const run = async (
+    endpoint: string,
+    fallback: string,
+    method: "POST" | "DELETE" = "POST",
+  ) => {
     setPending(true);
     setError(null);
     try {
-      const res = await fetch(endpoint, { method: "POST" });
+      const res = await fetch(endpoint, { method });
       if (!res.ok) {
         let errorMsg = fallback;
         try {
@@ -118,7 +122,7 @@ export function AccountActions() {
           pending={pending}
           swapButtons={true}
           onConfirm={() =>
-            run("/api/auth/delete-account", "Could not delete the account.")
+            run("/api/v1/user", "Could not delete the account.", "DELETE")
           }
           onClose={close}
         >

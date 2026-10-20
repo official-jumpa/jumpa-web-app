@@ -58,7 +58,7 @@ export default function MigratePinPage() {
     setError(null);
 
     try {
-      const res = await fetch("/api/auth/wallet-setup?step=migrate-pin", {
+      const res = await fetch("/api/v1/wallet/pin?action=migrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -94,7 +94,7 @@ export default function MigratePinPage() {
     setError(null);
 
     try {
-      const res = await fetch("/api/auth/wallet-setup?step=migrate-pin", {
+      const res = await fetch("/api/v1/wallet/pin?action=migrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -132,7 +132,7 @@ export default function MigratePinPage() {
     setError(null);
 
     try {
-      const res = await fetch("/api/auth/wallet-setup?step=migrate-pin", {
+      const res = await fetch("/api/v1/wallet/pin?action=migrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

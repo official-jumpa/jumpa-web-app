@@ -75,8 +75,9 @@ export function PhoneCodeForm({
         });
 
         const data = await res.json().catch(() => ({}));
+        const isVerified = Boolean(data.data?.verified ?? data.verified);
 
-        if (!res.ok || !data.verified) {
+        if (!res.ok || !isVerified) {
           console.warn("[PhoneCodeForm] Verification failed:", data);
           setError(data.error || "Invalid verification code");
           setVerifying(false);
@@ -84,11 +85,12 @@ export function PhoneCodeForm({
         }
 
         try {
-          const setupRes = await fetch("/api/auth/wallet-setup");
+          const setupRes = await fetch("/api/v1/user/onboarding");
           if (setupRes.ok) {
-            const setupData = await setupRes.json();
-            if (setupData.nextRoute) {
-              setResolvedHref(setupData.nextRoute);
+            const setupData = await setupRes.json().catch(() => ({}));
+            const next = setupData.data?.nextRoute || setupData.nextRoute;
+            if (next) {
+              setResolvedHref(next);
             }
           }
         } catch (e) {
@@ -155,8 +157,9 @@ export function PhoneCodeForm({
       if (!res.ok || !data.success) {
         setError(data.error || "Could not resend code");
       } else {
-        if (data.challengeId) {
-          writeSignUpValue(SIGN_UP_KEYS.phoneChallengeId, data.challengeId);
+        const challengeId = data.data?.challengeId || data.challengeId;
+        if (challengeId) {
+          writeSignUpValue(SIGN_UP_KEYS.phoneChallengeId, challengeId);
         }
         setError("New verification code sent!");
       }
@@ -189,10 +192,14 @@ export function PhoneCodeForm({
       }
 
       try {
-        const setupRes = await fetch("/api/auth/wallet-setup");
+        const setupRes = await fetch("/api/v1/user/onboarding");
         if (setupRes.ok) {
-          const setupData = await setupRes.json();
-          router.push(setupData.nextRoute || SIGN_UP_FLOW.password);
+          const setupData = await setupRes.json().catch(() => ({}));
+          const next =
+            setupData.data?.nextRoute ||
+            setupData.nextRoute ||
+            SIGN_UP_FLOW.password;
+          router.push(next);
           return;
         }
       } catch {}

@@ -49,7 +49,7 @@ export function LoginPasswordForm({
       setError(null);
 
       try {
-        const res = await fetch("/api/auth/wallet-setup?step=password", {
+        const res = await fetch("/api/v1/user/password", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ password: value }),
@@ -63,7 +63,7 @@ export function LoginPasswordForm({
         }
         clearSignUpValue(SIGN_UP_KEYS.password);
         setSubmitting(false);
-        const destination = data.nextRoute || nextHref;
+        const destination = data.data?.nextRoute || data.nextRoute || nextHref;
         router.push(destination);
       } catch {
         setError("Network error. Please try again.");

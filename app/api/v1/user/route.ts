@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth as authInstance } from "@/lib/auth";
-import { requireActiveUser } from "@/lib/functions/permissionFunctions";
+import {
+  requireActiveUser,
+  requireAuth,
+} from "@/lib/functions/permissionFunctions";
 import {
   getUserById,
   updateUserProfile,
   logUserActivity,
   getUserPreferences,
   updateUserPreferences,
+  deleteUserAndAccountData,
 } from "@/lib/functions/userFunctions";
-import { updateUserSchema } from "@/lib/validations/user.validation";
+import {
+  updateUserSchema,
+  deleteAccountSchema,
+} from "@/lib/validations/user.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { clearSession, attachClearSessionCookies } from "@/lib/session";
 import {
   formatOneLineError,
   isTimeoutError,
@@ -266,3 +274,53 @@ export async function PATCH(req: NextRequest) {
     );
   }
 }
+
+/**
+ * DELETE /api/v1/user
+ * Soft-deletes user record, marks status as "deleted", purges all active sessions,
+ * terminates Better Auth session, and clears session cookies.
+ */
+export async function DELETE(req: NextRequest) {
+  const auth = await requireAuth({
+    rateLimit: { tier: "critical", action: "delete_account" },
+  });
+  if (!auth.ok) return auth.response;
+
+  const body = await req.json().catch(() => ({}));
+  const validation = deleteAccountSchema.safeParse(body);
+  if (!validation.success) {
+    return NextResponse.json(formatZodError(validation.error), { status: 400 });
+  }
+
+  const userId = auth.userId;
+
+  try {
+    await logUserActivity({
+      userId,
+      action: "ACCOUNT_DELETED",
+      req,
+    });
+    await deleteUserAndAccountData(userId);
+  } catch (err: any) {
+    console.error(`[user] Failed to delete account: ${formatOneLineError(err)}`);
+    return NextResponse.json(
+      { success: false, error: "Could not delete the account. Please try again." },
+      { status: 500 },
+    );
+  }
+
+  try {
+    await authInstance.api.signOut({ headers: req.headers });
+  } catch (err) {
+    console.warn(`Error: ${formatOneLineError(err)}`);
+  }
+
+  await clearSession();
+
+  const response = NextResponse.json({
+    success: true,
+    message: "Account deleted",
+  });
+  return attachClearSessionCookies(response);
+}
+

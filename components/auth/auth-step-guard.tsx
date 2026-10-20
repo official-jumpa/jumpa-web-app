@@ -34,9 +34,10 @@ export function AuthStepGuard({ children }: { children: ReactNode }) {
 
     async function verifyStep() {
       try {
-        const res = await fetch("/api/auth/wallet-setup");
+        const res = await fetch("/api/v1/user/onboarding");
         if (!res.ok || !active) return;
-        const status: OnboardingStatus = await res.json();
+        const json = await res.json().catch(() => ({}));
+        const status: OnboardingStatus = json.data ?? json;
 
         // 0. Already has verified phone -> redirect away from /sign-up/phone (unless coming from bank flow)
         const onPhonePage = pathname?.startsWith("/sign-up/phone");

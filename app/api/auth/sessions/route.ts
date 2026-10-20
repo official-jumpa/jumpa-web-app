@@ -9,8 +9,9 @@ import {
 import { parseUserAgent } from "@/lib/user-agent";
 import { deleteSessionQuerySchema } from "@/lib/validations/user.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const auth = await requireActiveUser({
       rateLimit: { tier: "low", action: "auth_sessions_get" },
@@ -47,13 +48,18 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      sessions,
-      total: sessions.length,
+      data: {
+        sessions,
+        total: sessions.length,
+      },
     });
   } catch (err: any) {
-    console.error("[Sessions API GET]", err);
+    console.error(`[sessions] Error: ${formatOneLineError(err)}`);
     return NextResponse.json(
-      { error: "Failed to fetch active sessions" },
+      {
+        success: false,
+        error: "Failed to fetch active sessions",
+      },
       { status: 500 },
     );
   }
@@ -99,7 +105,9 @@ export async function DELETE(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        revokedCount: deletedCount,
+        data: {
+          revokedCount: deletedCount,
+        },
       });
     }
 
@@ -107,6 +115,7 @@ export async function DELETE(req: NextRequest) {
       if (targetId === currentId) {
         return NextResponse.json(
           {
+            success: false,
             error: "Cannot revoke current session. Please use logout instead.",
           },
           { status: 400 },
@@ -124,18 +133,26 @@ export async function DELETE(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        deleted,
+        data: {
+          deleted: Boolean(deleted),
+        },
       });
     }
 
     return NextResponse.json(
-      { error: "Provide either ?target=others or ?id=<sessionId>" },
+      {
+        success: false,
+        error: "Provide correct parameters",
+      },
       { status: 400 },
     );
   } catch (err: any) {
-    console.error("[Sessions API DELETE]", err);
+    console.error(`[sessions] Error: ${formatOneLineError(err)}`);
     return NextResponse.json(
-      { error: "Failed to revoke session(s)" },
+      {
+        success: false,
+        error: "Failed to revoke session(s)",
+      },
       { status: 500 },
     );
   }

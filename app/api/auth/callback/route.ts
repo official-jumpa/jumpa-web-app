@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
+import { getUserById } from "@/lib/functions/userFunctions";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
+import { resolveNextOnboardingRoute } from "@/app/api/v1/user/onboarding/route";
 import { environment } from "@/lib/environment";
 
 /**
  * GET /api/auth/callback
  * OAuth callback handler:
- * - Returning user with existing wallet -> /home
- * - New user without wallet -> /sign-up/pin (Set Transaction PIN)
+ * - Resolves the exact onboarding or app destination for the authenticated user.
  */
 export async function GET(req: NextRequest) {
   const origin =
@@ -22,24 +23,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(`${origin}/onboarding`);
     }
 
-    const existingWallet = await findWalletForUser(session.user.id);
+    const [user, wallet] = await Promise.all([
+      getUserById(session.user.id),
+      findWalletForUser(session.user.id),
+    ]);
 
-    if (existingWallet) {
-      const res = NextResponse.redirect(`${origin}/home`);
-      res.cookies.set("selected_wallet_address", existingWallet.address, {
-        path: "/",
-        httpOnly: true,
-        secure: environment.IS_PRODUCTION,
-        sameSite: "lax",
-        maxAge: 7 * 24 * 60 * 60, // 7 days
-      });
-      return res;
-    }
-
-    // New user without wallet: Redirect to /home where AuthGuard orchestrates sequential setup
-    return NextResponse.redirect(`${origin}/home`);
+    const destination = resolveNextOnboardingRoute(user, wallet);
+    return NextResponse.redirect(`${origin}${destination}`);
   } catch (err) {
     console.error("[Auth Callback] Error handling callback:", err);
     return NextResponse.redirect(`${origin}/onboarding`);
   }
 }
+

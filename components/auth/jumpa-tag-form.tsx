@@ -117,7 +117,7 @@ export function JumpaTagForm({
     setClaiming(true);
     setClaimError(null);
     try {
-      const res = await fetch("/api/auth/wallet-setup?step=tag", {
+      const res = await fetch("/api/v1/user/tag", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tag: handle }),
@@ -136,7 +136,8 @@ export function JumpaTagForm({
         onComplete(fullTag(handle));
         onClose?.();
       } else {
-        const destination = data.nextRoute || nextHref || "/home";
+        const destination =
+          data.data?.nextRoute || data.nextRoute || nextHref || "/home";
         router.push(destination);
       }
     } catch {

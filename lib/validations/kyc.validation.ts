@@ -32,3 +32,26 @@ export const kycStageSchema = z.object({
 
 export type KycVerifyInput = z.infer<typeof kycVerifySchema>;
 export type KycStageInput = z.infer<typeof kycStageSchema>;
+
+export const verifyPhoneActionSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("send"),
+    phone: z.string().trim().min(7, "Please enter your phone number").max(20),
+  }),
+  z.object({
+    action: z.literal("verify"),
+    phone: z.string().trim().min(7, "Phone number is required").max(20),
+    code: z.string().trim().min(4, "Verification code is required").max(10),
+    challengeId: z.string().trim().min(1, "Challenge ID is required"),
+  }),
+  z.object({
+    action: z.literal("skip"),
+    phone: z.string().trim().max(20).optional().nullable(),
+  }),
+  z.object({
+    action: z.literal("reset-skip"),
+  }),
+]);
+
+export type VerifyPhoneActionInput = z.infer<typeof verifyPhoneActionSchema>;
+

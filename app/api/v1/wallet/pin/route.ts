@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import {
   findWalletForUser,
+  findWalletById,
   updateWalletPin,
 } from "@/lib/functions/walletFunctions";
 import {
@@ -10,11 +11,15 @@ import {
   setUserLoginPassword,
   logUserActivity,
 } from "@/lib/functions/userFunctions";
+import { triggerWalletBackgroundUpdates } from "@/lib/services/wallet-migration";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { decryptMnemonic } from "@/lib/crypto";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { changePinSchema } from "@/lib/validations/wallet.validation";
-import { verifyPinSchema } from "@/lib/validations/user.validation";
+import {
+  verifyPinSchema,
+  migratePinSchema,
+} from "@/lib/validations/user.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { connectDB, getDb } from "@/lib/db";
 import { normalizeEmail } from "@/lib/utils/email-policy";
@@ -369,10 +374,260 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // ACTION: MIGRATE PIN (v1 -> v3)
+  if (action === "migrate") {
+    try {
+      const authResult = await requireActiveUser({
+        rateLimit: { tier: "critical", action: "migrate_pin" },
+      });
+      if (!authResult.ok) return authResult.response;
+      const session = authResult.session;
+
+      const body = await req.json().catch(() => ({}));
+      const validation = migratePinSchema.safeParse(body);
+      if (!validation.success) {
+        return NextResponse.json(formatZodError(validation.error), {
+          status: 400,
+        });
+      }
+
+      const isConfirmExisting =
+        validation.data.action === "confirm-existing" ||
+        Boolean(body.existing4DigitPin) ||
+        (!validation.data.oldPin && Boolean(validation.data.pin));
+
+      // Pre-validation path: Verify current 6-digit PIN before prompting for new PIN
+      if (
+        body.action === "validate-current" ||
+        body.action === "verify-current"
+      ) {
+        const oldPin = (validation.data.oldPin || body.pin)!;
+
+        const user = await getUserById(session.user.id);
+        const wallet = user?.activeWalletId
+          ? await findWalletById(user.activeWalletId)
+          : await findWalletForUser(session.user.id);
+
+        if (!wallet) {
+          return NextResponse.json(
+            { success: false, error: "No active wallet found" },
+            { status: 404 },
+          );
+        }
+
+        const isMatch = await bcrypt.compare(oldPin, wallet.pinHash);
+        if (!isMatch) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Incorrect current PIN. Please try again.",
+            },
+            { status: 400 },
+          );
+        }
+
+        try {
+          decryptMnemonic(
+            wallet.encryptedMnemonic,
+            wallet.iv,
+            wallet.salt,
+            oldPin,
+          );
+        } catch (decryptErr) {
+          console.error(
+            `[MigratePIN] Decryption failed for wallet ${wallet._id}:`,
+            decryptErr,
+          );
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "PIN verified, but unable to decrypt wallet. Please contact support.",
+            },
+            { status: 400 },
+          );
+        }
+
+        // Trigger background migration to v3 and Tron derivation (non-blocking, zero lag)
+        if (wallet.pinVersion !== "v3" || !wallet.addresses?.trx) {
+          void triggerWalletBackgroundUpdates({
+            walletId: wallet._id,
+            userId: session.user.id,
+            pin: oldPin,
+          });
+        }
+
+        return NextResponse.json({
+          success: true,
+          data: { message: "Current PIN verified successfully" },
+        });
+      }
+
+      // Fallback path: User already has a 4-digit PIN and wants to confirm it
+      if (isConfirmExisting) {
+        const pinCandidate = (validation.data.existing4DigitPin ||
+          validation.data.pin ||
+          validation.data.oldPin)!;
+
+        const user = await getUserById(session.user.id);
+        const wallet = user?.activeWalletId
+          ? await findWalletById(user.activeWalletId)
+          : await findWalletForUser(session.user.id);
+
+        if (!wallet) {
+          return NextResponse.json(
+            { success: false, error: "No active wallet found" },
+            { status: 404 },
+          );
+        }
+
+        const isMatch = await bcrypt.compare(pinCandidate, wallet.pinHash);
+        if (!isMatch) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Incorrect PIN. Please try again or update your PIN.",
+            },
+            { status: 400 },
+          );
+        }
+
+        try {
+          decryptMnemonic(
+            wallet.encryptedMnemonic,
+            wallet.iv,
+            wallet.salt,
+            pinCandidate,
+          );
+        } catch (decryptErr) {
+          console.error(
+            `[MigratePIN] Decryption failed for wallet ${wallet._id} with 4-digit PIN:`,
+            decryptErr,
+          );
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "PIN verified, but unable to decrypt wallet. Please contact support.",
+            },
+            { status: 400 },
+          );
+        }
+
+        // Trigger background migration to v3 and Tron derivation (non-blocking, zero lag)
+        void triggerWalletBackgroundUpdates({
+          walletId: wallet._id,
+          userId: session.user.id,
+          pin: pinCandidate,
+        });
+
+        return NextResponse.json({
+          success: true,
+          data: { message: "PIN confirmed and updated" },
+        });
+      }
+
+      // Standard path: Migrating from 6-digit old PIN to new 4-digit PIN
+      const oldPin = validation.data.oldPin!;
+      const newPin = validation.data.newPin!;
+
+      const user = await getUserById(session.user.id);
+      const wallet = user?.activeWalletId
+        ? await findWalletById(user.activeWalletId)
+        : await findWalletForUser(session.user.id);
+
+      if (!wallet) {
+        return NextResponse.json(
+          { success: false, error: "No active wallet found to migrate" },
+          { status: 404 },
+        );
+      }
+
+      const isMatch = await bcrypt.compare(oldPin, wallet.pinHash);
+      if (!isMatch) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Incorrect current PIN. Please try again.",
+          },
+          { status: 400 },
+        );
+      }
+
+      let rawSecret: string;
+      try {
+        rawSecret = decryptMnemonic(
+          wallet.encryptedMnemonic,
+          wallet.iv,
+          wallet.salt,
+          oldPin,
+        );
+      } catch (decryptErr) {
+        console.error(
+          `[MigratePIN] Failed to decrypt active wallet ${wallet._id}:`,
+          decryptErr,
+        );
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Failed to decrypt wallet with provided PIN.",
+          },
+          { status: 400 },
+        );
+      }
+
+      const updatedWallet = await updateWalletPin({
+        userId: session.user.id,
+        walletId: wallet._id,
+        newPin,
+        rawSecret,
+      });
+
+      if (!updatedWallet) {
+        return NextResponse.json(
+          { success: false, error: "Failed to update wallet PIN" },
+          { status: 500 },
+        );
+      }
+
+      logUserActivity({
+        userId: session.user.id,
+        action: "PIN_MIGRATED",
+        details: { walletId: wallet._id },
+        req,
+      }).catch((e) =>
+        console.error(`[MigratePIN] ActivityLog error: ${formatOneLineError(e)}`),
+      );
+
+      createNotification({
+        userId: session.user.id,
+        tab: "activities",
+        type: "PIN_MIGRATED",
+        title: "Transaction PIN Updated",
+        body: "Your transaction PIN was updated",
+        metadata: { walletId: wallet._id },
+        link: "/profile/settings?section=security",
+      }).catch((e) =>
+        console.error(`[MigratePIN] Notification error: ${formatOneLineError(e)}`),
+      );
+
+      return NextResponse.json({
+        success: true,
+        data: { message: "PIN updated" },
+      });
+    } catch (err: any) {
+      console.error(`[MigratePIN] Error: ${formatOneLineError(err)}`);
+      return NextResponse.json(
+        { success: false, error: "Internal Server Error" },
+        { status: 500 },
+      );
+    }
+  }
+
   return NextResponse.json(
     {
       success: false,
-      error: `Invalid action "${action}". Supported action provided for pin`,
+      error: `Invalid action "${action}". Please provide a valid action`,
     },
     { status: 400 },
   );

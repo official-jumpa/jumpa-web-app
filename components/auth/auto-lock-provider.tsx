@@ -105,7 +105,9 @@ export function AutoLockProvider({
   initialIsLocked?: boolean;
 }) {
   const auth = useAuthContext();
-  const hasPassword = auth?.status ? Boolean(auth.status.hasPassword) : true;
+  const hasPassword = Boolean(
+    auth?.user?.loginPasswordHash ?? auth?.status?.hasPassword ?? false,
+  );
 
   const [timeoutSetting, setTimeoutSetting] = useState<AutoLockTimeoutOption>(
     () => {
@@ -249,7 +251,7 @@ export function AutoLockProvider({
   const unlock = useCallback(
     async (password: string): Promise<{ success: boolean; error?: string }> => {
       try {
-        const res = await fetch("/api/auth/verify-password", {
+        const res = await fetch("/api/auth/lock", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ password }),
@@ -257,7 +259,7 @@ export function AutoLockProvider({
 
         const data = await res.json().catch(() => ({}));
 
-        if (!res.ok || !data.verified) {
+        if (!res.ok || (!data.data?.verified && !data.verified)) {
           return {
             success: false,
             error: data.error || "Incorrect password",
@@ -283,7 +285,7 @@ export function AutoLockProvider({
 
   const lockNow = useCallback(() => {
     triggerLock();
-    fetch("/api/auth/verify-password", { method: "DELETE" }).catch(() => {});
+    fetch("/api/auth/lock", { method: "DELETE" }).catch(() => {});
   }, [triggerLock]);
 
   return (

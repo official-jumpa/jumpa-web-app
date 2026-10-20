@@ -44,7 +44,7 @@ export function ConfirmPinForm({
     setError(null);
 
     try {
-      const res = await fetch("/api/auth/wallet-setup", {
+      const res = await fetch("/api/v1/wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -52,7 +52,7 @@ export function ConfirmPinForm({
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         setError(data.error || "Wallet setup failed. Please try again.");
@@ -63,8 +63,9 @@ export function ConfirmPinForm({
       }
 
       if (typeof window !== "undefined") {
-        if (data.address) {
-          sessionStorage.setItem("userWalletAddress", data.address);
+        const address = data.data?.address || data.address;
+        if (address) {
+          sessionStorage.setItem("userWalletAddress", address);
         }
         sessionStorage.removeItem("setupPin");
       }

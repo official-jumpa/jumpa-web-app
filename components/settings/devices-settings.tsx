@@ -46,7 +46,7 @@ export function DevicesSettings() {
       const res = await fetch("/api/auth/sessions");
       if (res.ok) {
         const data = await res.json();
-        if (data.sessions) setSessions(data.sessions);
+        if (data.data?.sessions) setSessions(data.data.sessions);
       }
     } catch (err) {
       console.warn("[DevicesSettings] Failed to fetch sessions:", err);

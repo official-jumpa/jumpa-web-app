@@ -59,10 +59,14 @@ export function PhoneForm({ nextHref }: { nextHref: string }) {
 
       // Check next onboarding step
       try {
-        const setupRes = await fetch("/api/auth/wallet-setup");
+        const setupRes = await fetch("/api/v1/user/onboarding");
         if (setupRes.ok) {
-          const setupData = await setupRes.json();
-          router.push(setupData.nextRoute || SIGN_UP_FLOW.password);
+          const setupData = await setupRes.json().catch(() => ({}));
+          const next =
+            setupData.data?.nextRoute ||
+            setupData.nextRoute ||
+            SIGN_UP_FLOW.password;
+          router.push(next);
           return;
         }
       } catch {}
@@ -127,8 +131,9 @@ export function PhoneForm({ nextHref }: { nextHref: string }) {
       }
 
       writeSignUpValue(SIGN_UP_KEYS.phone, canonicalPhone);
-      if (data.challengeId) {
-        writeSignUpValue(SIGN_UP_KEYS.phoneChallengeId, data.challengeId);
+      const challengeId = data.data?.challengeId || data.challengeId;
+      if (challengeId) {
+        writeSignUpValue(SIGN_UP_KEYS.phoneChallengeId, challengeId);
       }
       router.push(nextHref);
     } catch (err: any) {

@@ -309,7 +309,7 @@ export async function requireActiveUser(
 /**
  * Enforces that the incoming request has a valid session, permitting users regardless of whether their status is active or pending.
  *
- * Scenario: Call at the top of onboarding, recovery, or initial setup endpoints (e.g. /api/auth/wallet-setup)
+ * Scenario: Call at the top of onboarding, recovery, or initial setup endpoints (e.g. /api/v1/user/onboarding, /api/v1/wallet)
  * where authenticated users must be allowed to complete configuration before their account is fully activated.
  */
 export async function requireAuth(

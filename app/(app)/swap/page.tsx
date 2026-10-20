@@ -85,7 +85,7 @@ export default async function SwapPage() {
           try {
             const ethClient = createPublicClient({
               chain: mainnet,
-              transport: http(getRpcUrl("ethereum")),
+              transport: http(getRpcUrl("ethereum"), { timeout: 5000 }),
             });
             const bal = await ethClient.readContract({
               address: CONTRACT_ADDRESSES.cctp.mainnet.ethereum.usdc,

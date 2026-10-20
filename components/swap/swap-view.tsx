@@ -30,9 +30,10 @@ import {
   BridgeView,
   type BridgeBalances,
   type WalletAddresses,
+  type BridgeStage,
 } from "@/components/swap/bridge-view";
 
-export { BridgeView, type BridgeBalances, type WalletAddresses };
+export { BridgeView, type BridgeBalances, type WalletAddresses, type BridgeStage };
 
 /** Assets available for swap per chain. */
 const NETWORK_ASSETS = {
@@ -97,6 +98,7 @@ export function SwapView({
 }) {
   // ── Header mode (Swap vs Bridge) ──
   const [mode, setMode] = useState<SwapMode>("swap");
+  const [bridgeStage, setBridgeStage] = useState<BridgeStage>("quote");
   /** The bridge receipt draws its own header; this hides the screen's. */
   const [bridgeDone, setBridgeDone] = useState(false);
 
@@ -107,10 +109,12 @@ export function SwapView({
     {
       value: "stellar",
       label: "Stellar",
+      icon: "/coins/xlm.webp",
     },
     {
       value: "solana",
       label: "Solana",
+      icon: "/coins/sol.webp",
     },
   ];
 
@@ -325,7 +329,20 @@ export function SwapView({
             {txResult.txHash && (
               <DetailRow
                 label="Tx Hash"
-                value={`${txResult.txHash.slice(0, 6)}…${txResult.txHash.slice(-6)}`}
+                value={
+                  txResult.explorerUrl ? (
+                    <a
+                      href={txResult.explorerUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-medium text-jumpa-primary-600 underline"
+                    >
+                      {`${txResult.txHash.slice(0, 6)}…${txResult.txHash.slice(-6)}`}
+                    </a>
+                  ) : (
+                    `${txResult.txHash.slice(0, 6)}…${txResult.txHash.slice(-6)}`
+                  )
+                }
                 rule={false}
               />
             )}
@@ -352,7 +369,9 @@ export function SwapView({
           onBack={
             mode === "swap" && stage === "review"
               ? () => setStage("quote")
-              : undefined
+              : mode === "bridge" && bridgeStage === "review"
+                ? () => setBridgeStage("quote")
+                : undefined
           }
           /* The thumb slides between the two tabs, so the switch reads as one control. */
           center={
@@ -384,6 +403,8 @@ export function SwapView({
 
       {mode === "bridge" ? (
         <BridgeView
+          stage={bridgeStage}
+          onStageChange={setBridgeStage}
           onDone={setBridgeDone}
           bridgeBalances={
             bridgeBalances || {
@@ -424,7 +445,7 @@ export function SwapView({
               />
             </div>
 
-            <div className="flex flex-col gap-4 rounded-surface bg-jumpa-neutral-95 px-2.5 pt-3 pb-2.5">
+            <div className="flex flex-col gap-4 rounded-surface border border-jumpa-neutral-100 bg-jumpa-neutral-95 px-2.5 pt-3 pb-2.5">
               <div className="relative flex flex-col gap-1">
                 <QuoteLeg
                   label="You send"
@@ -454,7 +475,7 @@ export function SwapView({
                   type="button"
                   onClick={flipPair}
                   aria-label="Swap direction"
-                  className="tap absolute top-1/2 left-1/2 flex size-8.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[0.66px] border-jumpa-black/10 bg-jumpa-primary-525 text-jumpa-alt-400 shadow-jumpa-disc active:scale-90"
+                  className="tap absolute top-1/2 left-1/2 z-10 flex size-8.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-[0.66px] border-jumpa-black/10 bg-jumpa-primary-525 text-jumpa-alt-400 shadow-jumpa-disc active:scale-90"
                 >
                   <ArrowDownArrowUpIcon className="size-4" />
                 </button>
@@ -520,6 +541,7 @@ export function SwapView({
               <Button
                 variant="gradient"
                 size="lg"
+                disabled={quoteLoading}
                 onClick={() => {
                   const numAmount = Number(amount);
                   const available = spendableFor(fromToken);
@@ -542,7 +564,7 @@ export function SwapView({
                   }
                 }}
               >
-                Review swap
+                {quoteLoading ? "Getting quote…" : "Review swap"}
               </Button>
             </div>
             {/* lock the quote for 30 secs */}

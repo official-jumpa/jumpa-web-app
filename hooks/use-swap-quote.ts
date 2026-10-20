@@ -94,7 +94,7 @@ export function useSwapQuote(params: UseSwapQuoteParams): UseSwapQuoteResult {
       if (timerRef.current) clearTimeout(timerRef.current);
       abortRef.current?.abort();
     };
-  }, [fromToken, toToken, amount, slippage]);
+  }, [chain, fromToken, toToken, amount, slippage]);
 
   return { quote, loading, error };
 }

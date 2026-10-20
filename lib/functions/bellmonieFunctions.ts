@@ -303,22 +303,22 @@ export interface BellmonieClientResponse {
 export async function createBellmonieIndividualAccount(
   params: CreateBellmonieIndividualAccountPayload,
 ): Promise<BellmonieClientResponse["data"]> {
-  console.log("[Bellmonie] Creating individual account for email:", params.emailAddress);
+  console.log("[Bellmonie] Creating account for:", params.emailAddress);
 
   // Normalize dateOfBirth to YYYY/MM/DD
-  let dob = params.dateOfBirth.replace(/-/g, "/").trim();
+  let dob = params.dateOfBirth.split("T")[0].replace(/-/g, "/").trim();
 
   const payload: Record<string, any> = {
     firstname: params.firstname.trim(),
+    ...(params.middlename?.trim() ? { middlename: params.middlename.trim() } : {}),
     lastname: params.lastname.trim(),
     phoneNumber: params.phoneNumber.trim(),
     emailAddress: params.emailAddress.trim(),
     address: params.address.trim(),
     bvn: params.bvn.trim(),
+    ...(params.nin?.trim() ? { nin: params.nin.trim() } : {}),
     gender: params.gender.toLowerCase(),
     dateOfBirth: dob,
-    ...(params.middlename?.trim() ? { middlename: params.middlename.trim() } : {}),
-    ...(params.nin?.trim() ? { nin: params.nin.trim() } : {}),
     ...(params.metadata ? { metadata: params.metadata } : {}),
   };
 

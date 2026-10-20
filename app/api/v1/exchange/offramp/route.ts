@@ -231,11 +231,22 @@ export async function POST(req: NextRequest) {
         console.error(
           `[Offramp] Centiiv Error: ${formatOneLineError(err)}`,
         );
+        const isOffline =
+          err.isProviderOffline ||
+          err.provider === "centiiv" ||
+          err.message?.toLowerCase().includes("offline") ||
+          err.message?.toLowerCase().includes("unreachable") ||
+          err.message?.toLowerCase().includes("target provider") ||
+          err.message?.toLowerCase().includes("temporarily offline");
+
         return NextResponse.json(
           {
             success: false,
-            error:
-              err?.message || "Transfer initiation could not be completed.",
+            error: isOffline
+              ? "Stellar bank cash-out is temporarily offline for maintenance. You can bridge your USDC to Solana or Base to withdraw to your bank account immediately."
+              : (err?.message || "Transfer initiation could not be completed."),
+            isProviderOffline: isOffline || undefined,
+            recommendedNetwork: isOffline ? "solana" : undefined,
           },
           { status: 502 },
         );

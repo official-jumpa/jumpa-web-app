@@ -1766,6 +1766,10 @@ export async function executeTool(
         // Nothing matched — fall through to the existing "bank name is required" error.
       }
 
+      const targetAsset = effectiveAsset || asset || "base:usdc";
+      const cleanTargetAsset = targetAsset.toLowerCase();
+      const isStellar = cleanTargetAsset.includes("stellar");
+
       try {
         if (!bankName || !bankName.trim()) {
           throw new Error(
@@ -1824,10 +1828,6 @@ export async function executeTool(
         // 3. Resolve Switch bank code for Switch offramp (never use Paystack bank code for Switch!)
         const switchBank =
           resolveBankCode(bankName) || resolveBankCode(paystackBank.name);
-
-        const targetAsset = effectiveAsset || asset || "base:usdc";
-        const cleanTargetAsset = targetAsset.toLowerCase();
-        const isStellar = cleanTargetAsset.includes("stellar");
 
         if (!isStellar && !switchBank) {
           throw new Error(
@@ -2119,6 +2119,47 @@ export async function executeTool(
             2,
           ),
         );
+
+        const isCentiivDown =
+          err.isProviderOffline ||
+          err.provider === "centiiv" ||
+          err.message?.toLowerCase().includes("nodes are offline") ||
+          err.message?.toLowerCase().includes("unreachable") ||
+          err.message?.toLowerCase().includes("target provider") ||
+          err.message?.toLowerCase().includes("temporarily offline") ||
+          (cleanTargetAsset.includes("stellar") &&
+            (err.status === 502 || err.status === 503 || err.status === 400));
+
+        if (isCentiivDown) {
+          const bridgeOptions: ChatOption[] = [
+            {
+              label: "Bridge to Solana",
+              description: "Move USDC to Solana to cash out to bank immediately",
+              logo: "/coins/sol.webp",
+              reply: "Bridge USDC to Solana",
+            },
+            {
+              label: "Bridge to Base",
+              description: "Move USDC to Base to cash out to bank immediately",
+              logo: "/coins/base.webp",
+              reply: "Bridge USDC to Base",
+            },
+          ];
+
+          return {
+            toolName: name,
+            summaryForAI:
+              `Stellar bank cash-out service is temporarily unavailable because the settlement network is undergoing maintenance. ` +
+              `CRITICAL INSTRUCTION FOR AI: ` +
+              `1. Do NOT show raw technical errors or mention "Centiiv", "Switch", or "target provider nodes". ` +
+              `2. Reassure the user that their funds and wallet balance are completely safe. ` +
+              `3. Proactively recommend that they can bridge or swap their USDC to **Solana** (or **Base**) where bank withdrawals are working normally, so they can cash out to their bank account without delay. ` +
+              `4. Ask if they would like to bridge their funds to **Solana** right now to complete the withdrawal, and direct them to the interactive options below.`,
+            cardHint: { type: "options", data: { options: bridgeOptions } },
+            requiresConfirmation: false,
+          };
+        }
+
         return {
           toolName: name,
           summaryForAI: `Failed to initiate offramp: ${err.message}`,
@@ -2154,20 +2195,32 @@ export async function executeTool(
         token: tokenSymbol,
       });
 
+      const isStellar = targetAsset.toLowerCase().includes("stellar");
+
       try {
         let onrampRate: number | undefined;
         let offrampRate: number | undefined;
 
-        const isStellar = targetAsset.toLowerCase().includes("stellar");
         const effectiveFee = environment.SWITCH_JUMPA_FEE;
         const feePct = effectiveFee / 100;
 
+        let stellarRateOffline = false;
+
         if (direction === "onramp" || direction === "both") {
           if (isStellar) {
-            const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 });
-            const baseRate = Number(quote.rate);
-            // In onramp, paying NGN gives slightly fewer USDC (or effective rate per USDC is slightly higher in NGN)
-            onrampRate = baseRate > 0 ? (baseRate < 1 ? baseRate * (1 - feePct) : baseRate / (1 - feePct)) : baseRate;
+            try {
+              const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 });
+              const baseRate = Number(quote.rate);
+              // In onramp, paying NGN gives slightly fewer USDC (or effective rate per USDC is slightly higher in NGN)
+              onrampRate = baseRate > 0 ? (baseRate < 1 ? baseRate * (1 - feePct) : baseRate / (1 - feePct)) : baseRate;
+            } catch (centiivErr: any) {
+              console.warn(`[ToolExecutor] Stellar onramp rate lookup failed, using benchmark:`, centiivErr.message);
+              stellarRateOffline = true;
+              const res = await SwitchService.getOnrampRate("base:usdc").catch(() => null);
+              if (res?.success && res.rate) {
+                onrampRate = res.rate;
+              }
+            }
           } else {
             const res = await SwitchService.getOnrampRate(targetAsset);
             if (res.success && res.rate) {
@@ -2178,10 +2231,19 @@ export async function executeTool(
 
         if (direction === "offramp" || direction === "both") {
           if (isStellar) {
-            const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 });
-            const baseRate = Number(quote.rate);
-            // In offramp, selling USDC gives fee-adjusted NGN
-            offrampRate = baseRate * (1 - feePct);
+            try {
+              const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 });
+              const baseRate = Number(quote.rate);
+              // In offramp, selling USDC gives fee-adjusted NGN
+              offrampRate = baseRate * (1 - feePct);
+            } catch (centiivErr: any) {
+              console.warn(`[ToolExecutor] Stellar offramp rate lookup failed, using benchmark:`, centiivErr.message);
+              stellarRateOffline = true;
+              const res = await SwitchService.getOfframpRate("base:usdc").catch(() => null);
+              if (res?.success && res.rate) {
+                offrampRate = res.rate;
+              }
+            }
           } else {
             const res = await SwitchService.getOfframpRate(targetAsset);
             if (res.success && res.rate) {
@@ -2202,10 +2264,15 @@ export async function executeTool(
           throw new Error("Unable to fetch current rates from provider.");
         }
 
-        const summaryForAI =
-          `Current  exchange rates for **${tokenSymbol}** (via Switch):\n` +
+        let summaryForAI =
+          `Current exchange rates for **${tokenSymbol}**:\n` +
           lines.join("\n") +
           `\nTell the user these exact live rates clearly and concisely. Ask if they would like to proceed with a deposit or withdrawal.`;
+
+        if (isStellar && stellarRateOffline) {
+          summaryForAI +=
+            `\nNote: Stellar cash-out service is temporarily undergoing network maintenance. The rates above reflect live Solana/Base pricing. Advise the user that they can bridge or swap their USDC to **Solana** or **Base** to cash out to their bank immediately.`;
+        }
 
         return {
           toolName: name,
@@ -2218,6 +2285,28 @@ export async function executeTool(
           `[ToolExecutor] [User: ${userId}] get_ramp_rate ✗ Error:`,
           err.message,
         );
+
+        const isCentiivDown =
+          isStellar &&
+          (err.isProviderOffline ||
+            err.provider === "centiiv" ||
+            err.message?.toLowerCase().includes("nodes are offline") ||
+            err.message?.toLowerCase().includes("unreachable") ||
+            err.message?.toLowerCase().includes("target provider") ||
+            err.message?.toLowerCase().includes("temporarily offline"));
+
+        if (isCentiivDown) {
+          return {
+            toolName: name,
+            summaryForAI:
+              `Stellar bank cash-out rates are temporarily unavailable due to network maintenance. ` +
+              `However, withdrawals and rates on **Solana** and **Base** are active and fully operational. ` +
+              `Inform the user that Stellar rates are temporarily offline for maintenance and recommend they consider withdrawing via **Solana** or **Base**.`,
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+
         return {
           toolName: name,
           summaryForAI: `Failed to fetch live rates: ${err.message}. Please try again shortly.`,

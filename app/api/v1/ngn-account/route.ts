@@ -149,7 +149,7 @@ export async function POST(req: Request) {
     const verifiedEmail = String(freshUser?.email || auth.user.email || body.emailAddress || "").trim();
     const verifiedBvn = String(body.bvn || "").trim();
     const rawDob = kycDetails.dateOfBirth || body.dateOfBirth || "";
-    const normalizedDob = String(rawDob).replace(/-/g, "/").trim();
+    const normalizedDob = String(rawDob).split("T")[0].replace(/-/g, "/").trim();
     const verifiedGender = ((kycDetails.gender ? String(kycDetails.gender).toLowerCase() : String(body.gender || "").toLowerCase()) === "female" ? "female" : "male") as "male" | "female";
 
     const kycAddress = typeof kycDetails.address === "object"

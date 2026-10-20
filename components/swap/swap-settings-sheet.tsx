@@ -36,10 +36,11 @@ export function SwapSettingsSheet({
               key={preset}
               type="button"
               onClick={() => onSlippageChange(preset)}
-              className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${slippage === preset
-                ? "bg-jumpa-primary-600 text-white"
-                : "bg-jumpa-neutral-95 text-jumpa-black"
-                }`}
+              className={`tap cursor-pointer rounded-pill px-4 py-1.5 text-sm font-semibold transition-colors ${
+                slippage === preset
+                  ? "bg-jumpa-primary-600 text-jumpa-white"
+                  : "bg-jumpa-neutral-95 text-jumpa-black hover:bg-jumpa-neutral-100"
+              }`}
             >
               {preset}%
             </button>
@@ -47,7 +48,7 @@ export function SwapSettingsSheet({
         </div>
 
         {/* Custom slippage input */}
-        <label className="flex items-center gap-2 rounded-xl bg-jumpa-neutral-95 px-4 py-2.5">
+        <label className="flex items-center gap-2 rounded-surface border border-jumpa-neutral-100 bg-jumpa-neutral-95 px-4 py-2.5 transition-colors focus-within:border-jumpa-primary-600">
           <span className="text-xs text-jumpa-black/50">Custom</span>
           <input
             type="number"

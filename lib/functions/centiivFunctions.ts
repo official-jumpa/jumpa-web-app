@@ -56,11 +56,26 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
         } else {
           errorMsg = "Amount exceeds the maximum allowed limit for this transfer.";
         }
+      } else if (
+        errorMsg.toLowerCase().includes("nodes are offline") ||
+        errorMsg.toLowerCase().includes("unreachable") ||
+        errorMsg.toLowerCase().includes("target provider cannot process") ||
+        res.status === 502 ||
+        res.status === 503
+      ) {
+        errorMsg = "Stellar bank cash-out service is temporarily offline for maintenance.";
       }
+
+      const isOffline =
+        errorMsg.includes("temporarily offline") ||
+        res.status === 502 ||
+        res.status === 503;
 
       const error: any = new Error(errorMsg);
       error.status = res.status;
       error.response = data;
+      error.isProviderOffline = isOffline;
+      error.provider = "centiiv";
       throw error;
     }
 

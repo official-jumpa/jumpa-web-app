@@ -114,9 +114,17 @@ export async function POST(req: NextRequest) {
         console.error(
           `Centiiv quote error: ${formatOneLineError(err)}`,
         );
+        const isOffline =
+          err.isProviderOffline ||
+          err.provider === "centiiv" ||
+          err.message?.toLowerCase().includes("offline") ||
+          err.message?.toLowerCase().includes("unreachable") ||
+          err.message?.toLowerCase().includes("target provider");
         result = {
           success: false,
-          message: err.message || "Failed to fetch rate from Centiiv",
+          message: isOffline
+            ? "Stellar bank withdrawal rates are temporarily unavailable due to network maintenance. You can swap or bridge to Solana or Base to cash out."
+            : (err.message || "Failed to calculate exchange rate at this time."),
         };
       }
     } else {

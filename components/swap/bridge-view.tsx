@@ -66,16 +66,24 @@ interface BridgeTxResult {
   mode: TransferMode;
 }
 
-export function BridgeView({
-  bridgeBalances,
-  walletAddresses,
-  onDone,
-}: {
+export type BridgeStage = Stage;
+
+export interface BridgeViewProps {
   bridgeBalances: BridgeBalances;
   walletAddresses: WalletAddresses;
   /** The receipt draws its own header, so the screen's chrome steps aside. */
   onDone?: (done: boolean) => void;
-}) {
+  stage?: Stage;
+  onStageChange?: (stage: Stage) => void;
+}
+
+export function BridgeView({
+  bridgeBalances,
+  walletAddresses,
+  onDone,
+  stage: controlledStage,
+  onStageChange,
+}: BridgeViewProps) {
   const boundary = usePopoverBoundary();
 
   // ── Bridge Config ──
@@ -87,7 +95,12 @@ export function BridgeView({
   const [recipientInput, setRecipientInput] = useState("");
 
   // ── Flow ──
-  const [stage, setStage] = useState<Stage>("quote");
+  const [internalStage, setInternalStage] = useState<Stage>("quote");
+  const stage = controlledStage ?? internalStage;
+  const setStage = (next: Stage) => {
+    setInternalStage(next);
+    onStageChange?.(next);
+  };
   const [pinOpen, setPinOpen] = useState(false);
   const [pinError, setPinError] = useState(false);
   const [error, setError] = useState<string>();
@@ -447,15 +460,16 @@ export function BridgeView({
   };
 
   const balanceLine = (value: string, max?: boolean) => (
-    <span className="flex items-center gap-1 text-[10px] leading-3 font-bold text-jumpa-primary-400">
+    <span className="flex items-center gap-1.5 text-[10px] leading-3 font-bold text-jumpa-primary-400">
       Balance: {formatBalance(value)}
       {max ? (
         <button
           type="button"
           onClick={() => setAmount(value)}
-          className="tap ml-0.5 cursor-pointer rounded-pill bg-jumpa-primary-50 px-1.5 py-0.5 text-[10px] font-bold text-jumpa-primary-600 uppercase hover:bg-jumpa-primary-100"
+          aria-label="Use maximum balance"
+          className="tap relative -my-0.5 rounded-pill bg-jumpa-primary-525 px-1.5 py-0.5 text-[10px] leading-3 font-bold text-jumpa-alt-400 after:absolute after:-inset-2 after:content-[''] active:scale-95"
         >
-          Max
+          MAX
         </button>
       ) : null}
     </span>
@@ -537,7 +551,7 @@ export function BridgeView({
           </p>
           {quote?.networkFeeLabel ? (
             <p className="flex items-center justify-between gap-3 text-[11px] text-jumpa-neutral-425">
-              <span>solana network fee</span>
+              <span>Solana network fee</span>
               <span className="font-medium text-jumpa-neutral-700">{quote.networkFeeLabel}</span>
             </p>
           ) : null}
@@ -579,7 +593,7 @@ export function BridgeView({
                 ? `${defaultRecipient.slice(0, 10)}…${defaultRecipient.slice(-8)}`
                 : "No derived address available"}
             </span>
-            <span className="shrink-0 rounded-pill bg-jumpa-success/10 px-2 py-0.5 text-[10px] font-semibold">
+            <span className="shrink-0 rounded-pill bg-jumpa-success/10 px-2 py-0.5 text-[10px] font-semibold text-jumpa-success">
               Your Wallet
             </span>
           </div>
@@ -666,7 +680,7 @@ export function BridgeView({
             <DetailRow label="Destination network" value={destChainName} />
             <DetailRow label="Bridge fee" value={feeLabel} />
             {quote?.networkFeeLabel ? (
-              <DetailRow label="solana network fee" value={quote.networkFeeLabel} />
+              <DetailRow label="Solana network fee" value={quote.networkFeeLabel} />
             ) : null}
             {quote?.requiresGasAbstraction && quote?.totalSpendAmount ? (
               <DetailRow label="Total you spend" value={`${quote.totalSpendAmount} USDC`} />

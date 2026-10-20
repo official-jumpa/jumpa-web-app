@@ -37,6 +37,76 @@ export async function getUserNotifications(
 ) {
   await connectDB();
 
+  // If fetching the default dual-tab feed (no specific tab requested and not unread-only),
+  // use a single aggregation to fetch up to 15 items per tab and all counts in 1 DB query.
+  if (!options.tab && !options.unreadOnly) {
+    const limitPerTab = Math.min(50, Math.max(1, options.limit || 15));
+    const [facetResult] = await Notification.aggregate([
+      { $match: { userId } },
+      {
+        $facet: {
+          transactions: [
+            { $match: { tab: "transactions" } },
+            { $sort: { createdAt: -1 } },
+            { $limit: limitPerTab },
+          ],
+          activities: [
+            { $match: { tab: "activities" } },
+            { $sort: { createdAt: -1 } },
+            { $limit: limitPerTab },
+          ],
+          unreadCount: [
+            { $match: { read: false } },
+            { $count: "count" },
+          ],
+          transactionsCount: [
+            { $match: { tab: "transactions" } },
+            { $count: "count" },
+          ],
+          activitiesCount: [
+            { $match: { tab: "activities" } },
+            { $count: "count" },
+          ],
+        },
+      },
+    ]);
+
+    const txDocs: INotification[] = facetResult?.transactions ?? [];
+    const actDocs: INotification[] = facetResult?.activities ?? [];
+    const combinedDocs = [...txDocs, ...actDocs].sort((a, b) => {
+      const aTime = new Date(a.createdAt || 0).getTime();
+      const bTime = new Date(b.createdAt || 0).getTime();
+      return bTime - aTime;
+    });
+
+    const txTotal = facetResult?.transactionsCount?.[0]?.count ?? 0;
+    const actTotal = facetResult?.activitiesCount?.[0]?.count ?? 0;
+    const totalUnread = facetResult?.unreadCount?.[0]?.count ?? 0;
+
+    const notifications = combinedDocs.map((notif) => ({
+      id: notif._id,
+      tab: notif.tab,
+      type: notif.type,
+      title: notif.title,
+      body: notif.body,
+      time: formatNotificationTime(notif.createdAt),
+      read: Boolean(notif.read),
+      metadata: notif.metadata,
+      link: notif.link,
+      createdAt: notif.createdAt,
+    }));
+
+    return {
+      notifications,
+      total: txTotal + actTotal,
+      unreadCount: totalUnread,
+      tabCounts: {
+        transactions: txTotal,
+        activities: actTotal,
+      },
+    };
+  }
+
   const limit = Math.min(100, Math.max(1, options.limit || 30));
   const skip = Math.max(0, options.skip || 0);
 

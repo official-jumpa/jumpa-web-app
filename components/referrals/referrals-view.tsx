@@ -48,10 +48,10 @@ export function ReferralsView({
 
     async function fetchReferrals() {
       try {
-        const res = await fetch("/api/referrals");
+        const res = await fetch("/api/v1/referrals");
         if (res.ok) {
           const resData = await res.json();
-          setData(resData);
+          setData(resData.data ?? resData);
         }
       } catch (err) {
         console.error("[ReferralsView] Failed to fetch referrals:", err);

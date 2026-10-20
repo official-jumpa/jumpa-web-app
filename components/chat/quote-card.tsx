@@ -51,7 +51,7 @@ export function QuoteCard({
 
       setLoadingQuote(true);
       try {
-        const res = await fetch("/api/swap/quote", {
+        const res = await fetch("/api/v1/swap?action=quote", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -64,9 +64,10 @@ export function QuoteCard({
         });
 
         if (res.ok) {
-          const data = await res.json();
-          if (data.quote) {
-            const q = data.quote;
+          const json = await res.json();
+          const payload = json.data ?? json;
+          if (payload.quote) {
+            const q = payload.quote;
             setReceiveAmount(q.amountOut);
             setRateText(q.rate);
             setFeeText(q.estimatedFee || "—");

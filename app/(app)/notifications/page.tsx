@@ -13,7 +13,7 @@ export default async function NotificationsPage() {
   try {
     const session = await getCachedAuthSession();
     if (session?.user?.id) {
-      const data = await getUserNotifications(session.user.id, { limit: 30 });
+      const data = await getUserNotifications(session.user.id, { limit: 15 });
       initialNotifications = (data.notifications as any) || [];
       if (data.tabCounts) {
         initialTabCounts = data.tabCounts;

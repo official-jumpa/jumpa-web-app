@@ -8,9 +8,8 @@ import { SheetPortal } from "@/components/ui/sheet-portal";
 import type { Notification } from "@/lib/notifications";
 
 /**
- * One notification, in full. A sheet rather than a route: the payload is a
- * title, a line of body and a timestamp, which leaves a whole screen empty —
- * and dismissing it is the "go back" the feed expects.
+ * Detailed view of a notification in a bottom sheet. Displays the full title,
+ * timestamp, message body, and an action button to navigate if a deep link is present.
  */
 export function NotificationDetail({
   item,
@@ -53,9 +52,26 @@ export function NotificationDetail({
         <p className="text-xs leading-5 text-jumpa-black">{item.body}</p>
       </div>
 
-      <Button variant="gradient" size="lg" className="mt-6" onClick={onClose}>
-        Done
-      </Button>
+      <div className="mt-6">
+        {item.link ? (
+          <Button
+            href={item.link}
+            variant="gradient"
+            size="lg"
+            onClick={onClose}
+          >
+            View Details
+          </Button>
+        ) : (
+          <Button
+            variant="gradient"
+            size="lg"
+            onClick={onClose}
+          >
+            Done
+          </Button>
+        )}
+      </div>
     </SheetPortal>
   );
 }

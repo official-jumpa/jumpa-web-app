@@ -10,9 +10,8 @@ import {
  */
 export const joinWaitlistSchema = z.object({
   email: z
-    .string()
-    .trim()
     .email("Please provide a valid email address")
+    .trim()
     .refine((val) => !hasPlusAlias(val), {
       message: "Email aliases are not allowed.",
     })

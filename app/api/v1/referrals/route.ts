@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { getReferralStatsForUser } from "@/lib/functions/referralFunctions";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 /**
- * GET /api/referrals
+ * GET /api/v1/referrals
  * Returns referral statistics and history for the authenticated user.
  */
 export async function GET(req: NextRequest) {
@@ -14,11 +15,17 @@ export async function GET(req: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const stats = await getReferralStatsForUser(auth.userId);
-    return NextResponse.json(stats);
+
+    return NextResponse.json({
+      success: true,
+      data: stats,
+    });
   } catch (err: any) {
-    console.error("[ReferralsAPI] Error:", err);
+    console.error(
+      `[ReferralsAPI] Error: ${formatOneLineError(err)}`,
+    );
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      { success: false, error: "Unable to fetch referral statistics. Please try again later." },
       { status: 500 },
     );
   }

@@ -12,20 +12,12 @@ import {
   createNotificationSchema,
 } from "@/lib/validations/notification.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 /**
- * Single unified API endpoint for all notification operations.
- *
- * GET /api/notifications
- *   Query params: tab, unreadOnly, limit, skip
- *
- * PATCH /api/notifications
- *   Query params: id, action ('read-all'), tab
- *
- * POST /api/notifications
- *   Body: { tab, type, title, body, metadata?, link? }
+ * GET /api/v1/notifications
+ * Returns paginated user notifications, unread count, and tab counters.
  */
-
 export async function GET(req: NextRequest) {
   try {
     const authResult = await requireActiveUser({
@@ -59,17 +51,21 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      ...data,
+      data,
     });
   } catch (err: any) {
-    console.error("[Notifications API GET]", err);
+    console.error(`Error: ${formatOneLineError(err)}`);
     return NextResponse.json(
-      { error: "Failed to fetch notifications" },
+      { success: false, error: "Failed to fetch notifications" },
       { status: 500 },
     );
   }
 }
 
+/**
+ * PATCH /api/v1/notifications
+ * Marks a single notification or all notifications in a tab as read.
+ */
 export async function PATCH(req: NextRequest) {
   try {
     const authResult = await requireActiveUser({
@@ -101,7 +97,7 @@ export async function PATCH(req: NextRequest) {
       );
       return NextResponse.json({
         success: true,
-        modifiedCount,
+        data: { modifiedCount },
       });
     }
 
@@ -109,23 +105,27 @@ export async function PATCH(req: NextRequest) {
       const ok = await markNotificationAsRead(id, session.user.id);
       return NextResponse.json({
         success: true,
-        updated: ok,
+        data: { updated: ok },
       });
     }
 
     return NextResponse.json(
-      { error: "Provide either ?id=<notificationId> or ?action=read-all" },
+      { success: false, error: "Invalid query parameters" },
       { status: 400 },
     );
   } catch (err: any) {
-    console.error("[Notifications API PATCH]", err);
+    console.error(`Error: ${formatOneLineError(err)}`);
     return NextResponse.json(
-      { error: "Failed to update notification status" },
+      { success: false, error: "Failed to update notification status" },
       { status: 500 },
     );
   }
 }
 
+/**
+ * POST /api/v1/notifications
+ * Creates an in-app notification for the authenticated user.
+ */
 export async function POST(req: NextRequest) {
   try {
     const authResult = await requireActiveUser({
@@ -159,14 +159,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        notification: created,
+        data: {
+          notification: created
+            ? {
+                id: created._id,
+                tab: created.tab,
+                type: created.type,
+                title: created.title,
+                body: created.body,
+                read: created.read,
+                createdAt: created.createdAt,
+                metadata: created.metadata,
+                link: created.link,
+              }
+            : null,
+        },
       },
       { status: 201 },
     );
   } catch (err: any) {
-    console.error("[Notifications API POST]", err);
+    console.error(`Error: ${formatOneLineError(err)}`);
     return NextResponse.json(
-      { error: "Failed to create notification" },
+      { success: false, error: "Failed to create notification" },
       { status: 500 },
     );
   }

@@ -9,6 +9,7 @@ import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
 import { useEffect, useState } from "react";
 import { useAuthContext } from "@/components/auth/AuthGuard";
 import { useUserProfile } from "@/components/profile/user-profile-provider";
+import { onNotificationsRefresh } from "@/lib/client-events";
 import { ACCOUNT } from "@/lib/wallet";
 
 // No colour here: a second `text-*` from a consumer would not reliably win,
@@ -39,12 +40,13 @@ export function WalletHeader({
     // `true` and never asked again, so it stayed lit with nothing to read.
     const checkUnread = async () => {
       try {
-        const res = await fetch("/api/notifications?limit=1&unreadOnly=true", {
+        const res = await fetch("/api/v1/notifications?limit=1&unreadOnly=true", {
           cache: "no-store",
         });
         if (!res.ok) return;
         const data = await res.json();
-        if (live) setHasUnread(data.unreadCount > 0);
+        const payload = data.data ?? data;
+        if (live) setHasUnread((payload.unreadCount ?? 0) > 0);
       } catch {}
     };
 
@@ -58,11 +60,13 @@ export function WalletHeader({
     document.addEventListener("visibilitychange", onWake);
     window.addEventListener("focus", checkUnread);
     window.addEventListener("pageshow", checkUnread);
+    const unsubscribeNotifications = onNotificationsRefresh(checkUnread);
     return () => {
       live = false;
       document.removeEventListener("visibilitychange", onWake);
       window.removeEventListener("focus", checkUnread);
       window.removeEventListener("pageshow", checkUnread);
+      unsubscribeNotifications();
     };
   }, []);
 

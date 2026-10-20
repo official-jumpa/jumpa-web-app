@@ -1,11 +1,7 @@
 import Image from "next/image";
 import { LocalTime } from "@/components/ui/local-time";
+import { cn } from "@/lib/cn";
 import type { Notification } from "@/lib/notifications";
-
-// inset-ring, not border: a CSS border sits outside the box and would add 2px
-// to the design's 130px card, compounding down the feed.
-const CARD =
-  "tap flex w-full flex-col gap-2 rounded-surface bg-jumpa-neutral-50 px-6 py-5 text-left inset-ring-1 inset-ring-jumpa-neutral-60 active:scale-[0.99]";
 
 /** One feed entry. The whole card opens the notification; unread carries the dot. */
 export function NotificationCard({
@@ -18,43 +14,45 @@ export function NotificationCard({
   onOpen: () => void;
 }) {
   return (
-    <button type="button" onClick={onOpen} className={CARD}>
-      <div className="flex items-center gap-2">
-        <span className="relative flex size-6 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-jumpa-primary-600 to-jumpa-primary-400">
-          <Image
-            src="/logo/mark/lemon.png"
-            alt=""
-            width={29}
-            height={14}
-            className="w-[14.5px]"
-          />
-          {read ? null : (
-            <span className="absolute top-0 -right-0.75 size-2 rounded-full bg-jumpa-danger" />
-          )}
-        </span>
-        <p className="text-xs leading-3.5 font-medium text-jumpa-black">
-          {item.title}
-        </p>
-      </div>
-
-      {/* -mb-px: the design draws the rule as a zero-height line. */}
-      <span className="-mb-px block h-px w-full bg-jumpa-neutral-95" />
-
-      <p className="max-w-[241px] text-[10px] leading-3.5 text-jumpa-black">
-        {item.body}
-      </p>
-
-      <div className="flex items-center justify-between text-[10px] leading-3.5 font-medium">
+    <button
+      type="button"
+      onClick={onOpen}
+      className={cn(
+        "tap flex w-full flex-col gap-2 rounded-surface px-4 py-3 text-left transition-all active:scale-[0.99]",
+        "border border-jumpa-neutral-90 bg-jumpa-neutral-25/50 shadow-[0_1px_2px_0_rgba(0,0,0,0.03)]",
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="relative flex size-6 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-jumpa-primary-600 to-jumpa-primary-400">
+            <Image
+              src="/logo/mark/lemon.png"
+              alt=""
+              width={29}
+              height={14}
+              className="w-[14.5px]"
+            />
+            {read ? null : (
+              <span className="absolute top-0 -right-0.75 size-2 rounded-full bg-jumpa-danger ring-2 ring-white" />
+            )}
+          </span>
+          <p className="truncate text-xs leading-4 font-semibold text-jumpa-black">
+            {item.title}
+          </p>
+        </div>
         <LocalTime
           at={item.createdAt}
           fallback={item.time}
           format="notification"
-          className="text-jumpa-neutral-265"
+          className="shrink-0 text-[10px] leading-3.5 font-medium text-jumpa-neutral-265"
         />
-        <span className={read ? "text-jumpa-neutral-265" : "text-jumpa-black"}>
-          {read ? "Read" : "Unread"}
-        </span>
       </div>
+
+      <span className="-mb-px block h-px w-full bg-jumpa-neutral-90" />
+
+      <p className="text-[11px] leading-4 text-jumpa-neutral-600 line-clamp-2">
+        {item.body}
+      </p>
     </button>
   );
 }

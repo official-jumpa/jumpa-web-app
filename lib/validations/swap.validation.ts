@@ -2,7 +2,7 @@ import { z } from "zod";
 import { pinSchema } from "./user.validation";
 
 /**
- * Validation for swap quote requests (/api/swap/quote)
+ * Validation for swap quote requests (/api/v1/swap?action=quote)
  */
 export const swapQuoteSchema = z.object({
   chain: z.string().trim().optional(),
@@ -34,7 +34,7 @@ export const swapQuoteSchema = z.object({
 export type SwapQuoteInput = z.infer<typeof swapQuoteSchema>;
 
 /**
- * Validation for swap transaction building (/api/swap/build)
+ * Validation for swap transaction building (/api/v1/swap?action=build)
  */
 export const swapBuildSchema = z.object({
   quote: z.any().refine((q) => Boolean(q), { message: "quote is required" }),
@@ -51,7 +51,7 @@ export const swapBuildSchema = z.object({
 export type SwapBuildInput = z.infer<typeof swapBuildSchema>;
 
 /**
- * Validation for swap execution (/api/swap/execute)
+ * Validation for swap execution (/api/v1/swap?action=execute)
  */
 export const swapExecuteSchema = z.object({
   pin: pinSchema,

@@ -1,7 +1,7 @@
 /**
  * hooks/use-swap-quote.ts
  *
- * Debounced hook that fetches a live DEX quote from POST /api/swap/quote.
+ * Debounced hook that fetches a live DEX quote from POST /api/v1/swap?action=quote.
  * Re-fetches automatically whenever fromToken, toToken, amount,
  * or slippage changes (400 ms debounce). In-flight requests are aborted on
  * rapid changes to avoid stale results.
@@ -57,7 +57,7 @@ export function useSwapQuote(params: UseSwapQuoteParams): UseSwapQuoteResult {
       abortRef.current = controller;
 
       try {
-        const res = await fetch("/api/swap/quote", {
+        const res = await fetch("/api/v1/swap?action=quote", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -77,7 +77,8 @@ export function useSwapQuote(params: UseSwapQuoteParams): UseSwapQuoteResult {
           setError(json?.error || "Failed to fetch quote");
           setQuote(null);
         } else {
-          setQuote(json.quote as SwapQuote);
+          const payload = json.data ?? json;
+          setQuote((payload.quote ?? payload) as SwapQuote);
           setError(null);
         }
       } catch (err: any) {

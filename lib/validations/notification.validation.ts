@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Query schema for GET /api/notifications
+ * Query schema for GET /api/v1/notifications
  */
 export const listNotificationsQuerySchema = z.object({
   tab: z.enum(["transactions", "activities"]).optional(),
@@ -22,7 +22,7 @@ export const listNotificationsQuerySchema = z.object({
 });
 
 /**
- * Query schema for PATCH /api/notifications
+ * Query schema for PATCH /api/v1/notifications
  */
 export const updateNotificationQuerySchema = z
   .object({
@@ -58,10 +58,13 @@ export const notificationTypeEnum = z.enum([
   "WALLET_CREATED",
   "WALLET_IMPORTED",
   "SECURITY_ALERT",
+  "SUPPORT_AGENT_REPLIED",
+  "SUPPORT_TICKET_UPDATED",
+  "SUPPORT_TICKET_RESOLVED",
 ]);
 
 /**
- * Body schema for POST /api/notifications
+ * Body schema for POST /api/v1/notifications
  */
 export const createNotificationSchema = z.object({
   tab: z.enum(["transactions", "activities"], {

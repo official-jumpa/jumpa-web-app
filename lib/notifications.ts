@@ -7,6 +7,10 @@ export type Notification = {
   body: string;
   time: string;
   read: boolean;
+  /** Optional deep link to navigate when the notification is viewed. */
+  link?: string;
+  /** Optional contextual metadata associated with the notification. */
+  metadata?: Record<string, any>;
   /** Rendered on the device's clock; `time` is the server's UTC formatting of it. */
   createdAt?: string | Date;
 };

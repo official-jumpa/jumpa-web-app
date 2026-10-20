@@ -4,8 +4,10 @@ import { joinWaitlistSchema } from "@/lib/validations/waitlist.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { enforceRateLimit } from "@/lib/functions/rateLimitFunctions";
 import { sendWaitlistWelcomeEmail } from "@/lib/email-notifications";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 /**
+ * POST /api/v1/waitlist
  * Adds an email to the waitlist with optional attribution and metadata.
  */
 export async function POST(req: NextRequest) {
@@ -20,10 +22,13 @@ export async function POST(req: NextRequest) {
     const validation = joinWaitlistSchema.safeParse(body);
 
     if (!validation.success) {
-      return NextResponse.json(formatZodError(validation.error), { status: 400 });
+      const formatted = formatZodError(validation.error);
+      return NextResponse.json(
+        { success: false, error: formatted.error },
+        { status: 400 },
+      );
     }
 
-    // Extract request metadata for attribution and auditing
     const forwardedFor = req.headers.get("x-forwarded-for");
     const ipAddress = forwardedFor
       ? forwardedFor.split(",")[0].trim()
@@ -38,12 +43,13 @@ export async function POST(req: NextRequest) {
     });
 
     if (result.isNew) {
-      // Dispatch waitlist welcome email asynchronously
       sendWaitlistWelcomeEmail(validation.data.email, {
         email: validation.data.email,
         customerName: validation.data.name,
       }).catch((err) => {
-        console.error("[waitlist] error:", err);
+        console.error(
+          `[Waitlist:WelcomeEmail] Failed: ${formatOneLineError(err)}`,
+        );
       });
     }
 
@@ -58,9 +64,11 @@ export async function POST(req: NextRequest) {
       { status: result.isNew ? 201 : 200 },
     );
   } catch (err: any) {
-    console.error("[waitlist] Error:", err);
+    console.error(
+      `[WaitlistAPI] Error: ${formatOneLineError(err)}`,
+    );
     return NextResponse.json(
-      { error: err.message || "Failed to join waitlist" },
+      { success: false, error: "Failed to join waitlist. Please try again later." },
       { status: 500 },
     );
   }

@@ -2,6 +2,7 @@
 
 export const BALANCE_REFRESH_EVENT = "jumpa:refresh-balances";
 export const NGN_REFRESH_EVENT = "jumpa:refresh-ngn";
+export const NOTIFICATIONS_REFRESH_EVENT = "jumpa:refresh-notifications";
 
 let broadcastChannel: BroadcastChannel | null = null;
 if (typeof window !== "undefined" && "BroadcastChannel" in window) {
@@ -12,6 +13,8 @@ if (typeof window !== "undefined" && "BroadcastChannel" in window) {
         window.dispatchEvent(new CustomEvent(BALANCE_REFRESH_EVENT));
       } else if (event.data === NGN_REFRESH_EVENT) {
         window.dispatchEvent(new CustomEvent(NGN_REFRESH_EVENT));
+      } else if (event.data === NOTIFICATIONS_REFRESH_EVENT) {
+        window.dispatchEvent(new CustomEvent(NOTIFICATIONS_REFRESH_EVENT));
       }
     };
   } catch {
@@ -78,3 +81,26 @@ export function onNgnRefresh(callback: () => void): () => void {
     window.removeEventListener(NGN_REFRESH_EVENT, callback);
   };
 }
+
+/**
+ * Broadcasts notification updates to all active components and browser tabs/windows immediately.
+ */
+export function invalidateClientNotifications() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(NOTIFICATIONS_REFRESH_EVENT));
+  try {
+    broadcastChannel?.postMessage(NOTIFICATIONS_REFRESH_EVENT);
+  } catch {}
+}
+
+/**
+ * Subscribes to global notifications refresh events. Returns an unsubscribe cleanup function.
+ */
+export function onNotificationsRefresh(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(NOTIFICATIONS_REFRESH_EVENT, callback);
+  return () => {
+    window.removeEventListener(NOTIFICATIONS_REFRESH_EVENT, callback);
+  };
+}
+

@@ -27,7 +27,7 @@ export async function getReferralStatsForUser(userId: string) {
   const referredUserIds = referrals.map((r) => r.referredUserId);
   const referredUsers = await User.find(
     { _id: { $in: referredUserIds } },
-    "_id name jumpaTag email",
+    "_id name jumpaTag",
   ).lean();
 
   const userMap = new Map<string, { name: string; tag: string }>();

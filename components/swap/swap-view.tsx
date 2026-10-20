@@ -259,7 +259,7 @@ export function SwapView({
     setPinOpen(false);
   }
 
-  // ── PIN submission — calls /api/swap/execute ──
+  // ── PIN submission — calls /api/v1/swap?action=execute ──
   async function handlePinSubmit(pin: string) {
     if (!quote) {
       fail("Quote expired");
@@ -268,7 +268,7 @@ export function SwapView({
 
     setSubmitting(true);
     try {
-      const res = await fetch("/api/swap/execute", {
+      const res = await fetch("/api/v1/swap?action=execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -292,9 +292,10 @@ export function SwapView({
           fail(json?.error);
         }
       } else {
+        const payload = json.data ?? json;
         setTxResult({
-          txHash: json.txHash,
-          explorerUrl: json.explorerUrl,
+          txHash: payload.txHash,
+          explorerUrl: payload.explorerUrl,
           received: quote.amountOut,
           receivedToken: toToken,
         });

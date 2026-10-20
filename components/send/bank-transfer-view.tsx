@@ -99,7 +99,7 @@ export function BankTransferView({
     let isMounted = true;
     async function loadNgnBalance() {
       try {
-        const res = await fetch("/api/ngn-account");
+        const res = await fetch("/api/v1/ngn-account");
         if (!res.ok) return;
         const data = await res.json();
         if (isMounted && data.hasAccount && data.balance) {
@@ -323,7 +323,7 @@ export function BankTransferView({
 
     if (isFiatWithdrawal) {
       try {
-        const res = await fetch("/api/ngn-account/withdraw", {
+        const res = await fetch("/api/v1/ngn-account/withdraw", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

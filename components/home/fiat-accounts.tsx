@@ -71,7 +71,7 @@ export function FiatAccounts({
 
     async function loadNgnAccount() {
       try {
-        const res = await fetch("/api/ngn-account", {
+        const res = await fetch("/api/v1/ngn-account", {
           cache: "no-store",
         });
 

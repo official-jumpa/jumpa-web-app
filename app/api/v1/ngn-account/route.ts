@@ -3,23 +3,21 @@ import { isUserKycVerified, getKycRecordByUserId } from "@/lib/functions/kycFunc
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { createBellmonieAccountSchema } from "@/lib/validations/bellmonie.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
-import {
-  getUserNgnAccountDetails,
-  getUserNgnAccount,
-} from "@/lib/functions/ngnFunctions";
-import {
-  createBellmonieIndividualAccount,
-  getOrCreateUserBellmonieAccount,
-} from "@/lib/functions/bellmonieFunctions";
+import { getUserNgnAccountDetails } from "@/lib/functions/ngnFunctions";
+import { createBellmonieIndividualAccount } from "@/lib/functions/bellmonieFunctions";
 import { connectDB } from "@/lib/db";
 import { NgnAccount } from "@/models/NgnAccount";
 import { User } from "@/models/User";
-import { environment } from "@/lib/environment";
+import {
+  handleExternalApiError,
+  formatOneLineError,
+  isTimeoutError,
+} from "@/lib/utils/api-best-practices";
 
 /**
- * GET /api/ngn-account
- * Returns the authenticated user's active NGN account, live balance, and all accounts.
- * Defaults to primary provider "bellmonie" (falling back to "fossapay"), or accepts ?provider=bellmonie|fossapay
+ * GET /api/v1/ngn-account
+ * Returns the authenticated user's active Bellmonie NGN account and live balance.
+ * Strictly projects clean client-safe DTOs with zero internal database or provider leakage.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -30,20 +28,21 @@ export async function GET(req: NextRequest) {
     if (!auth.ok) return auth.response;
 
     const force = req.nextUrl?.searchParams?.get("refresh") === "true";
-    const requestedProvider = req.nextUrl?.searchParams?.get("provider") as
-      | "bellmonie"
-      | "fossapay"
-      | undefined;
-
     const result = await getUserNgnAccountDetails(
       auth.userId,
       auth.user.name || "Jumpa User",
-      { force, provider: requestedProvider },
+      { force, provider: "bellmonie" },
     );
 
     if (!result.account) {
       return NextResponse.json(
-        { hasAccount: false, message: "No NGN account found", canCreateBellmonie: true },
+        {
+          hasAccount: false,
+          account: null,
+          balance: null,
+          canCreateBellmonie: true,
+          message: "No active Naira account found",
+        },
         { status: 200 },
       );
     }
@@ -51,29 +50,38 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         hasAccount: true,
-        account: result.account,
+        account: {
+          bankName: result.account.bankName || "Bloc MFB",
+          accountNumber: result.account.accountNumber,
+          accountName: result.account.accountName,
+          status: result.account.status || "active",
+          provider: "bellmonie",
+        },
         balance: result.balance,
-        accounts: result.accounts || [],
-        activeProvider: result.activeProvider,
-        canCreateBellmonie: result.canCreateBellmonie,
+        canCreateBellmonie: false,
       },
       { status: 200 },
     );
   } catch (error: any) {
-    console.error("[NGN Account API] GET Error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
-    );
+    return handleExternalApiError({
+      provider: "Bellmonie",
+      action: "GetAccount",
+      status: 500,
+      rawError: error,
+      customMessage: "Unable to retrieve Naira account details. Please try again shortly.",
+    });
   }
 }
 
 /**
- * POST /api/ngn-account
- * Exclusively creates a Bellmonie individual virtual account.
- * Enforces strictly 1 Bellmonie account per user.
+ * POST /api/v1/ngn-account
+ * Provisions a dedicated Bellmonie individual virtual account.
+ * Enforces strictly 1 Bellmonie account per verified user.
  */
 export async function POST(req: Request) {
+  const PROVIDER = "Bellmonie";
+  const ACTION = "CreateAccount";
+
   try {
     const auth = await requireActiveUser({
       requireWallet: false,
@@ -86,8 +94,8 @@ export async function POST(req: Request) {
     if (!kycVerified) {
       return NextResponse.json(
         {
-          error:
-            "Please complete identity verification (KYC) before opening a Naira account.",
+          success: false,
+          error: "Please complete identity verification first.",
         },
         { status: 403 },
       );
@@ -99,17 +107,20 @@ export async function POST(req: Request) {
     const existingBellmonie = await NgnAccount.findOne({
       userId: auth.userId,
       provider: "bellmonie",
+      status: "active",
     }).lean();
 
-    if (
-      existingBellmonie &&
-      existingBellmonie.status === "active" &&
-      existingBellmonie.accountNumber
-    ) {
+    if (existingBellmonie && existingBellmonie.accountNumber) {
       return NextResponse.json(
         {
           success: true,
-          account: existingBellmonie,
+          account: {
+            bankName: existingBellmonie.bankName || "Bloc MFB",
+            accountNumber: existingBellmonie.accountNumber,
+            accountName: existingBellmonie.accountName || auth.user.name || "Jumpa User",
+            status: "active",
+            provider: "bellmonie",
+          },
           message: "You already have an active Naira account",
         },
         { status: 200 },
@@ -124,14 +135,13 @@ export async function POST(req: Request) {
       body = {};
     }
 
-    // Retrieve fresh user and KYC details directly from DB
     const [freshUser, kycRecord] = await Promise.all([
       User.findById(auth.userId).lean(),
       getKycRecordByUserId(auth.userId),
     ]);
     const kycDetails = kycRecord?.details || {};
 
-    // DB / KYC verified values take strict precedence over any user client-side edits
+    // KYC & DB verified values take strict precedence over client body edits
     const verifiedFirstName = String(kycDetails.firstName || freshUser?.name?.split(" ")[0] || auth.user.name?.split(" ")[0] || body.firstName || "").trim();
     const verifiedLastName = String(kycDetails.lastName || freshUser?.name?.split(" ").slice(1).join(" ") || auth.user.name?.split(" ").slice(1).join(" ") || body.lastName || "").trim();
     const verifiedMiddleName = (kycDetails.middleName || body.middleName || undefined) ? String(kycDetails.middleName || body.middleName).trim() : undefined;
@@ -162,15 +172,12 @@ export async function POST(req: Request) {
     const parsed = createBellmonieAccountSchema.safeParse(registrationData);
     if (!parsed.success) {
       const formatted = formatZodError(parsed.error);
-      console.warn("[Bellmonie Creation] Validation error:", formatted);
-      return NextResponse.json(formatted, { status: 422 });
+      return NextResponse.json({ success: false, error: formatted.error }, { status: 422 });
     }
 
     const validData = parsed.data;
 
-    console.log(` ✅[Bellmonie Provision] Creating virtual account for user ${auth.userId} (${validData.emailAddress}) phone no (${validData.phoneNumber})`);
-
-    // 4. Create individual virtual account via Bellmonie API (using only BVN)
+    // 4. Create individual virtual account via Bellmonie API
     const clientData = await createBellmonieIndividualAccount({
       firstname: validData.firstName,
       lastname: validData.lastName,
@@ -184,8 +191,8 @@ export async function POST(req: Request) {
       metadata: { userId: auth.userId },
     });
 
-    // 5. Store / update in MongoDB
-    const updatedAccount = await NgnAccount.findOneAndUpdate(
+    // 5. Upsert in MongoDB
+    await NgnAccount.findOneAndUpdate(
       { userId: auth.userId, provider: "bellmonie" },
       {
         $set: {
@@ -211,21 +218,71 @@ export async function POST(req: Request) {
       { returnDocument: "after", upsert: true },
     );
 
-    console.log(`[Bellmonie Provision] ✅ Account activated successfully for ${auth.userId}: ${clientData.accountNumber}`);
-
+    // 6. Return minimal, client-safe DTO (no raw Mongoose doc, no BVN leak)
     return NextResponse.json(
       {
         success: true,
-        account: updatedAccount,
-        message: "Bellmonie virtual account opened successfully",
+        account: {
+          bankName: "Bloc MFB",
+          accountNumber: clientData.accountNumber,
+          accountName: clientData.accountName,
+          status: "active",
+          provider: "bellmonie",
+        },
+        message: "Naira virtual account created successfully",
       },
       { status: 201 },
     );
   } catch (error: any) {
-    console.error("[Bellmonie Account API] Unexpected unhandled error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to create Bellmonie account" },
-      { status: 500 },
-    );
+    const rawErrorText = String(error?.message || error?.data?.message || "");
+
+    // Intercept specific BVN validation mismatch from Bellmonie
+    if (
+      error.status === 400 ||
+      /bvn validation failed|invalid bvn|bvn.*not match/i.test(rawErrorText)
+    ) {
+      console.error(
+        `[${PROVIDER}:${ACTION}] Upstream failure | Status: 400 | Payload: ${formatOneLineError(error.data || error.message)}`,
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "The BVN provided does not match your registered identity details",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (isTimeoutError(error) || error.status === 504) {
+      return handleExternalApiError({
+        provider: PROVIDER,
+        action: ACTION,
+        status: 504,
+        rawError: error,
+        customMessage:
+          "The request timed out while contacting the banking provider. Please check your connection and try again.",
+      });
+    }
+
+    if (error.status >= 500) {
+      return handleExternalApiError({
+        provider: PROVIDER,
+        action: ACTION,
+        status: 502,
+        rawError: error,
+        customMessage:
+          "The banking service is temporarily unavailable. Please try again shortly.",
+      });
+    }
+
+    return handleExternalApiError({
+      provider: PROVIDER,
+      action: ACTION,
+      status: error.status || 500,
+      rawError: error,
+      customMessage:
+        "We could not complete your account request at this time. Please try again later.",
+    });
   }
 }

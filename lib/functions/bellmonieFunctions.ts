@@ -13,6 +13,7 @@ import { createNotification } from "@/lib/functions/notificationFunctions";
 import { generateId } from "@/lib/schema-ids";
 import { refundFailedNgnWithdrawal } from "@/lib/functions/ngnRefundFunctions";
 import { BellmonieBanks, findBellmonieBank } from "@/lib/constants/bellmonie-banks";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 export {
   mapCountryCodeToName,
@@ -188,19 +189,30 @@ async function bellmonieRequest<T>(
 
   const startTime = Date.now();
   try {
+    const timeoutMs = method === "POST" ? 15000 : 8000;
     const res = await fetch(url, {
       ...options,
       headers,
+      signal: options.signal || AbortSignal.timeout(timeoutMs),
     });
 
     const duration = Date.now() - startTime;
     const responseText = await res.text();
     let data: any;
 
-    try {
-      data = JSON.parse(responseText);
-    } catch {
-      data = { raw: responseText };
+    const isHtml = /^\s*<!doctype|^\s*<html/i.test(responseText);
+    if (isHtml) {
+      data = {
+        success: false,
+        status: res.status,
+        message: "Banking service is temporarily unavailable",
+      };
+    } else {
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        data = { raw: responseText.slice(0, 200) };
+      }
     }
 
     if (res.status === 401 && !retried) {
@@ -227,12 +239,9 @@ async function bellmonieRequest<T>(
 
       // Silence not-found lookups completely to avoid flooding database error logs
       if (!isNotFound) {
-        console.error(`[Bellmonie] API Error [${res.status}] (${duration}ms):`, {
-          url,
-          method,
-          status: res.status,
-          response: data,
-        });
+        console.error(
+          `[Bellmonie] API Error [${res.status}] (${duration}ms) ${method} ${url} | ${formatOneLineError(data || message)}`,
+        );
       }
 
       throw err;
@@ -242,7 +251,7 @@ async function bellmonieRequest<T>(
     return data as T;
   } catch (error: any) {
     if (error.status) throw error;
-    console.error(`[Bellmonie] Network Error on ${method} ${url}:`, error.message);
+    console.error(`[Bellmonie] Network Error on ${method} ${url}: ${formatOneLineError(error.message || error)}`);
     throw error;
   }
 }

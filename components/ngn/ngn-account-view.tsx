@@ -29,18 +29,16 @@ export function NgnAccountView() {
           "[NgnAccountView] Checking existing NGN account and KYC...",
         );
         const [ngnRes, kycRes] = await Promise.all([
-          fetch("/api/ngn-account"),
+          fetch("/api/v1/ngn-account"),
           fetch("/api/v1/kyc"),
         ]);
 
         if (ngnRes.ok && isMounted) {
           const data = await ngnRes.json();
           // If user already has an active Bellmonie account, they are fully setup
-          const hasActiveBellmonie =
-            data.hasAccount &&
-            (data.account?.provider === "bellmonie" ||
-              (Array.isArray(data.accounts) &&
-                data.accounts.some((a: any) => a.provider === "bellmonie")));
+          const hasActiveBellmonie = Boolean(
+            data.hasAccount && data.account?.provider === "bellmonie",
+          );
 
           if (hasActiveBellmonie) {
             console.log(
@@ -82,37 +80,47 @@ export function NgnAccountView() {
     setOpening(true);
     setServerError(null);
 
-    console.log("Creating Bellmonie NGN account...", {
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-    });
-
     try {
-      const res = await fetch("/api/ngn-account", {
+      const res = await fetch("/api/v1/ngn-account", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type") || "";
+      let data: any = {};
+      if (contentType.includes("application/json")) {
+        data = await res.json().catch(() => ({}));
+      } else {
+        const rawText = await res.text().catch(() => "");
+        const isHtmlOr5xx = /<!doctype|<html|502|504|bad gateway/i.test(rawText);
+        data = {
+          error: isHtmlOr5xx
+            ? "Banking service is temporarily unavailable. Please try again shortly."
+            : rawText.slice(0, 150) || "Failed to create NGN account.",
+        };
+      }
 
-      if (!res.ok) {
-        console.error("[NgnAccountView] API returned error:", data);
-        setServerError(
-          data.error || "Failed to create NGN account. Please try again.",
-        );
+      if (!res.ok || data.success === false) {
+        const errorCopy =
+          data.error && !/<!doctype|<html|not valid json|unexpected token/i.test(data.error)
+            ? data.error
+            : "Failed to create NGN account. Please try again.";
+        setServerError(errorCopy);
         setOpening(false);
         return;
       }
 
-      console.log("Account created successfully!", data);
       setOpening(false);
       setStage("ready");
     } catch (err: any) {
-      console.error("Network error submitting account form:", err);
+      const msg = String(err?.message || "");
+      const isParserError = /not valid json|unexpected token|<!doctype|<html|bad gateway|502|504/i.test(msg);
+      console.error("[NgnAccountView] Account creation failure:", msg);
       setServerError(
-        err.message ||
-          "A network error occurred. Please check your connection.",
+        isParserError
+          ? "Banking service is temporarily unavailable. Please try again shortly."
+          : msg || "A network error occurred. Please check your connection.",
       );
       setOpening(false);
     }

@@ -48,7 +48,7 @@ export interface UseNgnAccountResult {
 /**
  * Hook to detect whether the authenticated user has an active Naira virtual account,
  * along with their formatted and raw balance.
- * Seeded from localStorage/memory cache for zero-flicker UI, and updated via /api/ngn-account.
+ * Seeded from localStorage/memory cache for zero-flicker UI, and updated via /api/v1/ngn-account.
  */
 export function useNgnAccount(initialHasAccount?: boolean): UseNgnAccountResult {
   const [hasNgnAccount, setHasNgnAccount] = useState<boolean>(() => {
@@ -96,7 +96,7 @@ export function useNgnAccount(initialHasAccount?: boolean): UseNgnAccountResult 
     if (!inFlightNgnPromise) {
       inFlightNgnPromise = (async () => {
         try {
-          const res = await fetch("/api/ngn-account", { cache: "no-store" });
+          const res = await fetch("/api/v1/ngn-account", { cache: "no-store" });
           if (!res.ok) {
             if (res.status === 404) {
               return { hasAccount: false, balance: null, rawBalance: 0 };

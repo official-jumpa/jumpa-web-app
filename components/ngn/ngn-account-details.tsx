@@ -87,7 +87,7 @@ export function NgnAccountDetails({
   // Fetch account and balance
   const fetchAccount = async () => {
     try {
-      const res = await fetch("/api/ngn-account", { cache: "no-store" });
+      const res = await fetch("/api/v1/ngn-account", { cache: "no-store" });
       if (!res.ok) {
         if (res.status === 404 && !initialAccount) {
           setAccount(null);
@@ -192,7 +192,7 @@ export function NgnAccountDetails({
     if (refreshing) return;
     setRefreshing(true);
     try {
-      const res = await fetch("/api/ngn-account?refresh=true", {
+      const res = await fetch("/api/v1/ngn-account?refresh=true", {
         cache: "no-store",
       });
       if (!res.ok) throw new Error("Failed to refresh balance");

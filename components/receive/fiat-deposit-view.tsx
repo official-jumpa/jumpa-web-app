@@ -59,7 +59,7 @@ export function FiatDepositView({
 
   const loadAccount = async () => {
     try {
-      const res = await fetch("/api/ngn-account?provider=bellmonie");
+      const res = await fetch("/api/v1/ngn-account");
       if (!res.ok) {
         if (res.status === 404) {
           setAccount(null);
@@ -69,16 +69,8 @@ export function FiatDepositView({
       }
 
       const data = await res.json();
-      if (data.hasAccount && data.account) {
-        // Ensure only bellmonie account is used for deposits
-        const bellAcc =
-          data.account.provider === "bellmonie"
-            ? data.account
-            : (Array.isArray(data.accounts)
-                ? data.accounts.find((a: any) => a.provider === "bellmonie")
-                : null);
-
-        setAccount(bellAcc || null);
+      if (data.hasAccount && data.account && data.account.provider === "bellmonie") {
+        setAccount(data.account);
       } else {
         setAccount(null);
       }

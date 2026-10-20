@@ -7,13 +7,21 @@ import { formatZodError } from "@/lib/validations/validation-helper";
 import { withdrawBellmonieNgnFiat } from "@/lib/functions/bellmonieFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
+import {
+  handleExternalApiError,
+  formatOneLineError,
+  isTimeoutError,
+} from "@/lib/utils/api-best-practices";
 
 /**
- * POST /api/ngn-account/withdraw
- * Executes an NGN withdrawal via Bellmonie.
+ * POST /api/v1/ngn-account/withdraw
+ * Executes an NGN bank transfer / withdrawal via Bellmonie.
  * Protected by user wallet PIN authentication.
  */
 export async function POST(req: NextRequest) {
+  const PROVIDER = "Bellmonie";
+  const ACTION = "Withdraw";
+
   try {
     const authResult = await requireActiveUser({
       rateLimit: { tier: "high", action: "ngn_withdraw" },
@@ -79,29 +87,57 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: result,
+      data: {
+        reference: result.reference,
+        fee: result.fee,
+        totalDebited: result.totalDebited,
+        isInternal: result.isInternal,
+        transactionId: result.transactionId,
+      },
       message: result.isInternal
         ? "Transfer completed successfully"
         : "Withdrawal completed successfully",
     });
   } catch (error: any) {
-    const rawMessage = error?.message || "";
-    console.error("[NGN Withdraw POST] Error:", rawMessage);
+    const rawMessage = String(error?.message || "");
 
-    // Sanitize infrastructure, provider, and network errors so users see clear, professional messages
-    let userMessage = rawMessage || "Failed to process withdrawal";
+    console.error(
+      `[${PROVIDER}:${ACTION}] Error: ${formatOneLineError(error)}`,
+    );
+
+    // Friendly sanitized errors - never leak 3rd-party internal text or doctype
+    if (isTimeoutError(error) || error.status === 504) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "The transfer request timed out while contacting the banking provider. Please check your transaction history before retrying.",
+        },
+        { status: 504 },
+      );
+    }
+
     if (
-      /bellmonie|token|522|502|503|504|cloudflare|timeout|econnrefused|fetch failed/i.test(
-        userMessage,
-      )
+      /insufficient|low balance|underfunded/i.test(rawMessage) ||
+      error.status === 400
     ) {
-      userMessage =
-        "Banking network service is temporarily unavailable. Your balance was refunded, please try again shortly.";
+      const userMessage = /insufficient|balance/i.test(rawMessage)
+        ? "Insufficient Naira balance to complete this transfer."
+        : rawMessage && rawMessage.length < 120 && !/<!doctype|<html|bellmonie|token|502|504/i.test(rawMessage)
+          ? rawMessage
+          : "Unable to complete withdrawal. Please check your account details and try again.";
+
+      return NextResponse.json(
+        { success: false, error: userMessage },
+        { status: 400 },
+      );
     }
 
     return NextResponse.json(
-      { success: false, error: userMessage },
-      { status: 400 },
+      {
+        success: false,
+        error: "Banking network service is temporarily unavailable. Your balance was refunded, please try again shortly.",
+      },
+      { status: 502 },
     );
   }
 }

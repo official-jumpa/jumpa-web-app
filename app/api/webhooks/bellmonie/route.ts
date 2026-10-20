@@ -8,10 +8,6 @@ import {
   invalidateBellmonieNgnBalanceCache,
   getDailySubsidizedDepositCount,
 } from "@/lib/functions/bellmonieFunctions";
-import {
-  RefundError,
-  refundFailedNgnWithdrawal,
-} from "@/lib/functions/ngnRefundFunctions";
 import { calculateNgnDepositFee } from "@/lib/ngn-account";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { enforceRateLimit } from "@/lib/functions/rateLimitFunctions";
@@ -272,26 +268,33 @@ export async function POST(req: NextRequest) {
           payload.data?.failureReason ||
           "Transfer declined by destination bank";
 
-        // This payload is unsigned, so the refund helper confirms the failure with Bellmonie itself.
-        try {
-          const { refundAmount } = await refundFailedNgnWithdrawal({
-            transactionId: existingTx._id,
-            refundedBy: "system",
-            reason: failureReason,
-          });
-          console.log(
-            `[Bellmonie Webhook] ❌ Payout ${reference} failed (${failureReason}). Refunded ₦${refundAmount} to user ${existingTx.userId}.`,
-          );
-        } catch (err) {
-          if (!(err instanceof RefundError)) throw err;
-          console.log(
-            `[Bellmonie Webhook] Payout ${reference} not refunded: ${err.message}`,
-          );
-          // Bellmonie could not be asked; a 5xx invites the webhook to be retried.
-          if (err.status === 502) {
-            return NextResponse.json({ error: err.message }, { status: 503 });
-          }
-        }
+        existingTx.status = "FAILED";
+        existingTx.errorMessage = failureReason;
+        existingTx.updatedAt = new Date();
+        await existingTx.save();
+
+        invalidateBalanceCache(existingTx.userId);
+        invalidateBellmonieNgnBalanceCache(existingTx.userId);
+
+        createNotification({
+          userId: existingTx.userId,
+          tab: "transactions",
+          type: "SECURITY_ALERT",
+          title: "Withdrawal Failed",
+          body: `₦${Number(existingTx.amount).toLocaleString()} transfer to ${existingTx.bankDetails?.accountName || "beneficiary"} (${existingTx.bankDetails?.bankName || "Bank"}) failed: ${failureReason}.`,
+          metadata: {
+            reference,
+            amount: existingTx.amount,
+            bankName: existingTx.bankDetails?.bankName,
+            accountNumber: existingTx.bankDetails?.accountNumber,
+            txId: existingTx._id?.toString(),
+          },
+          link: "/transactions",
+        }).catch(() => {});
+
+        console.error(
+          `[Bellmonie Webhook] ❌ Payout ${reference} failed (${failureReason}). Marked as FAILED for manual review.`,
+        );
       } else {
         console.log(
           `[Bellmonie Webhook] Payout ${reference} status update: "${rawStatus}"`,

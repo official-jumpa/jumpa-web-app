@@ -506,21 +506,11 @@ export async function syncPendingBellmonieTransaction(tx: any): Promise<any> {
         res?.message ||
         res?.data?.failureReason ||
         "Transfer declined by destination bank";
-      try {
-        const { refundFailedNgnWithdrawal } = await import(
-          "@/lib/functions/ngnRefundFunctions"
-        );
-        await refundFailedNgnWithdrawal({
-          transactionId: tx._id.toString(),
-          refundedBy: "system",
-          reason: failureReason,
-        });
-      } catch (refundErr) {
-        console.warn(
-          `[Bellmonie Sync] Notice processing refund for failed withdrawal ${tx._id}:`,
-          refundErr,
-        );
-      }
+
+      console.log(
+        `[Bellmonie] Payout ${reference} marked FAILED (${failureReason}). Awaiting review.`,
+      );
+
       return await _applySyncResult(
         tx,
         "FAILED",

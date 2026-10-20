@@ -11,7 +11,6 @@ import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { logUserActivity, saveOrUpdateBeneficiary } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { generateId } from "@/lib/schema-ids";
-import { refundFailedNgnWithdrawal } from "@/lib/functions/ngnRefundFunctions";
 import { BellmonieBanks, findBellmonieBank } from "@/lib/constants/bellmonie-banks";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
@@ -549,6 +548,7 @@ export async function bellmonieBankTransfer(
     {
       method: "POST",
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(45000),
     },
   );
 
@@ -642,63 +642,12 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
     memo: `Withdrawal to ${resolvedBankName} (${params.accountNumber})`,
   });
 
-  let transferRes: { status: string; sessionId?: string } = { status: "success" };
-
-  if (isInternal) {
-    // INTERNAL BLOC-TO-BLOC TRANSFER (Database-Only)
-    if (internalRecipient && internalRecipient.userId !== params.userId) {
-      await atomicCreditNgnBalance({
-        userId: internalRecipient.userId,
-        amount: params.amount,
-        reference,
-        memo: `Transfer from ${userAccount.accountName || "Jumpa User"}`,
-        senderName: userAccount.accountName || "Jumpa User",
-        senderAccountNumber: userAccount.accountNumber,
-        senderBank: "Bloc MFB",
-      }).catch((err) => {
-        console.error("[Bellmonie P2P] Internal credit error:", err);
-      });
-    }
-  } else {
-    // EXTERNAL TRANSFER (Bellmonie API Payout)
-    try {
-      // Execute downstream transfer on Bellmonie from Jumpa master pool
-      transferRes = await bellmonieBankTransfer({
-        beneficiaryBankCode: resolvedBankCode || "010",
-        beneficiaryAccountNumber: params.accountNumber,
-        amount: params.amount,
-        narration: params.narration || `Withdrawal to ${params.accountName}`,
-        reference,
-        senderName: userAccount.accountName || "Jumpa User",
-      });
-    } catch (transferErr: any) {
-      console.error("[Bellmonie Withdrawal] bank transfer failed. Rolling back pre-debit:", transferErr.message);
-      // Automatic rollback / refund
-      await atomicCreditNgnBalance({
-        userId: params.userId,
-        amount: totalDebited,
-        reference: `${reference}-rollback`,
-        memo: `Refund for failed transfer attempt: Bank network unavailable`,
-        eventId: `${reference}-rollback`,
-      }).catch((rollbackErr) => {
-        console.error("[Bellmonie Withdrawal CRITICAL] Rollback credit failed:", rollbackErr);
-      });
-      throw transferErr;
-    }
-  }
-
-  const declined = transferRes.status === "failed";
-  const initialStatus = declined
-    ? "FAILED"
-    : isInternal
-      ? "CONFIRMED"
-      : "PENDING";
-
-  // 7. Record Transaction
+  // 6. RECORD TRANSACTION IN PENDING STATE (or CONFIRMED for internal) BEFORE DISPATCHING TRANSFER
+  // Guarantees transaction exists in MongoDB for webhook reconciliation and status polling.
   const transaction: any = await Transaction.create({
     userId: params.userId,
     type: "WITHDRAW",
-    status: initialStatus,
+    status: isInternal ? "CONFIRMED" : "PENDING",
     chain: "fiat",
     network: "mainnet",
     fromAddress: userAccount.accountNumber,
@@ -714,27 +663,112 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
       reference,
     },
     memo: params.narration || (isInternal ? `Transfer to ${params.accountName}` : `Withdrawal to ${params.accountName}`),
-    txHash: transferRes.sessionId || reference,
+    txHash: reference,
     executedAt: isInternal ? new Date() : undefined,
   });
 
-  // A declined payout is refunded here: the webhook skips a transfer already marked FAILED.
-  if (declined) {
-    const refunded = await refundFailedNgnWithdrawal({
-      transactionId: transaction._id.toString(),
-      refundedBy: "system",
-    }).then(
-      () => true,
-      (err) => {
-        console.error("[Bellmonie Withdrawal CRITICAL] Refund for declined transfer failed:", err);
-        return false;
-      },
-    );
-    throw new Error(
-      refunded
-        ? `The bank declined this transfer. ₦${totalDebited.toLocaleString()} has been refunded to your Naira balance.`
-        : "The bank declined this transfer. Your refund is being processed.",
-    );
+  if (isInternal) {
+    // INTERNAL BLOC-TO-BLOC TRANSFER (Database-Only)
+    if (internalRecipient && internalRecipient.userId !== params.userId) {
+      try {
+        await atomicCreditNgnBalance({
+          userId: internalRecipient.userId,
+          amount: params.amount,
+          reference,
+          memo: `Transfer from ${userAccount.accountName || "Jumpa User"}`,
+          senderName: userAccount.accountName || "Jumpa User",
+          senderAccountNumber: userAccount.accountNumber,
+          senderBank: "Bloc MFB",
+        });
+      } catch (err) {
+        console.error("[Bellmonie] Internal transfer error, rolling back sender debit:", err);
+        await Transaction.updateOne({ _id: transaction._id }, { $set: { status: "FAILED" } }).catch(() => {});
+        await atomicCreditNgnBalance({
+          userId: params.userId,
+          amount: totalDebited,
+          reference: `${reference}-rollback`,
+          memo: `Refund: Internal transfer to ${internalRecipient.accountNumber} failed`,
+          eventId: `${reference}-rollback`,
+        }).catch((rbErr) => console.error(" Rollback failed:", rbErr));
+        throw new Error("Transfer could not be completed. Balance refunded.");
+      }
+    }
+  } else {
+    // EXTERNAL TRANSFER (Bellmonie API Payout)
+    let transferRes: { status: string; sessionId?: string } | null = null;
+    try {
+      // Execute downstream transfer on Bellmonie from Jumpa master pool
+      transferRes = await bellmonieBankTransfer({
+        beneficiaryBankCode: resolvedBankCode || "010",
+        beneficiaryAccountNumber: params.accountNumber,
+        amount: params.amount,
+        narration: params.narration || `Withdrawal to ${params.accountName}`,
+        reference,
+        senderName: userAccount.accountName || "Jumpa User",
+      });
+
+      if (transferRes?.sessionId) {
+        await Transaction.updateOne(
+          { _id: transaction._id },
+          { $set: { txHash: transferRes.sessionId } },
+        ).catch(() => {});
+      }
+    } catch (transferErr: any) {
+      // Check if this was a synchronous pre-execution rejection (e.g. 400 Bad Request)
+      // where the transfer was never accepted or queued downstream.
+      const isPreExecutionError =
+        transferErr.status === 400 &&
+        !transferErr.message?.toLowerCase().includes("timeout") &&
+        !transferErr.name?.toLowerCase().includes("timeout");
+
+      if (isPreExecutionError) {
+        console.warn(
+          `[Bellmonie] Pre-execution rejection (400): ${transferErr.message}. Marked FAILED for review/refund.`,
+        );
+        await Transaction.updateOne(
+          { _id: transaction._id },
+          { $set: { status: "FAILED", errorMessage: transferErr.message } },
+        ).catch(() => {});
+
+        throw transferErr;
+      }
+
+      // Ambiguous in-flight state (Timeout, Network Error, 5xx)
+      // Funds remain debited. Transaction remains PENDING. No automatic refund.
+      console.warn(
+        `[Bellmonie Withdrawal] Transfer dispatched / timed out: ${transferErr.message}. Funds remain debited. Transaction ${reference} is PENDING.`,
+      );
+
+      // Trigger a non-blocking background status check after 10s
+      setTimeout(async () => {
+        try {
+          const { syncPendingBellmonieTransaction } = await import(
+            "@/lib/functions/transactionFunctions"
+          );
+          const tx = await Transaction.findById(transaction._id);
+          if (tx && tx.status === "PENDING") {
+            await syncPendingBellmonieTransaction(tx);
+          }
+        } catch (syncErr: any) {
+          console.warn(
+            `[Bellmonie Withdrawal] Background sync check notice for ${reference}:`,
+            syncErr?.message || syncErr,
+          );
+        }
+      }, 10000);
+    }
+
+    // A declined payout returned in response payload - marked FAILED for review/refund
+    if (transferRes && transferRes.status === "failed") {
+      await Transaction.updateOne(
+        { _id: transaction._id },
+        { $set: { status: "FAILED", errorMessage: "Transfer declined by destination bank" } },
+      ).catch(() => {});
+
+      throw new Error(
+        "The destination bank declined this transfer.",
+      );
+    }
   }
 
   // 8. Save beneficiary for quick repeat transfers

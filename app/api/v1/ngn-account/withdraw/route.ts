@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: "Banking network service is temporarily unavailable. Your balance was refunded, please try again shortly.",
+        error: "Banking network service is temporarily unavailable. Please try again shortly or check your transaction history for status.",
       },
       { status: 502 },
     );

@@ -72,6 +72,44 @@ export function TransactionDetail({
     };
   }, [id, initialTransaction]);
 
+  // When a transaction is pending, poll every 10s (for up to 2 minutes) while the user views it
+  useEffect(() => {
+    if (transaction?.status !== "pending") return;
+
+    let isMounted = true;
+    const cleanId = id.replace(/^tx_/i, "").toLowerCase();
+    const startTime = Date.now();
+    const TWO_MINUTES_MS = 2 * 60 * 1000;
+
+    const interval = setInterval(async () => {
+      if (Date.now() - startTime >= TWO_MINUTES_MS) {
+        clearInterval(interval);
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          `/api/v1/transactions/${encodeURIComponent(cleanId)}`,
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!isMounted || !data?.transaction) return;
+
+        setTransaction(data.transaction);
+        if (data.transaction.status !== "pending") {
+          clearInterval(interval);
+        }
+      } catch {
+        // Silently continue polling on transient network issue
+      }
+    }, 10000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [id, transaction?.status]);
+
   const rows = transaction?.rows ?? [];
   const mark = transaction?.token || transaction?.chain || "";
   const isBill = transaction?.kind === "airtime" || transaction?.kind === "data";

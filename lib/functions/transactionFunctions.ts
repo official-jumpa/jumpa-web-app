@@ -445,7 +445,77 @@ export async function syncPendingRampTransaction(tx: any): Promise<any> {
 }
 
 /**
- * Dispatches sync for any PENDING transaction — whether ramp or on-chain.
+ * Syncs a single PENDING Bellmonie bank transfer against Bellmonie's transfer status query.
+ */
+export async function syncPendingBellmonieTransaction(tx: any): Promise<any> {
+  const reference = tx?.bankDetails?.reference || tx?.txHash;
+  if (!tx || tx.status !== "PENDING" || !reference) {
+    return tx;
+  }
+
+  try {
+    const { queryBellmonieTransferStatus } = await import(
+      "@/lib/functions/bellmonieFunctions"
+    );
+    const res = await queryBellmonieTransferStatus(reference);
+    const raw =
+      res?.status ??
+      res?.transactionStatus ??
+      res?.data?.status ??
+      res?.data?.transactionStatus;
+    const status = raw ? String(raw).toLowerCase() : null;
+
+    if (status === "successful" || status === "success") {
+      const sessionId = res?.sessionId || res?.data?.sessionId;
+      return await _applySyncResult(tx, "CONFIRMED", sessionId || reference);
+    }
+
+    if (
+      status === "failed" ||
+      status === "reversed" ||
+      status === "rejected" ||
+      status === "declined"
+    ) {
+      const failureReason =
+        res?.failureReason ||
+        res?.message ||
+        res?.data?.failureReason ||
+        "Transfer declined by destination bank";
+      try {
+        const { refundFailedNgnWithdrawal } = await import(
+          "@/lib/functions/ngnRefundFunctions"
+        );
+        await refundFailedNgnWithdrawal({
+          transactionId: tx._id.toString(),
+          refundedBy: "system",
+          reason: failureReason,
+        });
+      } catch (refundErr) {
+        console.warn(
+          `[Bellmonie Sync] Notice processing refund for failed withdrawal ${tx._id}:`,
+          refundErr,
+        );
+      }
+      return await _applySyncResult(
+        tx,
+        "FAILED",
+        undefined,
+        undefined,
+        failureReason,
+      );
+    }
+  } catch (err: any) {
+    console.warn(
+      `[Bellmonie Sync] Notice querying status for withdrawal ${tx._id}:`,
+      err?.message || err,
+    );
+  }
+
+  return tx;
+}
+
+/**
+ * Dispatches sync for any PENDING transaction — whether ramp, bank transfer, or on-chain.
  */
 export async function syncPendingTransaction(tx: any): Promise<any> {
   const isCustomPendingSettlement =
@@ -456,10 +526,20 @@ export async function syncPendingTransaction(tx: any): Promise<any> {
     return tx;
   }
 
+  // 1. Bank withdrawal via Bellmonie
+  if (
+    tx.type === "WITHDRAW" &&
+    (tx.bankDetails?.reference || tx.chain === "fiat")
+  ) {
+    return syncPendingBellmonieTransaction(tx);
+  }
+
+  // 2. Ramp transactions (Onramp / Offramp via Switch or Centiiv)
   if (tx.rampDetails?.reference) {
     return syncPendingRampTransaction(tx);
   }
 
+  // 3. On-chain crypto transactions
   if (tx.txHash) {
     return syncPendingOnChainTransaction(tx);
   }
@@ -1331,6 +1411,7 @@ export async function resolveAllPendingTransactions(options?: {
     status: "PENDING",
     $or: [
       { "rampDetails.reference": { $exists: true, $ne: null } },
+      { "bankDetails.reference": { $exists: true, $ne: null } },
       { txHash: { $exists: true, $ne: null } },
     ],
   }).lean();
@@ -1350,7 +1431,64 @@ export async function resolveAllPendingTransactions(options?: {
   for (const tx of pendingTxs) {
     const isStale = tx.createdAt && new Date(tx.createdAt) < cutoffTime;
 
-    // 1. Ramp provider transactions (Switch or Centiiv)
+    // 1. Bank withdrawals via Bellmonie
+    if (
+      tx.type === "WITHDRAW" &&
+      (tx.bankDetails?.reference || tx.chain === "fiat")
+    ) {
+      const reference = tx.bankDetails?.reference || tx.txHash || tx._id;
+      try {
+        const synced = await syncPendingBellmonieTransaction(tx);
+        if (synced.status === "CONFIRMED") {
+          result.confirmed++;
+          result.details.push({
+            id: tx._id,
+            reference,
+            type: tx.type,
+            amount: tx.amount,
+            token: tx.token,
+            previousStatus: "PENDING",
+            newStatus: "CONFIRMED",
+            providerStatus: "SUCCESSFUL",
+          });
+        } else if (synced.status === "FAILED") {
+          result.failed++;
+          result.details.push({
+            id: tx._id,
+            reference,
+            type: tx.type,
+            amount: tx.amount,
+            token: tx.token,
+            previousStatus: "PENDING",
+            newStatus: "FAILED",
+            providerStatus: "FAILED",
+            reason: synced.errorMessage,
+          });
+        } else {
+          result.stillPending++;
+          result.details.push({
+            id: tx._id,
+            reference,
+            type: tx.type,
+            amount: tx.amount,
+            token: tx.token,
+            previousStatus: "PENDING",
+            newStatus: "PENDING",
+            providerStatus: "PENDING",
+            reason: "Bank settlement in progress",
+          });
+        }
+      } catch (err: any) {
+        console.error(
+          `[ResolveTx] Error resolving bank tx ${reference}:`,
+          err?.message || err,
+        );
+        result.stillPending++;
+      }
+      continue;
+    }
+
+    // 2. Ramp provider transactions (Switch or Centiiv)
     if (tx.rampDetails?.reference) {
       const reference = tx.rampDetails.reference;
       const handler = getProviderHandler(tx.rampDetails?.provider);

@@ -679,12 +679,17 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
   }
 
   const declined = transferRes.status === "failed";
+  const initialStatus = declined
+    ? "FAILED"
+    : isInternal
+      ? "CONFIRMED"
+      : "PENDING";
 
-  // 7. Record confirmed Transaction
+  // 7. Record Transaction
   const transaction: any = await Transaction.create({
     userId: params.userId,
     type: "WITHDRAW",
-    status: declined ? "FAILED" : "CONFIRMED",
+    status: initialStatus,
     chain: "fiat",
     network: "mainnet",
     fromAddress: userAccount.accountNumber,
@@ -701,7 +706,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
     },
     memo: params.narration || (isInternal ? `Transfer to ${params.accountName}` : `Withdrawal to ${params.accountName}`),
     txHash: transferRes.sessionId || reference,
-    executedAt: new Date(),
+    executedAt: isInternal ? new Date() : undefined,
   });
 
   // A declined payout is refunded here: the webhook skips a transfer already marked FAILED.
@@ -738,7 +743,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
 
   logUserActivity({
     userId: params.userId,
-    action: "WITHDRAWAL_COMPLETED",
+    action: isInternal ? "WITHDRAWAL_COMPLETED" : "WITHDRAWAL_INITIATED",
     details: {
       amount: params.amount,
       fee,
@@ -752,9 +757,11 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
   createNotification({
     userId: params.userId,
     tab: "transactions",
-    type: "WITHDRAWAL_COMPLETED",
-    title: "Transfer Sent",
-    body: `₦${params.amount.toLocaleString()} has been sent to ${params.accountName} (${resolvedBankName})`,
+    type: isInternal ? "WITHDRAWAL_COMPLETED" : "WITHDRAWAL_INITIATED",
+    title: isInternal ? "Transfer Sent" : "Transfer Processing",
+    body: isInternal
+      ? `₦${params.amount.toLocaleString()} has been sent to ${params.accountName} (${resolvedBankName})`
+      : `₦${params.amount.toLocaleString()} transfer to ${params.accountName} (${resolvedBankName}) is being processed by the destination bank.`,
     metadata: {
       amount: params.amount,
       reference,

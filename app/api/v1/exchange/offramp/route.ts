@@ -462,22 +462,20 @@ export async function POST(req: NextRequest) {
 
       if (txRecord?._id) {
         await updateTransactionRecord(txRecord._id, {
-          status: isTxPending ? "PENDING" : "CONFIRMED",
+          status: "PENDING",
           txHash: transferResult.txHash,
           explorerUrl: transferResult.explorerUrl,
         }).catch(() => {});
       }
 
-      if (!isTxPending) {
-        invalidateBalanceCache(userId);
-        if (wallet?.address) {
-          invalidateBalanceCache(wallet.address);
-        }
+      invalidateBalanceCache(userId);
+      if (wallet?.address) {
+        invalidateBalanceCache(wallet.address);
       }
 
       return NextResponse.json({
         success: true,
-        status: isTxPending ? "PENDING" : "CONFIRMED",
+        status: "PENDING",
         reference,
         txHash: transferResult.txHash,
         explorerUrl: transferResult.explorerUrl,
@@ -489,12 +487,8 @@ export async function POST(req: NextRequest) {
         resolvedBankCode: bankMatch.code,
         accountName: holderName.trim(),
         accountNumber: accountNumber.trim(),
-        ...(isTxPending
-          ? {
-              message:
-                "Your transfer has been submitted and is awaiting confirmation. Your withdrawal will be processed shortly.",
-            }
-          : {}),
+        message:
+          "Your transfer has been submitted and is awaiting confirmation. Your withdrawal will be processed shortly.",
       });
     }
 

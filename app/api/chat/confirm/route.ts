@@ -918,12 +918,11 @@ export async function POST(req: NextRequest) {
       // Update Transaction in DB
       try {
         await updateTransactionByReference(reference, {
-          status: "CONFIRMED",
+          status: "PENDING",
           txHash,
           explorerUrl,
           chain: resolvedTxChain,
           ...(userFromAddress ? { fromAddress: userFromAddress } : {}),
-          executedAt: new Date(),
         });
       } catch (dbErr: any) {
         console.warn("[Chat Confirm] DB update notice:", dbErr.message);
@@ -933,7 +932,7 @@ export async function POST(req: NextRequest) {
 
       logUserActivity({
         userId,
-        action: "OFFRAMP_COMPLETED",
+        action: "OFFRAMP_INITIATED",
         details: {
           reference,
           cryptoAmount,
@@ -948,10 +947,10 @@ export async function POST(req: NextRequest) {
       }).catch(() => {});
 
       receiptCardData = {
-        title: "Withdrawal Sent",
-        status: "Successful",
+        title: "Withdrawal Processing",
+        status: "Processing",
         balance: {
-          caption: "SENT",
+          caption: "PROCESSING",
           value: Number(fiatAmount).toLocaleString(),
           badge: "NGN",
         },
@@ -1015,11 +1014,11 @@ export async function POST(req: NextRequest) {
                 : txParams?.type === "savings_withdraw"
                   ? `✓ Savings withdrawal successful`
                   : cardType === "offramp"
-                    ? `✓ Withdrawal sent to ${effectiveCardData?.bankName || txParams?.bankName || "bank"}`
+                    ? `✓ Withdrawal processing for ${effectiveCardData?.bankName || txParams?.bankName || "bank"}`
                     : `✓ Transfer successful`,
       isTransaction: true,
       cardType: "receipt",
-      status: "confirmed",
+      status: cardType === "offramp" ? "pending" : "confirmed",
       cardData: receiptCardData,
       timestamp: new Date(),
     };

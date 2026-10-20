@@ -229,7 +229,9 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ received: true });
         }
 
-        if (existingTx.status !== "CONFIRMED") {
+        const wasAlreadyConfirmed = existingTx.status === "CONFIRMED";
+
+        if (!wasAlreadyConfirmed) {
           existingTx.status = "CONFIRMED";
           existingTx.executedAt = new Date();
           await existingTx.save();
@@ -238,20 +240,23 @@ export async function POST(req: NextRequest) {
         invalidateBalanceCache(existingTx.userId);
         invalidateBellmonieNgnBalanceCache(existingTx.userId);
 
-        createNotification({
-          userId: existingTx.userId,
-          tab: "transactions",
-          type: "WITHDRAWAL_COMPLETED",
-          title: "Withdrawal Successful",
-          body: `₦${Number(existingTx.amount).toLocaleString()} transfer to ${existingTx.bankDetails?.accountName || "beneficiary"} (${existingTx.bankDetails?.bankName || "Bank"}) has been completed successfully.`,
-          metadata: {
-            reference,
-            amount: existingTx.amount,
-            bankName: existingTx.bankDetails?.bankName,
-            accountNumber: existingTx.bankDetails?.accountNumber,
-          },
-          link: "/transactions",
-        }).catch(() => {});
+        if (!wasAlreadyConfirmed) {
+          createNotification({
+            userId: existingTx.userId,
+            tab: "transactions",
+            type: "WITHDRAWAL_COMPLETED",
+            title: "Withdrawal Successful",
+            body: `₦${Number(existingTx.amount).toLocaleString()} transfer to ${existingTx.bankDetails?.accountName || "beneficiary"} (${existingTx.bankDetails?.bankName || "Bank"}) has been completed successfully.`,
+            metadata: {
+              reference,
+              amount: existingTx.amount,
+              bankName: existingTx.bankDetails?.bankName,
+              accountNumber: existingTx.bankDetails?.accountNumber,
+              txId: existingTx._id?.toString(),
+            },
+            link: "/transactions",
+          }).catch(() => {});
+        }
 
         console.log(
           `[Bellmonie Webhook] ✅ Payout ${reference} confirmed successful for user ${existingTx.userId}`,

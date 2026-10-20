@@ -231,7 +231,13 @@ async function _applySyncResult(
   if (explorerUrl) updateData.explorerUrl = explorerUrl;
   if (errorMessage) updateData.errorMessage = errorMessage;
 
-  await Transaction.updateOne({ _id: tx._id }, { $set: updateData });
+  // Atomically update only if status is changing to prevent concurrent duplicate notifications
+  const updateRes = await Transaction.updateOne(
+    { _id: tx._id, status: { $ne: newStatus } },
+    { $set: updateData },
+  );
+
+  const statusChanged = updateRes.modifiedCount > 0;
 
   tx.status = newStatus;
   if (txHash) tx.txHash = txHash;
@@ -239,16 +245,13 @@ async function _applySyncResult(
   if (errorMessage) tx.errorMessage = errorMessage;
   tx.updatedAt = updateData.updatedAt;
 
-  if (newStatus === "CONFIRMED") {
+  if (newStatus === "CONFIRMED" && statusChanged) {
     if (tx.userId) invalidateBalanceCache(tx.userId);
     if (tx.toAddress) invalidateBalanceCache(tx.toAddress);
     if (tx.fromAddress) invalidateBalanceCache(tx.fromAddress);
 
     if (tx.userId) {
-      const isDeposit = tx.type === "ONRAMP" || tx.type === "DEPOSIT";
-      const isWithdraw = tx.type === "OFFRAMP" || tx.type === "WITHDRAW";
-
-      if (isDeposit) {
+      if (tx.type === "ONRAMP" || tx.type === "DEPOSIT") {
         logUserActivity({
           userId: tx.userId,
           action: "ONRAMP_COMPLETED",
@@ -260,10 +263,32 @@ async function _applySyncResult(
           type: "ONRAMP_COMPLETED",
           title: "Deposit Successful",
           body: `${tx.amount} ${tx.token} successfully deposited to your wallet`,
-          metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
+          metadata: { txId: tx._id, reference: tx.rampDetails?.reference || txHash, txHash, amount: tx.amount, token: tx.token },
           link: "/transactions",
         }).catch(() => { });
-      } else if (isWithdraw) {
+      } else if (tx.type === "WITHDRAW") {
+        const ref = tx.bankDetails?.reference || tx.txHash || tx._id;
+        logUserActivity({
+          userId: tx.userId,
+          action: "WITHDRAWAL_COMPLETED",
+          details: { txId: tx._id, reference: ref, amount: tx.amount, token: tx.token, txHash },
+        }).catch(() => { });
+        createNotification({
+          userId: tx.userId,
+          tab: "transactions",
+          type: "WITHDRAWAL_COMPLETED",
+          title: "Withdrawal Successful",
+          body: `₦${Number(tx.amount).toLocaleString()} transfer to ${tx.bankDetails?.accountName || "beneficiary"} (${tx.bankDetails?.bankName || "Bank"}) has been completed successfully.`,
+          metadata: {
+            reference: ref,
+            amount: tx.amount,
+            bankName: tx.bankDetails?.bankName,
+            accountNumber: tx.bankDetails?.accountNumber,
+            txId: tx._id,
+          },
+          link: "/transactions",
+        }).catch(() => { });
+      } else if (tx.type === "OFFRAMP") {
         logUserActivity({
           userId: tx.userId,
           action: "OFFRAMP_COMPLETED",
@@ -275,7 +300,7 @@ async function _applySyncResult(
           type: "OFFRAMP_COMPLETED",
           title: "Withdrawal Successful",
           body: `${tx.amount} ${tx.token} sent to your bank account`,
-          metadata: { txId: tx._id, txHash, amount: tx.amount, token: tx.token },
+          metadata: { txId: tx._id, reference: tx.rampDetails?.reference, txHash, amount: tx.amount, token: tx.token },
           link: "/transactions",
         }).catch(() => { });
       } else if (tx.type === "SWAP") {

@@ -155,6 +155,7 @@ export async function POST(req: NextRequest) {
     );
 
     const isClientError =
+      msg.includes("limit") ||
       msg.includes("naira account") ||
       msg.includes("balance") ||
       msg.includes("insufficient") ||

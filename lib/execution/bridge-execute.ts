@@ -51,6 +51,10 @@ import { derivePath } from "ed25519-hd-key";
 import { connectDB } from "@/lib/db";
 import { Transaction } from "@/models/Transaction";
 import type { IWallet } from "@/models/Wallet";
+import {
+  assertDailyTransactionLimit,
+  isLimitError,
+} from "@/lib/functions/transactionLimitFunctions";
 
 export type BridgeChain = "stellar" | "base" | "ethereum" | "solana";
 
@@ -176,6 +180,24 @@ export async function executeBridge(
       error: "Incorrect PIN",
       status: 401,
     };
+  }
+
+  // Enforce security transaction limits (discreetly)
+  try {
+    await assertDailyTransactionLimit({
+      userId,
+      amount,
+      tokenOrCurrency: "USDC",
+    });
+  } catch (limitErr: any) {
+    if (isLimitError(limitErr)) {
+      return {
+        ok: false,
+        error: limitErr.message,
+        status: 400,
+      };
+    }
+    throw limitErr;
   }
 
   const derived = deriveAddresses(phrase);
@@ -583,6 +605,7 @@ export async function executeBridge(
           : derived.addresses.eth || derived.addresses.base,
       toAddress: recipientAddress,
       amount,
+      amountInUsd: parseFloat(amount) || 0,
       token: "USDC",
       txHash,
       explorerUrl,

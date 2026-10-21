@@ -31,6 +31,7 @@ export interface ITransaction {
   fromAddress?: string;
   toAddress?: string;
   amount: string;
+  amountInUsd?: number | null;
   token: string;
   memo?: string;
 
@@ -174,6 +175,7 @@ const TransactionSchema = new Schema<ITransaction>(
     fromAddress: { type: String, default: null, required: false },
     toAddress: { type: String, default: null, required: false },
     amount: { type: String, required: true },
+    amountInUsd: { type: Number, default: null },
     token: { type: String, required: true },
     memo: { type: String, default: null },
 
@@ -255,6 +257,7 @@ const TransactionSchema = new Schema<ITransaction>(
 );
 
 TransactionSchema.index({ userId: 1, createdAt: -1 });
+TransactionSchema.index({ userId: 1, createdAt: -1, status: 1 });
 TransactionSchema.index({ userId: 1, type: 1, status: 1 });
 
 export const Transaction: Model<ITransaction> =

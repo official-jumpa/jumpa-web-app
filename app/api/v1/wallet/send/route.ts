@@ -26,6 +26,9 @@ import {
 } from "@/lib/chains/transfer-service";
 import { executeTronTokenTransfer } from "@/lib/chains/tron/transfer";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
+import {
+  assertDailyTransactionLimit, isLimitError,
+} from "@/lib/functions/transactionLimitFunctions";
 
 /**
  * POST /api/v1/wallet/send
@@ -84,6 +87,25 @@ export async function POST(req: NextRequest) {
       { success: false, error: pinCheck.error },
       { status: pinCheck.status },
     );
+  }
+
+  // Enforce security transaction limits (discreetly)
+  let amountInUsd: number | undefined;
+  try {
+    const limitCheck = await assertDailyTransactionLimit({
+      userId: session.user.id,
+      amount,
+      tokenOrCurrency: asset,
+    });
+    amountInUsd = limitCheck.amountInUsd;
+  } catch (limitErr: any) {
+    if (isLimitError(limitErr)) {
+      return NextResponse.json(
+        { success: false, error: limitErr.message },
+        { status: 400 },
+      );
+    }
+    throw limitErr;
   }
 
   let phrase: string;
@@ -215,6 +237,7 @@ export async function POST(req: NextRequest) {
       status: "CONFIRMED",
       type: "TRANSFER",
       amount: String(amount),
+      amountInUsd,
       token: asset,
       chain: config.chain,
       txHash: result.txHash,

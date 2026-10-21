@@ -23,6 +23,11 @@ import { Transaction } from "@/models/Transaction";
 import { Wallet } from "@/models/Wallet";
 import type { IWallet } from "@/models/Wallet";
 import type { SwapQuote } from "@/lib/dex/types";
+import {
+  convertToUsd,
+  assertDailyTransactionLimit,
+  isLimitError,
+} from "@/lib/functions/transactionLimitFunctions";
 
 export interface SwapExecuteParams {
   wallet: IWallet;
@@ -91,6 +96,20 @@ export async function executeStellarSwap(
     sessionId,
     messageId,
   } = params;
+
+  // Enforce security daily transaction limit
+  try {
+    await assertDailyTransactionLimit({
+      userId,
+      amount: fromAmount,
+      tokenOrCurrency: fromToken,
+    });
+  } catch (limitErr: any) {
+    if (isLimitError(limitErr)) {
+      return { ok: false, error: limitErr.message, status: 400 };
+    }
+    throw limitErr;
+  }
 
   // Decrypt mnemonic
   let sourceKeypair: StellarSdk.Keypair;
@@ -260,6 +279,7 @@ export async function executeStellarSwap(
     fromAddress,
     toAddress: fromAddress,
     amount: fromAmount,
+    amountInUsd: await convertToUsd(fromAmount, fromToken),
     token: fromToken,
     swapDetails: {
       fromToken,
@@ -281,7 +301,7 @@ export async function executeStellarSwap(
   Wallet.updateOne(
     { _id: wallet._id },
     { $set: { lastUsedAt: new Date() } },
-  ).catch(() => {});
+  ).catch(() => { });
 
   return { ok: true, txHash, explorerUrl, txStatus };
 }

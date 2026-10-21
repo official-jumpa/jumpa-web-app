@@ -7,11 +7,8 @@ import { formatZodError } from "@/lib/validations/validation-helper";
 import { withdrawBellmonieNgnFiat } from "@/lib/functions/bellmonieFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
-import {
-  handleExternalApiError,
-  formatOneLineError,
-  isTimeoutError,
-} from "@/lib/utils/api-best-practices";
+import { formatOneLineError, isTimeoutError } from "@/lib/utils/api-best-practices";
+import { isLimitError } from "@/lib/functions/transactionLimitFunctions";
 
 /**
  * POST /api/v1/ngn-account/withdraw
@@ -66,7 +63,7 @@ export async function POST(req: NextRequest) {
         accountName,
       },
       req,
-    }).catch(() => {});
+    }).catch(() => { });
 
     // 2. Execute Withdrawal via Bellmonie
     const result = await withdrawBellmonieNgnFiat({
@@ -104,6 +101,13 @@ export async function POST(req: NextRequest) {
     console.error(
       `[${PROVIDER}:${ACTION}] Error: ${formatOneLineError(error)}`,
     );
+
+    if (isLimitError(error)) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 400 },
+      );
+    }
 
     // Friendly sanitized errors - never leak 3rd-party internal text or doctype
     if (isTimeoutError(error) || error.status === 504) {

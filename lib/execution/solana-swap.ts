@@ -24,6 +24,11 @@ import { Wallet } from "@/models/Wallet";
 import type { IWallet } from "@/models/Wallet";
 import type { SwapQuote } from "@/lib/dex/types";
 import {
+  convertToUsd,
+  assertDailyTransactionLimit,
+  isLimitError,
+} from "@/lib/functions/transactionLimitFunctions";
+import {
   resolveSolanaMint,
   toAtomicSolanaUnits,
   fromAtomicSolanaUnits,
@@ -62,6 +67,20 @@ export async function executeSolanaSwap(
     toAmount,
     userId,
   } = params;
+
+  // Enforce security daily transaction limit
+  try {
+    await assertDailyTransactionLimit({
+      userId,
+      amount: fromAmount,
+      tokenOrCurrency: fromToken,
+    });
+  } catch (limitErr: any) {
+    if (isLimitError(limitErr)) {
+      return { ok: false, error: limitErr.message, status: 400 };
+    }
+    throw limitErr;
+  }
 
   // 1. Decrypt mnemonic
   let signer: SolanaKeypair;
@@ -236,6 +255,7 @@ export async function executeSolanaSwap(
       fromAddress: takerAddress,
       toAddress: takerAddress,
       amount: fromAmount,
+      amountInUsd: await convertToUsd(fromAmount, fromToken),
       token: fromToken,
       swapDetails: {
         fromToken,

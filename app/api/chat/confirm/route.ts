@@ -40,6 +40,9 @@ import { logUserActivity } from "@/lib/functions/userFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { executeBridge } from "@/lib/execution/bridge-execute";
 import { createNotification } from "@/lib/functions/notificationFunctions";
+import {
+  assertDailyTransactionLimit, isLimitError,
+} from "@/lib/functions/transactionLimitFunctions";
 
 
 /**
@@ -220,7 +223,7 @@ export async function POST(req: NextRequest) {
           txHash,
         },
         req,
-      }).catch(() => {});
+      }).catch(() => { });
 
       receiptCardData = {
         title: "Swap",
@@ -315,7 +318,7 @@ export async function POST(req: NextRequest) {
 
       const { txHash, explorerUrl } = bridgeResult;
 
-      updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});
+      updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => { });
 
       logUserActivity({
         userId,
@@ -329,7 +332,7 @@ export async function POST(req: NextRequest) {
           recipientAddress,
         },
         req,
-      }).catch(() => {});
+      }).catch(() => { });
 
       createNotification({
         userId,
@@ -443,6 +446,25 @@ export async function POST(req: NextRequest) {
       const network = (txParams?.network || "testnet") as "testnet" | "mainnet";
       const paramChain = (txParams?.chain || "").toLowerCase();
 
+      // Enforce daily transaction limit
+      let amountInUsd: number | undefined;
+      try {
+        const limitCheck = await assertDailyTransactionLimit({
+          userId,
+          amount,
+          tokenOrCurrency: token,
+        });
+        amountInUsd = limitCheck.amountInUsd;
+      } catch (limitErr: any) {
+        if (isLimitError(limitErr)) {
+          return NextResponse.json(
+            { error: limitErr.message },
+            { status: 400 },
+          );
+        }
+        throw limitErr;
+      }
+
       const userStellarAddr = wallet?.addresses?.xlm || wallet?.address || "";
       const destAddress = recipient.trim();
 
@@ -536,13 +558,14 @@ export async function POST(req: NextRequest) {
             fromAddress: evmRes.fromAddress,
             toAddress: destAddress,
             amount,
+            amountInUsd,
             token,
             txHash,
             explorerUrl,
             executedAt: new Date(),
           }).catch((e) => console.error("[Chat Confirm] EVM Transaction error:", e));
 
-          updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});
+          updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => { });
 
           logUserActivity({
             userId,
@@ -555,7 +578,7 @@ export async function POST(req: NextRequest) {
               txHash,
             },
             req,
-          }).catch(() => {});
+          }).catch(() => { });
         } catch (evmErr: any) {
           console.error("[Chat Confirm] EVM Transfer ERROR:", evmErr);
           return NextResponse.json(
@@ -593,6 +616,7 @@ export async function POST(req: NextRequest) {
             fromAddress: solRes.fromAddress,
             toAddress: destAddress,
             amount,
+            amountInUsd,
             token,
             txHash,
             explorerUrl,
@@ -600,7 +624,7 @@ export async function POST(req: NextRequest) {
             executedAt: new Date(),
           }).catch((e) => console.error("[Chat Confirm] Solana Transaction error:", e));
 
-          updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});
+          updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => { });
 
           logUserActivity({
             userId,
@@ -613,7 +637,7 @@ export async function POST(req: NextRequest) {
               txHash,
             },
             req,
-          }).catch(() => {});
+          }).catch(() => { });
         } catch (solErr: any) {
           console.error("[Chat Confirm] Solana Transfer ERROR:", solErr);
           return NextResponse.json(
@@ -656,6 +680,7 @@ export async function POST(req: NextRequest) {
             fromAddress: stellarRes.fromAddress,
             toAddress: destAddress,
             amount,
+            amountInUsd,
             token,
             txHash,
             explorerUrl,
@@ -665,7 +690,7 @@ export async function POST(req: NextRequest) {
             console.error("[Chat Confirm] Transaction error:", e),
           );
 
-          updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});
+          updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => { });
 
           logUserActivity({
             userId,
@@ -678,7 +703,7 @@ export async function POST(req: NextRequest) {
               txHash,
             },
             req,
-          }).catch(() => {});
+          }).catch(() => { });
         } catch (payErr: any) {
           console.error("[Chat Confirm] Stellar Transfer ERROR:", payErr);
           const userErrorMsg = payErr?.message || "Payment failed on Stellar network.";
@@ -767,6 +792,27 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Enforce daily transaction limit
+      const outboundAmount = Number(cryptoAmount) || Number(fiatAmount) || 0;
+      const outboundCurrency = Number(cryptoAmount) > 0 ? cryptoToken : "NGN";
+      let offrampAmountInUsd: number | undefined;
+      try {
+        const limitRes = await assertDailyTransactionLimit({
+          userId,
+          amount: outboundAmount,
+          tokenOrCurrency: outboundCurrency,
+        });
+        offrampAmountInUsd = limitRes.amountInUsd;
+      } catch (limitErr: any) {
+        if (isLimitError(limitErr)) {
+          return NextResponse.json(
+            { error: limitErr.message },
+            { status: 400 },
+          );
+        }
+        throw limitErr;
+      }
+
       const cleanDeposit = (depositAddress || "").trim();
       const isEvmDeposit = cleanDeposit.startsWith("0x");
       const isStellarDeposit =
@@ -829,7 +875,7 @@ export async function POST(req: NextRequest) {
         : asset.toLowerCase().includes("tron")
           ? "Tron"
           : asset.toLowerCase().includes("ethereum") ||
-              asset.toLowerCase().startsWith("eth")
+            asset.toLowerCase().startsWith("eth")
             ? "Ethereum"
             : asset.toLowerCase().includes("stellar")
               ? "Stellar"
@@ -911,14 +957,15 @@ export async function POST(req: NextRequest) {
           : resolvedTxChain === "stellar"
             ? wallet?.addresses?.xlm || wallet?.address || ""
             : wallet?.addresses?.eth ||
-              wallet?.addresses?.base ||
-              wallet?.address ||
-              "";
+            wallet?.addresses?.base ||
+            wallet?.address ||
+            "";
 
       // Update Transaction in DB
       try {
         await updateTransactionByReference(reference, {
           status: "PENDING",
+          amountInUsd: offrampAmountInUsd,
           txHash,
           explorerUrl,
           chain: resolvedTxChain,
@@ -928,7 +975,7 @@ export async function POST(req: NextRequest) {
         console.warn("[Chat Confirm] DB update notice:", dbErr.message);
       }
 
-      updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});
+      updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => { });
 
       logUserActivity({
         userId,
@@ -944,7 +991,7 @@ export async function POST(req: NextRequest) {
           targetChainName,
         },
         req,
-      }).catch(() => {});
+      }).catch(() => { });
 
       receiptCardData = {
         title: "Withdrawal Processing",
@@ -1047,7 +1094,7 @@ export async function POST(req: NextRequest) {
         txType: txParams?.type,
       },
       req,
-    }).catch(() => {});
+    }).catch(() => { });
 
     return NextResponse.json({
       success: true,

@@ -3,19 +3,53 @@ import { NextRequest, NextResponse } from "next/server";
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // 1. Bypass standard Next.js assets, internal bundles, and API routes
+  // 1. Assign or propagate X-Request-Id (Correlation ID)
+  const existingRequestId = request.headers.get("x-request-id");
+  const requestId =
+    existingRequestId ||
+    `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+
+  // Normalize client IP across Cloudflare, reverse proxies, and local dev
+  const clientIp =
+    request.headers.get("cf-connecting-ip") ||
+    request.headers.get("x-real-ip") ||
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "127.0.0.1";
+
+  // Clone request headers to pass request ID & client IP downstream
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-request-id", requestId);
+  requestHeaders.set("x-client-ip", clientIp);
+
+  // Helper to ensure X-Request-Id is stamped on all responses
+  const withSecurityHeaders = (res: NextResponse) => {
+    res.headers.set("X-Request-Id", requestId);
+    return res;
+  };
+
+  // 2. Bypass standard Next.js assets, internal bundles, and static files
   if (
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/api") ||
     pathname.startsWith("/images") ||
     pathname === "/favicon.ico" ||
     pathname === "/sitemap.xml" ||
     pathname === "/robots.txt"
   ) {
-    return NextResponse.next();
+    return withSecurityHeaders(NextResponse.next());
   }
 
-  // 2. Fetch session token from Cookies (handling HTTPS __Secure- prefixes case-insensitively)
+  // 3. For API routes: forward with injected security headers and return X-Request-Id
+  if (pathname.startsWith("/api")) {
+    return withSecurityHeaders(
+      NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      }),
+    );
+  }
+
+  // 4. Fetch session token from Cookies (handling HTTPS __Secure- prefixes case-insensitively)
   const allCookies = request.cookies.getAll();
   const sessionToken = allCookies.find((c) => {
     const name = c.name.toLowerCase();
@@ -28,7 +62,7 @@ export async function proxy(request: NextRequest) {
 
   const isAuthenticated = !!sessionToken;
 
-  // 3. Define protected dashboard & authenticated routes
+  // 5. Define protected dashboard & authenticated routes
   const isProtectedRoute =
     pathname.startsWith("/home") ||
     pathname.startsWith("/cards") ||
@@ -51,13 +85,21 @@ export async function proxy(request: NextRequest) {
   // Only guard against completely unauthenticated users
   if (!isAuthenticated && isProtectedRoute) {
     console.log(
-      `[Proxy] Redirecting unauthenticated user from ${pathname} to /onboarding`,
+      `[Proxy] [${requestId}] Redirecting unauthenticated user from ${pathname} to /onboarding (IP: ${clientIp})`,
     );
-    return NextResponse.redirect(new URL("/onboarding", request.url));
+    return withSecurityHeaders(
+      NextResponse.redirect(new URL("/onboarding", request.url)),
+    );
   }
 
-  // 4. Capture referral code from URL into a 7-day cookie for unauthenticated users
-  const response = NextResponse.next();
+  // 6. Capture referral code from URL into a 7-day cookie for unauthenticated users
+  const response = withSecurityHeaders(
+    NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    }),
+  );
   const refParam = request.nextUrl.searchParams.get("ref");
   const existingRefCookie = request.cookies.get("jumpa_ref")?.value;
 
@@ -78,9 +120,10 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Catch all main route paths
+  // Catch all main route paths and API routes
   matcher: [
     "/",
+    "/api/(.*)",
     "/home(.*)",
     "/cards(.*)",
     "/transactions(.*)",

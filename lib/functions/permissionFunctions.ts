@@ -38,6 +38,9 @@ export interface AuthenticatedContext {
   user: AuthenticatedUser;
   session: any;
   addresses?: WalletAddresses;
+  requestId: string;
+  clientIp: string;
+  userAgent: string;
 }
 
 export interface RouteGuardOptions {
@@ -214,6 +217,57 @@ export async function resolveUserWallet(userId: string): Promise<{
 }
 
 /**
+ * Extracts normalized request security metadata (request ID, client IP, device user-agent)
+ * and audits the request while detecting session IP drift / hijacking anomalies.
+ */
+async function resolveSecurityContext(
+  session: any,
+  action?: string,
+): Promise<{ requestId: string; clientIp: string; userAgent: string }> {
+  let requestId = `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  let clientIp = "127.0.0.1";
+  let userAgent = "unknown";
+
+  try {
+    const reqHeaders = await headers();
+    requestId = reqHeaders.get("x-request-id") || requestId;
+    clientIp =
+      reqHeaders.get("x-client-ip") ||
+      reqHeaders.get("cf-connecting-ip") ||
+      reqHeaders.get("x-real-ip") ||
+      reqHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      "127.0.0.1";
+    userAgent = reqHeaders.get("user-agent") || "unknown";
+  } catch {
+    // If called outside request header context
+  }
+
+  // Detect Session Hijacking / IP Drift anomalies
+  const sessionIp = session?.session?.ipAddress;
+  if (
+    sessionIp &&
+    sessionIp !== "0000:0000:0000:0000:0000:0000:0000:0000" &&
+    sessionIp !== "127.0.0.1" &&
+    clientIp !== "127.0.0.1" &&
+    sessionIp !== clientIp
+  ) {
+    console.warn(
+      `[🔴 SECURITY ALERT] [${requestId}] Session IP drift detected | User: ${session?.user?.id} | Login IP: ${sessionIp} | Request IP: ${clientIp}`,
+    );
+  }
+
+  const actionLabel = action || "api_request";
+  const deviceBrief =
+    userAgent.length > 50 ? `${userAgent.slice(0, 50)}...` : userAgent;
+
+  console.log(
+    `[🟣 AUDIT] [${requestId}] action=${actionLabel} user=${session?.user?.id || "unauthenticated"} ip=${clientIp} device="${deviceBrief}"`,
+  );
+
+  return { requestId, clientIp, userAgent };
+}
+
+/**
  * Enforces that the incoming request has a valid session AND that the user account status is strictly "active".
  *
  * Scenario: Call at the very top of any protected API route handler (e.g. sending funds, executing swaps,
@@ -223,13 +277,20 @@ export async function requireActiveUser(
   options: RouteGuardOptions = {},
 ): Promise<ActiveUserResult> {
   const session = await getCachedAuthSession();
+  const { requestId, clientIp, userAgent } = await resolveSecurityContext(
+    session,
+    options.rateLimit?.action,
+  );
 
   if (!session?.user?.id) {
     return {
       ok: false,
       response: NextResponse.json(
         { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 },
+        {
+          status: 401,
+          headers: { "X-Request-Id": requestId },
+        },
       ),
     };
   }
@@ -244,7 +305,10 @@ export async function requireActiveUser(
           code: statusCheck.code,
           status: statusCheck.status,
         },
-        { status: statusCheck.httpStatus || 403 },
+        {
+          status: statusCheck.httpStatus || 403,
+          headers: { "X-Request-Id": requestId },
+        },
       ),
     };
   }
@@ -255,7 +319,10 @@ export async function requireActiveUser(
       ok: false,
       response: NextResponse.json(
         { error: "Wallet not found", code: "WALLET_NOT_FOUND" },
-        { status: 404 },
+        {
+          status: 404,
+          headers: { "X-Request-Id": requestId },
+        },
       ),
     };
   }
@@ -285,6 +352,7 @@ export async function requireActiveUser(
           {
             status: 429,
             headers: {
+              "X-Request-Id": requestId,
               "Retry-After": rateLimit.resetInSeconds.toString(),
               "X-RateLimit-Limit": rateLimit.limit.toString(),
               "X-RateLimit-Remaining": "0",
@@ -303,6 +371,9 @@ export async function requireActiveUser(
     addresses: walletContext.addresses,
     user: session.user as AuthenticatedUser,
     session,
+    requestId,
+    clientIp,
+    userAgent,
   };
 }
 
@@ -316,13 +387,20 @@ export async function requireAuth(
   options: RouteGuardOptions = {},
 ): Promise<AuthOnlyResult> {
   const session = await getCachedAuthSession();
+  const { requestId, clientIp, userAgent } = await resolveSecurityContext(
+    session,
+    options.rateLimit?.action,
+  );
 
   if (!session?.user?.id) {
     return {
       ok: false,
       response: NextResponse.json(
         { error: "You are currently not logged in", code: "UNAUTHORIZED" },
-        { status: 401 },
+        {
+          status: 401,
+          headers: { "X-Request-Id": requestId },
+        },
       ),
     };
   }
@@ -333,7 +411,10 @@ export async function requireAuth(
       ok: false,
       response: NextResponse.json(
         { error: "Wallet not found", code: "WALLET_NOT_FOUND" },
-        { status: 404 },
+        {
+          status: 404,
+          headers: { "X-Request-Id": requestId },
+        },
       ),
     };
   }
@@ -363,6 +444,7 @@ export async function requireAuth(
           {
             status: 429,
             headers: {
+              "X-Request-Id": requestId,
               "Retry-After": rateLimit.resetInSeconds.toString(),
               "X-RateLimit-Limit": rateLimit.limit.toString(),
               "X-RateLimit-Remaining": "0",
@@ -381,5 +463,8 @@ export async function requireAuth(
     addresses: walletContext.addresses,
     user: session.user as AuthenticatedUser,
     session,
+    requestId,
+    clientIp,
+    userAgent,
   };
 }

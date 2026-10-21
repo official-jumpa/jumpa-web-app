@@ -83,9 +83,29 @@ export interface LiveRatesResult {
 
 declare global {
   var _liveRatesCache: { timestamp: number; data: LiveRatesResult } | undefined;
+  var _liveRatesRefreshingPromise: Promise<LiveRatesResult> | undefined;
 }
 
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour in-memory cache
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1-hour in-memory cache
+
+export const BASELINE_RATES: LiveRatesResult = {
+  tokens: [
+    { symbol: "XLM", name: "Stellar", usd: 0.10 },
+    { symbol: "USDC", name: "USD Coin", usd: 1.0 },
+    { symbol: "USDT", name: "Tether", usd: 1.0 },
+    { symbol: "ETH", name: "Ethereum", usd: 2600.0 },
+    { symbol: "SOL", name: "Solana", usd: 150.0 },
+    { symbol: "TRX", name: "Tron", usd: 0.16 },
+  ],
+  fiatRates: {
+    USD: { symbol: "$", perUsd: 1 },
+    NGN: { symbol: "₦", perUsd: 1550 },
+    GHS: { symbol: "₵", perUsd: 15.5 },
+    KES: { symbol: "KSh", perUsd: 129 },
+    ZAR: { symbol: "R", perUsd: 17.5 },
+  },
+  timestamp: 0,
+};
 
 const COINGECKO_MAP: Record<string, string> = {
   XLM: "stellar",
@@ -241,15 +261,10 @@ async function fetchFiatRates(): Promise<Record<string, { symbol: string; perUsd
 }
 
 /**
- * Fetches real-time crypto and fiat rates.
- * In-memory 60s cache with fallback to stale cache on upstream failure.
+ * Internal compilation of live prices from upstream providers.
  */
-export async function getLiveRates(): Promise<LiveRatesResult> {
+async function fetchAndCompileRates(): Promise<LiveRatesResult> {
   const now = Date.now();
-  if (globalThis._liveRatesCache && now - globalThis._liveRatesCache.timestamp < CACHE_TTL_MS) {
-    return globalThis._liveRatesCache.data;
-  }
-
   try {
     const [prices, liveFiat] = await Promise.all([
       fetchCryptoPrices(),
@@ -281,18 +296,59 @@ export async function getLiveRates(): Promise<LiveRatesResult> {
     return result;
   } catch (err: any) {
     console.warn(`[Rates Service] Rate compilation failed: ${formatOneLineError(err)}`);
-
-    // If an existing cache exists, reuse it gracefully
     if (globalThis._liveRatesCache) {
       return globalThis._liveRatesCache.data;
     }
-
-    return {
-      tokens: RATE_TOKENS,
-      fiatRates: {
-        USD: { symbol: "$", perUsd: 1 },
-      },
-      timestamp: now,
-    };
+    return BASELINE_RATES;
   }
+}
+
+/**
+ * Triggers an asynchronous non-blocking background refresh if one is not already running.
+ */
+function triggerBackgroundRatesRefresh(): void {
+  if (globalThis._liveRatesRefreshingPromise) return;
+
+  globalThis._liveRatesRefreshingPromise = fetchAndCompileRates()
+    .catch((err) => {
+      console.warn(`[Rates Service] Background refresh warning: ${formatOneLineError(err)}`);
+      return globalThis._liveRatesCache?.data || BASELINE_RATES;
+    })
+    .finally(() => {
+      globalThis._liveRatesRefreshingPromise = undefined;
+    });
+}
+
+/**
+ * Returns crypto and fiat exchange rates.
+ * Powered by a 1-hour in-memory cache and non-blocking background revalidation (stale-while-revalidate).
+ * Guarantees instantaneous (0ms) response times for calculations and transactions without blocking on external HTTP calls.
+ */
+export async function getLiveRates(options?: { forceLive?: boolean }): Promise<LiveRatesResult> {
+  const now = Date.now();
+  const cached = globalThis._liveRatesCache;
+
+  if (options?.forceLive) {
+    return fetchAndCompileRates();
+  }
+
+  // 1. If fresh cache exists (< 1 hour), return immediately (0ms)
+  if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+    return cached.data;
+  }
+
+  // 2. If expired (> 1 hour), return cached data instantly and refresh in background
+  if (cached) {
+    triggerBackgroundRatesRefresh();
+    return cached.data;
+  }
+
+  // 3. Cold start / initial boot (no cache yet):
+  // Set baseline rates immediately and trigger background refresh to warm cache
+  globalThis._liveRatesCache = {
+    timestamp: now,
+    data: BASELINE_RATES,
+  };
+  triggerBackgroundRatesRefresh();
+  return BASELINE_RATES;
 }

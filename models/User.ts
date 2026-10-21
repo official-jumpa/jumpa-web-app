@@ -26,6 +26,8 @@ export interface IUser {
     circle?: boolean;
   };
   preferenceId?: string | null;
+  passwordResetAt?: Date | null;
+  pinResetAt?: Date | null;
   deletedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -80,6 +82,8 @@ const UserSchema = new Schema<IUser>(
       circle: { type: Boolean, default: false },
     },
     preferenceId: { type: String, default: null },
+    passwordResetAt: { type: Date, default: null },
+    pinResetAt: { type: Date, default: null },
     deletedAt: { type: Date, default: null },
   },
   {

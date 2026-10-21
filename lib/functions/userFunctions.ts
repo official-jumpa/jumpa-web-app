@@ -299,7 +299,12 @@ export async function setUserLoginPassword(
   await connectDB();
   const updated = await User.findByIdAndUpdate(
     userId,
-    { $set: { loginPasswordHash } },
+    {
+      $set: {
+        loginPasswordHash,
+        passwordResetAt: new Date(),
+      },
+    },
     { returnDocument: "after" },
   ).lean<IUser>();
   return updated ?? null;

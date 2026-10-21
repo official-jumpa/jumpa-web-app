@@ -10,7 +10,8 @@ import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { logUserActivity, saveOrUpdateBeneficiary } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { generateBillReference, generateId } from "@/lib/schema-ids";
-import { FossaPayBanks, findFossaPayBank } from "@/lib/constants/fossapay-banks";
+import { findFossaPayBank } from "@/lib/constants/fossapay-banks";
+import { assertDailyTransactionLimit } from "@/lib/functions/transactionLimitFunctions";
 
 function getBaseUrl(): string {
   const url = environment.FOSSAPAY_BASE_URL || process.env.FOSSAPAY_BASE_URL;
@@ -585,6 +586,13 @@ export async function withdrawNgnFiat(params: WithdrawNgnFiatParams): Promise<{
     );
   }
 
+  // Daily transaction limit assertion
+  const limitCheck = await assertDailyTransactionLimit({
+    userId: params.userId,
+    amount: params.amount,
+    tokenOrCurrency: "NGN",
+  });
+
   const reference = generateId("tx");
 
   // 4. Resolve destination bank details
@@ -677,6 +685,7 @@ export async function withdrawNgnFiat(params: WithdrawNgnFiatParams): Promise<{
     fromAddress: userAccount.accountNumber,
     toAddress: `${resolvedBankName} - ${params.accountNumber}`,
     amount: params.amount.toString(),
+    amountInUsd: limitCheck.amountInUsd,
     feePaid: fee.toString(),
     token: "NGN",
     bankDetails: {

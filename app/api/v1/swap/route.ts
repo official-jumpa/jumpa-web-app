@@ -15,6 +15,9 @@ import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
+import {
+  assertDailyTransactionLimit, isLimitError,
+} from "@/lib/functions/transactionLimitFunctions";
 
 /**
  * POST /api/v1/swap?action=quote|build|execute
@@ -149,33 +152,50 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Enforce security transaction limits (discreetly)
+      try {
+        await assertDailyTransactionLimit({
+          userId,
+          amount: fromAmount,
+          tokenOrCurrency: fromToken,
+        });
+      } catch (limitErr: any) {
+        if (isLimitError(limitErr)) {
+          return NextResponse.json(
+            { success: false, error: limitErr.message },
+            { status: 400 },
+          );
+        }
+        throw limitErr;
+      }
+
       // Detect target chain
       const targetChain = (chain || rawQuote?.chain || (fromToken.toUpperCase() === "SOL" ? "solana" : "stellar")).toLowerCase();
 
       // Execute swap
       const result = targetChain === "solana" || targetChain === "sol"
         ? await executeSolanaSwap({
-            wallet,
-            pin,
-            rawQuote,
-            network,
-            fromToken,
-            toToken,
-            fromAmount,
-            toAmount: toAmount || "0",
-            userId,
-          })
+          wallet,
+          pin,
+          rawQuote,
+          network,
+          fromToken,
+          toToken,
+          fromAmount,
+          toAmount: toAmount || "0",
+          userId,
+        })
         : await executeStellarSwap({
-            wallet,
-            pin,
-            rawQuote,
-            network: network as "testnet" | "mainnet",
-            fromToken,
-            toToken,
-            fromAmount,
-            toAmount: toAmount || "0",
-            userId,
-          });
+          wallet,
+          pin,
+          rawQuote,
+          network: network as "testnet" | "mainnet",
+          fromToken,
+          toToken,
+          fromAmount,
+          toAmount: toAmount || "0",
+          userId,
+        });
 
       if (!result.ok) {
         return NextResponse.json(

@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db";
 import { encryptMnemonic } from "@/lib/crypto";
 import { Wallet, type IWallet } from "@/models/Wallet";
+import { User } from "@/models/User";
 import { triggerWalletBackgroundUpdates } from "@/lib/services/wallet-migration";
 
 const MAX_ATTEMPTS = 5;
@@ -242,6 +243,11 @@ export async function updateWalletPin({
   if (!updatedWallet) {
     return null;
   }
+
+  // Stamp pinResetAt on User document to initiate or reset security probation limit
+  await User.findByIdAndUpdate(userId, {
+    $set: { pinResetAt: new Date() },
+  }).catch((err) => console.warn("[updateWalletPin] Failed to stamp pinResetAt:", err));
 
   // Clear in-memory lockout attempts
   pinAttempts.delete(`${userId}:default`);

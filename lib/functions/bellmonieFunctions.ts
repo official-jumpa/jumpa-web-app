@@ -11,8 +11,9 @@ import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { logUserActivity, saveOrUpdateBeneficiary } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { generateId } from "@/lib/schema-ids";
-import { BellmonieBanks, findBellmonieBank } from "@/lib/constants/bellmonie-banks";
+import { findBellmonieBank } from "@/lib/constants/bellmonie-banks";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
+import { assertDailyTransactionLimit } from "@/lib/functions/transactionLimitFunctions";
 
 export {
   mapCountryCodeToName,
@@ -615,6 +616,13 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
     );
   }
 
+  // 3b. Daily transaction limit assertion
+  const limitCheck = await assertDailyTransactionLimit({
+    userId: params.userId,
+    amount: params.amount,
+    tokenOrCurrency: "NGN",
+  });
+
   // 4. Resolve destination bank details
   let resolvedBankCode = params.bankCode;
   let resolvedBankName = params.bankName;
@@ -653,6 +661,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
     fromAddress: userAccount.accountNumber,
     toAddress: `${resolvedBankName} - ${params.accountNumber}`,
     amount: params.amount.toString(),
+    amountInUsd: limitCheck.amountInUsd,
     feePaid: fee.toString(),
     token: "NGN",
     bankDetails: {
@@ -682,7 +691,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
         });
       } catch (err) {
         console.error("[Bellmonie] Internal transfer error, rolling back sender debit:", err);
-        await Transaction.updateOne({ _id: transaction._id }, { $set: { status: "FAILED" } }).catch(() => {});
+        await Transaction.updateOne({ _id: transaction._id }, { $set: { status: "FAILED" } }).catch(() => { });
         await atomicCreditNgnBalance({
           userId: params.userId,
           amount: totalDebited,
@@ -711,7 +720,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
         await Transaction.updateOne(
           { _id: transaction._id },
           { $set: { txHash: transferRes.sessionId } },
-        ).catch(() => {});
+        ).catch(() => { });
       }
     } catch (transferErr: any) {
       // Check if this was a synchronous pre-execution rejection (e.g. 400 Bad Request)
@@ -728,7 +737,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
         await Transaction.updateOne(
           { _id: transaction._id },
           { $set: { status: "FAILED", errorMessage: transferErr.message } },
-        ).catch(() => {});
+        ).catch(() => { });
 
         throw transferErr;
       }
@@ -763,7 +772,7 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
       await Transaction.updateOne(
         { _id: transaction._id },
         { $set: { status: "FAILED", errorMessage: "Transfer declined by destination bank" } },
-      ).catch(() => {});
+      ).catch(() => { });
 
       throw new Error(
         "The destination bank declined this transfer.",

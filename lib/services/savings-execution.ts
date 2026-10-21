@@ -34,6 +34,10 @@ import { generateCircleInviteCode } from "@/lib/schema-ids";
 import { formatPlanForUI } from "@/lib/savings-service";
 import { NgnAccount } from "@/models/NgnAccount";
 import { SavingsPlan } from "@/models/SavingsPlan";
+import {
+  assertDailyTransactionLimit,
+  isLimitError,
+} from "@/lib/functions/transactionLimitFunctions";
 
 const defindexClient = new DefindexClient(
   environment.DEFINDEX_API_KEY,
@@ -137,11 +141,27 @@ export async function createSavingsPlanExecution(
     }
   }
 
+  // Enforce security daily transaction limit on deposit
+  const numDeposit = Number(depositAmount) || 0;
+  if (numDeposit > 0) {
+    try {
+      await assertDailyTransactionLimit({
+        userId,
+        amount: numDeposit,
+        tokenOrCurrency: currency || "USDC",
+      });
+    } catch (limitErr: any) {
+      if (isLimitError(limitErr)) {
+        return { ok: false, error: limitErr.message, status: 400 };
+      }
+      throw limitErr;
+    }
+  }
+
   const days = durationDays || (params.term ? parseInt(params.term, 10) : 30) || 30;
   const computedTerm = `${days} DAYS`;
   const startDate = new Date();
   const endDate = new Date(startDate.getTime() + days * 24 * 60 * 60 * 1000);
-  const numDeposit = Number(depositAmount) || 0;
 
   const circleConfig =
     kind === "circle"
@@ -475,6 +495,22 @@ export async function depositSavingsExecution(
       error: "Locked savings plans cannot be topped up. Funds remain locked until maturity.",
       status: 400,
     };
+  }
+
+  // Enforce security daily transaction limit on deposit
+  if (amount > 0) {
+    try {
+      await assertDailyTransactionLimit({
+        userId,
+        amount,
+        tokenOrCurrency: plan.currency || "USDC",
+      });
+    } catch (limitErr: any) {
+      if (isLimitError(limitErr)) {
+        return { ok: false, error: limitErr.message, status: 400 };
+      }
+      throw limitErr;
+    }
   }
 
   // Currency: NGN (Database - No PIN required)
@@ -1016,6 +1052,22 @@ export async function joinCircleExecution(
   const numDeposit = Number(amount);
   let txHash: string | undefined;
   let explorerUrl: string | undefined;
+
+  // Enforce security daily transaction limit on deposit
+  if (numDeposit > 0) {
+    try {
+      await assertDailyTransactionLimit({
+        userId,
+        amount: numDeposit,
+        tokenOrCurrency: plan.currency || "USDC",
+      });
+    } catch (limitErr: any) {
+      if (isLimitError(limitErr)) {
+        return { ok: false, error: limitErr.message, status: 400 };
+      }
+      throw limitErr;
+    }
+  }
 
   // 1. Process payment: NGN or USDC
   if (plan.currency === "NGN") {

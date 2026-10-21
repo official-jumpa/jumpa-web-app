@@ -24,6 +24,11 @@ import {
   formatOneLineError,
   isTimeoutError,
 } from "@/lib/utils/api-best-practices";
+import {
+  assertDailyTransactionLimit,
+  convertToUsd,
+  isLimitError,
+} from "@/lib/functions/transactionLimitFunctions";
 
 export const dynamic = "force-dynamic";
 
@@ -110,6 +115,28 @@ export async function POST(req: NextRequest) {
           { status: 401 },
         );
       }
+    }
+
+    // Enforce security transaction limits (discreetly)
+    const tokenName =
+      cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC";
+    const outboundAmount = cryptoAmount || fiatAmount || 0;
+    const outboundCurrency = cryptoAmount ? tokenName : "NGN";
+
+    try {
+      await assertDailyTransactionLimit({
+        userId,
+        amount: outboundAmount,
+        tokenOrCurrency: outboundCurrency,
+      });
+    } catch (limitErr: any) {
+      if (isLimitError(limitErr)) {
+        return NextResponse.json(
+          { success: false, error: limitErr.message },
+          { status: 400 },
+        );
+      }
+      throw limitErr;
     }
 
     if (isStellar) {
@@ -317,8 +344,6 @@ export async function POST(req: NextRequest) {
     }
 
     const { deposit, reference, destination } = offrampResult;
-    const tokenName =
-      cryptoToken || asset.split(":")[1]?.toUpperCase() || "USDC";
 
     // Record in Transaction ledger
     const rawChain = (asset.split(":")[0] || "base").toLowerCase();
@@ -346,6 +371,7 @@ export async function POST(req: NextRequest) {
         fromAddress: userFromAddr || "USER_WALLET",
         toAddress: `${bankMatch.name} / ${accountNumber}`,
         amount: String(deposit.totalAmount || cryptoAmount),
+        amountInUsd: await convertToUsd(deposit.totalAmount || cryptoAmount, tokenName),
         feePaid: deposit.feeAmount ? String(deposit.feeAmount) : "0",
         token: tokenName,
         txHash: reference,

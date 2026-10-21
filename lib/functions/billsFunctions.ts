@@ -19,6 +19,10 @@ import { generateId } from "@/lib/schema-ids";
 import { hasActiveNgnAccount } from "@/lib/functions/ngnFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { formatOneLineError, isTimeoutError } from "@/lib/utils/api-best-practices";
+import {
+  assertDailyTransactionLimit,
+  convertToUsd,
+} from "@/lib/functions/transactionLimitFunctions";
 
 /**
  * Formats a phone number to standard Nigerian 11-digit format (e.g. 08031234567).
@@ -241,6 +245,13 @@ export async function purchaseAirtime(params: {
     throw new Error("Please create a Naira account first");
   }
 
+  // 2. Enforce daily transaction limits before debiting user's account
+  await assertDailyTransactionLimit({
+    userId: params.userId,
+    amount: params.amount,
+    tokenOrCurrency: "NGN",
+  });
+
   const billRef = generateId("bill");
 
   // 2. Transfer equivalent funds from user's Bloc MFB account to official Jumpa account
@@ -345,6 +356,7 @@ export async function purchaseAirtime(params: {
       fromAddress: transfer.fromAccount,
       toAddress: normalizedPhone,
       amount: params.amount.toString(),
+      amountInUsd: await convertToUsd(params.amount, "NGN"),
       token: "NGN",
       bankDetails: {
         bankName: environment.JUMPA_BANK_NAME,
@@ -408,6 +420,13 @@ export async function purchaseData(params: {
   if (!hasAccount) {
     throw new Error("Please create a Naira account first");
   }
+
+  // 2. Enforce daily transaction limits before debiting user's account
+  await assertDailyTransactionLimit({
+    userId: params.userId,
+    amount: params.amount,
+    tokenOrCurrency: "NGN",
+  });
 
   const billRef = generateId("bill");
 
@@ -519,6 +538,7 @@ export async function purchaseData(params: {
       fromAddress: transfer.fromAccount,
       toAddress: normalizedPhone,
       amount: params.amount.toString(),
+      amountInUsd: await convertToUsd(params.amount, "NGN"),
       token: "NGN",
       bankDetails: {
         bankName: environment.JUMPA_BANK_NAME,

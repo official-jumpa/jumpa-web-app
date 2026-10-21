@@ -9,6 +9,7 @@ import { detectCarrierFromPhone } from "@/lib/bills";
 import { getExplorerTxUrl, getSolanaRpcUrl } from "@/lib/blockchain";
 import { getHorizonServer } from "@/lib/chains/stellar/client";
 import { Connection } from "@solana/web3.js";
+import { convertToUsd } from "@/lib/functions/transactionLimitFunctions";
 
 // Types & Provider Interfaces 
 
@@ -216,6 +217,17 @@ export async function createTransactionRecord(
   data: Partial<ITransaction>,
 ): Promise<ITransaction> {
   await connectDB();
+  if (
+    (data.amountInUsd === undefined || data.amountInUsd === null) &&
+    data.amount &&
+    data.token
+  ) {
+    try {
+      data.amountInUsd = await convertToUsd(data.amount, data.token);
+    } catch {
+      // Fallback gracefully without breaking
+    }
+  }
   return Transaction.create(data);
 }
 

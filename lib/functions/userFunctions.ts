@@ -384,6 +384,7 @@ export const DEFAULT_USER_PREFERENCES: Omit<
 > = {
   pushNotifications: true,
   emailNotifications: true,
+  transactionEmails: true,
   newLoginDetected: true,
   haptics: true,
   inAppSounds: true,

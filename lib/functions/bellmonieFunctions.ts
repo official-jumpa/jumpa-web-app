@@ -822,6 +822,14 @@ export async function withdrawBellmonieNgnFiat(params: WithdrawNgnFiatParams): P
     link: "/transactions",
   }).catch(() => { });
 
+  if (isInternal) {
+    import("@/lib/functions/transactionEmailFunctions")
+      .then(({ dispatchTransactionEmail }) => {
+        dispatchTransactionEmail(transaction._id, "WITHDRAWAL_CONFIRMED").catch(() => {});
+      })
+      .catch(() => {});
+  }
+
   return {
     success: true,
     reference,

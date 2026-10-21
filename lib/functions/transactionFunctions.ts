@@ -10,6 +10,7 @@ import { getExplorerTxUrl, getSolanaRpcUrl } from "@/lib/blockchain";
 import { getHorizonServer } from "@/lib/chains/stellar/client";
 import { Connection } from "@solana/web3.js";
 import { convertToUsd } from "@/lib/functions/transactionLimitFunctions";
+import { dispatchTransactionEmail } from "@/lib/functions/transactionEmailFunctions";
 
 // Types & Provider Interfaces 
 
@@ -278,6 +279,7 @@ async function _applySyncResult(
           metadata: { txId: tx._id, reference: tx.rampDetails?.reference || txHash, txHash, amount: tx.amount, token: tx.token },
           link: "/transactions",
         }).catch(() => { });
+        dispatchTransactionEmail(tx._id, "DEPOSIT_CONFIRMED").catch(() => {});
       } else if (tx.type === "WITHDRAW") {
         const ref = tx.bankDetails?.reference || tx.txHash || tx._id;
         logUserActivity({
@@ -300,6 +302,7 @@ async function _applySyncResult(
           },
           link: "/transactions",
         }).catch(() => { });
+        dispatchTransactionEmail(tx._id, "WITHDRAWAL_CONFIRMED").catch(() => {});
       } else if (tx.type === "OFFRAMP") {
         logUserActivity({
           userId: tx.userId,
@@ -315,6 +318,7 @@ async function _applySyncResult(
           metadata: { txId: tx._id, reference: tx.rampDetails?.reference, txHash, amount: tx.amount, token: tx.token },
           link: "/transactions",
         }).catch(() => { });
+        dispatchTransactionEmail(tx._id, "WITHDRAWAL_CONFIRMED").catch(() => {});
       } else if (tx.type === "SWAP") {
         logUserActivity({
           userId: tx.userId,
@@ -331,6 +335,10 @@ async function _applySyncResult(
           link: "/transactions",
         }).catch(() => { });
       }
+    }
+  } else if (newStatus === "FAILED" && statusChanged && tx.userId) {
+    if (tx.type === "WITHDRAW" || tx.type === "OFFRAMP") {
+      dispatchTransactionEmail(tx._id, "WITHDRAWAL_FAILED").catch(() => {});
     }
   }
 

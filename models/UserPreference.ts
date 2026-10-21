@@ -6,6 +6,7 @@ export interface IUserPreference {
   userId: string;
   pushNotifications: boolean;
   emailNotifications: boolean;
+  transactionEmails: boolean;
   newLoginDetected: boolean;
   haptics: boolean;
   inAppSounds: boolean;
@@ -20,6 +21,7 @@ const UserPreferenceSchema = new Schema<IUserPreference>(
     userId: { type: String, required: true, unique: true, index: true },
     pushNotifications: { type: Boolean, default: true },
     emailNotifications: { type: Boolean, default: true },
+    transactionEmails: { type: Boolean, default: true },
     newLoginDetected: { type: Boolean, default: true },
     haptics: { type: Boolean, default: true },
     inAppSounds: { type: Boolean, default: true },

@@ -27,7 +27,25 @@ export function parseUserAgent(uaString?: string): ParsedUserAgent {
   // 1. Detect Device Type & OS
   let deviceType: "mobile" | "desktop" | "tablet" = "desktop";
   let os = "Unknown OS";
-  let deviceLabel = "Desktop Device";
+  let deviceLabel = "Desktop";
+
+  if (/postman/i.test(ua)) {
+    return {
+      browser: "Postman",
+      os: "Postman API",
+      deviceType: "desktop",
+      deviceLabel: "Postman",
+    };
+  }
+
+  if (/curl|insomnia|thunder client|undici/i.test(ua)) {
+    return {
+      browser: "API",
+      os: "API Client",
+      deviceType: "desktop",
+      deviceLabel: "API Client (un)",
+    };
+  }
 
   if (/ipad|tablet|(android(?!.*mobile))/i.test(ua)) {
     deviceType = "tablet";
@@ -40,7 +58,7 @@ export function parseUserAgent(uaString?: string): ParsedUserAgent {
   } else if (/android.*mobile/i.test(ua)) {
     deviceType = "mobile";
     os = "Android";
-    deviceLabel = "Android Phone";
+    deviceLabel = "Android";
   } else if (/macintosh|mac os x/i.test(ua)) {
     deviceType = "desktop";
     os = "macOS";
@@ -48,16 +66,18 @@ export function parseUserAgent(uaString?: string): ParsedUserAgent {
   } else if (/windows/i.test(ua)) {
     deviceType = "desktop";
     os = "Windows";
-    deviceLabel = "Windows PC";
+    deviceLabel = "Windows";
   } else if (/linux/i.test(ua)) {
     deviceType = "desktop";
     os = "Linux";
-    deviceLabel = "Linux PC";
+    deviceLabel = "Linux";
   }
 
   // 2. Detect Browser
-  let browser = "Browser";
-  if (/edg\//i.test(ua)) {
+  let browser = "un";
+  if (/brave/i.test(ua)) {
+    browser = "Brave";
+  } else if (/edg\//i.test(ua)) {
     browser = "Edge";
   } else if (/opr\/|opera/i.test(ua)) {
     browser = "Opera";
@@ -73,7 +93,7 @@ export function parseUserAgent(uaString?: string): ParsedUserAgent {
     browser,
     os,
     deviceType,
-    deviceLabel: `${deviceLabel} via ${browser}`,
+    deviceLabel: `${deviceLabel} (${browser})`,
   };
 }
 

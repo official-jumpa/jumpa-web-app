@@ -14,6 +14,7 @@ import {
   formatOneLineError,
   isTimeoutError,
 } from "@/lib/utils/api-best-practices";
+import { dispatchTransactionEmail } from "@/lib/functions/transactionEmailFunctions";
 
 export const dynamic = "force-dynamic";
 
@@ -184,6 +185,13 @@ export async function GET(req: NextRequest) {
             updatedAt: new Date(),
           });
           invalidateBalanceCache(session.user.id);
+
+          if (existingTx) {
+            dispatchTransactionEmail(
+              existingTx._id,
+              existingTx.type === "OFFRAMP" ? "WITHDRAWAL_CONFIRMED" : "DEPOSIT_CONFIRMED",
+            ).catch(() => {});
+          }
         } catch (dbErr: any) {
           console.warn(
             `DB Error: ${formatOneLineError(dbErr)}`,
@@ -198,6 +206,10 @@ export async function GET(req: NextRequest) {
           status: "FAILED",
           updatedAt: new Date(),
         });
+
+        if (existingTx && existingTx.type === "OFFRAMP") {
+          dispatchTransactionEmail(existingTx._id, "WITHDRAWAL_FAILED").catch(() => {});
+        }
       } catch (dbErr: any) {
         console.warn(
           `Error: ${formatOneLineError(dbErr)}`,

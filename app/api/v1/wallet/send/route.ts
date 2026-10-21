@@ -6,6 +6,7 @@ import {
 } from "@/lib/functions/walletFunctions";
 import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
+import { dispatchTransactionEmail } from "@/lib/functions/transactionEmailFunctions";
 import {
   logUserActivity,
   saveOrUpdateBeneficiary,
@@ -267,6 +268,10 @@ export async function POST(req: NextRequest) {
         `[Wallet:Send] Sender Notification error: ${formatOneLineError(e)}`,
       ),
     );
+
+    if (tx?._id) {
+      dispatchTransactionEmail(tx._id, "WITHDRAWAL_CONFIRMED").catch(() => {});
+    }
 
     // If recipient is another registered Jumpa user, notify them & invalidate their balance cache
     try {

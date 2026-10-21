@@ -20,6 +20,7 @@ interface NotificationSettingsProps {
 const DEFAULTS = {
   pushNotifications: true,
   emailNotifications: true,
+  transactionEmails: true,
   newLoginDetected: true,
   haptics: true,
   inAppSounds: true,
@@ -32,6 +33,7 @@ export function NotificationSettings({
   const [prefs, setPrefs] = useState({
     pushNotifications: initialPreferences?.pushNotifications ?? DEFAULTS.pushNotifications,
     emailNotifications: initialPreferences?.emailNotifications ?? DEFAULTS.emailNotifications,
+    transactionEmails: initialPreferences?.transactionEmails ?? DEFAULTS.transactionEmails,
     newLoginDetected: initialPreferences?.newLoginDetected ?? DEFAULTS.newLoginDetected,
     haptics: initialPreferences?.haptics ?? DEFAULTS.haptics,
     inAppSounds: initialPreferences?.inAppSounds ?? DEFAULTS.inAppSounds,
@@ -47,6 +49,7 @@ export function NotificationSettings({
         setPrefs({
           pushNotifications: data.preferences.pushNotifications ?? DEFAULTS.pushNotifications,
           emailNotifications: data.preferences.emailNotifications ?? DEFAULTS.emailNotifications,
+          transactionEmails: data.preferences.transactionEmails ?? DEFAULTS.transactionEmails,
           newLoginDetected: data.preferences.newLoginDetected ?? DEFAULTS.newLoginDetected,
           haptics: data.preferences.haptics ?? DEFAULTS.haptics,
           inAppSounds: data.preferences.inAppSounds ?? DEFAULTS.inAppSounds,
@@ -63,7 +66,7 @@ export function NotificationSettings({
   }, [initialPreferences, loadPreferences]);
 
   const handleToggle = async (
-    key: "pushNotifications" | "newLoginDetected" | "haptics" | "inAppSounds",
+    key: "pushNotifications" | "transactionEmails" | "newLoginDetected" | "haptics" | "inAppSounds",
     value: boolean,
   ) => {
     const previous = prefs[key];
@@ -129,6 +132,18 @@ export function NotificationSettings({
                   label="In app sounds"
                   checked={prefs.inAppSounds}
                   onChange={(val) => handleToggle("inAppSounds", val)}
+                />
+              }
+            />
+            <SettingRule />
+            <SettingRow
+              icon={BellAltIcon}
+              label="Deposits & Withdrawals"
+              action={
+                <Toggle
+                  label="Deposits & withdrawals"
+                  checked={prefs.transactionEmails}
+                  onChange={(val) => handleToggle("transactionEmails", val)}
                 />
               }
             />

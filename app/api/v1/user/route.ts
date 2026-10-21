@@ -48,6 +48,7 @@ function formatPreferencesDTO(pref: any) {
   return {
     pushNotifications: pref.pushNotifications ?? true,
     emailNotifications: pref.emailNotifications ?? true,
+    transactionEmails: pref.transactionEmails ?? true,
     newLoginDetected: pref.newLoginDetected ?? true,
     haptics: pref.haptics ?? true,
     inAppSounds: pref.inAppSounds ?? true,
@@ -155,6 +156,7 @@ export async function PATCH(req: NextRequest) {
     const prefKeys = [
       "pushNotifications",
       "emailNotifications",
+      "transactionEmails",
       "newLoginDetected",
       "haptics",
       "inAppSounds",

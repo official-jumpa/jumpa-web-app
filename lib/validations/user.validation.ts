@@ -74,6 +74,7 @@ export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export const updatePreferencesSchema = z.object({
   pushNotifications: z.boolean("Must be true or false").optional(),
   emailNotifications: z.boolean("Must be true or false").optional(),
+  transactionEmails: z.boolean("Must be true or false").optional(),
   newLoginDetected: z.boolean("Must be true or false").optional(),
   haptics: z.boolean("Must be true or false").optional(),
   inAppSounds: z.boolean("Must be true or false").optional(),
@@ -101,6 +102,7 @@ export const updateUserSchema = z
     image: updateProfileSchema.shape.image,
     pushNotifications: updatePreferencesSchema.shape.pushNotifications,
     emailNotifications: updatePreferencesSchema.shape.emailNotifications,
+    transactionEmails: updatePreferencesSchema.shape.transactionEmails,
     newLoginDetected: updatePreferencesSchema.shape.newLoginDetected,
     haptics: updatePreferencesSchema.shape.haptics,
     inAppSounds: updatePreferencesSchema.shape.inAppSounds,

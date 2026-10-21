@@ -10,6 +10,7 @@ import {
   checkRateLimit,
   type RateLimitTier,
 } from "@/lib/functions/rateLimitFunctions";
+import { parseUserAgent } from "@/lib/user-agent";
 
 export type UserStatus = "pending" | "active" | "banned" | "suspended" | "deleted";
 
@@ -217,6 +218,34 @@ export async function resolveUserWallet(userId: string): Promise<{
 }
 
 /**
+ * Checks if two IP addresses share the same carrier/ISP subnet (/16 for IPv4 or /64 for IPv6).
+ * Cellular carriers (e.g. MTN, Airtel, Glo) routinely rotate user IPs within the same /16 or /24 CGNAT block.
+ */
+function isSameCarrierSubnet(ipA: string, ipB: string): boolean {
+  if (!ipA || !ipB || ipA === ipB) return true;
+
+  // IPv4: match the first 2 octets (e.g. 102.90.x.x matches 102.90.y.y)
+  if (ipA.includes(".") && ipB.includes(".")) {
+    const octetsA = ipA.split(".");
+    const octetsB = ipB.split(".");
+    if (octetsA.length === 4 && octetsB.length === 4) {
+      return octetsA[0] === octetsB[0] && octetsA[1] === octetsB[1];
+    }
+  }
+
+  // IPv6: match the first 4 segments (/64 standard prefix)
+  if (ipA.includes(":") && ipB.includes(":")) {
+    const segmentsA = ipA.split(":");
+    const segmentsB = ipB.split(":");
+    if (segmentsA.length >= 4 && segmentsB.length >= 4) {
+      return segmentsA.slice(0, 4).join(":") === segmentsB.slice(0, 4).join(":");
+    }
+  }
+
+  return false;
+}
+
+/**
  * Extracts normalized request security metadata (request ID, client IP, device user-agent)
  * and audits the request while detecting session IP drift / hijacking anomalies.
  */
@@ -242,26 +271,54 @@ async function resolveSecurityContext(
     // If called outside request header context
   }
 
-  // Detect Session Hijacking / IP Drift anomalies
+  // Parse clean device names for client request and login session
+  const currentDevice = parseUserAgent(userAgent);
+  const sessionUa = session?.session?.userAgent;
+  const sessionDevice = sessionUa ? parseUserAgent(sessionUa) : null;
+
+  // 1. Genuine Device/Browser Hijacking Detection
+  // Only alert if BOTH the session and incoming request have known, identifiable client devices
+  // (ignores internal server-to-server fetches or missing User-Agent headers)
+  const isKnownSessionDevice = sessionDevice && sessionDevice.os !== "Unknown OS";
+  const isKnownCurrentDevice =
+    Boolean(userAgent) &&
+    userAgent !== "unknown" &&
+    currentDevice.os !== "Unknown OS";
+
+  const isDeviceDrift =
+    isKnownSessionDevice &&
+    isKnownCurrentDevice &&
+    (sessionDevice.os !== currentDevice.os ||
+      sessionDevice.deviceType !== currentDevice.deviceType ||
+      (sessionDevice.browser !== "un" &&
+        currentDevice.browser !== "un" &&
+        sessionDevice.browser !== currentDevice.browser));
+
+  if (isDeviceDrift) {
+    console.warn(
+      `[🔴 SECURITY ALERT] [${requestId}] Session Device Mismatch detected | User: ${session?.user?.id} | Login Device: "${sessionDevice?.deviceLabel}" | Request Device: "${currentDevice.deviceLabel}" | IP: ${clientIp}`,
+    );
+  }
+
+  // 2. IP Drift across different networks (e.g. Wi-Fi to cellular)
   const sessionIp = session?.session?.ipAddress;
   if (
     sessionIp &&
     sessionIp !== "0000:0000:0000:0000:0000:0000:0000:0000" &&
     sessionIp !== "127.0.0.1" &&
     clientIp !== "127.0.0.1" &&
-    sessionIp !== clientIp
+    sessionIp !== clientIp &&
+    !isSameCarrierSubnet(sessionIp, clientIp)
   ) {
-    console.warn(
-      `[🔴 SECURITY ALERT] [${requestId}] Session IP drift detected | User: ${session?.user?.id} | Login IP: ${sessionIp} | Request IP: ${clientIp}`,
+    console.log(
+      `[🟡 NETWORK CHANGE] [${requestId}] Session IP changed across subnets on ${currentDevice.deviceLabel} | User: ${session?.user?.id} | Login IP: ${sessionIp} -> Request IP: ${clientIp}`,
     );
   }
 
   const actionLabel = action || "api_request";
-  const deviceBrief =
-    userAgent.length > 50 ? `${userAgent.slice(0, 50)}...` : userAgent;
 
   console.log(
-    `[🟣 AUDIT] [${requestId}] action=${actionLabel} user=${session?.user?.id || "unauthenticated"} ip=${clientIp} device="${deviceBrief}"`,
+    `[🟣 AUDIT] [${requestId}] action=${actionLabel} from ${session?.user?.id || "unauthenticated"} ip=${clientIp} device="${currentDevice.deviceLabel}"`,
   );
 
   return { requestId, clientIp, userAgent };

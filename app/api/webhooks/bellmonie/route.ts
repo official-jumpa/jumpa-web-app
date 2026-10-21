@@ -12,6 +12,7 @@ import { calculateNgnDepositFee } from "@/lib/ngn-account";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { enforceRateLimit } from "@/lib/functions/rateLimitFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
+import { dispatchTransactionEmail } from "@/lib/functions/transactionEmailFunctions";
 
 /**
  * POST /api/webhooks/bellmonie
@@ -170,6 +171,17 @@ export async function POST(req: NextRequest) {
       console.log(
         `[Bellmonie Webhook] ✅ Credited ₦${creditAmount} (fee: ₦${feeCharged}) to user ${account.userId}. New Balance: ₦${creditRes.newBalance}`,
       );
+
+      const creditedTx = await Transaction.findOne({
+        $or: [
+          { txHash: reference },
+          { "bankDetails.reference": reference },
+        ],
+      }).lean();
+
+      if (creditedTx) {
+        dispatchTransactionEmail(creditedTx._id, "DEPOSIT_CONFIRMED").catch(() => {});
+      }
     } else if (
       event === "payout" ||
       event === "transfer" ||
@@ -252,6 +264,7 @@ export async function POST(req: NextRequest) {
             },
             link: "/transactions",
           }).catch(() => {});
+          dispatchTransactionEmail(existingTx._id, "WITHDRAWAL_CONFIRMED").catch(() => {});
         }
 
         console.log(
@@ -291,6 +304,7 @@ export async function POST(req: NextRequest) {
           },
           link: "/transactions",
         }).catch(() => {});
+        dispatchTransactionEmail(existingTx._id, "WITHDRAWAL_FAILED").catch(() => {});
 
         console.error(
           `[Bellmonie Webhook] ❌ Payout ${reference} failed (${failureReason}). Marked as FAILED for manual review.`,

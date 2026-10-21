@@ -4,6 +4,7 @@ import { Transaction } from "@/models/Transaction";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
+import { dispatchTransactionEmail } from "@/lib/functions/transactionEmailFunctions";
 import { stellarMainnetServer, stellarTestnetServer } from "@/lib/chains/stellar";
 import {
   EVM_CLIENTS,
@@ -552,6 +553,8 @@ export async function syncWalletInboundDeposits(
           transactionId: newTx._id,
         },
       });
+
+      dispatchTransactionEmail(newTx._id, "DEPOSIT_CONFIRMED").catch(() => {});
 
       // 4. Log User Activity
       await logUserActivity({

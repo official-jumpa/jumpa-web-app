@@ -20,6 +20,7 @@ import { CONTRACT_ADDRESSES } from "@/lib/blockchain";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
+import { dispatchTransactionEmail } from "@/lib/functions/transactionEmailFunctions";
 import {
   fetchSoroswapQuote,
   buildSoroswapTransaction,
@@ -297,6 +298,8 @@ export async function settleOnrampTransferCustom(params: {
         },
         link: "/transactions",
       }).catch(() => {});
+
+      dispatchTransactionEmail(transactionId, "DEPOSIT_CONFIRMED").catch(() => {});
     }
 
     // ── Step E: Priority 2 - Asynchronously replenish Treasury via Soroswap ──

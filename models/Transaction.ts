@@ -123,6 +123,11 @@ export interface ITransaction {
     lastCheckedAt: Date;
     verifiedSettledAt?: Date | null;
   };
+
+  // Email Notification Tracking
+  emailSent?: boolean;
+  emailSentAt?: Date | null;
+  emailSkippedReason?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -252,6 +257,11 @@ const TransactionSchema = new Schema<ITransaction>(
       lastCheckedAt: { type: Date, default: null },
       verifiedSettledAt: { type: Date, default: null, index: true },
     },
+
+    // Email Notification Tracking
+    emailSent: { type: Boolean, default: null, index: true },
+    emailSentAt: { type: Date, default: null },
+    emailSkippedReason: { type: String, default: null },
   },
   { timestamps: true, _id: false },
 );

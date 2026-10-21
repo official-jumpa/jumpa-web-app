@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
-import { CCTP_DOMAINS, getSolanaRpcUrl } from "@/lib/blockchain";
+import { CCTP_DOMAINS, getRpcUrl, getSolanaRpcUrl } from "@/lib/blockchain";
 import { getLiveRates } from "@/lib/rates";
+import { createPublicClient, http } from "viem";
+import { mainnet, base } from "viem/chains";
 
 export async function POST(req: NextRequest) {
   try {
@@ -52,12 +54,27 @@ export async function POST(req: NextRequest) {
     let effectiveTransferType: "standard" | "fast" = "fast";
     let feeAmount = 0;
     let networkFeeAmount = 0;
+    let networkFeeName: string | undefined = undefined;
     let networkFeeLabel: string | undefined = undefined;
     let requiresGasAbstraction = false;
 
     if (toChain === "ethereum") {
-      // Destination Ethereum L1 has higher gas minting costs
-      feeAmount = 3.5;
+      // Destination Ethereum L1 has higher gas minting costs (~172,000 gas units for receiveMessage)
+      try {
+        const publicClient = createPublicClient({
+          chain: mainnet,
+          transport: http(getRpcUrl("ethereum")),
+        });
+        const gasPrice = await publicClient.getGasPrice();
+        const rates = await getLiveRates();
+        const ethPriceUsd = rates.tokens.find((t) => t.symbol === "ETH")?.usd || 2600;
+        const mintGasUnits = BigInt(175000);
+        const mintFeeWei = (gasPrice * mintGasUnits * BigInt(12)) / BigInt(10);
+        const mintFeeUsd = (Number(mintFeeWei) / 1e18) * ethPriceUsd;
+        feeAmount = Math.max(0.5, Math.round(mintFeeUsd * 100) / 100);
+      } catch {
+        feeAmount = 3.5;
+      }
       protocolFeeBps = 0;
       estimatedTime = "~1–3 minutes";
       effectiveTransferType = "fast";
@@ -66,6 +83,7 @@ export async function POST(req: NextRequest) {
       protocolFeeBps = 0;
       estimatedTime = "~15–30 seconds";
       effectiveTransferType = "fast";
+      networkFeeName = "Solana network fee";
 
       // Check user's SOL balance to see if gas abstraction is needed (< 0.003 SOL)
       const userId = authResult.session?.user?.id;
@@ -128,6 +146,53 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Dynamic source network fee for EVM when not already set by Solana.
+    // Note: Stellar source transactions are sponsored by Jumpa (free), so no networkFeeLabel is set for Stellar.
+    if (!networkFeeLabel) {
+      if (fromChain === "ethereum") {
+        networkFeeName = "Ethereum network fee";
+        try {
+          const publicClient = createPublicClient({
+            chain: mainnet,
+            transport: http(getRpcUrl("ethereum")),
+          });
+          const gasPrice = await publicClient.getGasPrice();
+          const rates = await getLiveRates();
+          const ethPriceUsd = rates.tokens.find((t) => t.symbol === "ETH")?.usd || 2600;
+          // ~155,000 gas units for approve + depositForBurn on Ethereum
+          const gasUnits = BigInt(155000);
+          const feeWei = (gasPrice * gasUnits * BigInt(12)) / BigInt(10);
+          const feeEth = Number(feeWei) / 1e18;
+          const feeUsd = feeEth * ethPriceUsd;
+          networkFeeAmount = Math.max(0.01, Math.round(feeUsd * 100) / 100);
+          networkFeeLabel = `~${feeEth.toFixed(5)} ETH (~$${feeUsd.toFixed(2)})`;
+        } catch {
+          networkFeeLabel = "~0.00085 ETH (~$2.20)";
+        }
+      } else if (fromChain === "base") {
+        networkFeeName = "Base network fee";
+        try {
+          const publicClient = createPublicClient({
+            chain: base,
+            transport: http(getRpcUrl("base")),
+          });
+          const gasPrice = await publicClient.getGasPrice();
+          const rates = await getLiveRates();
+          const ethPriceUsd = rates.tokens.find((t) => t.symbol === "ETH")?.usd || 2600;
+          // ~110,000 gas units on Base
+          const gasUnits = BigInt(110000);
+          const feeWei = gasPrice * gasUnits;
+          const feeEth = Number(feeWei) / 1e18;
+          const feeUsd = feeEth * ethPriceUsd;
+          networkFeeAmount = Math.max(0.001, Math.round(feeUsd * 1000) / 1000);
+          networkFeeLabel =
+            feeUsd < 0.01 ? "< 0.0001 ETH (< $0.01)" : `~${feeEth.toFixed(6)} ETH (~$${feeUsd.toFixed(2)})`;
+        } catch {
+          networkFeeLabel = "< 0.0001 ETH (< $0.01)";
+        }
+      }
+    }
+
     const receivedAmount = Math.max(0, numAmount - feeAmount);
     // When gas abstraction applies, total USDC spent = amount bridged + networkFeeAmount
     const totalSpendAmount = requiresGasAbstraction
@@ -155,6 +220,7 @@ export async function POST(req: NextRequest) {
       feeBps: protocolFeeBps,
       maxFee: maxFeeAtomic.toString(),
       networkFee: networkFeeAmount > 0 ? networkFeeAmount.toFixed(2) : undefined,
+      networkFeeName,
       networkFeeLabel,
       requiresGasAbstraction,
       estimatedTime,

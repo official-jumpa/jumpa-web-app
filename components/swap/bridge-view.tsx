@@ -47,6 +47,7 @@ interface BridgeQuote {
   feeBps: number;
   maxFee: string;
   networkFee?: string;
+  networkFeeName?: string;
   networkFeeLabel?: string;
   requiresGasAbstraction?: boolean;
   estimatedTime: string;
@@ -551,7 +552,7 @@ export function BridgeView({
           </p>
           {quote?.networkFeeLabel ? (
             <p className="flex items-center justify-between gap-3 text-[11px] text-jumpa-neutral-425">
-              <span>Solana network fee</span>
+              <span>{quote.networkFeeName || `${sourceChainName} network fee`}</span>
               <span className="font-medium text-jumpa-neutral-700">{quote.networkFeeLabel}</span>
             </p>
           ) : null}
@@ -680,7 +681,10 @@ export function BridgeView({
             <DetailRow label="Destination network" value={destChainName} />
             <DetailRow label="Bridge fee" value={feeLabel} />
             {quote?.networkFeeLabel ? (
-              <DetailRow label="Solana network fee" value={quote.networkFeeLabel} />
+              <DetailRow
+                label={quote.networkFeeName || `${sourceChainName} network fee`}
+                value={quote.networkFeeLabel}
+              />
             ) : null}
             {quote?.requiresGasAbstraction && quote?.totalSpendAmount ? (
               <DetailRow label="Total you spend" value={`${quote.totalSpendAmount} USDC`} />

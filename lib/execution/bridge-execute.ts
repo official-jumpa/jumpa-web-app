@@ -15,6 +15,7 @@ import {
   createPublicClient,
   http,
   parseUnits,
+  parseEther,
   erc20Abi,
   getAddress,
 } from "viem";
@@ -404,14 +405,35 @@ export async function executeBridge(
 
       const sendAmount = parseUnits(amount, evmCctp.decimals);
 
-      // Check EVM ETH balance for gas
+      // Check EVM ETH balance for gas dynamically based on current gas price and required operations
       const ethBalance = await publicClient.getBalance({
         address: evmAccount.address,
       });
-      if (ethBalance === BigInt(0)) {
+
+      // Check USDC allowance for TokenMessenger on EVM
+      const currentAllowance = await publicClient.readContract({
+        address: evmCctp.usdc,
+        abi: erc20Abi,
+        functionName: "allowance",
+        args: [evmAccount.address, evmCctp.tokenMessenger],
+      });
+
+      const needsApprove = currentAllowance < sendAmount;
+      // depositForBurn on TokenMessengerV2 uses ~110,000 gas; approve uses ~46,000 gas.
+      const estimatedGasUnits = isEth
+        ? (needsApprove ? BigInt(200000) : BigInt(150000))
+        : (needsApprove ? BigInt(150000) : BigInt(100000));
+      const gasPrice = await publicClient.getGasPrice();
+      const estimatedFeeWei = (gasPrice * estimatedGasUnits * BigInt(12)) / BigInt(10); // 20% safety margin
+      const minThresholdWei = isEth ? parseEther("0.0003") : parseEther("0.00001");
+      const requiredGasWei = estimatedFeeWei > minThresholdWei ? estimatedFeeWei : minThresholdWei;
+
+      if (ethBalance < requiredGasWei) {
+        const requiredEthFormatted = (Number(requiredGasWei) / 1e18).toFixed(6);
+        const currentEthFormatted = (Number(ethBalance) / 1e18).toFixed(6);
         return {
           ok: false,
-          error: `Insufficient ${chainLabel} ETH for gas. Please fund your address with ETH.`,
+          error: `Insufficient ${chainLabel} ETH for network fees. Required: ~${requiredEthFormatted} ETH, but your balance is ${currentEthFormatted} ETH.`,
           status: 400,
         };
       }
@@ -432,15 +454,7 @@ export async function executeBridge(
         };
       }
 
-      // Check / approve USDC allowance for TokenMessenger on EVM
-      const currentAllowance = await publicClient.readContract({
-        address: evmCctp.usdc,
-        abi: erc20Abi,
-        functionName: "allowance",
-        args: [evmAccount.address, evmCctp.tokenMessenger],
-      });
-
-      if (currentAllowance < sendAmount) {
+      if (needsApprove) {
         const approveHash = await walletClient.writeContract({
           address: evmCctp.usdc,
           abi: erc20Abi,
@@ -472,7 +486,8 @@ export async function executeBridge(
         targetRecipientBytes32 = evmAddressToBytes32(recipientAddress);
       }
 
-      const tokenMessengerAbi = [
+      // Circle CCTP V2 TokenMessenger ABI
+      const tokenMessengerV2Abi = [
         {
           type: "function",
           name: "depositForBurn",
@@ -481,6 +496,9 @@ export async function executeBridge(
             { name: "destinationDomain", type: "uint32" },
             { name: "mintRecipient", type: "bytes32" },
             { name: "burnToken", type: "address" },
+            { name: "destinationCaller", type: "bytes32" },
+            { name: "maxFee", type: "uint256" },
+            { name: "minFinalityThreshold", type: "uint32" },
           ],
           outputs: [{ name: "_nonce", type: "uint64" }],
           stateMutability: "nonpayable",
@@ -489,9 +507,17 @@ export async function executeBridge(
 
       txHash = await walletClient.writeContract({
         address: evmCctp.tokenMessenger,
-        abi: tokenMessengerAbi,
+        abi: tokenMessengerV2Abi,
         functionName: "depositForBurn",
-        args: [sendAmount, targetDomain, targetRecipientBytes32, evmCctp.usdc],
+        args: [
+          sendAmount,
+          targetDomain,
+          targetRecipientBytes32,
+          evmCctp.usdc,
+          "0x0000000000000000000000000000000000000000000000000000000000000000", // destinationCaller (0 allows any relayer or user to mint)
+          BigInt(0), // maxFee
+          1000, // minFinalityThreshold
+        ],
       });
 
       explorerUrl = getExplorerTxUrl(isEth ? "ethereum" : "base", txHash, false);

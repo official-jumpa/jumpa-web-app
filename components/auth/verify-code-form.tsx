@@ -108,6 +108,9 @@ export function VerifyCodeForm({
           setTargetActionHref(nextHref || SIGN_UP_FLOW.phone);
         }
 
+        if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
         setVerifying(false);
         setVerified(true);
       } catch (err) {
@@ -186,8 +189,9 @@ export function VerifyCodeForm({
           length={CODE_LENGTH}
           value={code.value}
           reveal
-          autoFocus
-          onValueChange={code.set}
+          autoFocus={!verified}
+          disabled={verifying || verified}
+          onValueChange={verified ? undefined : code.set}
         />
 
         <button

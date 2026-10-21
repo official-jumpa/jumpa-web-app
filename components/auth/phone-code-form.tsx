@@ -97,6 +97,9 @@ export function PhoneCodeForm({
           console.warn("[PhoneCodeForm] Could not fetch nextRoute:", e);
         }
 
+        if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
         setVerifying(false);
         setVerified(true);
       } catch (err: any) {
@@ -219,8 +222,9 @@ export function PhoneCodeForm({
           value={code.value}
           label="Enter Code"
           reveal
-          autoFocus
-          onValueChange={code.set}
+          autoFocus={!verified}
+          disabled={verifying || verified || skipping}
+          onValueChange={verified ? undefined : code.set}
         />
 
         <button

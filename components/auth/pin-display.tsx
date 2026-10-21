@@ -29,6 +29,7 @@ export function PinDisplay({
   error,
   reveal,
   autoFocus,
+  disabled,
   onValueChange,
 }: {
   length: number;
@@ -41,6 +42,7 @@ export function PinDisplay({
   /** Show the digits instead of masking them — right for a code, not a PIN. */
   reveal?: boolean;
   autoFocus?: boolean;
+  disabled?: boolean;
   /** Enables typing, pasting and OTP autofill through a transparent field. */
   onValueChange?: (next: string) => void;
 }) {
@@ -104,6 +106,7 @@ export function PinDisplay({
           <input
             type="text"
             value={value}
+            disabled={disabled}
             onChange={(event) => onValueChange(event.target.value)}
             // Paste replaces rather than appends; no maxLength, it counts separators.
             onPaste={(event) => {

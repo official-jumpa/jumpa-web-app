@@ -11,10 +11,12 @@ export function TopUpSheet({
   goal,
   onClose,
   onConfirm,
+  submitting,
 }: {
   goal: HubGoal;
   onClose: () => void;
   onConfirm: (amount: number) => void;
+  submitting?: boolean;
 }) {
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string>();
@@ -103,8 +105,13 @@ export function TopUpSheet({
           autoFocus
         />
 
-        <Button type="submit" variant="gradientSheet" size="lg">
-          Top up
+        <Button
+          type="submit"
+          variant="gradientSheet"
+          size="lg"
+          disabled={submitting}
+        >
+          {submitting ? "Processing..." : "Top up"}
         </Button>
       </form>
     </BottomSheet>

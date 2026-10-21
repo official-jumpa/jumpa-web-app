@@ -3,6 +3,7 @@ import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { createSavingsPlanSchema } from "@/lib/validations/savings.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { createSavingsPlanExecution } from "@/lib/services/savings-execution";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 export async function POST(req: NextRequest) {
   const auth = await requireActiveUser({
@@ -25,8 +26,6 @@ export async function POST(req: NextRequest) {
       targetAmount,
       depositAmount = 0,
       term,
-      startDate,
-      endDate,
       frequency,
       fundingSource,
       currency = "USDC",
@@ -65,7 +64,7 @@ export async function POST(req: NextRequest) {
       receiptCardData: result.receiptCardData,
     });
   } catch (err: any) {
-    console.error("Error:", err);
+    console.error(`Error: ${formatOneLineError(err)}`);
     return NextResponse.json(
       { error: "Failed to create savings plan" },
       { status: 500 },

@@ -108,13 +108,14 @@ export function SavingsView() {
   const [pinPending, setPinPending] = useState(false);
   const [pinError, setPinError] = useState(false);
 
+  const isSubmittingRef = useRef(false);
   const celebrateTimer = useRef<number>(undefined);
   const streak = useMemo(() => weeklyStreak(goals), [goals]);
 
   // Fetch real plans on mount
   const fetchPlans = useCallback(async () => {
     try {
-      const res = await fetch("/api/savings");
+      const res = await fetch("/api/v1/savings");
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.goals)) {
@@ -192,15 +193,18 @@ export function SavingsView() {
     },
     pin?: string,
   ) => {
+    if (isSubmittingRef.current || submitting) return;
+
     // If USDC and initial deposit > 0 and no PIN entered yet, prompt for PIN
     if (goalInput.currency === "USDC" && goalInput.depositAmount > 0 && !pin) {
       setPinAction({ type: "create", data: goalInput });
       return;
     }
 
+    isSubmittingRef.current = true;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/savings/create", {
+      const res = await fetch("/api/v1/savings/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -235,6 +239,7 @@ export function SavingsView() {
       toast.error(err.message || "Failed to create savings plan");
       if (pinAction) setPinError(true);
     } finally {
+      isSubmittingRef.current = false;
       setSubmitting(false);
       setPinPending(false);
     }
@@ -242,6 +247,8 @@ export function SavingsView() {
 
   // 2. Top-Up Goal (Requires PIN only for USDC on-chain)
   const handleTopUpGoal = async (planId: string, amount: number, pin?: string) => {
+    if (isSubmittingRef.current || submitting) return;
+
     const goal = goals.find((g) => g.id === planId);
     // If USDC and no PIN yet, prompt for PIN
     if (goal?.currency === "USDC" && !pin) {
@@ -249,9 +256,10 @@ export function SavingsView() {
       return;
     }
 
+    isSubmittingRef.current = true;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/savings/top-up", {
+      const res = await fetch("/api/v1/savings/top-up", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -277,6 +285,7 @@ export function SavingsView() {
       toast.error(err.message || "Deposit failed");
       if (pinAction) setPinError(true);
     } finally {
+      isSubmittingRef.current = false;
       setSubmitting(false);
       setPinPending(false);
     }
@@ -289,11 +298,15 @@ export function SavingsView() {
     forfeit: boolean,
     pin: string,
   ) => {
+    if (isSubmittingRef.current || submitting || pinPending) return;
+
+    isSubmittingRef.current = true;
+    setSubmitting(true);
     setPinPending(true);
     setPinError(false);
 
     try {
-      const res = await fetch("/api/savings/withdraw", {
+      const res = await fetch("/api/v1/savings/withdraw", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -326,6 +339,8 @@ export function SavingsView() {
       toast.error(err.message || "Action failed");
       setPinError(true);
     } finally {
+      isSubmittingRef.current = false;
+      setSubmitting(false);
       setPinPending(false);
     }
   };
@@ -337,14 +352,17 @@ export function SavingsView() {
     circleCurrency: HubCurrency,
     pin?: string,
   ) => {
+    if (isSubmittingRef.current || submitting) return;
+
     if (circleCurrency === "USDC" && !pin) {
       setPinAction({ type: "join", code, amount, currency: circleCurrency });
       return;
     }
 
+    isSubmittingRef.current = true;
     setSubmitting(true);
     try {
-      const res = await fetch("/api/savings/join", {
+      const res = await fetch("/api/v1/savings/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code, amount, pin }),
@@ -367,6 +385,7 @@ export function SavingsView() {
       toast.error(err.message || "Failed to join circle");
       if (pinAction) setPinError(true);
     } finally {
+      isSubmittingRef.current = false;
       setSubmitting(false);
       setPinPending(false);
     }
@@ -421,6 +440,7 @@ export function SavingsView() {
         kind={stage.kind}
         currency={currency}
         onBack={toHub}
+        submitting={submitting}
         onCreate={(goal) => {
           handleCreateGoal({
             kind: goal.kind,
@@ -439,6 +459,7 @@ export function SavingsView() {
     screen = (
       <JoinCircleView
         onBack={toHub}
+        submitting={submitting}
         onJoin={(code, amount, circleCurrency) => {
           handleJoinCircle(code, amount, circleCurrency);
         }}
@@ -501,7 +522,7 @@ export function SavingsView() {
             const kind = intro;
             setIntro(null);
             setSeenIntros((prev) => ({ ...prev, [kind]: true }));
-            fetch(`/api/savings/intro-seen?kind=${kind}`, { method: "POST" }).catch(() => {});
+            fetch(`/api/v1/savings/intro-seen?kind=${kind}`, { method: "POST" }).catch(() => {});
             go({ screen: "create", kind });
           }}
           onSecondary={

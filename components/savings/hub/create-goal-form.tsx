@@ -192,11 +192,13 @@ export function CreateGoalForm({
   currency: initialCurrency,
   onBack,
   onCreate,
+  submitting,
 }: {
   kind: SavingsKind;
   currency: HubCurrency;
   onBack: () => void;
   onCreate: (goal: HubGoal) => void;
+  submitting?: boolean;
 }) {
   const form = FORMS[kind];
   const fields = useRef<HTMLDivElement>(null);
@@ -294,6 +296,8 @@ export function CreateGoalForm({
       ctaVariant="gradientSheet"
       fields={fields}
       onSubmit={submit}
+      disabled={submitting}
+      loading={submitting}
     >
       <SavingsField label={form.nameLabel} error={errors.name}>
         <input

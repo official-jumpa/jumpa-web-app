@@ -245,7 +245,7 @@ export function savingStyle(goal: HubGoal): string {
 
 /**
  * TODO(backend): placeholder plans for the prototype — replace with the
- * user's real plans from `/api/savings` before this screen ships. Your own
+ * user's real plans from `/api/v1/savings` before this screen ships. Your own
  * deposits sit on whole weeks back (7, 14, 21…), so the demo always opens on a
  * 3-week streak with this week still open, and ₦150,000 takes the MacBook halfway.
  */

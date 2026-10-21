@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { SavingsPlan } from "@/models/SavingsPlan";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 /**
- * GET /api/savings/lookup?code=C8H2KX
+ * GET /api/v1/savings/lookup?code=C8H2KX
  * Resolves a circle savings plan by its invite code or plan ID.
- *  * TODO: implement the ui
  */
 export async function GET(req: NextRequest) {
   const auth = await requireActiveUser({
@@ -16,24 +16,35 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const code = searchParams.get("code")?.trim().toUpperCase();
 
-    if (!code) {
+    // Strict query parameter enforcement: only 'code' is permitted
+    for (const key of searchParams.keys()) {
+      if (key !== "code") {
+        return NextResponse.json(
+          { error: "Invalid request parameters" },
+          { status: 400 },
+        );
+      }
+    }
+
+    const rawCode = searchParams.get("code")?.trim() || "";
+    const code = rawCode.toUpperCase();
+
+    if (!code || code.length < 2 || code.length > 30) {
       return NextResponse.json(
-        { error: "Invite code is required" },
+        { error: "Invalid request parameters" },
         { status: 400 },
       );
     }
 
     await connectDB();
 
-    // Find active circle plan by inviteCode (case-insensitive) or by _id
+    // Query exact case-insensitive match without arbitrary regex expansion
     const plan = await SavingsPlan.findOne({
       kind: "circle",
       status: "Active",
       $or: [
         { "circleConfig.inviteCode": code },
-        { "circleConfig.inviteCode": new RegExp(`^${code}$`, "i") },
         { _id: code.toLowerCase() },
       ],
     });
@@ -76,7 +87,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: any) {
-    console.error("Error:", err);
+    console.error(`Error: ${formatOneLineError(err)}`);
     return NextResponse.json(
       { error: "Failed to lookup circle" },
       { status: 500 },

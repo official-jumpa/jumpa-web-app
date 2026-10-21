@@ -11,12 +11,14 @@ export function WithdrawSheet({
   forfeit,
   onClose,
   onConfirm,
+  submitting,
 }: {
   goal: HubGoal;
   /** An early exit from a lock gives up its interest. */
   forfeit: boolean;
   onClose: () => void;
   onConfirm: (amount?: number) => void;
+  submitting?: boolean;
 }) {
   const isLock = goal.kind === "lock";
   // Locked plans withdraw everything. Flexible/circle plans let the user choose an amount.
@@ -114,10 +116,15 @@ export function WithdrawSheet({
         </DetailList>
 
         <div className="flex flex-col gap-2">
-          <Button variant="gradientSheet" size="lg" type="submit">
-            Withdraw {formatMoney(totalPayout, goal.currency)}
+          <Button
+            variant="gradientSheet"
+            size="lg"
+            type="submit"
+            disabled={submitting}
+          >
+            {submitting ? "Processing..." : `Withdraw ${formatMoney(totalPayout, goal.currency)}`}
           </Button>
-          <Button variant="plain" size="lg" type="button" onClick={onClose}>
+          <Button variant="plain" size="lg" type="button" onClick={onClose} disabled={submitting}>
             Keep saving
           </Button>
         </div>

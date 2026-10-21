@@ -1,60 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
-import { joinCircleExecution } from "@/lib/services/savings-execution";
-import { z } from "zod";
+import { withdrawSavingsSchema } from "@/lib/validations/savings.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { withdrawSavingsExecution } from "@/lib/services/savings-execution";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
-const joinCircleSchema = z.object({
-  code: z.string().trim().min(2, "Invite code is required"),
-  amount: z.coerce.number().positive("Deposit amount must be greater than 0"),
-  pin: z.string().optional(),
-});
-
-/**
- * POST /api/savings/join
- * Join an active Circle savings plan with initial contribution.
- * TODO: implement the ui
- */
 export async function POST(req: NextRequest) {
   const auth = await requireActiveUser({
-    rateLimit: { tier: "high", action: "savings_join" },
+    rateLimit: { tier: "high", action: "savings_withdraw" },
   });
   if (!auth.ok) return auth.response;
   const { userId } = auth;
 
   try {
+    const { searchParams } = new URL(req.url);
     const body = await req.json().catch(() => ({}));
-    const validation = joinCircleSchema.safeParse(body);
+    const planId = searchParams.get("id") || body.id || body.planId;
+
+    const validation = withdrawSavingsSchema.safeParse({ ...body, planId });
     if (!validation.success) {
       return NextResponse.json(formatZodError(validation.error), { status: 400 });
     }
 
-    const { code, amount, pin } = validation.data;
+    const { amount, pin } = validation.data;
 
-    const result = await joinCircleExecution({
+    const result = await withdrawSavingsExecution({
       userId,
-      code,
-      amount,
       pin,
+      planId: validation.data.planId,
+      amount,
     });
 
     if (!result.ok) {
       return NextResponse.json(
-        { error: result.error || "Failed to join circle" },
+        { error: result.error || "Withdrawal failed" },
         { status: result.status || 400 },
       );
     }
 
     return NextResponse.json({
-      success: true,
       plan: result.plan,
+      withdrawnAmount: result.withdrawnAmount,
+      netPayout: result.netPayout,
+      forfeited: result.forfeited,
       txHash: result.txHash,
       explorerUrl: result.explorerUrl,
     });
   } catch (err: any) {
-    console.error("Error:", err);
+    console.error(`Error: ${formatOneLineError(err)}`);
     return NextResponse.json(
-      { error: "Failed to join circle" },
+      { error: "Failed to process withdrawal" },
       { status: 500 },
     );
   }

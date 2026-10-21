@@ -1,34 +1,6 @@
 import { connectDB } from "@/lib/db";
 import { SavingsPlan, type ISavingsPlan } from "@/models/SavingsPlan";
-import { formatPlanForUI } from "@/lib/savings-service";
-import type { SavingsPlan as UISavingsPlan, SavingsKind } from "@/lib/savings";
-
-/**
- * Loads a user's savings plan by ID from the DB.
- */
-export async function getSavingsPlanById(
-  id: string,
-  userId: string,
-  kind?: SavingsKind,
-): Promise<UISavingsPlan | null> {
-  try {
-    await connectDB();
-    const query: Record<string, any> = {
-      _id: id,
-      $or: [{ userId }, { "circleConfig.members.userId": userId }],
-    };
-    if (kind) query.kind = kind;
-
-    const dbPlan = await SavingsPlan.findOne(query);
-    if (dbPlan) {
-      return formatPlanForUI(dbPlan);
-    }
-  } catch (err) {
-    console.warn(`[SavingsFunctions] Failed to load plan ${id} for user ${userId}:`, err);
-  }
-  return null;
-}
-
+import type { SavingsKind } from "@/lib/savings";
 import mongoose from "mongoose";
 
 /**

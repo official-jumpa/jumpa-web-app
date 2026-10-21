@@ -517,9 +517,16 @@ export async function depositSavingsExecution(
       };
     }
 
-    const newTotal = (plan.currentAmount || 0) + amount;
-    plan.currentAmount = newTotal;
-    await plan.save();
+    const updatedPlan = await SavingsPlan.findOneAndUpdate(
+      {
+        _id: plan._id,
+        status: "Active",
+      },
+      {
+        $inc: { currentAmount: amount },
+      },
+      { returnDocument: "after" },
+    );
 
     await createSavingsTransaction({
       planId: plan._id,
@@ -548,7 +555,7 @@ export async function depositSavingsExecution(
 
     return {
       ok: true,
-      plan: formatPlanForUI(plan),
+      plan: formatPlanForUI(updatedPlan || plan),
     };
   }
 
@@ -561,7 +568,7 @@ export async function depositSavingsExecution(
     return { ok: false, error: pinCheck.error, status: pinCheck.status };
   }
 
-  // ── Currency: USDC (Stellar DeFindex) ────────────────────────────────────
+  // Currency: USDC (Stellar DeFindex)
   // 1. Enforce cumulative $1,000 USDC maximum savings cap per user
   const currentActiveUsdcSavings = await getUserActiveUsdcSavings(userId);
   if (currentActiveUsdcSavings + amount > 1000) {
@@ -766,22 +773,53 @@ export async function withdrawSavingsExecution(
 
   // ── Currency: NGN (Database Ledger)
   if (plan.currency === "NGN") {
-    // Atomically credit user's NgnAccount with the payout and invalidate balance cache
-    await atomicCreditNgnBalance({
-      userId,
-      amount: netPayout,
-      memo: `savings:withdraw:${plan._id}`,
-    });
+    // ATOMIC CLAIM: Deduct from SavingsPlan FIRST using atomic Compare-And-Swap (CAS)
+    // WiredTiger engine locks this document during the write.
+    // If concurrent requests hit, only 1 satisfies `currentAmount >= principalWithdraw`. The rest receive null.
+    const claimedPlan = await SavingsPlan.findOneAndUpdate(
+      {
+        _id: planId,
+        $or: [{ userId }, { "circleConfig.members.userId": userId }],
+        status: "Active",
+        currentAmount: { $gte: principalWithdraw },
+      },
+      {
+        $inc: {
+          currentAmount: -principalWithdraw,
+          interestEarned: -interestPayout,
+        },
+        ...(isFullWithdrawal
+          ? {
+              status: "Closed",
+              "closure.paidOut": netPayout,
+              "closure.date": new Date(),
+              "closure.forfeited": forfeitInterest,
+            }
+          : {}),
+      },
+      { returnDocument: "after" },
+    );
 
-    if (isFullWithdrawal) {
-      await closeSavingsPlanRecord(planId, userId, {
-        paidOut: netPayout,
-        forfeited: forfeitInterest,
+    if (!claimedPlan) {
+      return {
+        ok: false,
+        error: "Insufficient balance or plan is already closed.",
+        status: 400,
+      };
+    }
+
+    // Atomically credit user's NgnAccount with the payout and invalidate balance cache
+    try {
+      await atomicCreditNgnBalance({
+        userId,
+        amount: netPayout,
+        memo: `savings:withdraw:${plan._id}`,
       });
-    } else {
-      plan.currentAmount = remainingBalance;
-      plan.interestEarned = Math.max(0, plan.interestEarned - interestPayout);
-      await plan.save();
+    } catch (creditErr: any) {
+      console.error(
+        `[Savings:Withdraw] CRITICAL: Deducted ₦${principalWithdraw} from plan ${planId} but failed to credit user ${userId}: ${creditErr?.message || creditErr}. Requires manual review.`,
+      );
+      throw creditErr;
     }
 
     await createSavingsTransaction({
@@ -818,7 +856,7 @@ export async function withdrawSavingsExecution(
       withdrawnAmount: principalWithdraw,
       netPayout,
       forfeited: forfeitInterest,
-      plan: formatPlanForUI(plan),
+      plan: formatPlanForUI(claimedPlan),
     };
   }
 
@@ -1076,29 +1114,50 @@ export async function joinCircleExecution(
     explorerUrl = getExplorerTxUrl("stellar", txHash, false);
   }
 
-  // 2. Add member to circle and increment currentAmount
-  plan.currentAmount = (plan.currentAmount || 0) + numDeposit;
-  if (!plan.circleConfig) {
-    plan.circleConfig = {
-      type: "save_together",
-      capacity,
-      members: [],
+  // 2. Atomically reserve circle member slot and increment balance
+  const updatedCircle = await SavingsPlan.findOneAndUpdate(
+    {
+      _id: plan._id,
+      kind: "circle",
+      status: "Active",
+      $expr: {
+        $lt: [
+          { $size: { $ifNull: ["$circleConfig.members", []] } },
+          "$circleConfig.capacity",
+        ],
+      },
+      "circleConfig.members.userId": { $ne: userId },
+    },
+    {
+      $push: {
+        "circleConfig.members": {
+          userId,
+          name: "Member",
+          role: "member",
+          saved: numDeposit,
+          joinedAt: new Date(),
+        },
+        ...(txHash ? { txHashes: txHash } : {}),
+      },
+      $inc: { currentAmount: numDeposit },
+    },
+    { returnDocument: "after" },
+  );
+
+  if (!updatedCircle) {
+    if (plan.currency === "NGN") {
+      await atomicCreditNgnBalance({
+        userId,
+        amount: numDeposit,
+        memo: `savings:refund:circle_full:${plan._id}`,
+      }).catch((rErr) => console.error("[CircleJoin] Failed to refund over-subscribed user:", rErr));
+    }
+    return {
+      ok: false,
+      error: "This circle is already at full capacity or you have already joined.",
+      status: 400,
     };
   }
-
-  plan.circleConfig.members.push({
-    userId,
-    name: "Member",
-    role: "member",
-    saved: numDeposit,
-    joinedAt: new Date(),
-  });
-
-  if (txHash && !plan.txHashes.includes(txHash)) {
-    plan.txHashes.push(txHash);
-  }
-
-  await plan.save();
 
   await createSavingsTransaction({
     planId: plan._id,

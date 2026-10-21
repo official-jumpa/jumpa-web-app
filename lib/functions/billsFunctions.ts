@@ -313,14 +313,8 @@ export async function purchaseAirtime(params: {
       { _id: order._id },
       { status: "FAILED", errorMessage: rawErr, rawProviderResponse: data },
     );
-    // Safe to refund: Provider confirmed refusal
-    await safeRefundBillPayment({
-      billId: order._id,
-      userId: params.userId,
-      amount: params.amount,
-      narration: `Refund for airtime (${normalizedPhone})`,
-    }).catch((refundErr) =>
-      console.error(`[Airtime] Refund failed for ${refId}: ${formatOneLineError(refundErr)}`),
+    console.error(
+      `[Bills:Airtime] Order ${refId} failed at provider: ${formatOneLineError(rawErr)}. Automatic refund disabled - marked FAILED for manual review.`,
     );
     throw new Error(rawErr || "Airtime recharge failed");
   }
@@ -493,14 +487,8 @@ export async function purchaseData(params: {
       { _id: order._id },
       { status: "FAILED", errorMessage: rawErr, rawProviderResponse: data },
     );
-    // Safe to refund: Provider confirmed refusal
-    await safeRefundBillPayment({
-      billId: order._id,
-      userId: params.userId,
-      amount: params.amount,
-      narration: `Refund for data (${params.productName})`,
-    }).catch((refundErr) =>
-      console.error(`[Data] Refund failed for ${refId}: ${formatOneLineError(refundErr)}`),
+    console.error(
+      `[Bills:Data] Order ${refId} failed at provider: ${formatOneLineError(rawErr)}. Automatic refund disabled - marked FAILED for manual review.`,
     );
     throw new Error(rawErr || "Data purchase failed");
   }

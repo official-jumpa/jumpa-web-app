@@ -4,6 +4,7 @@
  */
 
 import { environment } from "@/lib/environment";
+import { formatOneLineError, isTimeoutError } from "@/lib/utils/api-best-practices";
 
 export interface DefindexRoleConfig {
   manager: string;
@@ -73,18 +74,28 @@ export class DefindexClient {
    */
   async postVault<T = any>(endpoint: string, vaultAddress: string, body: Record<string, unknown>): Promise<T> {
     const url = `${this.baseUrl}/vault/${vaultAddress}/${endpoint}?network=${this.network}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: this.headers,
-      body: JSON.stringify(body),
-    });
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: this.headers,
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000), // 15s timeout
+      });
 
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      const err = data?.error || data?.message || JSON.stringify(data);
-      throw new Error(`[DeFindex POST /vault/${endpoint}] Failed (${res.status}): ${err}`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const err = data?.error || data?.message || formatOneLineError(data);
+        console.error(`[DeFindex:Vault:${endpoint}] Status: ${res.status} | Error: ${formatOneLineError(err)}`);
+        throw new Error(data?.error || data?.message || "DeFindex vault operation failed");
+      }
+      return data as T;
+    } catch (err: any) {
+      if (isTimeoutError(err)) {
+        console.error(`[DeFindex:Vault:${endpoint}] Request timed out after 15s`);
+        throw new Error("Request timed out. Please try again later.");
+      }
+      throw err;
     }
-    return data as T;
   }
 
   /**
@@ -93,17 +104,27 @@ export class DefindexClient {
   async getVault<T = any>(endpoint: string, vaultAddress: string, params?: Record<string, string>): Promise<T> {
     const query = new URLSearchParams({ network: this.network, ...params }).toString();
     const url = `${this.baseUrl}/vault/${vaultAddress}/${endpoint}?${query}`;
-    const res = await fetch(url, {
-      method: "GET",
-      headers: this.headers,
-    });
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        headers: this.headers,
+        signal: AbortSignal.timeout(8000), // 8s fast read timeout
+      });
 
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      const err = data?.error || data?.message || JSON.stringify(data);
-      throw new Error(`[DeFindex GET /vault/${endpoint}] Failed (${res.status}): ${err}`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const err = data?.error || data?.message || formatOneLineError(data);
+        console.error(`[DeFindex:Vault:${endpoint}] Status: ${res.status} | Error: ${formatOneLineError(err)}`);
+        throw new Error(data?.error || data?.message || "Failed to fetch vault data");
+      }
+      return data as T;
+    } catch (err: any) {
+      if (isTimeoutError(err)) {
+        console.error(`[DeFindex:Vault:${endpoint}] Read timed out after 8s`);
+        throw new Error("Query timed out");
+      }
+      throw err;
     }
-    return data as T;
   }
 
   /**
@@ -111,18 +132,28 @@ export class DefindexClient {
    */
   async postFactory<T = any>(endpoint: string, body: Record<string, unknown>): Promise<T> {
     const url = `${this.baseUrl}/factory/${endpoint}?network=${this.network}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: this.headers,
-      body: JSON.stringify(body),
-    });
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: this.headers,
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000), // 15s timeout
+      });
 
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      const err = data?.error || data?.message || JSON.stringify(data);
-      throw new Error(`[DeFindex Factory /${endpoint}] Failed (${res.status}): ${err}`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const err = data?.error || data?.message || formatOneLineError(data);
+        console.error(`[DeFindex:Factory:${endpoint}] Status: ${res.status} | Error: ${formatOneLineError(err)}`);
+        throw new Error(data?.error || data?.message || "Vault factory deployment failed");
+      }
+      return data as T;
+    } catch (err: any) {
+      if (isTimeoutError(err)) {
+        console.error(`[DeFindex:Factory:${endpoint}] Deployment timed out after 15s`);
+        throw new Error("Vault factory request timed out");
+      }
+      throw err;
     }
-    return data as T;
   }
 
   /**
@@ -130,18 +161,28 @@ export class DefindexClient {
    */
   async send(signedXdr: string): Promise<{ txHash: string; [key: string]: any }> {
     const url = `${this.baseUrl}/send?network=${this.network}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: this.headers,
-      body: JSON.stringify({ xdr: signedXdr }),
-    });
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: this.headers,
+        body: JSON.stringify({ xdr: signedXdr }),
+        signal: AbortSignal.timeout(20000), // 20s broadcast timeout
+      });
 
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      const err = data?.error || data?.message || JSON.stringify(data);
-      throw new Error(`[DeFindex POST /send] Broadcast failed (${res.status}): ${err}`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        const err = data?.error || data?.message || formatOneLineError(data);
+        console.error(`[DeFindex:Send] Broadcast failed (${res.status}): ${formatOneLineError(err)}`);
+        throw new Error(data?.error || data?.message || "Transaction broadcast failed");
+      }
+      return data;
+    } catch (err: any) {
+      if (isTimeoutError(err)) {
+        console.error("[DeFindex:Send] Broadcast timed out after 20s");
+        throw new Error("Transaction broadcast timed out");
+      }
+      throw err;
     }
-    return data;
   }
 
   /**

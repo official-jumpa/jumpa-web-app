@@ -3,6 +3,7 @@ import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { topUpSavingsSchema } from "@/lib/validations/savings.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { depositSavingsExecution } from "@/lib/services/savings-execution";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 export async function POST(req: NextRequest) {
   const auth = await requireActiveUser({
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     if (!result.ok) {
       return NextResponse.json(
-        { error: "Top-up failed" },
+        { error: result.error || "Top-up failed" },
         { status: result.status || 400 },
       );
     }
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
       receiptCardData: result.receiptCardData,
     });
   } catch (err: any) {
-    console.error("Error:", err);
+    console.error(`Error: ${formatOneLineError(err)}`);
     return NextResponse.json(
       { error: "Failed to process top-up" },
       { status: 500 },

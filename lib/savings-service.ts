@@ -1,6 +1,5 @@
 import { type SavingsPlan as UISavingsPlan, type SavingsKind } from "@/lib/savings";
-import { SavingsPlan, type ISavingsPlan } from "@/models/SavingsPlan";
-import { connectDB } from "@/lib/db";
+import type { ISavingsPlan } from "@/models/SavingsPlan";
 import { DefindexClient } from "@/lib/chains/stellar/defindex-client";
 import { environment } from "@/lib/environment";
 
@@ -144,26 +143,4 @@ export async function getLiveVaultApy(vaultAddress: string): Promise<number> {
     );
     return 0;
   }
-}
-
-/**
- * Loads a plan by ID from the DB.
- */
-export async function getPlanById(
-  id: string,
-  userId: string,
-  kind?: SavingsKind,
-): Promise<UISavingsPlan | null> {
-  try {
-    await connectDB();
-    const query: Record<string, any> = { _id: id, userId };
-    if (kind) query.kind = kind;
-    const dbPlan = await SavingsPlan.findOne(query);
-    if (dbPlan) {
-      return formatPlanForUI(dbPlan);
-    }
-  } catch (err) {
-    console.warn(`[SavingsService] Failed to load plan ${id} from DB:`, err);
-  }
-  return null;
 }

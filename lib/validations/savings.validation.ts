@@ -199,19 +199,6 @@ export const withdrawSavingsSchema = z.object({
 
 export type WithdrawSavingsInput = z.infer<typeof withdrawSavingsSchema>;
 
-/**
- * Validates query params when fetching a specific plan's details.
- */
-export const savingsPlanDetailsQuerySchema = z.object({
-  id: z
-    .string({
-      error: "Invalid Plan ID",
-    })
-    .trim()
-    .min(5, "Invalid Plan ID"),
-});
-
-export type SavingsPlanDetailsQueryInput = z.infer<typeof savingsPlanDetailsQuerySchema>;
 
 /**
  * Validates marking a savings product intro as seen.
@@ -225,12 +212,35 @@ export const savingsIntroSeenSchema = z.object({
 export type SavingsIntroSeenInput = z.infer<typeof savingsIntroSeenSchema>;
 
 /**
- * Validates query parameters for listing savings plans (GET /api/savings).
+ * Validates query parameters for listing savings plans or querying a specific plan (GET /api/v1/savings).
  */
 export const listSavingsPlansQuerySchema = z.object({
+  id: z.string().trim().optional(),
   type: z.enum(["individual", "lock", "circle"]).optional(),
   currency: z.enum(["NGN", "USDC"]).optional(),
   tab: z.enum(["active", "completed"]).optional(),
 });
 
 export type ListSavingsPlansQueryInput = z.infer<typeof listSavingsPlansQuerySchema>;
+
+/**
+ * Validates joining an active circle savings plan.
+ */
+export const joinCircleSchema = z.object({
+  code: z
+    .string({
+      error: "Invite code is required",
+    })
+    .trim()
+    .min(2, "Invite code must be at least 2 characters")
+    .max(30, "Invite code is invalid"),
+  amount: z
+    .union([z.number(), z.string()])
+    .transform((val) => Number(val))
+    .refine((val) => !isNaN(val) && val > 0, {
+      message: "Deposit amount must be greater than 0",
+    }),
+  pin: pinSchema.optional(),
+});
+
+export type JoinCircleInput = z.infer<typeof joinCircleSchema>;

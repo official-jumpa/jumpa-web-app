@@ -209,6 +209,7 @@ export function ChatView({
   const [revealId, setRevealId] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isSendingRef = useRef(false);
 
   const scrollToBottom = useCallback(() => {
     if (scrollRef.current) {
@@ -366,8 +367,9 @@ export function ChatView({
     async (customText?: string, attachments?: ChatAttachment[]) => {
       const textToSend = (customText || inputValue).trim();
       // A file on its own is a message, so either half is enough to send.
-      if ((!textToSend && !attachments?.length) || isResponding) return;
+      if ((!textToSend && !attachments?.length) || isResponding || isSendingRef.current) return;
 
+      isSendingRef.current = true;
       setInputValue("");
 
       const tempUserMsg: IChatMessage = {
@@ -429,6 +431,7 @@ export function ChatView({
         setRevealId(errorMsg.id);
         setMessages((prev) => [...prev, errorMsg]);
       } finally {
+        isSendingRef.current = false;
         setIsResponding(false);
       }
     },

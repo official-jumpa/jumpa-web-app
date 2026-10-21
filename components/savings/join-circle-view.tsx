@@ -31,9 +31,11 @@ interface ResolvedCircle {
 export function JoinCircleView({
   onBack,
   onJoin,
+  submitting,
 }: {
   onBack?: () => void;
   onJoin?: (code: string, amount: number, currency: HubCurrency) => void;
+  submitting?: boolean;
 }) {
   const [ref, setRef] = useState("");
   const [amount, setAmount] = useState("");
@@ -72,7 +74,7 @@ export function JoinCircleView({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/savings/lookup?code=${encodeURIComponent(code)}`, {
+        const res = await fetch(`/api/v1/savings/lookup?code=${encodeURIComponent(code)}`, {
           signal: controller.signal,
         });
         const data = await res.json();
@@ -263,13 +265,15 @@ export function JoinCircleView({
           variant="gradientSheet"
           size="lg"
           className="mt-7"
-          disabled={loading || circle.isFull || circle.isMember}
+          disabled={loading || submitting || circle.isFull || circle.isMember}
         >
-          {circle.isFull
-            ? "Circle is full"
-            : circle.isMember
-              ? "Already joined"
-              : "Join circle"}
+          {submitting
+            ? "Joining circle..."
+            : circle.isFull
+              ? "Circle is full"
+              : circle.isMember
+                ? "Already joined"
+                : "Join circle"}
         </Button>
       ) : null}
     </form>

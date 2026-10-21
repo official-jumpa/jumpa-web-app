@@ -176,7 +176,7 @@ export function HomeView({
 
     async function fetchSavings() {
       try {
-        const res = await fetch("/api/savings", { cache: "no-store" });
+        const res = await fetch("/api/v1/savings", { cache: "no-store" });
         if (res.ok && isMounted) {
           const data = await res.json();
           const goals: any[] = data.goals || [];

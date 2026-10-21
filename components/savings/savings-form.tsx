@@ -11,6 +11,8 @@ export function SavingsForm({
   ctaVariant = "gradient",
   fields,
   onSubmit,
+  disabled,
+  loading,
   children,
 }: {
   back: string;
@@ -23,12 +25,15 @@ export function SavingsForm({
   /** Scope `revealFirstError` scrolls within. */
   fields: RefObject<HTMLDivElement | null>;
   onSubmit: () => void;
+  disabled?: boolean;
+  loading?: boolean;
   children: ReactNode;
 }) {
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault();
+        if (disabled || loading) return;
         onSubmit();
       }}
       className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
@@ -42,8 +47,14 @@ export function SavingsForm({
         {children}
       </div>
 
-      <Button type="submit" variant={ctaVariant} size="lg" className="mt-auto">
-        {cta}
+      <Button
+        type="submit"
+        variant={ctaVariant}
+        size="lg"
+        className="mt-auto"
+        disabled={disabled || loading}
+      >
+        {loading ? "Processing..." : cta}
       </Button>
     </form>
   );

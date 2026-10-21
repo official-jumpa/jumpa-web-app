@@ -3,6 +3,7 @@ import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { markSavingsIntroSeen } from "@/lib/functions/userFunctions";
 import { savingsIntroSeenSchema } from "@/lib/validations/savings.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 export async function POST(req: NextRequest) {
   const auth = await requireActiveUser({
@@ -31,9 +32,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, kind: validation.data.kind, seen: true });
   } catch (err: any) {
-    console.error("[POST /api/savings/intro-seen] Unexpected Error:", err);
+    console.error(`Error: ${formatOneLineError(err)}`);
     return NextResponse.json(
-      { error: err.message || "Failed to mark intro as seen" },
+      { error: "Failed to mark intro as seen" },
       { status: 500 },
     );
   }

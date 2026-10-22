@@ -133,7 +133,7 @@ export const environment = {
   FEE_WALLET_STELLAR: process.env.FEE_WALLET_STELLAR || "",
   FEE_USD_AMOUNT_STELLAR: process.env.FEE_USD_AMOUNT_STELLAR
     ? Number(process.env.FEE_USD_AMOUNT_STELLAR)
-    : 0.01,
+    : 0.1,
 
   // Solana Gas Sponsorship & Abstraction
   SPONSORED_FEE_SOLANA_KEY: process.env.SPONSORED_FEE_SOLANA_KEY || "",

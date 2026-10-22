@@ -64,9 +64,9 @@ export async function POST(req: NextRequest) {
       receiptCardData: result.receiptCardData,
     });
   } catch (err: any) {
-    console.error(`Error: ${formatOneLineError(err)}`);
+    console.error(`Error: ${formatOneLineError(err?.rawDetail || err)}`);
     return NextResponse.json(
-      { error: "Failed to create savings plan" },
+      { error: "Unable to process your savings plan request. Please try again later." },
       { status: 500 },
     );
   }

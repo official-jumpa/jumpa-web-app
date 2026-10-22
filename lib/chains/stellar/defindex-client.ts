@@ -171,9 +171,19 @@ export class DefindexClient {
 
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        const err = data?.error || data?.message || formatOneLineError(data);
-        console.error(`[DeFindex:Send] Broadcast failed (${res.status}): ${formatOneLineError(err)}`);
-        throw new Error(data?.error || data?.message || "Transaction broadcast failed");
+        const rawErrorDetail =
+          data?.detail ||
+          (data?.extras?.result_codes ? JSON.stringify(data.extras.result_codes) : null) ||
+          data?.error ||
+          data?.message ||
+          (data ? JSON.stringify(data) : `HTTP ${res.status} ${res.statusText || "Bad Request"}`);
+        console.error(
+          `[DeFindex] Broadcast failed (${res.status}): ${formatOneLineError(rawErrorDetail)}`,
+        );
+        const err = new Error("Transaction broadcast failed on the Stellar network.");
+        (err as any).rawDetail = rawErrorDetail;
+        (err as any).statusCode = res.status;
+        throw err;
       }
       return data;
     } catch (err: any) {

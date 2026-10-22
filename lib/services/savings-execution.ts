@@ -24,6 +24,9 @@ import {
   deriveStellarKeypairFromMnemonic,
   deriveStellarKeypairFromPrivateKey,
   ensureStellarTrustline,
+  ensureSufficientStellarGas,
+  getStellarFeeAmount,
+  collectStellarGasFeeUsdc,
 } from "@/lib/chains/stellar";
 import { fetchStellarBalances } from "@/lib/chains/stellar/account";
 import { DefindexClient } from "@/lib/chains/stellar/defindex-client";
@@ -38,6 +41,7 @@ import {
   assertDailyTransactionLimit,
   isLimitError,
 } from "@/lib/functions/transactionLimitFunctions";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 const defindexClient = new DefindexClient(
   environment.DEFINDEX_API_KEY,
@@ -315,10 +319,19 @@ export async function createSavingsPlanExecution(
   if (numDeposit > 0) {
     const balances = await fetchStellarBalances(stellarAddress);
     const availableUsdc = Number(balances.mainnet.usdc) || 0;
-    if (availableUsdc < numDeposit) {
+    const nativeXlm = Number(balances.mainnet.xlm) || 0;
+    const needsGasAbstraction = nativeXlm < 2.0;
+    const gasFeeUsdc = needsGasAbstraction ? getStellarFeeAmount() : 0;
+    const totalRequiredUsdc = numDeposit + gasFeeUsdc;
+
+    // Strict Pre-condition: Check total USDC before ANY wallet activation or sponsorship
+    if (availableUsdc < totalRequiredUsdc) {
+      const errorMsg = needsGasAbstraction
+        ? `Insufficient USDC balance: you have $${availableUsdc.toFixed(2)} USDC, but this deposit requires $${numDeposit.toFixed(2)} USDC plus $${gasFeeUsdc.toFixed(2)} USDC network fee.`
+        : `Insufficient balance: you have $${availableUsdc.toFixed(2)} USDC and this deposit needs $${numDeposit.toFixed(2)}.`;
       return {
         ok: false,
-        error: `Insufficient balance: you have $${availableUsdc.toFixed(2)} USDC and this deposit needs $${numDeposit.toFixed(2)}.`,
+        error: errorMsg,
         status: 400,
       };
     }
@@ -353,31 +366,56 @@ export async function createSavingsPlanExecution(
       "mainnet",
     );
 
-    const depositRes = await defindexClient.deposit(vaultAddress, {
-      amounts: [amountStroops],
-      caller: stellarAddress,
-      invest: true,
-      slippageBps: 50,
-    });
-
-    if (!depositRes.xdr) {
-      return {
-        ok: false,
-        error: "DeFindex failed to generate deposit transaction",
-        status: 500,
-      };
+    // All pre-conditions passed: sponsor gas if needed
+    if (needsGasAbstraction) {
+      const gasRes = await ensureSufficientStellarGas(stellarAddress, 2.0, 2.5, "mainnet");
+      if (gasRes.sponsored && gasFeeUsdc > 0) {
+        await collectStellarGasFeeUsdc({
+          userKeypair,
+          amountUsdc: gasFeeUsdc,
+          network: "mainnet",
+        }).catch((feeErr) => {
+          console.warn("[Savings] Fee collection notice:", feeErr?.message || feeErr);
+        });
+      }
     }
 
-    const tx = StellarSdk.TransactionBuilder.fromXDR(
-      depositRes.xdr,
-      StellarSdk.Networks.PUBLIC,
-    );
-    tx.sign(userKeypair);
+    try {
+      const depositRes = await defindexClient.deposit(vaultAddress, {
+        amounts: [amountStroops],
+        caller: stellarAddress,
+        invest: true,
+        slippageBps: 50,
+      });
 
-    const sendRes = await defindexClient.send(tx.toXDR());
-    txHash = sendRes.txHash;
-    initialShares = String(sendRes.dfTokens || amountStroops);
-    explorerUrl = getExplorerTxUrl("stellar", txHash, false);
+      if (!depositRes?.xdr) {
+        return {
+          ok: false,
+          error: "DeFindex failed to generate deposit transaction",
+          status: 500,
+        };
+      }
+
+      const tx = StellarSdk.TransactionBuilder.fromXDR(
+        depositRes.xdr,
+        StellarSdk.Networks.PUBLIC,
+      );
+      tx.sign(userKeypair);
+
+      const sendRes = await defindexClient.send(tx.toXDR());
+      txHash = sendRes.txHash;
+      initialShares = String(sendRes.dfTokens || amountStroops);
+      explorerUrl = getExplorerTxUrl("stellar", txHash, false);
+    } catch (onChainErr: any) {
+      console.error(
+        `Error: ${formatOneLineError(onChainErr?.rawDetail || onChainErr)}`,
+      );
+      return {
+        ok: false,
+        error: "Unable to complete on-chain savings deposit. Please verify your balance and try again.",
+        status: 400,
+      };
+    }
 
     await createTransactionRecord({
       userId,
@@ -632,10 +670,19 @@ export async function depositSavingsExecution(
   const stellarAddress = wallet.addresses?.xlm || wallet.address;
   const balances = await fetchStellarBalances(stellarAddress);
   const availableUsdc = Number(balances.mainnet.usdc) || 0;
-  if (availableUsdc < amount) {
+  const nativeXlm = Number(balances.mainnet.xlm) || 0;
+  const needsGasAbstraction = nativeXlm < 2.0;
+  const gasFeeUsdc = needsGasAbstraction ? getStellarFeeAmount() : 0;
+  const totalRequiredUsdc = amount + gasFeeUsdc;
+
+  // Strict Pre-condition: Check total USDC before ANY wallet activation or sponsorship
+  if (availableUsdc < totalRequiredUsdc) {
+    const errorMsg = needsGasAbstraction
+      ? `Insufficient USDC balance: you have $${availableUsdc.toFixed(2)} USDC, but this top-up requires $${amount.toFixed(2)} USDC plus $${gasFeeUsdc.toFixed(2)} USDC network fee.`
+      : `Insufficient balance: you have $${availableUsdc.toFixed(2)} USDC and this top-up needs $${amount.toFixed(2)}.`;
     return {
       ok: false,
-      error: `Insufficient balance: you have $${availableUsdc.toFixed(2)} USDC and this top-up needs $${amount.toFixed(2)}.`,
+      error: errorMsg,
       status: 400,
     };
   }
@@ -664,31 +711,59 @@ export async function depositSavingsExecution(
   const userKeypair = StellarSdk.Keypair.fromSecret(keys.secretKey);
   const amountStroops = Math.round(amount * 10_000_000);
 
-  const targetVault = environment.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS;
-  const depositRes = await defindexClient.deposit(targetVault, {
-    amounts: [amountStroops],
-    caller: stellarAddress,
-    invest: true,
-    slippageBps: 50,
-  });
-
-  if (!depositRes.xdr) {
-    return {
-      ok: false,
-      error: "DeFindex failed to generate top-up transaction",
-      status: 500,
-    };
+  // All pre-conditions passed: sponsor gas if needed
+  if (needsGasAbstraction) {
+    const gasRes = await ensureSufficientStellarGas(stellarAddress, 2.0, 2.5, "mainnet");
+    if (gasRes.sponsored && gasFeeUsdc > 0) {
+      await collectStellarGasFeeUsdc({
+        userKeypair,
+        amountUsdc: gasFeeUsdc,
+        network: "mainnet",
+      }).catch((feeErr) => {
+        console.warn("[Savings Gas Abstraction] Fee collection notice:", feeErr?.message || feeErr);
+      });
+    }
   }
 
-  const tx = StellarSdk.TransactionBuilder.fromXDR(
-    depositRes.xdr,
-    StellarSdk.Networks.PUBLIC,
-  );
-  tx.sign(userKeypair);
+  const targetVault = environment.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS;
+  let txHash: string | undefined;
+  let explorerUrl: string | undefined;
 
-  const sendRes = await defindexClient.send(tx.toXDR());
-  const txHash = sendRes.txHash;
-  const explorerUrl = getExplorerTxUrl("stellar", txHash, false);
+  try {
+    const depositRes = await defindexClient.deposit(targetVault, {
+      amounts: [amountStroops],
+      caller: stellarAddress,
+      invest: true,
+      slippageBps: 50,
+    });
+
+    if (!depositRes?.xdr) {
+      return {
+        ok: false,
+        error: "DeFindex failed to generate top-up transaction",
+        status: 500,
+      };
+    }
+
+    const tx = StellarSdk.TransactionBuilder.fromXDR(
+      depositRes.xdr,
+      StellarSdk.Networks.PUBLIC,
+    );
+    tx.sign(userKeypair);
+
+    const sendRes = await defindexClient.send(tx.toXDR());
+    txHash = sendRes.txHash;
+    explorerUrl = getExplorerTxUrl("stellar", txHash, false);
+  } catch (onChainErr: any) {
+    console.error(
+      `Error: ${formatOneLineError(onChainErr?.rawDetail || onChainErr)}`,
+    );
+    return {
+      ok: false,
+      error: "Unable to complete on-chain savings top-up. Please verify your balance and try again.",
+      status: 400,
+    };
+  }
 
   const newTotal = (plan.currentAmount || 0) + amount;
   plan.currentAmount = newTotal;
@@ -922,6 +997,25 @@ export async function withdrawSavingsExecution(
   const userKeypair = StellarSdk.Keypair.fromSecret(keys.secretKey);
   const targetVault = environment.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS;
 
+  // Gas abstraction check for on-chain withdrawal
+  const balances = await fetchStellarBalances(stellarAddress);
+  const nativeXlm = Number(balances.mainnet.xlm) || 0;
+  const needsGasAbstraction = nativeXlm < 2.0;
+  const gasFeeUsdc = needsGasAbstraction ? getStellarFeeAmount() : 0;
+
+  if (needsGasAbstraction) {
+    const gasRes = await ensureSufficientStellarGas(stellarAddress, 2.0, 2.5, "mainnet");
+    if (gasRes.sponsored && gasFeeUsdc > 0) {
+      await collectStellarGasFeeUsdc({
+        userKeypair,
+        amountUsdc: gasFeeUsdc,
+        network: "mainnet",
+      }).catch((feeErr) => {
+        console.warn("[Savings] Gas fee collection:", feeErr?.message || feeErr);
+      });
+    }
+  }
+
   try {
     const netPayoutStroops = Math.round(netPayout * 10_000_000);
     const withdrawRes = await defindexClient.withdraw(targetVault, {
@@ -941,9 +1035,8 @@ export async function withdrawSavingsExecution(
       explorerUrl = getExplorerTxUrl("stellar", txHash, false);
     }
   } catch (onChainErr: any) {
-    console.warn(
-      `[withdrawSavingsExecution] On-chain DeFindex withdraw error/notice:`,
-      onChainErr?.message || onChainErr,
+    console.error(
+      `[withdrawSavingsExecution] Error: ${formatOneLineError(onChainErr?.rawDetail || onChainErr)}`,
     );
   }
 
@@ -1118,10 +1211,19 @@ export async function joinCircleExecution(
     const stellarAddress = wallet.addresses?.xlm || wallet.address || "";
     const balances = await fetchStellarBalances(stellarAddress);
     const availableUsdc = Number(balances.mainnet.usdc) || 0;
-    if (availableUsdc < numDeposit) {
+    const nativeXlm = Number(balances.mainnet.xlm) || 0;
+    const needsGasAbstraction = nativeXlm < 2.0;
+    const gasFeeUsdc = needsGasAbstraction ? getStellarFeeAmount() : 0;
+    const totalRequiredUsdc = numDeposit + gasFeeUsdc;
+
+    // Strict Pre-condition: Check total USDC before ANY wallet activation or sponsorship
+    if (availableUsdc < totalRequiredUsdc) {
+      const errorMsg = needsGasAbstraction
+        ? `Insufficient USDC balance: you have $${availableUsdc.toFixed(2)} USDC, but joining this circle requires $${numDeposit.toFixed(2)} USDC plus $${gasFeeUsdc.toFixed(2)} USDC network fee.`
+        : `Insufficient USDC balance: you have $${availableUsdc.toFixed(2)} and need $${numDeposit.toFixed(2)}.`;
       return {
         ok: false,
-        error: `Insufficient USDC balance: you have $${availableUsdc.toFixed(2)} and need $${numDeposit.toFixed(2)}.`,
+        error: errorMsg,
         status: 400,
       };
     }
@@ -1148,22 +1250,47 @@ export async function joinCircleExecution(
       "mainnet",
     );
 
-    const depositRes = await defindexClient.deposit(vaultAddress, {
-      amounts: [amountStroops],
-      caller: stellarAddress,
-      invest: true,
-      slippageBps: 50,
-    });
-
-    if (!depositRes.xdr) {
-      return { ok: false, error: "DeFindex failed to generate deposit transaction", status: 500 };
+    // All pre-conditions passed: sponsor gas if needed
+    if (needsGasAbstraction) {
+      const gasRes = await ensureSufficientStellarGas(stellarAddress, 2.0, 2.5, "mainnet");
+      if (gasRes.sponsored && gasFeeUsdc > 0) {
+        await collectStellarGasFeeUsdc({
+          userKeypair,
+          amountUsdc: gasFeeUsdc,
+          network: "mainnet",
+        }).catch((feeErr) => {
+          console.warn("[Savings] Gas fee collection:", feeErr?.message || feeErr);
+        });
+      }
     }
 
-    const tx = StellarSdk.TransactionBuilder.fromXDR(depositRes.xdr, StellarSdk.Networks.PUBLIC);
-    tx.sign(userKeypair);
-    const sendRes = await defindexClient.send(tx.toXDR());
-    txHash = sendRes.txHash;
-    explorerUrl = getExplorerTxUrl("stellar", txHash, false);
+    try {
+      const depositRes = await defindexClient.deposit(vaultAddress, {
+        amounts: [amountStroops],
+        caller: stellarAddress,
+        invest: true,
+        slippageBps: 50,
+      });
+
+      if (!depositRes?.xdr) {
+        return { ok: false, error: "DeFindex failed to generate deposit transaction", status: 500 };
+      }
+
+      const tx = StellarSdk.TransactionBuilder.fromXDR(depositRes.xdr, StellarSdk.Networks.PUBLIC);
+      tx.sign(userKeypair);
+      const sendRes = await defindexClient.send(tx.toXDR());
+      txHash = sendRes.txHash;
+      explorerUrl = getExplorerTxUrl("stellar", txHash, false);
+    } catch (onChainErr: any) {
+      console.error(
+        `Error: ${formatOneLineError(onChainErr?.rawDetail || onChainErr)}`,
+      );
+      return {
+        ok: false,
+        error: "Unable to complete on-chain deposit for circle. Please verify your balance and try again.",
+        status: 400,
+      };
+    }
   }
 
   // 2. Atomically reserve circle member slot and increment balance

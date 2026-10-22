@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       explorerUrl: result.explorerUrl,
     });
   } catch (err: any) {
-    console.error(`Error: ${formatOneLineError(err)}`);
+    console.error(`Error: ${formatOneLineError(err?.rawDetail || err)}`);
     return NextResponse.json(
       { error: "Failed to process withdrawal" },
       { status: 500 },

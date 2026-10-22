@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       receiptCardData: result.receiptCardData,
     });
   } catch (err: any) {
-    console.error(`Error: ${formatOneLineError(err)}`);
+    console.error(`Error: ${formatOneLineError(err?.rawDetail || err)}`);
     return NextResponse.json(
       { error: "Failed to process top-up" },
       { status: 500 },

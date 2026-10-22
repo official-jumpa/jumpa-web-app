@@ -47,10 +47,10 @@ export function getStellarFeeCollectorPubkey(): string | null {
 }
 
 /**
- * Returns the configured USD/token fee amount for gas abstraction (default 0.01).
+ * Returns the configured USD/token fee amount for gas abstraction (default 0.10).
  */
 export function getStellarFeeAmount(): number {
-  return environment.FEE_USD_AMOUNT_STELLAR || 0.01;
+  return environment.FEE_USD_AMOUNT_STELLAR ?? 0.1;
 }
 
 /** Maximum fee (in stroops) we're willing to sponsor per transaction — 1 XLM. */
@@ -418,3 +418,134 @@ export async function activateAndTrustlineWallet(
     error: trustline.error,
   };
 }
+
+/**
+ * Ensures a Stellar account has sufficient native XLM for Soroban contract invocation fees.
+ * Only called after all pre-conditions (USDC balance, PIN, limits) have proven the transaction will succeed.
+ * If native balance is below `minBalanceXlm` (default 2.0 XLM), tops the account up to `targetBalanceXlm` (default 2.5 XLM).
+ */
+export async function ensureSufficientStellarGas(
+  destinationAddress: string,
+  minBalanceXlm = 2.0,
+  targetBalanceXlm = 2.5,
+  network: "mainnet" | "testnet" = "mainnet",
+): Promise<{ sponsored: boolean; balance: number; txHash?: string }> {
+  const server = getHorizonServer(network);
+  const sponsorKey = getSponsorKeypair();
+  if (!sponsorKey) {
+    console.warn("[Stellar] SPONSOR_KEY not configured — skipping gas abstraction");
+    return { sponsored: false, balance: 0 };
+  }
+
+  try {
+    let nativeBal = 0;
+    let accountExists = true;
+
+    try {
+      const account = await server.loadAccount(destinationAddress);
+      const nativeEntry = (account.balances || []).find((b: any) => b.asset_type === "native");
+      nativeBal = nativeEntry ? parseFloat(nativeEntry.balance) : 0;
+    } catch (loadErr: any) {
+      if (loadErr?.response?.status === 404 || loadErr?.status === 404) {
+        accountExists = false;
+      } else {
+        throw loadErr;
+      }
+    }
+
+    if (accountExists && nativeBal >= minBalanceXlm) {
+      return { sponsored: false, balance: nativeBal };
+    }
+
+    const sponsorAccount = await server.loadAccount(sponsorKey.publicKey());
+    const passphrase =
+      network === "mainnet"
+        ? StellarSdk.Networks.PUBLIC
+        : StellarSdk.Networks.TESTNET;
+
+    const builder = new StellarSdk.TransactionBuilder(sponsorAccount, {
+      fee: (Number(StellarSdk.BASE_FEE) * 2).toString(),
+      networkPassphrase: passphrase,
+    });
+
+    if (!accountExists) {
+      builder.addOperation(
+        StellarSdk.Operation.createAccount({
+          destination: destinationAddress,
+          startingBalance: targetBalanceXlm.toFixed(7),
+        }),
+      );
+    } else {
+      const topUpAmount = (targetBalanceXlm - nativeBal).toFixed(7);
+      builder.addOperation(
+        StellarSdk.Operation.payment({
+          destination: destinationAddress,
+          asset: StellarSdk.Asset.native(),
+          amount: topUpAmount,
+        }),
+      );
+    }
+
+    const tx = builder.setTimeout(60).build();
+    tx.sign(sponsorKey);
+    const res = await server.submitTransaction(tx);
+    console.log(
+      `[Stellar] Successfully sponsored gas for ${destinationAddress} (new balance ~${targetBalanceXlm} XLM). TxHash: ${res.hash}`,
+    );
+    return { sponsored: true, balance: targetBalanceXlm, txHash: res.hash };
+  } catch (err: any) {
+    console.error("[Stellar] Error ensuring stellar gas:", err?.message || err);
+    return { sponsored: false, balance: 0 };
+  }
+}
+
+/**
+ * Collects the gas abstraction fee in USDC from the user's account to the fee collector wallet.
+ */
+export async function collectStellarGasFeeUsdc(params: {
+  userKeypair: StellarSdk.Keypair;
+  amountUsdc: number;
+  network?: "mainnet" | "testnet";
+}): Promise<string | null> {
+  const { userKeypair, amountUsdc, network = "mainnet" } = params;
+  const feeCollector = getStellarFeeCollectorPubkey();
+  if (!feeCollector || amountUsdc <= 0) return null;
+
+  try {
+    const server = getHorizonServer(network);
+    const account = await server.loadAccount(userKeypair.publicKey());
+    const issuer =
+      network === "mainnet"
+        ? CONTRACT_ADDRESSES.stellar.mainnet.USDC
+        : CONTRACT_ADDRESSES.stellar.testnet.USDC;
+    const usdcAsset = new StellarSdk.Asset("USDC", issuer);
+
+    const tx = new StellarSdk.TransactionBuilder(account, {
+      fee: (Number(StellarSdk.BASE_FEE) * 2).toString(),
+      networkPassphrase:
+        network === "mainnet" ? StellarSdk.Networks.PUBLIC : StellarSdk.Networks.TESTNET,
+    })
+      .addOperation(
+        StellarSdk.Operation.payment({
+          destination: feeCollector,
+          asset: usdcAsset,
+          amount: amountUsdc.toFixed(7),
+        }),
+      )
+      .addMemo(StellarSdk.Memo.text("Jumpa: Gas Abstraction"))
+      .setTimeout(60)
+      .build();
+
+    tx.sign(userKeypair);
+    const { tx: finalTx } = wrapWithFeeBump(tx, network);
+    const res = await server.submitTransaction(finalTx);
+    console.log(
+      `[Stellar] Collected $${amountUsdc.toFixed(2)} USDC fee from ${userKeypair.publicKey()}. TxHash: ${res.hash}`,
+    );
+    return res.hash;
+  } catch (err: any) {
+    console.error("[Stellar] Failed to collect USDC gas fee:", err?.message || err);
+    return null;
+  }
+}
+

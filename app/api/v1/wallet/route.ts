@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
 
     // Generate new wallet mnemonic & derive addresses
     const newPhrase = generateMnemonic(wordlist);
-    const derived = deriveAddresses(newPhrase);
+    const derived = await deriveAddresses(newPhrase);
     const secretToEncrypt = newPhrase;
 
     const primaryAddress =

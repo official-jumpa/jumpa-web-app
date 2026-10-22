@@ -15,12 +15,13 @@ import {
 } from "@solana/web3.js";
 import { sendAndConfirmTransactionPolling } from "./send-and-confirm";
 import {
-  getAssociatedTokenAddressSync,
+  getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
   createTransferInstruction,
   TOKEN_PROGRAM_ID,
-} from "@solana/spl-token";
+} from "./spl-token";
 import { environment } from "@/lib/environment";
+import bs58 from "bs58";
 import { CONTRACT_ADDRESSES, getExplorerTxUrl, getSolanaRpcUrl } from "@/lib/blockchain";
 import type { TransferResult } from "@/lib/chains/transfer-service";
 
@@ -38,14 +39,14 @@ export const SOLANA_SPL_MINTS: Record<
 /**
  * Parses any Solana private key format (64-byte hex, 32-byte seed hex, JSON array, or base58).
  */
-export function parseSolanaKeypair(key: string): SolKeypair {
+export async function parseSolanaKeypair(key: string): Promise<SolKeypair> {
   const trimmed = key.trim();
 
   // 1. JSON array format: "[1,2,3,...]"
   if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
     try {
       const arr = JSON.parse(trimmed);
-      return SolKeypair.fromSecretKey(Uint8Array.from(arr));
+      return await SolKeypair.fromSecretKey(Uint8Array.from(arr));
     } catch (e: any) {
       throw new Error(`Failed to parse Solana secret key JSON array: ${e.message}`);
     }
@@ -56,24 +57,22 @@ export function parseSolanaKeypair(key: string): SolKeypair {
   if (/^[0-9a-fA-F]+$/.test(cleanHex)) {
     if (cleanHex.length === 128) {
       // 64 bytes = 32-byte secret + 32-byte public
-      return SolKeypair.fromSecretKey(Buffer.from(cleanHex, "hex"));
+      return await SolKeypair.fromSecretKey(Buffer.from(cleanHex, "hex"));
     }
     if (cleanHex.length === 64) {
       // 32-byte seed
-      return SolKeypair.fromSeed(Buffer.from(cleanHex, "hex").subarray(0, 32));
+      return await SolKeypair.fromSeed(Buffer.from(cleanHex, "hex").subarray(0, 32));
     }
   }
 
   // 3. Base58 format (Phantom, Solflare, Solana CLI export)
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const bs58 = require("bs58");
     const decoded = bs58.decode(trimmed);
     if (decoded.length === 64) {
-      return SolKeypair.fromSecretKey(decoded);
+      return await SolKeypair.fromSecretKey(decoded);
     }
     if (decoded.length === 32) {
-      return SolKeypair.fromSeed(decoded);
+      return await SolKeypair.fromSeed(decoded);
     }
     throw new Error(`Unexpected decoded base58 key length: ${decoded.length}`);
   } catch (err: any) {
@@ -85,11 +84,11 @@ export function parseSolanaKeypair(key: string): SolKeypair {
  * Retrieves the Jumpa platform sponsor keypair from environment variables.
  * Returns null if SPONSORED_FEE_SOLANA_KEY is not configured.
  */
-export function getSolanaSponsorKeypair(): SolKeypair | null {
+export async function getSolanaSponsorKeypair(): Promise<SolKeypair | null> {
   const secret = environment.SPONSORED_FEE_SOLANA_KEY?.trim();
   if (!secret) return null;
   try {
-    return parseSolanaKeypair(secret);
+    return await parseSolanaKeypair(secret);
   } catch (err) {
     console.error("[Solana Sponsor] Invalid SPONSORED_FEE_SOLANA_KEY:", err);
     return null;
@@ -100,7 +99,7 @@ export function getSolanaSponsorKeypair(): SolKeypair | null {
  * Returns the public key where platform fees should be collected.
  * Defaults to the sponsor keypair's public key if FEE_WALLET_SOLANA is not specified.
  */
-export function getSolanaFeeCollectorPubkey(): PublicKey | null {
+export async function getSolanaFeeCollectorPubkey(): Promise<PublicKey | null> {
   const configured = environment.FEE_WALLET_SOLANA?.trim();
   if (configured) {
     try {
@@ -112,7 +111,7 @@ export function getSolanaFeeCollectorPubkey(): PublicKey | null {
       );
     }
   }
-  const sponsor = getSolanaSponsorKeypair();
+  const sponsor = await getSolanaSponsorKeypair();
   return sponsor ? sponsor.publicKey : null;
 }
 
@@ -150,7 +149,7 @@ export async function calculateSolanaSponsoredFee(params: {
     ataNeedsCreation = false;
   } else {
     // Derive Associated Token Address (ATA)
-    const destATA = getAssociatedTokenAddressSync(
+    const destATA = await getAssociatedTokenAddress(
       mintPubkey,
       recipientPubkey,
       true, // allowOwnerOffCurve: supports PDAs & contract deposit vaults
@@ -204,14 +203,14 @@ export async function executeSponsoredSplTransfer(params: {
 }): Promise<TransferResult> {
   const { userKeypair, destination, amount, asset } = params;
 
-  const sponsorKeypair = getSolanaSponsorKeypair();
+  const sponsorKeypair = await getSolanaSponsorKeypair();
   if (!sponsorKeypair) {
     throw new Error(
       "Solana transaction sponsorship is not configured on this server.",
     );
   }
 
-  const feeCollectorPubkey = getSolanaFeeCollectorPubkey();
+  const feeCollectorPubkey = await getSolanaFeeCollectorPubkey();
   if (!feeCollectorPubkey) {
     throw new Error("Solana fee collection address could not be resolved.");
   }
@@ -251,7 +250,7 @@ export async function executeSponsoredSplTransfer(params: {
   );
 
   // 2. Derive User's Source ATA & verify balance
-  const sourceATA = getAssociatedTokenAddressSync(
+  const sourceATA = await getAssociatedTokenAddress(
     mintPubkey,
     userKeypair.publicKey,
     true,
@@ -294,7 +293,7 @@ export async function executeSponsoredSplTransfer(params: {
   }
 
   // 3b. Derive Jumpa fee collection ATA and ensure it exists
-  const feeCollectorATA = getAssociatedTokenAddressSync(
+  const feeCollectorATA = await getAssociatedTokenAddress(
     mintPubkey,
     feeCollectorPubkey,
     true,

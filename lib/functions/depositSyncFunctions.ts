@@ -110,8 +110,8 @@ async function detectSolanaInbound(solAddress: string): Promise<DetectedDeposit[
       );
 
       if (accountIndex >= 0) {
-        const pre = parsedTx.meta.preBalances[accountIndex] || 0;
-        const post = parsedTx.meta.postBalances[accountIndex] || 0;
+        const pre = Number(parsedTx.meta.preBalances[accountIndex] || 0);
+        const post = Number(parsedTx.meta.postBalances[accountIndex] || 0);
         const diffLamports = post - pre;
 
         // If net received SOL (accounting for rent / gas dust)
@@ -132,7 +132,7 @@ async function detectSolanaInbound(solAddress: string): Promise<DetectedDeposit[
               amount: (diffLamports / LAMPORTS_PER_SOL).toString(),
               token: "SOL",
               timestamp: sigInfo.blockTime
-                ? new Date(sigInfo.blockTime * 1000)
+                ? new Date(Number(sigInfo.blockTime) * 1000)
                 : new Date(),
             });
           }
@@ -200,7 +200,7 @@ async function detectSolanaInbound(solAddress: string): Promise<DetectedDeposit[
               amount: diff.toString(),
               token: tokenSymbol,
               timestamp: sigInfo.blockTime
-                ? new Date(sigInfo.blockTime * 1000)
+                ? new Date(Number(sigInfo.blockTime) * 1000)
                 : new Date(),
             });
           }

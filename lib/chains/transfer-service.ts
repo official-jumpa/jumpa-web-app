@@ -20,7 +20,7 @@ import {
   getOrCreateAssociatedTokenAccount,
   createTransferInstruction,
   TOKEN_PROGRAM_ID,
-} from "@solana/spl-token";
+} from "./solana/spl-token";
 import {
   createWalletClient,
   createPublicClient,
@@ -49,10 +49,10 @@ import {
   executeSponsoredSplTransfer,
 } from "./solana/sponsor";
 
-export function resolveChainPrivateKey(
+export async function resolveChainPrivateKey(
   secret: string,
   chain: "stellar" | "solana" | "base" | "eth" | "ethereum" | "tron",
-): string {
+): Promise<string> {
   const trimmed = secret.trim();
   const isMnemonic = trimmed.split(/\s+/).length >= 12;
 
@@ -65,7 +65,7 @@ export function resolveChainPrivateKey(
 
     if (chain === "solana") {
       const derived = derivePath("m/44'/501'/0'/0'", seed.toString("hex")).key;
-      const keypair = SolKeypair.fromSeed(derived);
+      const keypair = await SolKeypair.fromSeed(derived);
       return Buffer.from(keypair.secretKey).toString("hex");
     }
 
@@ -423,7 +423,7 @@ export async function sendSolana(params: {
 
   let keypair: SolKeypair;
   try {
-    keypair = parseSolanaKeypair(privateKey);
+    keypair = await parseSolanaKeypair(privateKey);
   } catch (err) {
     throw new Error(`Invalid Solana private key: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -466,10 +466,10 @@ export async function sendSolana(params: {
   if (SOLANA_MINTS[upperAsset]) {
     // Check user's native SOL balance
     const lamports = await connection.getBalance(keypair.publicKey);
-    const solBalance = lamports / 1e9;
+    const solBalance = Number(lamports) / 1e9;
 
     // Only activate gas abstraction if user has insufficient SOL (< 0.001 SOL) to pay network fee
-    if (solBalance < 0.001 && getSolanaSponsorKeypair()) {
+    if (solBalance < 0.001 && (await getSolanaSponsorKeypair())) {
       console.log(
         `[Transfer Service] User SOL balance (${solBalance.toFixed(6)} SOL) < 0.001 SOL — sponsoring ${upperAsset} transfer with in-token fee deduction...`,
       );

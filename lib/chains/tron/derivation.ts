@@ -1,6 +1,5 @@
 import { HDKey } from "@scure/bip32";
 import { privateKeyToAccount } from "viem/accounts";
-// @ts-expect-error untyped bs58 module
 import bs58 from "bs58";
 import { sha256 } from "viem";
 

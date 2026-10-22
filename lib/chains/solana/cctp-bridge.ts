@@ -9,9 +9,10 @@ import {
 } from "@solana/web3.js";
 import {
   createAssociatedTokenAccountIdempotentInstruction,
+  createAssociatedTokenAccountInstruction,
+  createTransferInstruction,
   ASSOCIATED_TOKEN_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
-} from "@solana/spl-token";
+} from "./spl-token";
 import {
   CONTRACT_ADDRESSES,
   CIRCLE_IRIS_API,
@@ -24,6 +25,7 @@ import { Transaction } from "@/models/Transaction";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { sendAndConfirmVersionedTransactionPolling } from "./send-and-confirm";
+import bs58 from "bs58";
 
 /** Circle CCTP official Address Lookup Table on Solana Mainnet */
 const CIRCLE_SOLANA_MAINNET_ALT = new PublicKey(
@@ -61,38 +63,38 @@ export async function submitSolanaDepositForBurn({
     const SYSTEM_PROGRAM_ID = new PublicKey("11111111111111111111111111111111");
 
     // Derive PDAs
-    const [senderAuthorityPda] = PublicKey.findProgramAddressSync(
+    const [senderAuthorityPda] = await PublicKey.findProgramAddress(
       [Buffer.from("sender_authority")],
       TMM_PROGRAM_ID,
     );
-    const [denylistPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("denylist_account"), ownerKeypair.publicKey.toBuffer()],
+    const [denylistPda] = await PublicKey.findProgramAddress(
+      [Buffer.from("denylist_account"), ownerKeypair.publicKey.toBytes()],
       TMM_PROGRAM_ID,
     );
-    const [messageTransmitterPda] = PublicKey.findProgramAddressSync(
+    const [messageTransmitterPda] = await PublicKey.findProgramAddress(
       [Buffer.from("message_transmitter")],
       MT_PROGRAM_ID,
     );
-    const [tokenMessengerPda] = PublicKey.findProgramAddressSync(
+    const [tokenMessengerPda] = await PublicKey.findProgramAddress(
       [Buffer.from("token_messenger")],
       TMM_PROGRAM_ID,
     );
-    const [remoteTmPda] = PublicKey.findProgramAddressSync(
+    const [remoteTmPda] = await PublicKey.findProgramAddress(
       [
         Buffer.from("remote_token_messenger"),
         Buffer.from(destinationDomain.toString()),
       ],
       TMM_PROGRAM_ID,
     );
-    const [tokenMinterPda] = PublicKey.findProgramAddressSync(
+    const [tokenMinterPda] = await PublicKey.findProgramAddress(
       [Buffer.from("token_minter")],
       TMM_PROGRAM_ID,
     );
-    const [localTokenPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("local_token"), USDC_MINT.toBuffer()],
+    const [localTokenPda] = await PublicKey.findProgramAddress(
+      [Buffer.from("local_token"), USDC_MINT.toBytes()],
       TMM_PROGRAM_ID,
     );
-    const [tmmEventAuthority] = PublicKey.findProgramAddressSync(
+    const [tmmEventAuthority] = await PublicKey.findProgramAddress(
       [Buffer.from("__event_authority")],
       TMM_PROGRAM_ID,
     );
@@ -101,17 +103,17 @@ export async function submitSolanaDepositForBurn({
     const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey(
       "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
     );
-    const [userAta] = PublicKey.findProgramAddressSync(
+    const [userAta] = await PublicKey.findProgramAddress(
       [
-        ownerKeypair.publicKey.toBuffer(),
-        TOKEN_PROGRAM_ID.toBuffer(),
-        USDC_MINT.toBuffer(),
+        ownerKeypair.publicKey.toBytes(),
+        TOKEN_PROGRAM_ID.toBytes(),
+        USDC_MINT.toBytes(),
       ],
       ASSOCIATED_TOKEN_PROGRAM_ID,
     );
 
     // Ephemeral keypair for message_sent_event_data
-    const messageSentEventKeypair = Keypair.generate();
+    const messageSentEventKeypair = await Keypair.generate();
 
     // Clean recipient 32-byte buffer
     const cleanRecipient = mintRecipientBytes32.replace(/^0x/, "");
@@ -181,15 +183,14 @@ export async function submitSolanaDepositForBurn({
       const feeCollector = new PublicKey(
         process.env.FEE_WALLET_SOLANA || sponsorKeypair.publicKey.toBase58(),
       );
-      const [feeCollectorAta] = PublicKey.findProgramAddressSync(
-        [feeCollector.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), USDC_MINT.toBuffer()],
+      const [feeCollectorAta] = await PublicKey.findProgramAddress(
+        [feeCollector.toBytes(), TOKEN_PROGRAM_ID.toBytes(), USDC_MINT.toBytes()],
         ASSOCIATED_TOKEN_PROGRAM_ID,
       );
 
       // Check if feeCollectorAta exists; if not, create it
       const feeAtaInfo = await connection.getAccountInfo(feeCollectorAta);
       if (!feeAtaInfo) {
-        const { createAssociatedTokenAccountInstruction } = await import("@solana/spl-token");
         instructions.push(
           createAssociatedTokenAccountInstruction(
             sponsorKeypair.publicKey,
@@ -200,7 +201,6 @@ export async function submitSolanaDepositForBurn({
         );
       }
 
-      const { createTransferInstruction } = await import("@solana/spl-token");
       instructions.push(
         createTransferInstruction(
           userAta,
@@ -228,7 +228,7 @@ export async function submitSolanaDepositForBurn({
     if (sponsorKeypair) {
       signers.push(sponsorKeypair);
     }
-    v0Tx.sign(signers);
+    await v0Tx.sign(signers);
 
     console.log(
       `[Solana Burn] Broadcasting deposit_for_burn (v0 size: ${v0Tx.serialize().length} bytes)...`,
@@ -275,8 +275,7 @@ export async function submitSolanaReceiveMessage({
       };
     }
 
-    const bs58 = require("bs58");
-    const payerKeypair = Keypair.fromSecretKey(bs58.decode(sponsoredKey));
+    const payerKeypair = await Keypair.fromSecretKey(bs58.decode(sponsoredKey));
     const rpcUrl = getSolanaRpcUrl();
     const connection = new Connection(rpcUrl, "confirmed");
 
@@ -305,7 +304,7 @@ export async function submitSolanaReceiveMessage({
     const mintRecipient = new PublicKey(mintRecipientBytes);
 
     // Derive required PDAs
-    const [usedNoncePda] = PublicKey.findProgramAddressSync(
+    const [usedNoncePda] = await PublicKey.findProgramAddress(
       [Buffer.from("used_nonce"), nonceBytes],
       MESSAGE_TRANSMITTER_PROGRAM_ID,
     );
@@ -320,55 +319,55 @@ export async function submitSolanaReceiveMessage({
       };
     }
 
-    const [authorityPda] = PublicKey.findProgramAddressSync(
+    const [authorityPda] = await PublicKey.findProgramAddress(
       [
         Buffer.from("message_transmitter_authority"),
-        TOKEN_MESSENGER_MINTER_PROGRAM_ID.toBuffer(),
+        TOKEN_MESSENGER_MINTER_PROGRAM_ID.toBytes(),
       ],
       MESSAGE_TRANSMITTER_PROGRAM_ID,
     );
-    const [messageTransmitterPda] = PublicKey.findProgramAddressSync(
+    const [messageTransmitterPda] = await PublicKey.findProgramAddress(
       [Buffer.from("message_transmitter")],
       MESSAGE_TRANSMITTER_PROGRAM_ID,
     );
-    const [mtEventAuthority] = PublicKey.findProgramAddressSync(
+    const [mtEventAuthority] = await PublicKey.findProgramAddress(
       [Buffer.from("__event_authority")],
       MESSAGE_TRANSMITTER_PROGRAM_ID,
     );
 
-    const [tokenMessengerPda] = PublicKey.findProgramAddressSync(
+    const [tokenMessengerPda] = await PublicKey.findProgramAddress(
       [Buffer.from("token_messenger")],
       TOKEN_MESSENGER_MINTER_PROGRAM_ID,
     );
-    const [remoteTokenMessengerPda] = PublicKey.findProgramAddressSync(
+    const [remoteTokenMessengerPda] = await PublicKey.findProgramAddress(
       [Buffer.from("remote_token_messenger"), Buffer.from(sourceDomain.toString())],
       TOKEN_MESSENGER_MINTER_PROGRAM_ID,
     );
-    const [tokenMinterPda] = PublicKey.findProgramAddressSync(
+    const [tokenMinterPda] = await PublicKey.findProgramAddress(
       [Buffer.from("token_minter")],
       TOKEN_MESSENGER_MINTER_PROGRAM_ID,
     );
-    const [localTokenPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("local_token"), USDC_MINT.toBuffer()],
+    const [localTokenPda] = await PublicKey.findProgramAddress(
+      [Buffer.from("local_token"), USDC_MINT.toBytes()],
       TOKEN_MESSENGER_MINTER_PROGRAM_ID,
     );
-    const [tokenPairPda] = PublicKey.findProgramAddressSync(
+    const [tokenPairPda] = await PublicKey.findProgramAddress(
       [Buffer.from("token_pair"), Buffer.from(sourceDomain.toString()), burnTokenBytes],
       TOKEN_MESSENGER_MINTER_PROGRAM_ID,
     );
-    const [custodyPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("custody"), USDC_MINT.toBuffer()],
+    const [custodyPda] = await PublicKey.findProgramAddress(
+      [Buffer.from("custody"), USDC_MINT.toBytes()],
       TOKEN_MESSENGER_MINTER_PROGRAM_ID,
     );
-    const [tmmEventAuthority] = PublicKey.findProgramAddressSync(
+    const [tmmEventAuthority] = await PublicKey.findProgramAddress(
       [Buffer.from("__event_authority")],
       TOKEN_MESSENGER_MINTER_PROGRAM_ID,
     );
 
     // Fee recipient ATA: fee_recipient is 4BPnUzFDibVcWQ5zzixGodRUHwqDxHYpUPdPYus3Bn56
     const feeRecipient = new PublicKey("4BPnUzFDibVcWQ5zzixGodRUHwqDxHYpUPdPYus3Bn56");
-    const [feeAta] = PublicKey.findProgramAddressSync(
-      [feeRecipient.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), USDC_MINT.toBuffer()],
+    const [feeAta] = await PublicKey.findProgramAddress(
+      [feeRecipient.toBytes(), TOKEN_PROGRAM_ID.toBytes(), USDC_MINT.toBytes()],
       ASSOCIATED_TOKEN_PROGRAM_ID,
     );
 
@@ -454,7 +453,7 @@ export async function submitSolanaReceiveMessage({
     }).compileToV0Message(lookupTables);
 
     const v0Tx = new VersionedTransaction(messageV0);
-    v0Tx.sign([payerKeypair]);
+    await v0Tx.sign([payerKeypair]);
 
     const sig = await sendAndConfirmVersionedTransactionPolling(
       connection,

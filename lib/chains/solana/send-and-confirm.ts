@@ -4,6 +4,7 @@ import {
   Signer,
   Commitment,
   ComputeBudgetProgram,
+  PublicKey,
 } from "@solana/web3.js";
 
 export interface SendAndConfirmPollingOptions {
@@ -51,7 +52,8 @@ export async function sendAndConfirmTransactionPolling(
 
   // 2. Assign feePayer if not already set
   if (!transaction.feePayer && signers.length > 0) {
-    transaction.feePayer = signers[0].publicKey;
+    const firstSigner = signers[0] as any;
+    transaction.feePayer = firstSigner.publicKey ?? new PublicKey(firstSigner.address);
   }
 
   // 3. Fetch latest blockhash and lastValidBlockHeight
@@ -62,11 +64,11 @@ export async function sendAndConfirmTransactionPolling(
 
   // 4. Sign transaction
   if (signers.length > 0) {
-    transaction.sign(...signers);
+    await transaction.sign(...signers);
   }
 
   // 5. Serialize and broadcast via HTTP sendRawTransaction
-  const rawTx = transaction.serialize();
+  const rawTx = await transaction.serialize();
   const txHash = await connection.sendRawTransaction(rawTx, {
     skipPreflight: options.skipPreflight ?? false,
     preflightCommitment: commitment,
@@ -110,7 +112,7 @@ export async function sendAndConfirmTransactionPolling(
     // Check if block height has exceeded lastValidBlockHeight
     try {
       const currentHeight = await connection.getBlockHeight(commitment);
-      if (currentHeight > lastValidBlockHeight) {
+      if (currentHeight > BigInt(lastValidBlockHeight)) {
         throw new Error(
           `Signature ${txHash} has expired: block height exceeded.`,
         );
@@ -148,7 +150,7 @@ export async function sendAndConfirmTransactionPolling(
 export async function sendAndConfirmVersionedTransactionPolling(
   connection: Connection,
   rawTx: Uint8Array,
-  lastValidBlockHeight: number,
+  lastValidBlockHeight: number | bigint,
   options: SendAndConfirmPollingOptions = {},
 ): Promise<string> {
   const commitment: Commitment = options.commitment || "confirmed";
@@ -158,7 +160,7 @@ export async function sendAndConfirmVersionedTransactionPolling(
   const txHash = await connection.sendRawTransaction(rawTx, {
     skipPreflight: options.skipPreflight ?? false,
     preflightCommitment: commitment,
-    maxRetries: 3,
+    maxRetries: BigInt(3),
   });
 
   console.log(

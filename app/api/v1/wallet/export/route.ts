@@ -93,9 +93,8 @@ export async function POST(req: NextRequest) {
     privateKey = `0x${Buffer.from(ethChild.privateKey!).toString("hex")}`;
   } else if (selectedChain === "sol" || selectedChain === "solana") {
     const solDerived = derivePath("m/44'/501'/0'/0'", seed.toString("hex")).key;
-    const solKeypair = SolanaKeypair.fromSeed(solDerived);
+    const solKeypair = await SolanaKeypair.fromSeed(solDerived);
     try {
-      // @ts-expect-error untyped bs58 module
       const bs58 = (await import("bs58")).default;
       privateKey = bs58.encode(Buffer.from(solKeypair.secretKey));
     } catch {

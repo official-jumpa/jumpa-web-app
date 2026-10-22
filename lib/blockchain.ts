@@ -295,15 +295,15 @@ export function bytes32ToStellarAddress(bytes32: string): string {
  * On Solana, Circle CCTP strictly requires the mintRecipient to be the recipient's
  * USDC Associated Token Account (ATA), NEVER the wallet address.
  */
-export function getSolanaUsdcAta(walletAddress: string): string {
+export async function getSolanaUsdcAta(walletAddress: string): Promise<string> {
   try {
     const walletPubkey = new PublicKey(walletAddress);
     const usdcMint = new PublicKey(CONTRACT_ADDRESSES.cctp.mainnet.solana.usdc);
     const tokenProgramId = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
     const ataProgramId = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
-    const [ata] = PublicKey.findProgramAddressSync(
-      [walletPubkey.toBuffer(), tokenProgramId.toBuffer(), usdcMint.toBuffer()],
+    const [ata] = await PublicKey.findProgramAddress(
+      [walletPubkey.toBytes(), tokenProgramId.toBytes(), usdcMint.toBytes()],
       ataProgramId,
     );
     return ata.toBase58();
@@ -317,11 +317,11 @@ export function getSolanaUsdcAta(walletAddress: string): string {
  * to the exact 32-byte hex representation required by Circle CCTP.
  * Guardrail: If passed a wallet address, it automatically derives the USDC ATA.
  */
-export function solanaRecipientToCctpBytes32(recipientOrWallet: string): `0x${string}` {
+export async function solanaRecipientToCctpBytes32(recipientOrWallet: string): Promise<`0x${string}`> {
   let targetAta = recipientOrWallet;
   try {
     // If the string is a valid Solana public key, ensure it's converted to ATA
-    targetAta = getSolanaUsdcAta(recipientOrWallet);
+    targetAta = await getSolanaUsdcAta(recipientOrWallet);
   } catch {
     // Fall back to direct conversion if derivation threw
   }

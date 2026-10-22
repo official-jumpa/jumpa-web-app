@@ -358,7 +358,7 @@ export async function fetchWalletBalances(
 
           // Floored, not rounded: a balance must never read higher than the wallet holds.
           const native = (
-            Math.floor((lamports * 10_000) / LAMPORTS_PER_SOL) / 10_000
+            Math.floor((Number(lamports) * 10_000) / LAMPORTS_PER_SOL) / 10_000
           ).toFixed(4);
           let usdc = "0.00";
           let usdt = "0.00";

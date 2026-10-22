@@ -201,7 +201,7 @@ export async function executeBridge(
     throw limitErr;
   }
 
-  const derived = deriveAddresses(phrase);
+  const derived = await deriveAddresses(phrase);
   let txHash = "";
   let explorerUrl = "";
 
@@ -347,7 +347,7 @@ export async function executeBridge(
       // never the raw wallet address. solanaRecipientToCctpBytes32 enforces this automatically.
       const destBytes32 =
         toChain === "solana"
-          ? solanaRecipientToCctpBytes32(recipientAddress)
+          ? await solanaRecipientToCctpBytes32(recipientAddress)
           : evmAddressToBytes32(recipientAddress);
       const destBytesBuffer = Buffer.from(destBytes32.replace(/^0x/, ""), "hex");
 
@@ -476,7 +476,7 @@ export async function executeBridge(
         targetDomain = CONTRACT_ADDRESSES.cctp.mainnet.solana.domain;
         // Guardrail: On Solana, CCTP strictly requires the recipient's USDC ATA,
         // never the raw wallet address.
-        targetRecipientBytes32 = solanaRecipientToCctpBytes32(recipientAddress);
+        targetRecipientBytes32 = await solanaRecipientToCctpBytes32(recipientAddress);
       } else {
         const destCctp =
           toChain === "ethereum"
@@ -525,7 +525,7 @@ export async function executeBridge(
       // ── Solana Mainnet Source ──
       const seed = bip39.mnemonicToSeedSync(phrase);
       const solDerived = derivePath("m/44'/501'/0'/0'", seed.toString("hex")).key;
-      const ownerKeypair = SolanaKeypair.fromSeed(solDerived);
+      const ownerKeypair = await SolanaKeypair.fromSeed(solDerived);
 
       const solanaCctp = CONTRACT_ADDRESSES.cctp.mainnet.solana;
       const sendAmountSubunits = BigInt(Math.round(parseFloat(amount) * 10 ** solanaCctp.decimals));
@@ -533,14 +533,14 @@ export async function executeBridge(
       // Pre-flight check: determine if user has enough SOL or if gas abstraction should be activated
       const solConnection = new Connection(getSolanaRpcUrl(), "confirmed");
       const solLamports = await solConnection.getBalance(ownerKeypair.publicKey);
-      const MIN_REQUIRED_LAMPORTS = 2850000; // ~0.00285 SOL for CCTP event rent + gas
+      const MIN_REQUIRED_LAMPORTS = BigInt(2850000); // ~0.00285 SOL for CCTP event rent + gas
 
       let sponsorKeypair: SolanaKeypair | undefined = undefined;
       let feeSubunits: bigint | undefined = undefined;
 
       if (solLamports < MIN_REQUIRED_LAMPORTS) {
         // User does not have enough SOL: activate Gas Abstraction
-        const platformSponsor = getSolanaSponsorKeypair();
+        const platformSponsor = await getSolanaSponsorKeypair();
         if (!platformSponsor) {
           return {
             ok: false,
@@ -554,7 +554,7 @@ export async function executeBridge(
         feeSubunits = BigInt(Math.round(numNetworkFee * 10 ** solanaCctp.decimals));
 
         // Verify user has enough USDC to pay both the bridge amount and the abstracted network fee
-        const userAta = getSolanaUsdcAta(ownerKeypair.publicKey.toBase58());
+        const userAta = await getSolanaUsdcAta(ownerKeypair.publicKey.toBase58());
         const ataBalanceRes = await solConnection
           .getTokenAccountBalance(new PublicKey(userAta))
           .catch(() => null);

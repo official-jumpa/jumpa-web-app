@@ -93,7 +93,7 @@ export async function executeSolanaSwap(
     );
     const seed = bip39.mnemonicToSeedSync(phrase);
     const solDerived = derivePath("m/44'/501'/0'/0'", seed.toString("hex")).key;
-    signer = SolanaKeypair.fromSeed(solDerived);
+    signer = await SolanaKeypair.fromSeed(solDerived);
   } catch {
     return {
       ok: false,
@@ -113,7 +113,7 @@ export async function executeSolanaSwap(
 
     if (fromToken.toUpperCase() === "SOL") {
       const lamports = await connection.getBalance(signer.publicKey);
-      if (lamports < neededAtomic) {
+      if (Number(lamports) < neededAtomic) {
         return {
           ok: false,
           error: `Insufficient SOL balance. Required: ${fromAmount} SOL`,
@@ -203,7 +203,7 @@ export async function executeSolanaSwap(
   try {
     const txBytes = Buffer.from(orderResponse.transaction, "base64");
     const transaction = VersionedTransaction.deserialize(txBytes);
-    transaction.sign([signer]);
+    await transaction.sign([signer]);
     signedTxBase64 = Buffer.from(transaction.serialize()).toString("base64");
   } catch (signErr: any) {
     console.error("[executeSolanaSwap] Signing error:", signErr);

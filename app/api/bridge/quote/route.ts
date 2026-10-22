@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
           try {
             const solConn = new Connection(getSolanaRpcUrl(), "confirmed");
             const lamports = await solConn.getBalance(new PublicKey(solAddress));
-            userSol = lamports / 1e9;
+            userSol = Number(lamports) / 1e9;
           } catch {}
         }
       }

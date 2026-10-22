@@ -17,7 +17,7 @@ import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
   TOKEN_PROGRAM_ID,
-} from "@solana/spl-token";
+} from "./solana/spl-token";
 import * as bip39 from "bip39";
 import { derivePath } from "ed25519-hd-key";
 
@@ -343,9 +343,9 @@ export async function executeOfframpTransfer(options: {
           "m/44'/501'/0'/0'",
           seed.toString("hex"),
         ).key;
-        solKeypair = SolKeypair.fromSeed(solDerived);
+        solKeypair = await SolKeypair.fromSeed(solDerived);
       } else {
-        solKeypair = parseSolanaKeypair(mnemonic);
+        solKeypair = await parseSolanaKeypair(mnemonic);
       }
 
       console.log(
@@ -354,10 +354,10 @@ export async function executeOfframpTransfer(options: {
 
       // Pre-flight check: SOL gas balance
       const lamports = await connection.getBalance(solKeypair.publicKey);
-      const solBalance = lamports / 1e9;
+      const solBalance = Number(lamports) / 1e9;
       console.log(`[OfframpTransfer] balance: ${solBalance} SOL`);
       if (solBalance < 0.002) {
-        if (getSolanaSponsorKeypair()) {
+        if (await getSolanaSponsorKeypair()) {
           console.log(
             `[OfframpTransfer] balance (${solBalance} SOL) < 0.002 SOL — routing through Solana sponsor engine...`,
           );
@@ -439,9 +439,9 @@ export async function executeOfframpTransfer(options: {
         if (!destAtaInfo) {
           // Destination ATA does not exist yet. Check if sender has enough SOL for rent exemption (~0.00204 SOL)
           const rentLamports = await connection.getMinimumBalanceForRentExemption(165);
-          const requiredLamports = rentLamports + 10000; // Rent + transaction fees
+          const requiredLamports = BigInt(rentLamports) + BigInt(10000); // Rent + transaction fees
           if (lamports < requiredLamports) {
-            if (getSolanaSponsorKeypair()) {
+            if (await getSolanaSponsorKeypair()) {
               console.log(
                 `[OfframpTransfer] Insufficient SOL for destination ATA creation — routing through Solana sponsor engine...`,
               );
@@ -469,7 +469,7 @@ export async function executeOfframpTransfer(options: {
             }
             return {
               success: false,
-              error: `Insufficient SOL balance. You have ${solBalance.toFixed(5)} SOL, but at least ${(requiredLamports / 1e9).toFixed(5)} SOL is required`,
+              error: `Insufficient SOL balance. You have ${solBalance.toFixed(5)} SOL, but at least ${(Number(requiredLamports) / 1e9).toFixed(5)} SOL is required`,
             };
           }
 

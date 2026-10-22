@@ -29,7 +29,7 @@ export interface DerivedWallet {
  * Derives public addresses and raw public keys for ETH, SOL, XLM, TRX
  * from a BIP39 mnemonic using standard derivation paths.
  */
-export function deriveAddresses(phrase: string): DerivedWallet {
+export async function deriveAddresses(phrase: string): Promise<DerivedWallet> {
   const account = mnemonicToAccount(phrase);
   const ethAddress = account.address;
 
@@ -37,7 +37,7 @@ export function deriveAddresses(phrase: string): DerivedWallet {
 
   // Solana Derivation m/44'/501'/0'/0'
   const solDerived = derivePath("m/44'/501'/0'/0'", seed.toString("hex")).key;
-  const solKeypair = SolanaKeypair.fromSeed(solDerived);
+  const solKeypair = await SolanaKeypair.fromSeed(solDerived);
   const solAddress = solKeypair.publicKey.toBase58();
 
   // Stellar Derivation m/44'/148'/0'
@@ -76,10 +76,10 @@ export function deriveAddresses(phrase: string): DerivedWallet {
 /**
  * Derives wallet addresses from an imported raw private key on a specific network.
  */
-export function deriveFromPrivateKey(
+export async function deriveFromPrivateKey(
   privateKey: string,
   chain = "base",
-): DerivedWallet {
+): Promise<DerivedWallet> {
   const trimmed = privateKey.trim();
 
   let ethAddress = "";
@@ -108,16 +108,16 @@ export function deriveFromPrivateKey(
       // Handle hex or json array
       if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
         const secret = Uint8Array.from(JSON.parse(trimmed));
-        const keypair = SolanaKeypair.fromSecretKey(secret);
+        const keypair = await SolanaKeypair.fromSecretKey(secret);
         solAddress = keypair.publicKey.toBase58();
       } else {
         const hex = trimmed.startsWith("0x") ? trimmed.slice(2) : trimmed;
         const secret = Buffer.from(hex, "hex");
         if (secret.length === 64) {
-          const keypair = SolanaKeypair.fromSecretKey(secret);
+          const keypair = await SolanaKeypair.fromSecretKey(secret);
           solAddress = keypair.publicKey.toBase58();
         } else if (secret.length === 32) {
-          const keypair = SolanaKeypair.fromSeed(secret);
+          const keypair = await SolanaKeypair.fromSeed(secret);
           solAddress = keypair.publicKey.toBase58();
         } else {
           throw new Error("Invalid Solana private key length");

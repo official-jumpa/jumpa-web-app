@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
         network: isTestnet ? "testnet" : "mainnet",
       });
     } else if (config.chain === "solana") {
-      const privateKey = resolveChainPrivateKey(phrase, "solana");
+      const privateKey = await resolveChainPrivateKey(phrase, "solana");
       result = await sendSolana({
         privateKey,
         destination: recipient,
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
       // EVM (ethereum / base)
       const evmChain: "base" | "eth" =
         config.chain === "base" ? "base" : "eth";
-      const privateKey = resolveChainPrivateKey(phrase, evmChain);
+      const privateKey = await resolveChainPrivateKey(phrase, evmChain);
       result = await sendEvm({
         privateKey,
         destination: recipient,

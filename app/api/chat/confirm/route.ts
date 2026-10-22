@@ -534,7 +534,7 @@ export async function POST(req: NextRequest) {
         );
 
         try {
-          const privateKey = resolveChainPrivateKey(phrase, targetChain);
+          const privateKey = await resolveChainPrivateKey(phrase, targetChain);
           const evmRes = await sendEvm({
             privateKey,
             destination: destAddress,
@@ -593,7 +593,7 @@ export async function POST(req: NextRequest) {
         );
 
         try {
-          const privateKey = resolveChainPrivateKey(phrase, "solana");
+          const privateKey = await resolveChainPrivateKey(phrase, "solana");
           const solRes = await sendSolana({
             privateKey,
             destination: destAddress,

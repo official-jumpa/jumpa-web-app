@@ -121,6 +121,14 @@ const ERC20_ABI = [
       { name: "value", type: "uint256" },
     ],
     outputs: [{ name: "", type: "boolean" }],
+    stateMutability: "nonpayable",
+  },
+  {
+    name: "balanceOf",
+    type: "function",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
   },
 ] as const;
 
@@ -440,13 +448,22 @@ export async function sendSolana(params: {
 
   // 1. Native SOL Transfer (User pays own SOL gas)
   if (upperAsset === "SOL") {
+    const lamports = await connection.getBalance(keypair.publicKey);
+    const availableSol = Number(lamports) / LAMPORTS_PER_SOL;
+    const requiredSol = numAmount + 0.000005; // send amount + network fee
+    if (availableSol < requiredSol) {
+      throw new Error(
+        `Insufficient SOL balance for transfer and network fee. Available: ${availableSol.toFixed(6)} SOL, Required: ~${requiredSol.toFixed(6)} SOL.`,
+      );
+    }
+
     const tx = new SolTransaction();
-    const lamports = BigInt(Math.round(numAmount * LAMPORTS_PER_SOL));
+    const sendLamports = BigInt(Math.round(numAmount * LAMPORTS_PER_SOL));
     tx.add(
       SystemProgram.transfer({
         fromPubkey: keypair.publicKey,
         toPubkey: destPubkey,
-        lamports,
+        lamports: sendLamports,
       }),
     );
 
@@ -494,6 +511,24 @@ export async function sendSolana(params: {
       keypair.publicKey,
     );
 
+    const rawAmount = BigInt(
+      Math.round(numAmount * Math.pow(10, tokenInfo.decimals)),
+    );
+
+    // Verify user has sufficient SPL token balance
+    const ataBalanceRes = await connection
+      .getTokenAccountBalance(fromAta.address)
+      .catch(() => null);
+    const availableRaw = BigInt(ataBalanceRes?.value?.amount || "0");
+    if (availableRaw < rawAmount) {
+      const availableFormatted = (
+        Number(availableRaw) / Math.pow(10, tokenInfo.decimals)
+      ).toFixed(2);
+      throw new Error(
+        `Insufficient ${upperAsset} balance on Solana (available: ${availableFormatted} ${upperAsset}, sending: ${numAmount} ${upperAsset})`,
+      );
+    }
+
     // Check if destPubkey is already a Token Account owned by TOKEN_PROGRAM_ID
     let finalDestAddress = destPubkey;
     const accountInfo = await connection.getAccountInfo(destPubkey);
@@ -514,9 +549,6 @@ export async function sendSolana(params: {
       finalDestAddress = toAta.address;
     }
 
-    const rawAmount = BigInt(
-      Math.round(numAmount * Math.pow(10, tokenInfo.decimals)),
-    );
 
     tx.add(
       createTransferInstruction(
@@ -558,6 +590,7 @@ export async function sendEvm(params: {
   const account = privateKeyToAccount(cleanKey);
   const targetChain = chain === "base" ? base : ethMainnet;
   const rpcUrl = getRpcUrl(chain === "eth" ? "ethereum" : "base");
+  const chainName = chain === "eth" ? "Ethereum" : "Base";
 
   const publicClient = createPublicClient({
     chain: targetChain,
@@ -571,14 +604,41 @@ export async function sendEvm(params: {
   });
 
   const upperAsset = asset.toUpperCase();
+
+  // 1. Pre-flight Balance Checks (Gas and Token balances)
+  const ethBalance = await publicClient.getBalance({ address: account.address });
+  const gasPrice = await publicClient.getGasPrice();
+  const estimatedGasUnits = upperAsset === "ETH" ? BigInt(21000) : BigInt(65000);
+  const estimatedFeeWei = (gasPrice * estimatedGasUnits * BigInt(12)) / BigInt(10); // 20% safety margin
+  const minThresholdWei = chain === "eth" ? parseEther("0.0001") : parseEther("0.000005");
+  const requiredGasWei = estimatedFeeWei > minThresholdWei ? estimatedFeeWei : minThresholdWei;
+
   let txHash: `0x${string}`;
 
   if (upperAsset === "ETH") {
+    const sendWei = parseEther(amount);
+    if (ethBalance < sendWei + requiredGasWei) {
+      const requiredTotalEth = (Number(sendWei + requiredGasWei) / 1e18).toFixed(6);
+      const currentEth = (Number(ethBalance) / 1e18).toFixed(6);
+      throw new Error(
+        `Insufficient ${chainName} ETH for transfer and gas fees. Required: ~${requiredTotalEth} ETH, but your balance is ${currentEth} ETH.`,
+      );
+    }
+
     txHash = await walletClient.sendTransaction({
       to: destination as `0x${string}`,
-      value: parseEther(amount),
+      value: sendWei,
     });
   } else {
+    // For ERC20 transfers (USDC, USDT, etc.), verify native ETH is available for gas
+    if (ethBalance < requiredGasWei) {
+      const requiredEth = (Number(requiredGasWei) / 1e18).toFixed(6);
+      const currentEth = (Number(ethBalance) / 1e18).toFixed(6);
+      throw new Error(
+        `Insufficient ${chainName} ETH for network fees. Required: ~${requiredEth} ETH, but your balance is ${currentEth} ETH.`,
+      );
+    }
+
     const contracts = EVM_CONTRACTS[chain];
     const tokenConfig = contracts?.[upperAsset];
     if (!tokenConfig) {
@@ -586,6 +646,22 @@ export async function sendEvm(params: {
     }
 
     const rawAmount = parseUnits(amount, tokenConfig.decimals);
+
+    // Verify ERC20 token balance
+    const tokenBalance = await publicClient.readContract({
+      address: tokenConfig.address,
+      abi: ERC20_ABI,
+      functionName: "balanceOf",
+      args: [account.address],
+    });
+
+    if (tokenBalance < rawAmount) {
+      const availableFormatted = (Number(tokenBalance) / 10 ** tokenConfig.decimals).toFixed(2);
+      throw new Error(
+        `Insufficient ${upperAsset} balance on ${chainName} (available: ${availableFormatted} ${upperAsset}, sending: ${amount} ${upperAsset})`,
+      );
+    }
+
     txHash = await walletClient.writeContract({
       address: tokenConfig.address,
       abi: ERC20_ABI,

@@ -21,11 +21,13 @@ import {
 } from "@/lib/support-hours";
 import { CATEGORY_LABEL } from "@/lib/support-tickets";
 import type { INotification } from "@/models/Notification";
-import type { ISupportTicket } from "@/models/SupportTicket";
+import type { ISupportMessage, ISupportTicket } from "@/models/SupportTicket";
 import { User } from "@/models/User";
 
 /** Longest a reply waits on its alerts; the alerts keep going if the host allows it. */
 const ALERT_WAIT_MS = 8_000;
+/** Messages this close together are one burst: every one reaches the chat, one email. */
+const REPLY_EMAIL_GAP_MS = 2 * 60_000;
 
 /**
  * Sends the alerts before the reply returns. Not `after()`: a host that freezes
@@ -140,6 +142,42 @@ const topic = (ticket: ISupportTicket) =>
 const at = (date: Date | null) =>
   date ? describeSupportTime(new Date(date)) : null;
 
+/** Where the ticket stands, in the team's words. */
+function stateOf(ticket: ISupportTicket): string {
+  switch (ticket.status) {
+    case "requested":
+      return "Waiting to be claimed";
+    case "live":
+      return ticket.claimedBy ? `Live with ${ticket.claimedBy.name}` : "Live";
+    case "pending":
+      return ticket.handoffTeam
+        ? `With the ${teamName(ticket.handoffTeam)} team`
+        : "Handed to a team";
+    case "resolved":
+      return "Resolved";
+    case "closed":
+      return "Closed";
+    default:
+      return "With the assistant";
+  }
+}
+
+/** The new message itself; a file or transaction on its own still says something. */
+function replyWords(message: ISupportMessage, name: string | null) {
+  const files = message.attachments?.length ?? 0;
+  const text =
+    message.content.trim() ||
+    (message.transaction
+      ? `Shared a transaction: ${message.transaction.title}, ${message.transaction.amount}`
+      : files
+        ? `Sent ${files === 1 ? "an attachment" : `${files} attachments`}`
+        : "");
+  return {
+    label: name ? `New message from ${name}` : "New message",
+    text: text.length > 400 ? `${text.slice(0, 399)}…` : text,
+  };
+}
+
 /** One alert per event; the chat and the email both read it. */
 function alertFor(event: SupportEvent, name: string | null): SupportAlert {
   const { ticket } = event;
@@ -147,6 +185,8 @@ function alertFor(event: SupportEvent, name: string | null): SupportAlert {
   const { quote, opener } = customerWords(ticket, name);
   const base = {
     ref: ticket.ref,
+    customer: name,
+    state: stateOf(ticket),
     high: ticket.priority === "high",
     quote,
     summary: ticket.aiSummary ?? undefined,
@@ -226,7 +266,79 @@ function alertFor(event: SupportEvent, name: string | null): SupportAlert {
         ],
       };
     }
+    case "user_replied": {
+      const agent = ticket.claimedBy?.name;
+      const team = teamName(ticket.handoffTeam);
+      const due = at(ticket.slaDueAt);
+      const files = event.message.attachments?.length ?? 0;
+      const lead =
+        ticket.status === "live"
+          ? `${agent ?? "An agent"} has this chat. Reply in the dashboard.`
+          : ticket.status === "pending"
+            ? `It's with the ${team} team${due ? `, and their update is due by ${due}` : ""}.`
+            : "Nobody has claimed it yet. Claim it and reply.";
+      return {
+        ...base,
+        quote: replyWords(event.message, name),
+        // The summary was sent with the handover; repeating it on every message is noise.
+        summary: undefined,
+        tone: "info",
+        emoji: "💬",
+        event: "New reply",
+        headline: `${who} sent a new message`,
+        lead,
+        fields: [
+          ...(ticket.status === "live" && agent
+            ? [{ label: "Handled by", value: agent }]
+            : []),
+          ...(ticket.status === "pending"
+            ? [
+                { label: "Team", value: team },
+                ...(due ? [{ label: "Update due by", value: due }] : []),
+              ]
+            : []),
+          ...(ticket.status === "requested" && claimBy
+            ? [{ label: "Claim by", value: claimBy }]
+            : []),
+          ...(files && event.message.content.trim()
+            ? [
+                {
+                  label: "Attached",
+                  value: `${files} file${files === 1 ? "" : "s"}`,
+                },
+              ]
+            : []),
+          ...topic(ticket),
+        ],
+      };
+    }
   }
+}
+
+/**
+ * Every event emails, except a reply that follows the user's own message
+ * within the gap: a burst of messages is one email.
+ */
+function shouldEmail(event: SupportEvent): boolean {
+  if (event.type !== "user_replied") return true;
+  const thread = event.ticket.messages ?? [];
+  const i = thread.findIndex((m) => m.id === event.message.id);
+  const previous = i > 0 ? thread[i - 1] : null;
+  if (previous?.role !== "user") return true;
+  const gap =
+    new Date(event.message.timestamp).getTime() -
+    new Date(previous.timestamp).getTime();
+  return gap >= REPLY_EMAIL_GAP_MS;
+}
+
+/** A live chat's reply goes to the agent holding it; everything else to the team. */
+function emailRecipients(event: SupportEvent): string[] | undefined {
+  const agent = event.ticket.claimedBy?.email;
+  return event.type === "user_replied" &&
+    event.ticket.status === "live" &&
+    agent
+    ? [agent]
+    : undefined;
 }
 
 async function handle(event: SupportEvent): Promise<void> {
@@ -239,7 +351,12 @@ async function handle(event: SupportEvent): Promise<void> {
   const alert = alertFor(event, to?.firstName ?? null);
 
   // Chat and email go out together, the moment it happens.
-  await Promise.all([pingSupportChannel(alert), sendTeamAlertEmail(alert)]);
+  await Promise.all([
+    pingSupportChannel(alert),
+    shouldEmail(event)
+      ? sendTeamAlertEmail(alert, emailRecipients(event))
+      : null,
+  ]);
 
   if (event.type === "sla_breached") {
     await notify(ticket, {

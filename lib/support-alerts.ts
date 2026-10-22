@@ -22,6 +22,10 @@ export type AlertTone = "new" | "warn" | "urgent" | "info";
  */
 export interface SupportAlert {
   ref: string;
+  /** The customer's first name, when we have one. */
+  customer: string | null;
+  /** Where the ticket stands, in the team's words: "Live with Tolu". */
+  state: string;
   tone: AlertTone;
   high: boolean;
   emoji: string;
@@ -38,13 +42,26 @@ export interface SupportAlert {
   link: string | null;
 }
 
-/** Discord's embed colour bar; the email uses the same tones. */
-const DISCORD_COLOR: Record<AlertTone, number> = {
-  new: 0x8f12ff,
-  warn: 0xe69200,
-  urgent: 0xff0004,
-  info: 0x6a59ce,
-};
+/**
+ * One marker per ticket, so its messages stand out in a busy channel. No red:
+ * that reads as urgent. Discord colours its embed bar to match.
+ */
+const MARKERS = [
+  { emoji: "🟦", color: 0x55acee },
+  { emoji: "🟩", color: 0x78b159 },
+  { emoji: "🟨", color: 0xfdcb58 },
+  { emoji: "🟧", color: 0xf4900c },
+  { emoji: "🟪", color: 0xaa8ed6 },
+  { emoji: "🟫", color: 0xc1694f },
+  { emoji: "⬛", color: 0x31373d },
+] as const;
+
+/** The dashboard's copy uses the same hash, so a ticket keeps its marker in both apps. */
+function markerFor(ref: string) {
+  let hash = 5381;
+  for (const char of ref) hash = ((hash * 33) ^ char.charCodeAt(0)) >>> 0;
+  return MARKERS[hash % MARKERS.length];
+}
 
 const clip = (text: string, max: number) =>
   text.length > max ? `${text.slice(0, max - 1)}…` : text;
@@ -63,13 +80,18 @@ const quoteLines = (text: string) =>
     .map((line) => `> ${line}`)
     .join("\n");
 
-const heading = (alert: SupportAlert) =>
-  `${alert.emoji} ${alert.event} · ${alert.ref}${alert.high ? " · 🔴 High priority" : ""}`;
+/** Which ticket: the first thing every alert says. */
+const identity = (alert: SupportAlert) =>
+  `${markerFor(alert.ref).emoji} ${alert.ref} · ${alert.customer ?? "Customer"}`;
+
+/** What happened, and where the ticket stands now. */
+const context = (alert: SupportAlert) =>
+  `${alert.emoji} ${alert.event} · ${alert.state}${alert.high ? " · 🔴 High priority" : ""}`;
 
 /** What a notification banner shows before the message is opened. */
 const preview = (alert: SupportAlert) =>
   clip(
-    `${heading(alert)} — ${alert.headline}${alert.quote ? `: "${alert.quote.text}"` : ""}`,
+    `${identity(alert)} — ${alert.emoji} ${alert.event}: ${alert.quote ? `"${alert.quote.text}"` : alert.headline}`,
     280,
   );
 
@@ -79,9 +101,15 @@ function slackBody(alert: SupportAlert) {
       type: "header",
       text: {
         type: "plain_text",
-        text: clip(heading(alert), 150),
+        text: clip(identity(alert), 150),
         emoji: true,
       },
+    },
+    {
+      type: "context",
+      elements: [
+        { type: "mrkdwn", text: clip(`*${slackText(context(alert))}*`, 3000) },
+      ],
     },
     {
       type: "section",
@@ -176,9 +204,10 @@ function discordBody(alert: SupportAlert) {
     allowed_mentions: { parse: [] },
     embeds: [
       {
-        title: clip(heading(alert), 256),
+        author: { name: clip(context(alert), 256) },
+        title: clip(identity(alert), 256),
         ...(alert.link ? { url: alert.link } : {}),
-        color: DISCORD_COLOR[alert.tone],
+        color: markerFor(alert.ref).color,
         description: clip(description, 4096),
         fields: fields.slice(0, 25),
       },

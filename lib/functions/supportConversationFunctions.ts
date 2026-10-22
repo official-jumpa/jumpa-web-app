@@ -252,9 +252,13 @@ export async function postUserMessage(
       }
 
       const stored = await appendUserMessages(scope, [message], transactionIds);
-      // A person holds it: the assistant stays quiet and the agent sees it on their next poll.
-      if (isHumanHeld(stored.status))
-        return { ticketId: stored._id, events: [] };
+      // A person holds it: the assistant stays quiet and the team is told.
+      if (isHumanHeld(stored.status)) {
+        return {
+          ticketId: stored._id,
+          events: [{ type: "user_replied", ticket: stored, message }],
+        };
+      }
 
       const rule = detectEscalation({
         message: text,

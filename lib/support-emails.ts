@@ -189,11 +189,14 @@ function teamRecipients(): string[] {
   return admins.length > 0 ? admins : [SUPPORT_EMAIL];
 }
 
-/** Team-facing: the same alert the chat gets, as one email to every admin. */
-export function sendTeamAlertEmail(alert: SupportAlert): Promise<void> {
+/** Team-facing: the same alert the chat gets, as one email to every admin unless `to` narrows it. */
+export function sendTeamAlertEmail(
+  alert: SupportAlert,
+  to: string[] = teamRecipients(),
+): Promise<void> {
   const about = alert.quote ? ` — "${clip(alert.quote.text, 60)}"` : "";
   return send(
-    teamRecipients(),
+    to,
     `[Support]${alert.high ? " High priority ·" : ""} ${alert.event} ${alert.ref}${about}`,
     render({
       audience: "team",

@@ -45,7 +45,9 @@ export type SupportEvent =
   | { type: "escalated"; ticket: ISupportTicket }
   | { type: "reopened"; ticket: ISupportTicket }
   | { type: "claim_overdue"; ticket: ISupportTicket }
-  | { type: "sla_breached"; ticket: ISupportTicket };
+  | { type: "sla_breached"; ticket: ISupportTicket }
+  /** The user wrote while a person holds the ticket. */
+  | { type: "user_replied"; ticket: ISupportTicket; message: ISupportMessage };
 
 export interface TicketResult {
   ticket: ISupportTicket;

@@ -1,4 +1,4 @@
-import { supportedBanks } from "@/lib/constants/banks";
+import { resolveNigerianBank } from "@/lib/NigerianBanks";
 import { environment } from "@/lib/environment";
 import { formatOneLineError, isTimeoutError } from "@/lib/utils/api-best-practices";
 
@@ -15,153 +15,21 @@ export interface PaystackResolveResponse {
 }
 
 /**
- * Fuzzy match the bank name or alias to find the correct Paystack bank code and standard name.
+ * Match the bank name or alias to find the correct Paystack bank code and standard name.
+ * Uses the unified NigerianBanks registry as the single source of truth.
  */
 export function findPaystackBank(bankName: string): { name: string; code: string } | null {
   if (!bankName || typeof bankName !== "string") return null;
-  const searchTerm = bankName.toLowerCase().trim();
 
-  // Exact match first
-  const exactMatch = supportedBanks.find(
-    (bank) => bank.name.toLowerCase() === searchTerm,
-  );
-  if (exactMatch) return exactMatch;
-
-  // Common abbreviations, slangs, and aliases in Nigeria
-  const aliases: Record<string, string> = {
-    "gt bank": "Guaranty Trust Bank",
-    "gtb": "Guaranty Trust Bank",
-    "gtbank": "Guaranty Trust Bank",
-    "guaranty": "Guaranty Trust Bank",
-    "guaranty trust": "Guaranty Trust Bank",
-    "uba": "United Bank For Africa",
-    "united bank": "United Bank For Africa",
-    "united bank for africa": "United Bank For Africa",
-    "fcmb": "First City Monument Bank",
-    "first bank": "First Bank of Nigeria",
-    "first bank of nigeria": "First Bank of Nigeria",
-    "fbn": "First Bank of Nigeria",
-    "zenith": "Zenith Bank",
-    "zenith bank": "Zenith Bank",
-    "access": "Access Bank",
-    "access bank": "Access Bank",
-    "diamond": "Access Bank (Diamond)",
-    "diamond bank": "Access Bank (Diamond)",
-    "union": "Union Bank of Nigeria",
-    "union bank": "Union Bank of Nigeria",
-    "eco bank": "Ecobank Nigeria",
-    "ecobank": "Ecobank Nigeria",
-    "fidelity": "Fidelity Bank",
-    "fidelity bank": "Fidelity Bank",
-    "stanbic": "Stanbic IBTC Bank",
-    "stanbic ibtc": "Stanbic IBTC Bank",
-    "wema": "Wema Bank",
-    "wema bank": "Wema Bank",
-    "alat": "ALAT by WEMA",
-    "polaris": "Polaris Bank",
-    "polaris bank": "Polaris Bank",
-    "keystone": "Keystone Bank",
-    "keystone bank": "Keystone Bank",
-    "sterling": "Sterling Bank",
-    "sterling bank": "Sterling Bank",
-    "providus": "Providus Bank",
-    "providus bank": "Providus Bank",
-    "unity": "Unity Bank",
-    "unity bank": "Unity Bank",
-    "jaiz": "Jaiz Bank",
-    "jaiz bank": "Jaiz Bank",
-    "taj": "TAJ Bank",
-    "taj bank": "TAJ Bank",
-    "titan": "Titan Bank",
-    "titan trust": "Titan Bank",
-    "moniepoint": "Moniepoint MFB",
-    "monie point": "Moniepoint MFB",
-    "opay": "OPay Digital Services Limited (OPay)",
-    "paycom": "OPay Digital Services Limited (OPay)",
-    "paycom(opay)": "OPay Digital Services Limited (OPay)",
-    "paycom (opay)": "OPay Digital Services Limited (OPay)",
-    "kuda": "Kuda Bank",
-    "kuda bank": "Kuda Bank",
-    "kuda mfb": "Kuda Bank",
-    "palmpay": "PalmPay",
-    "palm pay": "PalmPay",
-    "rubies": "Rubies MFB",
-    "vfd": "VFD Microfinance Bank Limited",
-    "vfd bank": "VFD Microfinance Bank Limited",
-    "sparkle": "Sparkle Microfinance Bank",
-    "fairmoney": "Fairmoney Microfinance Bank",
-    "carbon": "Carbon",
-    "paga": "Paga",
-    "gomoney": "GoMoney",
-    "aella": "Aella MFB",
-    "aella bank": "Aella MFB",
-    "aella mfb": "Aella MFB",
-    "aella microfinance bank": "Aella MFB",
-    "aella microfinance": "Aella MFB",
-    "bloc": "BLOC MFB",
-    "bloc bank": "BLOC MFB",
-    "bloc mfb": "BLOC MFB",
-    "bloc microfinance": "BLOC MFB",
-    "bloc microfinance bank": "BLOC MFB",
-  };
-
-  const aliasMatch = aliases[searchTerm];
-  if (aliasMatch) {
-    const bank = supportedBanks.find(
-      (b) => b.name.toLowerCase() === aliasMatch.toLowerCase(),
-    );
-    if (bank) return bank;
+  const master = resolveNigerianBank(bankName);
+  if (master && master.paystackCode) {
+    return { name: master.name, code: master.paystackCode };
   }
 
-  // Normalized MFB comparison: expands/contracts "microfinance bank" <-> "mfb"
-  const normalizeMfb = (str: string) =>
-    str
-      .toLowerCase()
-      .replace(/\bmicro\s*finance\s*bank\b/g, "mfb")
-      .replace(/\bmicro\s*finance\b/g, "mfb")
-      .replace(/[^a-z0-9]/g, "");
-
-  const normalizedSearch = normalizeMfb(searchTerm);
-  if (normalizedSearch.length >= 3) {
-    const mfbMatch = supportedBanks.find((bank) => {
-      const normalizedBank = normalizeMfb(bank.name);
-      return (
-        normalizedBank === normalizedSearch ||
-        normalizedBank.includes(normalizedSearch) ||
-        normalizedSearch.includes(normalizedBank)
-      );
-    });
-    if (mfbMatch) return mfbMatch;
+  // Fallback: if matched master bank has CBN code (e.g. for NIP banks), return it
+  if (master && master.cbnCode) {
+    return { name: master.name, code: master.cbnCode };
   }
-
-  // Core brand name matching (strips noise words like "bank", "mfb", "microfinance", "plc", "limited", "ltd")
-  const stripBankNoise = (str: string) =>
-    str
-      .toLowerCase()
-      .replace(/\b(microfinance|micro\s*finance|bank|mfb|plc|limited|ltd)\b/g, "")
-      .replace(/[^a-z0-9]/g, "")
-      .trim();
-
-  const coreSearch = stripBankNoise(searchTerm);
-  if (coreSearch.length >= 3) {
-    const coreMatch = supportedBanks.find((bank) => {
-      const coreBank = stripBankNoise(bank.name);
-      return coreBank === coreSearch;
-    });
-    if (coreMatch) return coreMatch;
-  }
-
-  // Partial match (bank name contains search term)
-  const partialMatch = supportedBanks.find((bank) =>
-    bank.name.toLowerCase().includes(searchTerm),
-  );
-  if (partialMatch) return partialMatch;
-
-  // Reverse partial match (search term contains bank name)
-  const reverseMatch = supportedBanks.find((bank) =>
-    searchTerm.includes(bank.name.toLowerCase()),
-  );
-  if (reverseMatch) return reverseMatch;
 
   return null;
 }

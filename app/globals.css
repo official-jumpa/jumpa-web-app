@@ -120,15 +120,15 @@
   --color-jumpa-surface-glow: #efdeff; /* centre of the account-access card */
   --color-jumpa-surface-dim: #faf9fc; /* mid stop of the account-access card */
 
-  /* Red is reserved for the irreversible: deleting an account, revoking a
-     session, exposing a secret, a failed transaction. Anything the user can
-     simply correct and retry is `warning`. */
-  --color-jumpa-danger: #ff0004; /* self-custody warnings */
-  --color-jumpa-danger-50: #fff0f0; /* notice ground inside a card */
+  /* Red is an error (something failed, or the input is wrong) or a destructive
+     action. Yellow is only a heads-up where nothing has gone wrong. Waiting and
+     in-progress states are purple, never yellow. */
+  --color-jumpa-danger: #ff0004; /* errors, failed states, destructive actions */
+  --color-jumpa-danger-50: #fff0f0; /* error ground: toasts, sheets, notices */
   --color-jumpa-danger-100: #ffd7d8; /* HELP badge on the home support control */
   --color-jumpa-danger-400: #ff383c; /* amount above the spendable balance */
-  --color-jumpa-warning: #e69200; /* validation, retryable errors, warnings */
-  --color-jumpa-warning-50: #fff5e6; /* warning ground: toasts, sheets, notices */
+  --color-jumpa-warning: #e69200; /* cautions only, never an error */
+  --color-jumpa-warning-50: #fff5e6; /* caution ground */
   --color-jumpa-success: #11a929; /* positive 24h change on an asset card */
   --color-jumpa-pin-rule: #193d26; /* slot underline in the chat PIN sheet */
 
@@ -181,9 +181,10 @@
   --shadow-jumpa-halo-idle: 0 0 0 5px
     color-mix(in srgb, var(--color-jumpa-primary-600) 7%, transparent);
   --shadow-jumpa-halo-active:
-    0 0 0 5px color-mix(in srgb, var(--color-jumpa-warning) 14%, transparent),
+    0 0 0 5px
+    color-mix(in srgb, var(--color-jumpa-primary-600) 14%, transparent),
     0 12px 36px -12px
-    color-mix(in srgb, var(--color-jumpa-warning) 55%, transparent);
+    color-mix(in srgb, var(--color-jumpa-primary-600) 55%, transparent);
   --shadow-jumpa-halo-good:
     0 0 0 5px color-mix(in srgb, var(--color-jumpa-success) 14%, transparent),
     0 12px 36px -12px

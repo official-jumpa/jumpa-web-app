@@ -13,7 +13,7 @@ import {
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
-import { generateId } from "@/lib/schema-ids";
+import { generateId, generateTransactionReference } from "@/lib/schema-ids";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
 import { assertDailyTransactionLimit } from "@/lib/functions/transactionLimitFunctions";
 import { findBellmonieBank } from "@/lib/constants/bellmonie-banks";
@@ -157,50 +157,6 @@ export interface AellaBvnResolutionData {
   nin?: string;
 }
 
-/**
- * Resolves a Bank Verification Number (BVN) via Aella Identity API.
- * Pulls official legal identity from NIBSS (names, DOB, gender).
- */
-export async function resolveAellaBvn(bvn: string): Promise<AellaBvnResolutionData> {
-  const cleanBvn = String(bvn || "").trim();
-  if (!cleanBvn || cleanBvn.length !== 11) {
-    throw new Error("BVN must be exactly 11 digits");
-  }
-
-  const res = await aellaRequest<{
-    success: boolean;
-    message: string;
-    data: {
-      firstName: string;
-      lastName: string;
-      middleName?: string;
-      gender: string;
-      dateOfBirth: string;
-      photo?: string;
-      nin?: string;
-    };
-    status: number;
-  }>(`/identity/bvn/resolve?bvn=${cleanBvn}`);
-
-  if (!res.data || !res.data.firstName || !res.data.lastName) {
-    throw new Error(res.message || "Unable to resolve BVN identity details");
-  }
-
-  const rawDob = res.data.dateOfBirth || "";
-  const normalizedDob = normalizeAellaDob(rawDob);
-
-  return {
-    firstName: res.data.firstName.trim(),
-    lastName: res.data.lastName.trim(),
-    middleName: res.data.middleName ? res.data.middleName.trim() : "",
-    gender: (res.data.gender || "Male").toLowerCase() === "female" ? "Female" : "Male",
-    dateOfBirth: normalizedDob,
-    rawDateOfBirth: rawDob,
-    photo: res.data.photo,
-    nin: res.data.nin,
-  };
-}
-
 // ── Static Virtual Account Creation ──
 
 export interface CreateAellaStaticAccountParams {
@@ -274,6 +230,21 @@ export async function createAellaStaticAccount(
 }
 
 // ── Bank Name Enquiry & Transfers ──
+
+/**
+ * Detects whether a bank code, name, or alias refers specifically to Aella MFB.
+ * Supports CBN code (090614), Paystack code (50315), Centiiv code (090614), and name aliases.
+ */
+export function isAellaBank(identifier?: string | null): boolean {
+  if (!identifier) return false;
+  const clean = String(identifier).toLowerCase().trim();
+  return (
+    clean === "090614" ||
+    clean === "50315" ||
+    clean.includes("aella") ||
+    clean.includes("flourish")
+  );
+}
 
 /**
  * Resolves a Nigerian bank account name via Aella Payout Name Enquiry.
@@ -409,7 +380,7 @@ export async function withdrawAellaNgnFiat(params: WithdrawAellaNgnFiatParams): 
     throw new Error(`Insufficient funds. You need at least ₦${totalDebited.toLocaleString()}.`);
   }
 
-  const reference = `wd-${Date.now()}-${generateId("tx").slice(0, 8)}`;
+  const reference = generateTransactionReference();
 
   // 4. Atomically debit user balance
   await atomicDebitNgnBalance({

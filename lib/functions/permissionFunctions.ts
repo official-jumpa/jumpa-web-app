@@ -295,8 +295,8 @@ async function resolveSecurityContext(
         sessionDevice.browser !== currentDevice.browser));
 
   if (isDeviceDrift) {
-    console.warn(
-      `[🔴 SECURITY ALERT] [${requestId}] Session Device Mismatch detected | User: ${session?.user?.id} | Login Device: "${sessionDevice?.deviceLabel}" | Request Device: "${currentDevice.deviceLabel}" | IP: ${clientIp}`,
+    console.log(
+      `[🔴 DEVICE MISMATCH] [${requestId}] ${session?.user?.id} | Login Device: "${sessionDevice?.deviceLabel}" | Request Device: "${currentDevice.deviceLabel}" | IP: ${clientIp}`,
     );
   }
 
@@ -311,7 +311,7 @@ async function resolveSecurityContext(
     !isSameCarrierSubnet(sessionIp, clientIp)
   ) {
     console.log(
-      `[🟡 NETWORK CHANGE] [${requestId}] Session IP changed across subnets on ${currentDevice.deviceLabel} | User: ${session?.user?.id} | Login IP: ${sessionIp} -> Request IP: ${clientIp}`,
+      `[🟡 IP CHANGE] [${requestId}] ${session?.user?.id} IP changed across subnets on ${currentDevice.deviceLabel} | Login IP: ${sessionIp} -> Request IP: ${clientIp}`,
     );
   }
 

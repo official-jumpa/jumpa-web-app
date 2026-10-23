@@ -13,6 +13,7 @@ import {
   formatOneLineError,
   isTimeoutError,
 } from "@/lib/utils/api-best-practices";
+import { isAellaBank } from "@/lib/functions/aellaFunctions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -85,14 +86,18 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 2. Aella Name Enquiry (resilient fallback)
-    const bankCodeToUse = paystackBank?.code || bankParam;
-    if (bankCodeToUse) {
+    // 2. Aella Name Enquiry (strictly for Aella MFB accounts)
+    const isTargetAella =
+      isAellaBank(bankParam) ||
+      isAellaBank(paystackBank?.code) ||
+      isAellaBank(paystackBank?.name);
+
+    if (isTargetAella) {
       try {
         const { aellaBankNameEnquiry } = await import("@/lib/functions/aellaFunctions");
         const aellaRes = await aellaBankNameEnquiry({
           accountNumber: cleanAccount,
-          bankCode: bankCodeToUse,
+          bankCode: "090614",
         });
 
         if (aellaRes?.accountName) {
@@ -103,14 +108,14 @@ export async function GET(req: NextRequest) {
             success: true,
             accountName: aellaRes.accountName.trim(),
             accountNumber: cleanAccount,
-            bankName: aellaRes.bankName || paystackBank?.name || bankParam,
-            bankCode: bankCodeToUse,
+            bankName: aellaRes.bankName || "Aella MFB",
+            bankCode: "090614",
             isInternal,
           });
         }
       } catch (aellaErr: any) {
         console.warn(
-          `[Bank] Aella resolution attempt for ${bankCodeToUse} failed: ${formatOneLineError(aellaErr)}`,
+          `[Bank] Aella resolution attempt failed: ${formatOneLineError(aellaErr)}`,
         );
       }
     }

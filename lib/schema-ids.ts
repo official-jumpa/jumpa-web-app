@@ -7,6 +7,8 @@ const nanoid12 = customAlphabet(alphabet, 12); // Card references
 const nanoid8 = customAlphabet(alphabet, 8); // URL-friendly (workspaces, users, wallets)
 const nanoid6 = customAlphabet(alphabet, 6); // Referral codes
 const nanoidStorage = customAlphabet(alphabet, 24); // For media across the server
+const nanoid6Digits  = customAlphabet("0123456789", 6); // 6 numeric digits for tx references
+const nanoid6Upper   = customAlphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 6); // 6 uppercase letters for tx references
 
 /**
  * All database and entity IDs.
@@ -44,6 +46,7 @@ export const SCHEMA_IDS = {
   // ── Utility Entities
   cardref: { prefix: "cardref", length: 12, description: "Card references" },
   idem: { prefix: "idem", length: 20, description: "Idempotency keys" },
+  wdref: { prefix: "tx", length: 16, description: "Transaction reference IDs (tx{year}{6digits}{6letters})" },
 } as const;
 
 /**
@@ -148,4 +151,15 @@ export const generateBillReference = (): string => {
  */
 export const generateIdempotencyKey = (): string => {
   return `idem_${nanoid20()}`;
+};
+
+/**
+ * Generates a human-readable transaction reference ID. Suitable for withdrawals,
+ * transfers, and any operation requiring a traceable external reference.
+ * Format: tx{year}{6 random digits}{6 random uppercase letters}
+ * Example: tx2026482910KQRTLP
+ */
+export const generateTransactionReference = (): string => {
+  const year = new Date().getFullYear();
+  return `tx${year}${nanoid6Digits()}${nanoid6Upper()}`;
 };

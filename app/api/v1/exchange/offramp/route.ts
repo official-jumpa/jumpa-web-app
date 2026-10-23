@@ -29,6 +29,7 @@ import {
   convertToUsd,
   isLimitError,
 } from "@/lib/functions/transactionLimitFunctions";
+import { isAellaBank } from "@/lib/functions/aellaFunctions";
 
 export const dynamic = "force-dynamic";
 
@@ -193,14 +194,14 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      if (!verified) {
+      if (!verified && (isAellaBank(centiivBank.code) || isAellaBank(centiivBank.name) || isAellaBank(bankName))) {
         try {
           const { aellaBankNameEnquiry } = await import(
             "@/lib/functions/aellaFunctions"
           );
           const aellaRes = await aellaBankNameEnquiry({
             accountNumber,
-            bankCode: centiivBank.code,
+            bankCode: "090614",
           });
           if (aellaRes?.accountName) verified = true;
         } catch (aellaErr: any) {

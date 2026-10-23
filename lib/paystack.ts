@@ -98,9 +98,9 @@ export async function validateAccountNumber(
     );
   }
 
-  // Resilient fallback for Aella accounts or when Paystack fails on Aella codes
+  // Resilient fallback strictly for Aella MFB accounts (CBN 090614 or Paystack 50315)
   const isAellaCode = cleanBankCode === "50315" || cleanBankCode === "090614";
-  if (isAellaCode || !paystackResult?.status) {
+  if (isAellaCode) {
     try {
       const { aellaBankNameEnquiry } = await import("@/lib/functions/aellaFunctions");
       const aellaRes = await aellaBankNameEnquiry({
@@ -118,7 +118,7 @@ export async function validateAccountNumber(
         };
       }
     } catch {
-      // Not an Aella account or Aella enquiry failed
+      // Aella enquiry failed
     }
   }
 

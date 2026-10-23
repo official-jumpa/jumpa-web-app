@@ -105,21 +105,41 @@ async function aellaRequest<T>(
   }
 }
 
-// ── Date of Birth Normalizer ──
+const MONTH_MAP: Record<string, string> = {
+  jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+  jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+  january: "01", february: "02", march: "03", april: "04", june: "06",
+  july: "07", august: "08", september: "09", october: "10", november: "11", december: "12",
+};
 
 export function normalizeAellaDob(rawDob: string): string {
   if (!rawDob) return "";
   const cleaned = rawDob.trim().split("T")[0];
-  const parts = cleaned.split(/[-/]/);
+  const parts = cleaned.split(/[-/\s.]+/);
   if (parts.length === 3) {
-    // If format is YYYY-MM-DD
+    let year = "";
+    let month = "";
+    let day = "";
     if (parts[0].length === 4) {
-      return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+      // YYYY-MM-DD
+      year = parts[0];
+      const m = parts[1].toLowerCase();
+      month = MONTH_MAP[m] || parts[1].padStart(2, "0");
+      day = parts[2].padStart(2, "0");
+    } else if (parts[2].length === 4) {
+      // DD-MM-YYYY or DD-Mon-YYYY
+      year = parts[2];
+      const m = parts[1].toLowerCase();
+      month = MONTH_MAP[m] || parts[1].padStart(2, "0");
+      day = parts[0].padStart(2, "0");
     }
-    // If format is DD-MM-YYYY (common from NIBSS BVN)
-    if (parts[2].length === 4) {
-      return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+    if (year && month && day) {
+      return `${year}-${month}-${day}`;
     }
+  }
+  const d = new Date(rawDob);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString().split("T")[0];
   }
   return cleaned;
 }

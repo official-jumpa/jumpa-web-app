@@ -33,14 +33,23 @@ export interface SafeFetchResult<T = any> {
  * Safely flattens full error or provider payload into a compact single line,
  * capping it at 400 characters max so no multiline traces spill into logs.
  */
-export function formatOneLineError(err: any, maxLen = 400): string {
+export function formatOneLineError(err: any, maxLen = 1000): string {
   try {
-    const raw =
-      typeof err === "string"
-        ? err
-        : err instanceof Error
-        ? `${err.name}: ${err.message}`
-        : JSON.stringify(err);
+    let raw = "";
+    if (typeof err === "string") {
+      raw = err;
+    } else if (err instanceof Error) {
+      const extra: Record<string, any> = {};
+      for (const key of Object.getOwnPropertyNames(err)) {
+        if (key !== "name" && key !== "message" && key !== "stack") {
+          extra[key] = (err as any)[key];
+        }
+      }
+      const hasExtra = Object.keys(extra).length > 0;
+      raw = `${err.name}: ${err.message}${hasExtra ? ` | details: ${JSON.stringify(extra)}` : ""}`;
+    } else {
+      raw = JSON.stringify(err);
+    }
     const flattened = String(raw || "Unknown error")
       .replace(/[\r\n\t]+/g, " ")
       .replace(/\s{2,}/g, " ")

@@ -67,6 +67,8 @@ export function NgnConfirm({
   const [lastName, setLastName] = useState(defaultLast);
   const [mobileNumber, setMobileNumber] = useState(user?.phoneNumber || "");
   const [bvn, setBvn] = useState("");
+  const [hasExistingDob, setHasExistingDob] = useState<boolean>(true);
+  const [dob, setDob] = useState<string>("");
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [verified, setVerified] = useState<boolean>(false);
@@ -107,6 +109,13 @@ export function NgnConfirm({
             if (details.firstName) setFirstName(details.firstName);
             if (details.middleName) setMiddleName(details.middleName);
             if (details.lastName) setLastName(details.lastName);
+            const dobExists = Boolean(details.dateOfBirth);
+            setHasExistingDob(dobExists);
+            if (details.dateOfBirth) {
+              setDob(details.dateOfBirth);
+            }
+          } else {
+            setHasExistingDob(false);
           }
 
           if (data?.idType === "bvn" && data?.idNumber) {
@@ -140,6 +149,9 @@ export function NgnConfirm({
     } else if (cleanBvn.length !== 11) {
       errors.form = "BVN must be exactly 11 digits.";
       errors.bvn = "BVN must be 11 digits";
+    } else if (!hasExistingDob && !dob) {
+      errors.form = "Date of birth is required.";
+      errors.dob = "Date of birth is required";
     }
 
     if (errors.form) {
@@ -147,11 +159,17 @@ export function NgnConfirm({
       return;
     }
 
-    const validation = createAellaAccountSchema.safeParse({ bvn: cleanBvn });
+    const payload: CreateAellaAccountInput = {
+      bvn: cleanBvn,
+      ...((!hasExistingDob && dob) ? { dob } : {}),
+    };
+
+    const validation = createAellaAccountSchema.safeParse(payload);
     if (!validation.success) {
       const issue = validation.error.issues[0];
-      errors.form = issue?.message || "Invalid BVN provided.";
-      errors.bvn = issue?.message || "Invalid BVN";
+      errors.form = issue?.message || "Invalid input provided.";
+      if (issue?.path?.[0] === "bvn") errors.bvn = issue.message;
+      if (issue?.path?.[0] === "dob") errors.dob = issue.message;
       setFieldErrors(errors);
       return;
     }
@@ -248,7 +266,7 @@ export function NgnConfirm({
             Account Information
           </span>
           <p className="mt-1 text-xs text-jumpa-neutral-500 leading-relaxed">
-            Enter your Bank Verification Number (BVN). Your account details will be verified with NIBSS to issue your dedicated account.
+            Enter your Bank Verification Number (BVN) to issue your dedicated account.
           </p>
         </div>
 
@@ -274,6 +292,29 @@ export function NgnConfirm({
           />
           <FieldError>{fieldErrors.bvn}</FieldError>
         </div>
+
+        {/* Date of Birth (Only shown when user KYC has no DOB on file, e.g. international passport) */}
+        {!hasExistingDob ? (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-jumpa-primary-950">
+                Date of Birth <span className="text-jumpa-danger">*</span>
+              </label>
+              <span className="text-[11px] text-jumpa-neutral-500">
+                Required for your account
+              </span>
+            </div>
+            <input
+              type="date"
+              required
+              value={dob}
+              max={new Date(Date.now() - 18 * 365.25 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]}
+              onChange={(e) => setDob(e.target.value)}
+              className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium tracking-wide text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
+            />
+            <FieldError>{fieldErrors.dob}</FieldError>
+          </div>
+        ) : null}
       </div>
 
       {serverError || fieldErrors.form ? (

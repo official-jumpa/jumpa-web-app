@@ -5,7 +5,6 @@ import { createAellaAccountSchema } from "@/lib/validations/aella.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { getUserNgnAccountDetails } from "@/lib/functions/ngnFunctions";
 import {
-  resolveAellaBvn,
   createAellaStaticAccount,
 } from "@/lib/functions/aellaFunctions";
 import { connectDB } from "@/lib/db";
@@ -146,53 +145,86 @@ export async function POST(req: Request) {
 
     const cleanBvn = parsed.data.bvn;
 
-    // 4. Resolve BVN via Aella Identity (NIBSS)
-    let resolvedBvn;
-    try {
-      resolvedBvn = await resolveAellaBvn(cleanBvn);
-    } catch (bvnError: any) {
-      console.error(
-        `[${PROVIDER}:${ACTION}] BVN resolution failed for user ${auth.userId}: ${formatOneLineError(bvnError)}`,
+    // 4. Fetch user's verified KYC record
+    const kycRecord = await getKycRecordByUserId(auth.userId);
+    if (!kycRecord || !kycRecord.details) {
+      return NextResponse.json(
+        { success: false, error: "Please complete identity verification first." },
+        { status: 403 },
       );
-      const rawMsg = String(bvnError?.message || bvnError?.data?.message || "");
-      const is404OrMismatch = /invalid|not found|does not exist|11 characters/i.test(rawMsg);
+    }
 
+    // 5. Verify DOB: Existing DB DOB takes absolute precedence. Only accept submitted DOB if DB has none.
+    let effectiveDob = kycRecord.details.dateOfBirth;
+
+    if (!effectiveDob) {
+      if (!parsed.data.dob) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Date of birth is required to create your Nigerian bank account.",
+          },
+          { status: 422 },
+        );
+      }
+
+      const birthDate = new Date(parsed.data.dob);
+      const ageDiff = Date.now() - birthDate.getTime();
+      const ageYears = ageDiff / (1000 * 60 * 60 * 24 * 365.25);
+      if (isNaN(birthDate.getTime()) || ageYears < 18) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "You must be at least 18 years old to open an account.",
+          },
+          { status: 422 },
+        );
+      }
+
+      effectiveDob = parsed.data.dob;
+
+      // Persist permanently to KYC record so it is locked in for future operations
+      await KYCSchema.updateOne(
+        { userId: auth.userId },
+        { $set: { "details.dateOfBirth": effectiveDob } },
+      );
+    }
+
+    // 6. Extract verified identity details strictly from KYC (strictly zero fallbacks)
+    const firstName = kycRecord.details.firstName?.trim();
+    const lastName = kycRecord.details.lastName?.trim();
+    const middleName = kycRecord.details.middleName?.trim() || "";
+
+    if (!firstName || !lastName) {
       return NextResponse.json(
         {
           success: false,
-          error: is404OrMismatch
-            ? "The BVN provided is invalid. Please verify your 11-digit BVN and try again."
-            : "BVN verification failed. Please try again shortly.",
+          error: "Your KYC record is not complete. Please complete your identity verification and try again.",
         },
-        { status: 400 },
+        { status: 422 },
       );
     }
 
-    // 5. Auto-heal missing DOB in user KYC profile if it wasn't populated (e.g. international passport)
-    if (resolvedBvn.dateOfBirth) {
-      try {
-        await KYCSchema.findOneAndUpdate(
-          { userId: auth.userId, "details.dateOfBirth": { $in: [null, "", undefined] } },
-          {
-            $set: {
-              "details.dateOfBirth": resolvedBvn.dateOfBirth,
-              ...(resolvedBvn.gender ? { "details.gender": resolvedBvn.gender } : {}),
-            },
-          },
-        );
-      } catch (healErr) {
-        console.warn("[Aella] Non-blocking KYC DOB auto-heal failure:", healErr);
-      }
+    const rawGender = String(kycRecord.details.gender || "").toLowerCase().trim();
+    if (rawGender !== "male" && rawGender !== "m" && rawGender !== "female" && rawGender !== "f") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Your KYC record is missing your gender information. Please complete identity verification again.",
+        },
+        { status: 422 },
+      );
     }
+    const gender: "Male" | "Female" = (rawGender === "female" || rawGender === "f") ? "Female" : "Male";
 
-    // 6. Create Static Virtual Account at Aella MFB
+    // 7. Create Static Virtual Account at Aella MFB
     const aellaAccount = await createAellaStaticAccount({
-      firstName: resolvedBvn.firstName,
-      lastName: resolvedBvn.lastName,
-      middleName: resolvedBvn.middleName || "",
+      firstName,
+      lastName,
+      middleName,
       bvn: cleanBvn,
-      dob: resolvedBvn.dateOfBirth,
-      gender: resolvedBvn.gender === "Female" ? "Female" : "Male",
+      dob: effectiveDob,
+      gender,
     });
 
     // 7. Upsert in MongoDB NgnAccount
@@ -210,8 +242,8 @@ export async function POST(req: Request) {
           providerAccountId: String(aellaAccount.id),
           providerMetadata: {
             bvn: cleanBvn,
-            gender: resolvedBvn.gender,
-            dateOfBirth: resolvedBvn.dateOfBirth,
+            gender,
+            dateOfBirth: effectiveDob,
             createdAt: new Date().toISOString(),
           },
         },

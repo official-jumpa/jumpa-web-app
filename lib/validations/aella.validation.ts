@@ -9,6 +9,11 @@ export const createAellaAccountSchema = z.object({
     .string({ error: "BVN is required" })
     .trim()
     .regex(/^\d{11}$/, "BVN must be exactly 11 digits"),
+  dob: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Date of birth must be in YYYY-MM-DD format")
+    .optional(),
 });
 
 export type CreateAellaAccountInput = z.infer<typeof createAellaAccountSchema>;

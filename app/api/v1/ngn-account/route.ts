@@ -6,10 +6,12 @@ import { formatZodError } from "@/lib/validations/validation-helper";
 import { getUserNgnAccountDetails } from "@/lib/functions/ngnFunctions";
 import {
   createAellaStaticAccount,
+  resolveAellaBvn,
 } from "@/lib/functions/aellaFunctions";
 import { connectDB } from "@/lib/db";
 import { NgnAccount } from "@/models/NgnAccount";
 import { KYCSchema } from "@/models/KYCSchema";
+import { User } from "@/models/User";
 import {
   handleExternalApiError,
   formatOneLineError,
@@ -154,6 +156,77 @@ export async function POST(req: Request) {
       );
     }
 
+    const url = new URL(req.url);
+    const isResolveOnly = url.searchParams.get("resolve") === "true";
+
+    if (isResolveOnly) {
+      // 1. Check if user already has complete names, gender, and DOB in KYC
+      const hasCompleteDetails =
+        Boolean(kycRecord.details.firstName?.trim()) &&
+        Boolean(kycRecord.details.lastName?.trim()) &&
+        Boolean(kycRecord.details.gender) &&
+        Boolean(kycRecord.details.dateOfBirth);
+
+      if (hasCompleteDetails) {
+        return NextResponse.json({
+          success: true,
+          resolved: true,
+          details: {
+            firstName: kycRecord.details.firstName!.trim(),
+            lastName: kycRecord.details.lastName!.trim(),
+            middleName: kycRecord.details.middleName?.trim() || "",
+            gender: kycRecord.details.gender,
+            dateOfBirth: kycRecord.details.dateOfBirth,
+            fullName:
+              kycRecord.details.fullName ||
+              `${kycRecord.details.firstName} ${kycRecord.details.lastName}`,
+          },
+          bvn: cleanBvn,
+        });
+      }
+
+      // 2. Incomplete KYC: Resolve legal identity details via Aella Identity (NIBSS)
+      const bvnData = await resolveAellaBvn(cleanBvn);
+      const effectiveDob = kycRecord.details.dateOfBirth || bvnData.dateOfBirth;
+      const fullName = `${bvnData.firstName} ${bvnData.middleName ? bvnData.middleName + " " : ""}${bvnData.lastName}`.trim();
+
+      // 3. Immediately persist to KYCSchema so this paid check never needs to run again
+      await KYCSchema.updateOne(
+        { userId: auth.userId },
+        {
+          $set: {
+            "details.firstName": bvnData.firstName,
+            "details.lastName": bvnData.lastName,
+            "details.middleName": bvnData.middleName,
+            "details.gender": bvnData.gender,
+            "details.dateOfBirth": effectiveDob,
+            "details.fullName": fullName,
+            idType: "bvn",
+            idNumber: cleanBvn,
+          },
+        },
+      );
+
+      // 4. Sync verified name to User profile
+      await User.findByIdAndUpdate(auth.userId, {
+        $set: { name: fullName },
+      });
+
+      return NextResponse.json({
+        success: true,
+        resolved: true,
+        details: {
+          firstName: bvnData.firstName,
+          lastName: bvnData.lastName,
+          middleName: bvnData.middleName,
+          gender: bvnData.gender,
+          dateOfBirth: effectiveDob,
+          fullName,
+        },
+        bvn: cleanBvn,
+      });
+    }
+
     // 5. Verify DOB: Existing DB DOB takes absolute precedence. Only accept submitted DOB if DB has none.
     let effectiveDob = kycRecord.details.dateOfBirth;
 
@@ -190,32 +263,48 @@ export async function POST(req: Request) {
       );
     }
 
-    // 6. Extract verified identity details strictly from KYC (strictly zero fallbacks)
-    const firstName = kycRecord.details.firstName?.trim();
-    const lastName = kycRecord.details.lastName?.trim();
-    const middleName = kycRecord.details.middleName?.trim() || "";
+    // 6. Extract verified identity details strictly from KYC (heal if missing)
+    let firstName = kycRecord.details.firstName?.trim();
+    let lastName = kycRecord.details.lastName?.trim();
+    let middleName = kycRecord.details.middleName?.trim() || "";
+    let rawGender = String(kycRecord.details.gender || "").toLowerCase().trim();
 
-    if (!firstName || !lastName) {
-      return NextResponse.json(
+    if (
+      !firstName ||
+      !lastName ||
+      (rawGender !== "male" && rawGender !== "m" && rawGender !== "female" && rawGender !== "f")
+    ) {
+      // Auto-resolve via BVN if identity details are still incomplete
+      const bvnData = await resolveAellaBvn(cleanBvn);
+      firstName = bvnData.firstName;
+      lastName = bvnData.lastName;
+      middleName = bvnData.middleName || "";
+      rawGender = bvnData.gender.toLowerCase();
+      effectiveDob = effectiveDob || bvnData.dateOfBirth;
+
+      await KYCSchema.updateOne(
+        { userId: auth.userId },
         {
-          success: false,
-          error: "Your KYC record is not complete. Please complete your identity verification and try again.",
+          $set: {
+            "details.firstName": firstName,
+            "details.lastName": lastName,
+            "details.middleName": middleName,
+            "details.gender": bvnData.gender,
+            "details.dateOfBirth": effectiveDob,
+            "details.fullName": `${firstName} ${middleName ? middleName + " " : ""}${lastName}`.trim(),
+            idType: "bvn",
+            idNumber: cleanBvn,
+          },
         },
-        { status: 422 },
       );
+
+      await User.findByIdAndUpdate(auth.userId, {
+        $set: { name: `${firstName} ${middleName ? middleName + " " : ""}${lastName}`.trim() },
+      });
     }
 
-    const rawGender = String(kycRecord.details.gender || "").toLowerCase().trim();
-    if (rawGender !== "male" && rawGender !== "m" && rawGender !== "female" && rawGender !== "f") {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Your KYC record is missing your gender information. Please complete identity verification again.",
-        },
-        { status: 422 },
-      );
-    }
-    const gender: "Male" | "Female" = (rawGender === "female" || rawGender === "f") ? "Female" : "Male";
+    const gender: "Male" | "Female" =
+      rawGender === "female" || rawGender === "f" ? "Female" : "Male";
 
     // 7. Create Static Virtual Account at Aella MFB
     const aellaAccount = await createAellaStaticAccount({

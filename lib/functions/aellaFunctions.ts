@@ -150,11 +150,55 @@ export interface AellaBvnResolutionData {
   firstName: string;
   lastName: string;
   middleName?: string;
-  gender: "Male" | "Female" | string;
+  gender: "Male" | "Female";
   dateOfBirth: string; // normalized YYYY-MM-DD
   rawDateOfBirth?: string;
   photo?: string;
   nin?: string;
+}
+
+/**
+ * Resolves a Bank Verification Number (BVN) via Aella Identity API.
+ * Pulls official legal identity from NIBSS (names, DOB, gender).
+ */
+export async function resolveAellaBvn(bvn: string): Promise<AellaBvnResolutionData> {
+  const cleanBvn = String(bvn || "").trim();
+  if (!cleanBvn || cleanBvn.length !== 11) {
+    throw new Error("BVN must be exactly 11 digits");
+  }
+
+  const res = await aellaRequest<{
+    success: boolean;
+    message: string;
+    data: {
+      firstName: string;
+      lastName: string;
+      middleName?: string;
+      gender: string;
+      dateOfBirth: string;
+      photo?: string;
+      nin?: string;
+    };
+    status: number;
+  }>(`/identity/bvn/resolve?bvn=${cleanBvn}`);
+
+  if (!res.data || !res.data.firstName || !res.data.lastName) {
+    throw new Error(res.message || "Unable to resolve BVN identity details");
+  }
+
+  const rawDob = res.data.dateOfBirth || "";
+  const normalizedDob = normalizeAellaDob(rawDob);
+
+  return {
+    firstName: res.data.firstName.trim(),
+    lastName: res.data.lastName.trim(),
+    middleName: res.data.middleName ? res.data.middleName.trim() : "",
+    gender: (res.data.gender || "Male").toLowerCase() === "female" ? "Female" : "Male",
+    dateOfBirth: normalizedDob,
+    rawDateOfBirth: rawDob,
+    photo: res.data.photo,
+    nin: res.data.nin,
+  };
 }
 
 // ── Static Virtual Account Creation ──

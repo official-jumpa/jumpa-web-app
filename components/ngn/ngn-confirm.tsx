@@ -72,6 +72,11 @@ export function NgnConfirm({
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [verified, setVerified] = useState<boolean>(false);
+  const [isResolving, setIsResolving] = useState<boolean>(false);
+  const [hasResolved, setHasResolved] = useState<boolean>(false);
+  const [kycHadMissingDetails, setKycHadMissingDetails] = useState<boolean>(false);
+
+  const needsResolution = kycHadMissingDetails && !hasResolved;
 
   const fullNameDisplay =
     lastName || firstName || middleName
@@ -109,6 +114,12 @@ export function NgnConfirm({
             if (details.firstName) setFirstName(details.firstName);
             if (details.middleName) setMiddleName(details.middleName);
             if (details.lastName) setLastName(details.lastName);
+
+            // If critical KYC details (firstName or lastName) are missing from provider
+            if (!details.firstName || !details.lastName) {
+              setKycHadMissingDetails(true);
+            }
+
             const dobExists = Boolean(details.dateOfBirth);
             setHasExistingDob(dobExists);
             if (details.dateOfBirth) {
@@ -116,6 +127,7 @@ export function NgnConfirm({
             }
           } else {
             setHasExistingDob(false);
+            setKycHadMissingDetails(true);
           }
 
           if (data?.idType === "bvn" && data?.idNumber) {
@@ -133,7 +145,7 @@ export function NgnConfirm({
     };
   }, [defaultFirst, defaultLast, user?.phoneNumber, user?.email]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFieldErrors({});
 
@@ -149,7 +161,7 @@ export function NgnConfirm({
     } else if (cleanBvn.length !== 11) {
       errors.form = "BVN must be exactly 11 digits.";
       errors.bvn = "BVN must be 11 digits";
-    } else if (!hasExistingDob && !dob) {
+    } else if (!needsResolution && !hasExistingDob && !dob) {
       errors.form = "Date of birth is required.";
       errors.dob = "Date of birth is required";
     }
@@ -159,6 +171,46 @@ export function NgnConfirm({
       return;
     }
 
+    // Step 1: In-flow resolution if KYC details are incomplete
+    if (needsResolution) {
+      setIsResolving(true);
+      try {
+        const res = await fetch("/api/v1/ngn-account?resolve=true", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bvn: cleanBvn }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || data.success === false) {
+          setFieldErrors({
+            form: data.error || "Failed to resolve BVN identity details. Please check the BVN.",
+          });
+          setIsResolving(false);
+          return;
+        }
+
+        if (data.details) {
+          if (data.details.firstName) setFirstName(data.details.firstName);
+          if (data.details.lastName) setLastName(data.details.lastName);
+          if (data.details.middleName) setMiddleName(data.details.middleName);
+          if (data.details.dateOfBirth) {
+            setDob(data.details.dateOfBirth);
+            setHasExistingDob(true);
+          }
+          setHasResolved(true);
+        }
+      } catch (err: any) {
+        setFieldErrors({
+          form: err?.message || "Failed to verify BVN. Please try again.",
+        });
+      } finally {
+        setIsResolving(false);
+      }
+      return;
+    }
+
+    // Step 2: Standard account creation confirmation
     const payload: CreateAellaAccountInput = {
       bvn: cleanBvn,
       ...((!hasExistingDob && dob) ? { dob } : {}),
@@ -257,6 +309,27 @@ export function NgnConfirm({
             </Link>
           )}
         </div>
+        <SettingRule />
+
+        {/* Date of Birth Status */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <ShieldCheckIcon className="size-6 shrink-0 text-jumpa-primary-600" />
+            <span className="truncate text-sm font-medium text-jumpa-black">
+              Date of Birth:{" "}
+              <span className="font-semibold text-jumpa-primary-950">
+                {dob ? dob : hasExistingDob ? "Detected on record" : "Not on file"}
+              </span>
+            </span>
+          </div>
+          {hasExistingDob && dob ? (
+            <VerifiedBadge />
+          ) : (
+            <span className="shrink-0 rounded-pill bg-jumpa-danger/10 px-2.5 py-1 text-xs font-semibold text-jumpa-danger">
+              No DOB on file
+            </span>
+          )}
+        </div>
       </SettingCard>
 
       {/* Account Creation */}
@@ -328,10 +401,16 @@ export function NgnConfirm({
           variant="gradient"
           size="lg"
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || isResolving}
           className="w-full"
         >
-          {isLoading ? "Creating Account..." : "Confirm & Create Account"}
+          {isResolving
+            ? "Verifying BVN..."
+            : isLoading
+              ? "Creating Account..."
+              : needsResolution
+                ? "Continue"
+                : "Confirm & Create Account"}
         </Button>
       </div>
     </form>

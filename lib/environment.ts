@@ -234,6 +234,11 @@ export const environment = {
   MYAZA_TRUST_SECRET_KEY: process.env.MYAZA_TRUST_SECRET_KEY || "",
   MYAZA_TRUST_SANDBOX_KEY: process.env.MYAZA_TRUST_SANDBOX_KEY || "",
   MYAZA_TRUST_BASE_URL: process.env.MYAZA_TRUST_BASE_URL || "https://trust.myaza.app/api/kyc",
+
+  // AELLA MFB (Banking & Wallets)
+  AELLA_API_KEY: process.env.AELLA_API_KEY || "",
+  AELLA_SANDBOX_KEY: process.env.AELLA_SANDBOX_KEY || "",
+  AELLA_BASE_URL: process.env.AELLA_BASE_URL || "https://api.aellaapp.com",
 };
 
 export default environment;

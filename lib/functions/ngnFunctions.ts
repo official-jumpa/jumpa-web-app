@@ -6,7 +6,7 @@ export interface FormattedNgnAccountDetails {
   accountNumber: string;
   accountName: string;
   status: string;
-  provider?: "bellmonie" | string;
+  provider?: "aella" | "bellmonie" | string;
 }
 
 export interface FormattedNgnBalance {
@@ -16,17 +16,23 @@ export interface FormattedNgnBalance {
 }
 
 /**
- * Finds an active NGN account for a user, returning exclusively their Bellmonie account.
+ * Finds an active NGN account for a user, prioritizing Aella then falling back to Bellmonie.
  */
 export async function getUserNgnAccount(
   userId: string,
 ): Promise<INgnAccount | null> {
   await connectDB();
-  return NgnAccount.findOne({ userId, provider: "bellmonie" }).lean<INgnAccount>();
+  return NgnAccount.findOne({
+    userId,
+    provider: { $in: ["aella", "bellmonie"] },
+    status: "active",
+  })
+    .sort({ provider: 1 }) // "aella" comes before "bellmonie"
+    .lean<INgnAccount>();
 }
 
 /**
- * Retrieves all NGN accounts belonging to a user.
+ * Retrieves all active NGN accounts belonging to a user.
  */
 export async function getAllUserNgnAccounts(userId: string): Promise<INgnAccount[]> {
   await connectDB();
@@ -34,41 +40,43 @@ export async function getAllUserNgnAccounts(userId: string): Promise<INgnAccount
 }
 
 /**
- * Retrieves the user's primary or requested NGN account formatted for UI display.
+ * Retrieves the user's primary NGN account formatted for UI display, prioritizing Aella MFB.
  */
 export async function getUserNgnAccountDetails(
   userId: string,
   fallbackAccountName = "Jumpa User",
-  options?: { force?: boolean; provider?: "bellmonie" | "fossapay" },
+  options?: { force?: boolean; provider?: "aella" | "bellmonie" | "fossapay" },
 ): Promise<{
   account: FormattedNgnAccountDetails | null;
   balance: FormattedNgnBalance | null;
   accounts?: FormattedNgnAccountDetails[];
   activeProvider?: string;
-  canCreateBellmonie?: boolean;
+  canCreateAccount?: boolean;
 }> {
   await connectDB();
   const allAccounts = await getAllUserNgnAccounts(userId);
+  const hasAella = allAccounts.some((a) => a.provider === "aella");
   const hasBellmonie = allAccounts.some((a) => a.provider === "bellmonie");
-  const hasFossapay = allAccounts.some((a) => a.provider === "fossapay");
 
-  const requestedProvider = options?.provider || (hasBellmonie ? "bellmonie" : "fossapay");
-
-  // Format all active accounts (exclusively Bellmonie for UI display)
+  // Format all active accounts for UI display
   const formattedAccounts: FormattedNgnAccountDetails[] = allAccounts
-    .filter((a) => (a.provider || "bellmonie") === "bellmonie")
+    .filter((a) => a.provider === "aella" || a.provider === "bellmonie")
     .map((a) => ({
-      bankName: a.bankName || "Bloc MFB",
+      bankName: a.bankName || (a.provider === "aella" ? "Aella MFB" : "Bloc MFB"),
       accountNumber: a.accountNumber || "",
       accountName: a.accountName || fallbackAccountName,
       status: a.status || "active",
-      provider: "bellmonie",
+      provider: a.provider || "aella",
     }));
 
-  // Selected account (prioritize Bellmonie)
+  // Selected account (strictly prioritize Aella, then Bellmonie)
   const selectedDoc =
+    (options?.provider ? allAccounts.find((a) => a.provider === options.provider) : null) ||
+    allAccounts.find((a) => a.provider === "aella") ||
     allAccounts.find((a) => a.provider === "bellmonie") ||
-    (options?.provider ? allAccounts.find((a) => a.provider === options.provider) : allAccounts[0]);
+    allAccounts[0];
+
+  const canCreate = !hasAella && !hasBellmonie;
 
   if (!selectedDoc) {
     return {
@@ -76,11 +84,11 @@ export async function getUserNgnAccountDetails(
       balance: null,
       accounts: formattedAccounts,
       activeProvider: options?.provider || undefined,
-      canCreateBellmonie: !hasBellmonie,
+      canCreateAccount: canCreate,
     };
   }
 
-  // Live balance for FossaPay if requested
+  // Live balance for legacy FossaPay if requested
   if (selectedDoc.provider === "fossapay") {
     try {
       const { refreshUserNgnAccountBalance } = await import(
@@ -97,7 +105,7 @@ export async function getUserNgnAccountDetails(
           balance: refreshed.balance,
           accounts: formattedAccounts,
           activeProvider: "fossapay",
-          canCreateBellmonie: !hasBellmonie,
+          canCreateAccount: canCreate,
         };
       }
     } catch (err: any) {
@@ -107,11 +115,11 @@ export async function getUserNgnAccountDetails(
 
   const rawBal = Number(selectedDoc.balance ?? 0);
   const account: FormattedNgnAccountDetails = {
-    bankName: selectedDoc.bankName || "Bloc MFB",
+    bankName: selectedDoc.bankName || (selectedDoc.provider === "aella" ? "Aella MFB" : "Bloc MFB"),
     accountNumber: selectedDoc.accountNumber || "",
     accountName: selectedDoc.accountName || fallbackAccountName,
     status: selectedDoc.status || "active",
-    provider: selectedDoc.provider || "bellmonie",
+    provider: selectedDoc.provider || "aella",
   };
 
   const balance: FormattedNgnBalance = {
@@ -124,8 +132,8 @@ export async function getUserNgnAccountDetails(
     account,
     balance,
     accounts: formattedAccounts,
-    activeProvider: selectedDoc.provider || "bellmonie",
-    canCreateBellmonie: !hasBellmonie,
+    activeProvider: selectedDoc.provider || "aella",
+    canCreateAccount: canCreate,
   };
 }
 

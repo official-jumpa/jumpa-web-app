@@ -85,7 +85,37 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 2. Fallback: Bellmonie Name Enquiry
+    // 2. Aella Name Enquiry (resilient fallback)
+    const bankCodeToUse = paystackBank?.code || bankParam;
+    if (bankCodeToUse) {
+      try {
+        const { aellaBankNameEnquiry } = await import("@/lib/functions/aellaFunctions");
+        const aellaRes = await aellaBankNameEnquiry({
+          accountNumber: cleanAccount,
+          bankCode: bankCodeToUse,
+        });
+
+        if (aellaRes?.accountName) {
+          const isInternal =
+            Boolean(internalAccount) || cleanAccount === jumpaMasterAccount;
+
+          return NextResponse.json({
+            success: true,
+            accountName: aellaRes.accountName.trim(),
+            accountNumber: cleanAccount,
+            bankName: aellaRes.bankName || paystackBank?.name || bankParam,
+            bankCode: bankCodeToUse,
+            isInternal,
+          });
+        }
+      } catch (aellaErr: any) {
+        console.warn(
+          `[Bank] Aella resolution attempt for ${bankCodeToUse} failed: ${formatOneLineError(aellaErr)}`,
+        );
+      }
+    }
+
+    // 3. Fallback: Bellmonie Name Enquiry
     const bellmonieBank = findBellmonieBank(bankParam);
     if (bellmonieBank) {
       try {
@@ -122,7 +152,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       {
-        error: `Could not verify account name with ${paystackBank?.name || bellmonieBank?.name}. Please check the account number.`,
+        error: `Could not verify account name with ${paystackBank?.name || bellmonieBank?.name || "the banking network"}. Please check the account number.`,
       },
       { status: 400 },
     );

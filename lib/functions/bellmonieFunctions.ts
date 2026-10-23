@@ -855,30 +855,30 @@ export async function atomicDebitNgnBalance(params: {
   const updatedAccount = await NgnAccount.findOneAndUpdate(
     {
       userId: params.userId,
-      provider: "bellmonie",
+      provider: { $in: ["aella", "bellmonie"] },
       status: "active",
       balance: { $gte: params.amount },
     },
     {
       $inc: { balance: -params.amount },
     },
-    { returnDocument: "after" },
+    { returnDocument: "after", sort: { provider: 1 } },
   );
 
   if (!updatedAccount) {
-    console.warn(`[Bellmonie Debit] Insufficient balance for user ${params.userId} attempting to debit ₦${params.amount}`);
+    console.warn(`[Debit] Insufficient balance for user ${params.userId} attempting to debit ₦${params.amount}`);
     throw new Error("Insufficient NGN wallet balance");
   }
 
   invalidateBalanceCache(params.userId);
   invalidateBellmonieNgnBalanceCache(params.userId);
 
-  console.log(`[Bellmonie Debit] ✅ Atomically debited ₦${params.amount} from user ${params.userId}. Remaining: ₦${updatedAccount.balance}`);
+  console.log(`[Debit] ✅ Atomically debited ₦${params.amount} from user ${params.userId}. Remaining: ₦${updatedAccount.balance}`);
   return { success: true, newBalance: updatedAccount.balance };
 }
 
 /**
- * Atomically credits Naira to a user's active Bellmonie account.
+ * Atomically credits Naira to a user's active Bellmonie or Aella account.
  */
 export async function atomicCreditNgnBalance(params: {
   userId: string;
@@ -900,20 +900,23 @@ export async function atomicCreditNgnBalance(params: {
   if (dedupKey) {
     const existing = await Transaction.findOne({ txHash: dedupKey });
     if (existing) {
-      console.log(`[Bellmonie Credit] Duplicate transaction ignored, hash: ${dedupKey}`);
-      const acc = await NgnAccount.findOne({ userId: params.userId, provider: "bellmonie" }).lean<INgnAccount>();
+      console.log(`[Credit] Duplicate transaction ignored, hash: ${dedupKey}`);
+      const acc = await NgnAccount.findOne({
+        userId: params.userId,
+        provider: { $in: ["aella", "bellmonie"] },
+      }).sort({ provider: 1 }).lean<INgnAccount>();
       return { success: true, newBalance: acc?.balance || 0 };
     }
   }
 
-  // Atomic Balance Increment
+  // Atomic Balance Increment (prioritizing active Aella, then Bellmonie)
   let updatedAccount = await NgnAccount.findOneAndUpdate(
-    { userId: params.userId, provider: "bellmonie" },
+    { userId: params.userId, provider: { $in: ["aella", "bellmonie"] }, status: "active" },
     {
       $inc: { balance: params.amount },
       $set: { status: "active" },
     },
-    { returnDocument: "after" },
+    { returnDocument: "after", sort: { provider: 1 } },
   );
 
   if (!updatedAccount) {
@@ -921,7 +924,7 @@ export async function atomicCreditNgnBalance(params: {
       { userId: params.userId },
       {
         $inc: { balance: params.amount },
-        $set: { status: "active", provider: "bellmonie" },
+        $set: { status: "active", provider: "aella" },
       },
       { returnDocument: "after", upsert: true },
     );
@@ -937,13 +940,13 @@ export async function atomicCreditNgnBalance(params: {
       status: "CONFIRMED",
       chain: "fiat",
       network: "mainnet",
-      toAddress: updatedAccount.accountNumber || "Bloc MFB",
+      toAddress: updatedAccount.accountNumber || (updatedAccount.provider === "aella" ? "Aella MFB" : "Bloc MFB"),
       fromAddress: params.senderName || params.senderAccountNumber || "NGN_BANK_TRANSFER",
       amount: params.amount.toString(),
       feePaid: params.feePaid !== undefined ? params.feePaid.toString() : "0",
       token: "NGN",
       bankDetails: {
-        bankName: "Bloc MFB",
+        bankName: updatedAccount.bankName || (updatedAccount.provider === "aella" ? "Aella MFB" : "Bloc MFB"),
         accountNumber: updatedAccount.accountNumber,
         accountName: updatedAccount.accountName,
         reference: params.reference,

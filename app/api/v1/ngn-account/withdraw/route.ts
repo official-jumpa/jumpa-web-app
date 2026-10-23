@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
-import { withdrawBellmonieSchema } from "@/lib/validations/bellmonie.validation";
+import { withdrawAellaSchema } from "@/lib/validations/aella.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
-import { withdrawBellmonieNgnFiat } from "@/lib/functions/bellmonieFunctions";
+import { withdrawAellaNgnFiat } from "@/lib/functions/aellaFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { formatOneLineError, isTimeoutError } from "@/lib/utils/api-best-practices";
@@ -12,11 +12,11 @@ import { isLimitError } from "@/lib/functions/transactionLimitFunctions";
 
 /**
  * POST /api/v1/ngn-account/withdraw
- * Executes an NGN bank transfer / withdrawal via Bellmonie.
+ * Executes an NGN bank transfer / withdrawal via Aella Bank.
  * Protected by user wallet PIN authentication.
  */
 export async function POST(req: NextRequest) {
-  const PROVIDER = "Bellmonie";
+  const PROVIDER = "Aella";
   const ACTION = "Withdraw";
 
   try {
@@ -28,7 +28,13 @@ export async function POST(req: NextRequest) {
 
     const rawBody = await req.json().catch(() => ({}));
 
-    const validation = withdrawBellmonieSchema.safeParse(rawBody);
+    // Accept both aella and legacy bellmonie sourceProvider payload
+    const sanitizedBody = {
+      ...rawBody,
+      sourceProvider: "aella",
+    };
+
+    const validation = withdrawAellaSchema.safeParse(sanitizedBody);
     if (!validation.success) {
       const err = formatZodError(validation.error);
       return NextResponse.json({ success: false, error: err.error }, { status: 400 });
@@ -56,17 +62,17 @@ export async function POST(req: NextRequest) {
       userId,
       action: "WITHDRAWAL_INITIATED",
       details: {
-        provider: "bellmonie",
+        provider: "aella",
         amount,
         accountNumber,
         bankName,
         accountName,
       },
       req,
-    }).catch(() => { });
+    }).catch(() => {});
 
-    // 2. Execute Withdrawal via Bellmonie
-    const result = await withdrawBellmonieNgnFiat({
+    // 2. Execute Withdrawal via Aella Payout API
+    const result = await withdrawAellaNgnFiat({
       userId,
       amount,
       accountNumber,
@@ -88,12 +94,10 @@ export async function POST(req: NextRequest) {
         reference: result.reference,
         fee: result.fee,
         totalDebited: result.totalDebited,
-        isInternal: result.isInternal,
         transactionId: result.transactionId,
+        status: result.status,
       },
-      message: result.isInternal
-        ? "Transfer completed successfully"
-        : "Withdrawal completed successfully",
+      message: "Withdrawal submitted successfully",
     });
   } catch (error: any) {
     const rawMessage = String(error?.message || "");
@@ -109,7 +113,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Friendly sanitized errors - never leak 3rd-party internal text or doctype
     if (isTimeoutError(error) || error.status === 504) {
       return NextResponse.json(
         {
@@ -126,7 +129,7 @@ export async function POST(req: NextRequest) {
     ) {
       const userMessage = /insufficient|balance/i.test(rawMessage)
         ? "Insufficient Naira balance to complete this transfer."
-        : rawMessage && rawMessage.length < 120 && !/<!doctype|<html|bellmonie|token|502|504/i.test(rawMessage)
+        : rawMessage && rawMessage.length < 120 && !/<!doctype|<html|aella|token|502|504/i.test(rawMessage)
           ? rawMessage
           : "Unable to complete withdrawal. Please check your account details and try again.";
 

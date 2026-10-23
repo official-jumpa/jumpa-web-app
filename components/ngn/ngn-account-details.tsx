@@ -37,7 +37,7 @@ export interface NgnAccountData {
   accountNumber: string;
   accountName: string;
   status: string;
-  provider?: "bellmonie" | string;
+  provider?: "aella" | "bellmonie" | string;
 }
 
 export interface NgnBalanceData {
@@ -62,7 +62,7 @@ export function NgnAccountDetails({
 }: NgnAccountDetailsProps = {}) {
   const [loading, setLoading] = useState(() => !initialAccount);
   const [account, setAccount] = useState<NgnAccountData | null>(initialAccount);
-  const [canCreateBellmonie, setCanCreateBellmonie] = useState<boolean>(false);
+  const [canCreateAccount, setCanCreateAccount] = useState<boolean>(false);
 
   const [balance, setBalance] = useState<NgnBalanceData | null>(() => initialBalance);
   const [error, setError] = useState<string | null>(null);
@@ -98,7 +98,7 @@ export function NgnAccountDetails({
       const data = await res.json();
       if (data.hasAccount && data.account) {
         setAccount(data.account);
-        setCanCreateBellmonie(Boolean(data.canCreateBellmonie));
+        setCanCreateAccount(Boolean(data.canCreateAccount));
 
         if (data.balance) {
           setBalance(data.balance);
@@ -284,7 +284,7 @@ export function NgnAccountDetails({
     : "₦0.00";
 
   const fields = [
-    { label: "Bank Name", value: account.bankName || "Bloc MFB" },
+    { label: "Bank Name", value: account.bankName || (account.provider === "aella" ? "Aella MFB" : "Bloc MFB") },
     { label: "Account Number", value: account.accountNumber || "---" },
     { label: "Account Name", value: account.accountName || "Jumpa User" },
   ];
@@ -311,7 +311,7 @@ export function NgnAccountDetails({
         title="NGN Account"
         round
         action={
-          canCreateBellmonie ? (
+          canCreateAccount ? (
             <Link
               href="/ngn-account?action=create"
               aria-label="Open NGN Account"

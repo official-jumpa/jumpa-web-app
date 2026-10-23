@@ -35,15 +35,12 @@ export function NgnAccountView() {
 
         if (ngnRes.ok && isMounted) {
           const data = await ngnRes.json();
-          // If user already has an active Bellmonie account, they are fully setup
-          const hasActiveBellmonie = Boolean(
-            data.hasAccount && data.account?.provider === "bellmonie",
+          // If user already has an active Aella or Bellmonie account, redirect to details
+          const hasActiveAccount = Boolean(
+            data.hasAccount && (data.account?.provider === "aella" || data.account?.provider === "bellmonie"),
           );
 
-          if (hasActiveBellmonie) {
-            console.log(
-              "[NgnAccountView] Active account found, redirecting to details",
-            );
+          if (hasActiveAccount) {
             router.replace(DETAILS);
             return;
           }
@@ -56,9 +53,6 @@ export function NgnAccountView() {
               kycData?.status === "approved",
           );
           if (!isKycDone) {
-            console.log(
-              "[NgnAccountView] KYC not completed, redirecting to /kyc",
-            );
             router.replace("/kyc");
             return;
           }

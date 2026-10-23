@@ -4,28 +4,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuthContext } from "@/components/auth/AuthGuard";
-import { SettingRow } from "@/components/settings/setting-row";
 import {
   SettingCard,
   SettingRule,
 } from "@/components/settings/setting-section";
 import { Button } from "@/components/ui/button";
-import { DateField } from "@/components/ui/date-field";
 import { FieldError } from "@/components/ui/field-error";
-import { CalendarIcon } from "@/components/ui/icons/calendar";
 import { CheckIcon } from "@/components/ui/icons/check";
 import { CircleUserIcon } from "@/components/ui/icons/circle-user";
 import { CreditCardNavIcon } from "@/components/ui/icons/credit-card-nav";
-import { GlobeIcon } from "@/components/ui/icons/globe";
-import { IdCardIcon } from "@/components/ui/icons/id-card";
 import { MobileIcon } from "@/components/ui/icons/mobile";
-import { PhoneAltIcon } from "@/components/ui/icons/phone-alt";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
-import { mapCountryCodeToName } from "@/lib/ngn-account";
 import {
-  type CreateBellmonieAccountInput,
-  createBellmonieAccountSchema,
-} from "@/lib/validations/bellmonie.validation";
+  type CreateAellaAccountInput,
+  createAellaAccountSchema,
+} from "@/lib/validations/aella.validation";
 
 function VerifiedBadge() {
   return (
@@ -35,24 +28,13 @@ function VerifiedBadge() {
   );
 }
 
-// Compute maximum date of birth for 16 years old
-function getMaxDob(): string {
-  const date = new Date();
-  date.setFullYear(date.getFullYear() - 16);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-/** Floor for the year dropdown — without one it would list every year there is. */
-const MIN_DOB = `${new Date().getFullYear() - 100}-01-01`;
-
 interface NgnConfirmProps {
-  onContinue: (formData: CreateBellmonieAccountInput) => void;
+  onContinue: (formData: CreateAellaAccountInput) => void;
   isLoading?: boolean;
   serverError?: string | null;
 }
 
-/** Form for confirming and collecting details required by Bellmonie for NGN virtual bank accounts */
+/** Form for confirming and collecting details required for NGN virtual bank accounts */
 export function NgnConfirm({
   onContinue,
   isLoading = false,
@@ -83,26 +65,11 @@ export function NgnConfirm({
   const [firstName, setFirstName] = useState(defaultFirst);
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState(defaultLast);
-  const [dateOfBirth, setDateOfBirth] = useState("");
   const [mobileNumber, setMobileNumber] = useState(user?.phoneNumber || "");
-  const [address, setAddress] = useState("");
   const [bvn, setBvn] = useState("");
-  const [nin, setNin] = useState("");
-  const [gender, setGender] = useState<"male" | "female">("male");
-
-  // Track which fields are locked from verified DB / KYC
-  const [lockedFields, setLockedFields] = useState<Record<string, boolean>>({
-    firstName: Boolean(defaultFirst),
-    lastName: Boolean(defaultLast),
-    phone: Boolean(user?.phoneNumber),
-    email: Boolean(user?.email),
-  });
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [verified, setVerified] = useState<boolean>(false);
-
-  const countryName = mapCountryCodeToName(user?.country || "NG");
-  const maxDob = getMaxDob();
 
   const fullNameDisplay =
     lastName || firstName || middleName
@@ -136,37 +103,10 @@ export function NgnConfirm({
           setVerified(isDone);
 
           const details = data?.details;
-          const newLocked: Record<string, boolean> = {
-            firstName: Boolean(defaultFirst || details?.firstName),
-            lastName: Boolean(defaultLast || details?.lastName),
-            middleName: Boolean(details?.middleName),
-            phone: Boolean(freshPhone),
-            email: Boolean(user?.email),
-            dateOfBirth: Boolean(details?.dateOfBirth),
-            gender: Boolean(details?.gender),
-            address: Boolean(details?.address?.street),
-            bvn: Boolean(data?.idType === "bvn" && data?.idNumber),
-          };
-          setLockedFields(newLocked);
-
           if (details) {
             if (details.firstName) setFirstName(details.firstName);
             if (details.middleName) setMiddleName(details.middleName);
             if (details.lastName) setLastName(details.lastName);
-            if (details.dateOfBirth) {
-              setDateOfBirth(String(details.dateOfBirth).replace(/\//g, "-"));
-            }
-            if (details.gender) {
-              const g = String(details.gender).toLowerCase();
-              if (g === "female" || g === "f") setGender("female");
-              else setGender("male");
-            }
-            if (details.address?.street) {
-              const street = [details.address.street, details.address.city, details.address.state]
-                .filter(Boolean)
-                .join(", ");
-              setAddress(street);
-            }
           }
 
           if (data?.idType === "bvn" && data?.idNumber) {
@@ -189,24 +129,17 @@ export function NgnConfirm({
     setFieldErrors({});
 
     const phoneStr = String(mobileNumber || user?.phoneNumber || "").trim();
+    const cleanBvn = bvn.trim();
     const errors: Record<string, string> = {};
 
-    if (!firstName.trim()) {
-      errors.form = "First name is missing from your verified profile.";
-    } else if (!lastName.trim()) {
-      errors.form = "Last name is missing from your verified profile.";
-    } else if (!phoneStr) {
+    if (!phoneStr) {
       errors.form = "Please verify your phone number first.";
-    } else if (!user?.email?.trim()) {
-      errors.form = "Email address is missing from your account.";
-    } else if (!dateOfBirth.trim()) {
-      errors.form = "Date of birth is missing from your profile.";
-    } else if (!address.trim()) {
-      errors.form = "Residential address is required.";
-      errors.address = "Address is required";
-    } else if (!bvn.trim()) {
+    } else if (!cleanBvn) {
       errors.form = "Bank Verification Number (BVN) is required.";
       errors.bvn = "BVN is required";
+    } else if (cleanBvn.length !== 11) {
+      errors.form = "BVN must be exactly 11 digits.";
+      errors.bvn = "BVN must be 11 digits";
     }
 
     if (errors.form) {
@@ -214,29 +147,11 @@ export function NgnConfirm({
       return;
     }
 
-    const formData = {
-      firstName: firstName.trim(),
-      middleName: middleName.trim() || undefined,
-      lastName: lastName.trim(),
-      phoneNumber: phoneStr,
-      emailAddress: user?.email.trim(),
-      address: address.trim(),
-      bvn: bvn.trim(),
-      gender: gender || "male",
-      dateOfBirth: dateOfBirth.replace(/-/g, "/").trim(),
-    };
-
-    const validation = createBellmonieAccountSchema.safeParse(formData);
-
+    const validation = createAellaAccountSchema.safeParse({ bvn: cleanBvn });
     if (!validation.success) {
-      const firstIssue = validation.error.issues[0];
-      for (const issue of validation.error.issues) {
-        const key = issue.path[0] as string;
-        if (key && !errors[key]) {
-          errors[key] = issue.message;
-        }
-      }
-      errors.form = firstIssue?.message || "Please complete all required fields.";
+      const issue = validation.error.issues[0];
+      errors.form = issue?.message || "Invalid BVN provided.";
+      errors.bvn = issue?.message || "Invalid BVN";
       setFieldErrors(errors);
       return;
     }
@@ -251,11 +166,11 @@ export function NgnConfirm({
           Confirm your details
         </h1>
         <p className="mt-2 text-sm leading-4 text-jumpa-black">
-          Please verify your identity details. These are required by our banking partner to issue your dedicated Nigerian account.
+          Please verify your identity details. Enter your BVN to create your dedicated Nigerian virtual account.
         </p>
       </div>
 
-      {/* Auto-filled Profile Details matching reference */}
+      {/* Auto-filled Profile Details */}
       <SettingCard className="mt-2">
         {/* Full Name: Surname, First Middle */}
         <div className="flex items-center gap-3">
@@ -305,15 +220,6 @@ export function NgnConfirm({
         </div>
         <SettingRule />
 
-        {/* Date of Birth */}
-        <div className="flex items-center gap-3">
-          <CalendarIcon className="size-6 shrink-0 text-jumpa-primary-600" />
-          <span className="truncate text-sm font-medium text-jumpa-black">
-            {dateOfBirth || "Verified DOB"}
-          </span>
-        </div>
-        <SettingRule />
-
         {/* KYC Verification */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -335,31 +241,15 @@ export function NgnConfirm({
         </div>
       </SettingCard>
 
-      {/* Required Banking Partner Details */}
+      {/* Account Creation */}
       <div className="flex flex-col gap-4">
         <div>
           <span className="text-xs font-semibold tracking-wide text-jumpa-primary-950/60 uppercase">
             Account Information
           </span>
           <p className="mt-1 text-xs text-jumpa-neutral-500 leading-relaxed">
-            The details above are from your verified ID. Please enter your residential address and BVN to proceed.
+            Enter your Bank Verification Number (BVN). Your account details will be verified with NIBSS to issue your dedicated account.
           </p>
-        </div>
-
-        {/* Residential Address */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-jumpa-primary-950">
-            Residential Address <span className="text-jumpa-danger">*</span>
-          </label>
-          <input
-            type="text"
-            required
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="e.g. 14 Adeola Odeku Street, Victoria Island, Lagos"
-            className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
-          />
-          <FieldError>{fieldErrors.address}</FieldError>
         </div>
 
         {/* Bank Verification Number (BVN) */}
@@ -379,7 +269,7 @@ export function NgnConfirm({
             required
             value={bvn}
             onChange={(e) => setBvn(e.target.value.replace(/\D/g, "").slice(0, 11))}
-            placeholder="e.g. 22233344455"
+            placeholder="e.g. 22122212221"
             className="h-12 w-full rounded-pill border border-jumpa-primary-100 bg-jumpa-primary-50 px-4 text-sm font-medium tracking-wide text-jumpa-primary-950 outline-none transition focus:border-jumpa-primary-400"
           />
           <FieldError>{fieldErrors.bvn}</FieldError>

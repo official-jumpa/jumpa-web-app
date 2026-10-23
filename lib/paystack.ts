@@ -199,6 +199,7 @@ export async function validateAccountNumber(
     };
   }
 
+  let paystackResult: PaystackResolveResponse | null = null;
   try {
     const response = await fetch(
       `https://api.paystack.co/bank/resolve?account_number=${cleanAccount}&bank_code=${cleanBankCode}`,
@@ -214,27 +215,47 @@ export async function validateAccountNumber(
 
     const result = (await response.json().catch(() => null)) as PaystackResolveResponse | null;
 
-    if (!response.ok || !result?.status) {
-      console.error(
-        `[Paystack]Status: ${response.status} | Payload: ${formatOneLineError(result)}`
-      );
-      return {
-        status: false,
-        message: result?.message || "Could not verify bank account with provider",
-      };
+    if (response.ok && result?.status && result.data?.account_name) {
+      return result;
     }
 
-    return result;
+    paystackResult = result;
+    console.warn(
+      `[Paystack] Status: ${response.status} | Payload: ${formatOneLineError(result)}`
+    );
   } catch (error: any) {
     const isTimeout = isTimeoutError(error);
-    console.error(
+    console.warn(
       `[Paystack] ${isTimeout ? "Timed out (8s)" : "Resolve exception"}: ${formatOneLineError(error)}`
     );
-    return {
-      status: false,
-      message: isTimeout
-        ? "Bank verification request timed out. Please try again."
-        : "Failed to reach bank verification service",
-    };
   }
+
+  // Resilient fallback for Aella accounts or when Paystack fails on Aella codes
+  const isAellaCode = cleanBankCode === "50315" || cleanBankCode === "090614";
+  if (isAellaCode || !paystackResult?.status) {
+    try {
+      const { aellaBankNameEnquiry } = await import("@/lib/functions/aellaFunctions");
+      const aellaRes = await aellaBankNameEnquiry({
+        accountNumber: cleanAccount,
+        bankCode: "090614",
+      });
+      if (aellaRes?.accountName) {
+        return {
+          status: true,
+          message: "Account resolved successfully",
+          data: {
+            account_number: cleanAccount,
+            account_name: aellaRes.accountName.trim(),
+          },
+        };
+      }
+    } catch {
+      // Not an Aella account or Aella enquiry failed
+    }
+  }
+
+  return {
+    status: false,
+    message: paystackResult?.message || "Could not verify bank account with provider",
+  };
 }

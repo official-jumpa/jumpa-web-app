@@ -21,7 +21,7 @@ export interface NgnAccountData {
   accountNumber: string;
   accountName: string;
   status: string;
-  provider?: "bellmonie" | "fossapay" | string;
+  provider?: "aella" | "bellmonie" | "fossapay" | string;
 }
 
 const HERO =
@@ -50,10 +50,8 @@ export function FiatDepositView({
 }: {
   initialAccount?: NgnAccountData | null;
 } = {}) {
-  const [loading, setLoading] = useState(() => !initialAccount || initialAccount.provider !== "bellmonie");
-  const [account, setAccount] = useState<NgnAccountData | null>(
-    initialAccount?.provider === "bellmonie" ? initialAccount : null,
-  );
+  const [loading, setLoading] = useState(() => !initialAccount);
+  const [account, setAccount] = useState<NgnAccountData | null>(initialAccount);
   const [error, setError] = useState<string | null>(null);
   const [showFeeTiers, setShowFeeTiers] = useState(false);
 
@@ -69,7 +67,7 @@ export function FiatDepositView({
       }
 
       const data = await res.json();
-      if (data.hasAccount && data.account && data.account.provider === "bellmonie") {
+      if (data.hasAccount && data.account) {
         setAccount(data.account);
       } else {
         setAccount(null);

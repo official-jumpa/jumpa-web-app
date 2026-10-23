@@ -33,7 +33,6 @@ export default async function ReceivePage({ searchParams }: ReceivePageProps) {
         const accountData = await getUserNgnAccountDetails(
           session.user.id,
           session.user.name || "Jumpa User",
-          { provider: "bellmonie" },
         );
         initialAccount = accountData.account;
       }

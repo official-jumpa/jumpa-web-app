@@ -9,6 +9,8 @@ import {
 import { calculateNgnDepositFee } from "@/lib/ngn-account";
 import { getDailySubsidizedDepositCount } from "@/lib/functions/bellmonieFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
+import { dispatchTransactionEmail } from "@/lib/functions/transactionEmailFunctions";
+import { createNotification } from "@/lib/functions/notificationFunctions";
 
 export const dynamic = "force-dynamic";
 
@@ -120,7 +122,6 @@ export async function POST(req: NextRequest) {
         ? `Deposit: ₦${amountReceived.toLocaleString()} (-₦${feeCharged.toLocaleString()} fee) from ${senderName || "Bank Transfer"}`
         : `Deposit: ₦${amountReceived.toLocaleString()} from ${senderName || "Bank Transfer"} (${senderBank || "Bank"})`;
 
-      // Atomically credit user balance (handles dedup, transaction logging, cache invalidation, activity log & notification)
       const creditRes = await atomicCreditNgnBalance({
         userId: account.userId,
         amount: creditAmount,
@@ -135,6 +136,16 @@ export async function POST(req: NextRequest) {
       });
 
       invalidateBalanceCache(account.userId);
+
+      // Dispatch deposit confirmation email
+      try {
+        const creditedTx = await Transaction.findOne({ txHash: reference });
+        if (creditedTx) {
+          dispatchTransactionEmail(creditedTx._id, "DEPOSIT_CONFIRMED").catch(() => {});
+        }
+      } catch (err) {
+        console.warn("[Aella Webhook] Failed to dispatch deposit email:", err);
+      }
 
       console.log(`[Aella Webhook] ✅ Successfully credited ₦${creditAmount} to user ${account.userId}. New Balance: ₦${creditRes.newBalance}`);
       return NextResponse.json({ success: true, message: "Deposit processed successfully" });
@@ -160,16 +171,67 @@ export async function POST(req: NextRequest) {
       );
 
       if (reference) {
-        const tx = await Transaction.findOne({ txHash: reference });
+        const tx = await Transaction.findOne({
+          $or: [
+            { txHash: reference },
+            { "bankDetails.reference": reference },
+          ],
+        });
         if (tx) {
           const isSuccess = event.includes("completed") || event.includes("success");
+          const wasAlreadyConfirmed = tx.status === "CONFIRMED";
+          const failureReason =
+            data.failureReason ||
+            data.message ||
+            data.errorMessage ||
+            "Transfer declined by destination bank";
+
           await Transaction.findByIdAndUpdate(tx._id, {
             $set: {
               status: isSuccess ? "CONFIRMED" : "FAILED",
               "metadata.aellaWebhookEvent": event,
+              executedAt: isSuccess ? new Date() : tx.executedAt,
+              errorMessage: isSuccess ? undefined : failureReason,
             },
           });
           invalidateBalanceCache(tx.userId);
+
+          if (isSuccess && !wasAlreadyConfirmed) {
+            createNotification({
+              userId: tx.userId,
+              tab: "transactions",
+              type: "WITHDRAWAL_COMPLETED",
+              title: "Withdrawal Successful",
+              body: `₦${Number(tx.amount).toLocaleString()} transfer to ${tx.bankDetails?.accountName || tx.toAddress || "beneficiary"} (${tx.bankDetails?.bankName || "Bank"}) has been completed successfully.`,
+              metadata: {
+                reference,
+                amount: tx.amount,
+                bankName: tx.bankDetails?.bankName,
+                accountNumber: tx.bankDetails?.accountNumber,
+                txId: tx._id?.toString(),
+              },
+              link: "/transactions",
+            }).catch(() => {});
+            dispatchTransactionEmail(tx._id, "WITHDRAWAL_CONFIRMED").catch(() => {});
+          } else if (!isSuccess && tx.status !== "FAILED") {
+            createNotification({
+              userId: tx.userId,
+              tab: "transactions",
+              type: "SECURITY_ALERT",
+              title: "Withdrawal Failed",
+              body: `₦${Number(tx.amount).toLocaleString()} transfer to ${tx.bankDetails?.accountName || tx.toAddress || "beneficiary"} (${tx.bankDetails?.bankName || "Bank"}) failed: ${failureReason}.`,
+              metadata: {
+                reference,
+                amount: tx.amount,
+                bankName: tx.bankDetails?.bankName,
+                accountNumber: tx.bankDetails?.accountNumber,
+                txId: tx._id?.toString(),
+              },
+              link: "/transactions",
+            }).catch(() => {});
+            dispatchTransactionEmail(tx._id, "WITHDRAWAL_FAILED").catch(() => {});
+          }
+
           console.log(`[Aella Webhook] Outward transfer ${reference} marked ${isSuccess ? "CONFIRMED" : "FAILED"}`);
         }
       }

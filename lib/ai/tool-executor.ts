@@ -176,6 +176,7 @@ function networkToSwitchChain(network?: string): string | null {
 
 /** Banks that most often share a NUBAN, probed when only an account number is given. */
 const CANDIDATE_BANKS = [
+  "Aella MFB",
   "OPay",
   "Moniepoint",
   "PalmPay",

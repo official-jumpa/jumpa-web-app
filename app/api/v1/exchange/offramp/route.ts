@@ -195,6 +195,23 @@ export async function POST(req: NextRequest) {
 
       if (!verified) {
         try {
+          const { aellaBankNameEnquiry } = await import(
+            "@/lib/functions/aellaFunctions"
+          );
+          const aellaRes = await aellaBankNameEnquiry({
+            accountNumber,
+            bankCode: centiivBank.code,
+          });
+          if (aellaRes?.accountName) verified = true;
+        } catch (aellaErr: any) {
+          console.warn(
+            `[Offramp] Aella enquiry failed for ${centiivBank.name}: ${formatOneLineError(aellaErr)}`,
+          );
+        }
+      }
+
+      if (!verified) {
+        try {
           const bmRes = await bellmonieBankNameEnquiry({
             accountNumber,
             bankCode: centiivBank.code,

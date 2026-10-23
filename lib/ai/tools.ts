@@ -332,7 +332,7 @@ const offrampNgn: DeepSeekTool = {
         bankName: {
           type: "string",
           description:
-            "User's bank name or alias (e.g. 'GTBank', 'Access Bank', 'Kuda', 'OPay', 'Zenith').",
+            "User's bank name or alias (e.g. 'Aella', 'GTBank', 'Access Bank', 'Kuda', 'OPay', 'Zenith').",
         },
         accountNumber: {
           type: "string",

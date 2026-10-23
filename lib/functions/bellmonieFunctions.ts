@@ -1112,12 +1112,14 @@ export async function transferToOfficialJumpaBlocAccount(params: {
     throw new Error("Incomplete configuration");
   }
 
-  // 2. Verify user has an active Bellmonie / Bloc MFB account
+  // 2. Verify user has an active NGN account (prioritizing Aella, then Bellmonie)
   const userAccount = await NgnAccount.findOne({
     userId: params.userId,
-    provider: "bellmonie",
+    provider: { $in: ["aella", "bellmonie"] },
     status: "active",
-  }).lean<INgnAccount>();
+  })
+    .sort({ provider: 1 })
+    .lean<INgnAccount>();
 
   if (!userAccount || !userAccount.accountNumber) {
     throw new Error("Please create a Naira account first");

@@ -57,7 +57,7 @@ const TONE = {
   },
   error: {
     Icon: TriangleWarningIcon,
-    disc: "bg-jumpa-warning-50 text-jumpa-warning",
+    disc: "bg-jumpa-danger-50 text-jumpa-danger",
   },
 } as const;
 

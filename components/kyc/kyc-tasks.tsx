@@ -80,9 +80,9 @@ export function KycTasks({
 
       {/* Verification In Progress Card */}
       {isPendingVerification && (
-        <div className="mt-5 flex flex-col gap-2.5 rounded-card border border-jumpa-warning/25 bg-jumpa-warning-50 p-4">
+        <div className="mt-5 flex flex-col gap-2.5 rounded-card border border-jumpa-primary-600/15 bg-jumpa-primary-50 p-4">
           <div className="flex items-center gap-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-jumpa-white text-jumpa-warning">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-jumpa-white text-jumpa-primary-600">
               <RefreshIcon aria-hidden="true" className="size-4.5 animate-spin" />
             </span>
             <span className="flex flex-col gap-0.5">
@@ -95,12 +95,12 @@ export function KycTasks({
               </span>
             </span>
           </div>
-          <div className="flex items-center justify-between gap-2 border-t border-jumpa-warning/20 pt-2.5 text-[11px] leading-4 text-jumpa-neutral-500">
+          <div className="flex items-center justify-between gap-2 border-t border-jumpa-primary-600/15 pt-2.5 text-[11px] leading-4 text-jumpa-neutral-500">
             <span className="flex items-center gap-1.5">
               {/* Opacity and transform only, so the row never reflows. */}
               <span className="relative flex size-2">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-jumpa-warning opacity-75" />
-                <span className="relative inline-flex size-2 rounded-full bg-jumpa-warning" />
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-jumpa-primary-600 opacity-75" />
+                <span className="relative inline-flex size-2 rounded-full bg-jumpa-primary-600" />
               </span>
               Checking status
             </span>
@@ -108,7 +108,7 @@ export function KycTasks({
               <button
                 type="button"
                 onClick={onCheckStatus}
-                className="tap font-semibold text-jumpa-warning underline active:scale-95"
+                className="tap font-semibold text-jumpa-primary-600 underline active:scale-95"
               >
                 Refresh now
               </button>

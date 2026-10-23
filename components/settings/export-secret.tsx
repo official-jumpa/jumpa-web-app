@@ -249,7 +249,7 @@ export function ExportSecret({ kind }: { kind: ExportKind }) {
         />
       ) : null}
 
-      <InfoNote tone="danger" className="mt-auto pt-10">
+      <InfoNote tone="warning" className="mt-auto pt-10">
         {EXPORT_WARNING}
       </InfoNote>
 

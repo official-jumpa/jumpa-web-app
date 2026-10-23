@@ -37,7 +37,7 @@ export function PinDisplay({
   /** Optional caption above the box, e.g. "Enter your pin". */
   label?: string;
   tone?: keyof typeof TONE;
-  /** Tints every slot amber — a rejected PIN, not a separate screen. */
+  /** Tints every slot red — a rejected PIN, not a separate screen. */
   error?: boolean;
   /** Show the digits instead of masking them — right for a code, not a PIN. */
   reveal?: boolean;
@@ -70,7 +70,7 @@ export function PinDisplay({
                 "relative flex h-10 flex-col justify-end",
                 style.slot,
                 error
-                  ? "text-jumpa-warning"
+                  ? "text-jumpa-danger"
                   : active
                     ? "text-jumpa-primary-600"
                     : style.idle,

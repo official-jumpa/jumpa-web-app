@@ -9,7 +9,7 @@ export type RampTone = "pending" | "done" | "error";
 const TONE: Record<RampTone, string> = {
   pending: "bg-jumpa-secondary-100 text-jumpa-primary-950",
   done: "bg-jumpa-alt-400 text-jumpa-alt-950",
-  error: "bg-jumpa-warning-50 text-jumpa-warning",
+  error: "bg-jumpa-danger-50 text-jumpa-danger",
 };
 
 export function RampShell({
@@ -95,7 +95,7 @@ export function RampNotice({
       className={cn(
         "rounded-xl px-3 py-2 text-center text-[11px] leading-4 font-medium",
         tone === "error"
-          ? "bg-jumpa-warning-50 text-jumpa-warning"
+          ? "bg-jumpa-danger-50 text-jumpa-danger"
           : "bg-jumpa-white text-jumpa-neutral-400",
       )}
     >

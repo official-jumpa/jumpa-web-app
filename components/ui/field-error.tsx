@@ -7,7 +7,7 @@ export function FieldError({ children }: { children?: string }) {
   return (
     <p
       role="alert"
-      className="flex items-start gap-1.5 text-[10px] leading-3.5 font-medium text-jumpa-warning"
+      className="flex items-start gap-1.5 text-[10px] leading-3.5 font-medium text-jumpa-danger"
     >
       <SealAlertIcon className="size-3.5 shrink-0" />
       {children}
@@ -22,7 +22,7 @@ export function CanvasError({ children }: { children?: string }) {
   return (
     <p
       role="alert"
-      className="flex items-center gap-1.5 rounded-pill bg-jumpa-warning px-3 py-1.5 text-[10px] leading-3.5 font-medium text-jumpa-black"
+      className="flex items-center gap-1.5 rounded-pill bg-jumpa-danger px-3 py-1.5 text-[10px] leading-3.5 font-medium text-jumpa-white"
     >
       <SealAlertIcon className="size-3.5 shrink-0" />
       {children}

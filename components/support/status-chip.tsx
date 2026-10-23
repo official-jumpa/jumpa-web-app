@@ -8,7 +8,7 @@ import {
 /** The dot carries the tone; the label stays dark so it reads at 12px. */
 const DOT: Record<StatusTone, string> = {
   ai: "bg-jumpa-primary-600",
-  waiting: "bg-jumpa-warning",
+  waiting: "bg-jumpa-secondary-400",
   active: "bg-jumpa-success",
   done: "bg-jumpa-neutral-300",
 };

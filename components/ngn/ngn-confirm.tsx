@@ -318,7 +318,7 @@ export function NgnConfirm({
       </div>
 
       {serverError || fieldErrors.form ? (
-        <div className="rounded-2xl border border-jumpa-warning/20 bg-jumpa-warning/10 p-4 text-xs font-medium text-jumpa-warning">
+        <div className="rounded-2xl border border-jumpa-danger/20 bg-jumpa-danger/10 p-4 text-xs font-medium text-jumpa-danger">
           {serverError || fieldErrors.form}
         </div>
       ) : null}

@@ -203,7 +203,7 @@ export function VerifyCodeForm({
         </button>
 
         {lostEmail ? (
-          <p className="text-center text-xs text-jumpa-warning">
+          <p className="text-center text-xs text-jumpa-danger">
             We've lost track of which email to verify. This can happen if the
             tab reloads.{" "}
             <Link
@@ -215,7 +215,7 @@ export function VerifyCodeForm({
             .
           </p>
         ) : error ? (
-          <p className="text-center text-xs text-jumpa-warning">{error}</p>
+          <p className="text-center text-xs text-jumpa-danger">{error}</p>
         ) : null}
 
         {verifying && (

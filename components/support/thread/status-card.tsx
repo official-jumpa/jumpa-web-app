@@ -23,8 +23,8 @@ export function StatusCard({
               aria-hidden="true"
               className="absolute top-0 right-0 flex size-2.5"
             >
-              <span className="absolute inset-0 animate-ping rounded-full bg-jumpa-warning opacity-60" />
-              <span className="relative size-2.5 rounded-full bg-jumpa-warning ring-2 ring-jumpa-white" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-jumpa-primary-600 opacity-60" />
+              <span className="relative size-2.5 rounded-full bg-jumpa-primary-600 ring-2 ring-jumpa-white" />
             </span>
           ) : null}
         </span>

@@ -211,7 +211,7 @@ export function JumpaTagForm({
             </p>
 
             {claimError && (
-              <p className="text-center text-xs text-jumpa-warning">
+              <p className="text-center text-xs text-jumpa-danger">
                 {claimError}
               </p>
             )}

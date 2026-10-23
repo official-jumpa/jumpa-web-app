@@ -35,7 +35,7 @@ const DISC: Record<StatusTone, { ground: string; Icon: typeof CheckIcon }> = {
     Icon: MessageSquareChatIcon,
   },
   waiting: {
-    ground: "bg-jumpa-warning-50 text-jumpa-warning",
+    ground: "bg-jumpa-secondary-100 text-jumpa-primary-950",
     Icon: HeadsetIcon,
   },
   active: {

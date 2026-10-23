@@ -85,9 +85,9 @@ const TONE = {
     pill: "bg-jumpa-primary-50 text-jumpa-primary-600",
   },
   active: {
-    ring: "border-jumpa-warning",
+    ring: "border-jumpa-primary-600",
     halo: "shadow-jumpa-halo-active",
-    pill: "bg-jumpa-warning-50 text-jumpa-warning",
+    pill: "bg-jumpa-primary-600 text-jumpa-white",
   },
   good: {
     ring: "border-jumpa-success",

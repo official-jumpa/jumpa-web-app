@@ -45,8 +45,16 @@ export async function POST(req: NextRequest) {
     const data = payload.data || payload;
 
     console.log(`[Aella Webhook] Incoming event: "${event}"`, {
-      reference: data.reference || data.transactionReference || data.transaction_reference,
-      accountNumber: data.accountNumber || data.account_number,
+      reference:
+        data.reference ||
+        data.id ||
+        data.sessionId ||
+        data.externalReference ||
+        data.transactionReference,
+      accountNumber:
+        data.receiverAccountNumber ||
+        data.accountNumber ||
+        data.account_number,
       amount: data.amount,
     });
 
@@ -60,13 +68,19 @@ export async function POST(req: NextRequest) {
       event === "collection.successful" ||
       event === "wallet.funded"
     ) {
-      const accountNumber = String(data.accountNumber || data.account_number || "").trim();
+      const accountNumber = String(
+        data.receiverAccountNumber ||
+        data.accountNumber ||
+        data.account_number ||
+        ""
+      ).trim();
       const amountReceived = Number(data.amount || data.settledAmount || 0);
       const reference = String(
+        data.id ||
+        data.sessionId ||
         data.reference ||
         data.transactionReference ||
         data.transaction_reference ||
-        data.sessionId ||
         `inward-${Date.now()}`
       );
       const senderName = data.senderName || data.sender_name || data.originatorAccountName || "Bank Transfer";
@@ -131,10 +145,15 @@ export async function POST(req: NextRequest) {
       event.includes("outward") ||
       event.includes("transfer") ||
       event === "outwards.completed" ||
-      event === "outwards.failed"
+      event === "outwards.failed" ||
+      event === "transfer.completed" ||
+      event === "transfer.failed"
     ) {
       const reference = String(
+        data.externalReference ||
         data.reference ||
+        data.id ||
+        data.sessionId ||
         data.transactionReference ||
         data.transaction_reference ||
         ""

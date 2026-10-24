@@ -284,7 +284,7 @@ export function NgnAccountDetails({
     : "₦0.00";
 
   const fields = [
-    { label: "Bank Name", value: account.bankName || (account.provider === "aella" ? "Aella MFB" : "Bloc MFB") },
+    { label: "Bank Name", value: account.bankName || (account.provider === "aella" ? "Aella MFB" : "Aella MFB") },
     { label: "Account Number", value: account.accountNumber || "---" },
     { label: "Account Name", value: account.accountName || "Jumpa User" },
   ];

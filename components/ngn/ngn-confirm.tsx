@@ -105,7 +105,8 @@ export function NgnConfirm({
           const data = await kycRes.json();
           const isDone = Boolean(
             data?.isCompleted ||
-            data?.status === "approved",
+            data?.status === "approved" ||
+            data?.status === "verified",
           );
           setVerified(isDone);
 

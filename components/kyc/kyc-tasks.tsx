@@ -3,7 +3,6 @@
 import { type ComponentType, type SVGProps, useState } from "react";
 import { FieldError } from "@/components/ui/field-error";
 import { CheckIcon } from "@/components/ui/icons/check";
-import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
 import { FaceIdIcon } from "@/components/ui/icons/face-id";
 import { IdCardIcon } from "@/components/ui/icons/id-card";
 import { RefreshIcon } from "@/components/ui/icons/refresh";
@@ -23,8 +22,9 @@ export function KycTasks({
   hasSelfie,
   isSubmitting,
   isPendingVerification,
+  pendingCooldownSeconds,
   apiError,
-  onPick,
+  onStartVerification,
   onContinue,
   onCheckStatus,
 }: {
@@ -34,8 +34,9 @@ export function KycTasks({
   hasSelfie?: boolean;
   isSubmitting?: boolean;
   isPendingVerification?: boolean;
+  pendingCooldownSeconds?: number;
   apiError?: string | null;
-  onPick: (task: KycTask) => void;
+  onStartVerification: () => void;
   onContinue: () => void;
   onCheckStatus?: () => void;
 }) {
@@ -45,14 +46,11 @@ export function KycTasks({
 
   const handleCtaClick = () => {
     setError(undefined);
-    if (isPendingVerification) {
-      onCheckStatus?.();
+    if (isPendingVerification || isSubmitting) {
       return;
     }
-    if (!hasDoc) {
-      onPick("document");
-    } else if (!hasSelfieTask) {
-      onPick("selfie");
+    if (!hasDoc || !hasSelfieTask) {
+      onStartVerification();
     } else {
       onContinue();
     }
@@ -61,12 +59,10 @@ export function KycTasks({
   const ctaLabel = isSubmitting
     ? "Verifying..."
     : isPendingVerification
-      ? "Verification in Progress..."
-      : !hasDoc
-        ? "Enter Document ID"
-        : !hasSelfieTask
-          ? "Take Live Selfie"
-          : "Submit for Verification";
+      ? "Verification in progress"
+      : !hasDoc || !hasSelfieTask
+        ? "Start verification"
+        : "Submit for Verification";
 
   return (
     <>
@@ -95,7 +91,7 @@ export function KycTasks({
               </span>
             </span>
           </div>
-          <div className="flex items-center justify-between gap-2 border-t border-jumpa-primary-600/15 pt-2.5 text-[11px] leading-4 text-jumpa-neutral-500">
+          <div className="flex items-center gap-2 border-t border-jumpa-primary-600/15 pt-2.5 text-[11px] leading-4 text-jumpa-neutral-500">
             <span className="flex items-center gap-1.5">
               {/* Opacity and transform only, so the row never reflows. */}
               <span className="relative flex size-2">
@@ -104,15 +100,6 @@ export function KycTasks({
               </span>
               Checking status
             </span>
-            {onCheckStatus && (
-              <button
-                type="button"
-                onClick={onCheckStatus}
-                className="tap font-semibold text-jumpa-primary-600 underline active:scale-95"
-              >
-                Refresh now
-              </button>
-            )}
           </div>
         </div>
       )}
@@ -124,20 +111,16 @@ export function KycTasks({
           const ticked = done.includes(task.id);
           const detail =
             task.id === "document" && ticked
-              ? `${document.label}${idNumber ? ` (${idNumber})` : ""}`
+              ? document.id === "nin"
+                ? `NIN: ${idNumber || "Provided"}`
+                : `${document.label}: ${idNumber ? `${idNumber} & photo` : "Photo provided"}`
               : task.id === "selfie" && hasSelfie
                 ? "Live selfie captured"
                 : task.description;
 
           return (
             <li key={task.id} className="flex flex-col gap-4">
-              <button
-                type="button"
-                onClick={() => {
-                  setError(undefined);
-                  onPick(task.id);
-                }}
-                className="tap flex w-full items-center gap-3 text-left active:scale-[0.99] cursor-pointer">
+              <div className="flex w-full items-center gap-3 text-left">
                 <Icon
                   aria-hidden="true"
                   className="size-6 shrink-0 text-jumpa-primary-600"
@@ -160,12 +143,11 @@ export function KycTasks({
                     <CheckIcon className="size-3.5" />
                   </span>
                 ) : (
-                  <ChevronRightIcon
-                    aria-hidden="true"
-                    className="size-5 shrink-0 text-jumpa-black"
-                  />
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-jumpa-neutral-200 bg-jumpa-white text-xs font-semibold text-jumpa-neutral-400">
+                    {index + 1}
+                  </span>
                 )}
-              </button>
+              </div>
               {index < KYC_TASKS.length - 1 ? (
                 <span className="-mb-px block h-px w-full bg-jumpa-neutral-100" />
               ) : null}
@@ -192,11 +174,19 @@ export function KycTasks({
 
       <div className="mt-auto flex flex-col items-center gap-3 pt-10">
         <FieldError>{error}</FieldError>
-        <RingedButton onClick={handleCtaClick} disabled={isSubmitting}>
+        <RingedButton
+          onClick={handleCtaClick}
+          disabled={Boolean(isSubmitting || isPendingVerification)}
+        >
           {isSubmitting ? (
             <span className="flex items-center gap-2">
               <RefreshIcon aria-hidden="true" className="size-4 animate-spin" />
               Verifying
+            </span>
+          ) : isPendingVerification ? (
+            <span className="flex items-center gap-2">
+              <RefreshIcon aria-hidden="true" className="size-4 animate-spin" />
+              Verification in progress
             </span>
           ) : (
             ctaLabel

@@ -50,7 +50,8 @@ export function NgnAccountView() {
           const kycData = await kycRes.json();
           const isKycDone = Boolean(
             kycData?.isCompleted ||
-              kycData?.status === "approved",
+              kycData?.status === "approved" ||
+              kycData?.status === "verified",
           );
           if (!isKycDone) {
             router.replace("/kyc");

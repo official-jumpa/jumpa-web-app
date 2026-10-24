@@ -53,7 +53,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { idType, idNumber, selfieMediaId } = validation.data;
+    const {
+      idType,
+      idNumber,
+      docMediaId,
+      docBackMediaId,
+      selfieMediaId,
+    } = validation.data;
 
     if (!selfieMediaId) {
       return NextResponse.json(
@@ -79,7 +85,9 @@ export async function POST(req: NextRequest) {
 
     let effectiveIdNumber = rawIdNumber;
     if (isDev) {
-      if (!effectiveIdNumber || !DEFAULT_SANDBOX_IDS.has(effectiveIdNumber)) {
+      // In test/sandbox environment, prefill backend test ID unless the caller specifically
+      // sent an alternate canned test ID scenario (e.g. ...00000002 for Not Found, ...00000007 for Expired)
+      if (!DEFAULT_SANDBOX_IDS.has(effectiveIdNumber)) {
         effectiveIdNumber = MYAZA_DEV_SANDBOX_IDS[idType] || "00000000001";
       }
     } else {
@@ -106,24 +114,52 @@ export async function POST(req: NextRequest) {
 
     const kycRecord = await getOrCreateKycRecord(userId);
     const attemptCount = (kycRecord.attemptCount || 0) + 1;
-    await KYCSchema.updateOne({ userId }, { $set: { attemptCount } });
+    await KYCSchema.updateOne(
+      { userId },
+      {
+        $set: {
+          attemptCount,
+          idType,
+          idNumber: rawIdNumber,
+          ...(docMediaId ? { docMediaId } : {}),
+          ...(docBackMediaId ? { docBackMediaId } : {}),
+          selfieMediaId,
+        },
+      },
+    );
 
     const requestId = `kyc_${userId}_${attemptCount}`;
 
-    // Verified against source government databases using facial matching
+    // Assemble media payload: NIN is number-only (selfie), while license/passport require documentFront (+ documentBack)
+    const mediaIdsPayload: Record<string, string> = {
+      selfie: selfieMediaId,
+    };
+
+    if (idType !== "nin") {
+      if (docMediaId) {
+        mediaIdsPayload.documentFront = docMediaId;
+      }
+      if (docBackMediaId) {
+        mediaIdsPayload.documentBack = docBackMediaId;
+      }
+    }
+
+    // Verified against source government databases (NIN) or Document Intelligence (License/Passport)
     const verifyPayload = {
       country: "NG",
       idType: myazaIdType,
       idNumber: effectiveIdNumber,
       externalUserId: userId,
-      mediaIds: {
-        selfie: selfieMediaId,
-      },
+      mediaIds: mediaIdsPayload,
       metadata: {
         source: "jumpa_web_kyc",
         requestId,
       },
     };
+
+    console.log(
+      `[Myaza] Submitting verification for ${userId}: ${formatOneLineError(verifyPayload)}`,
+    );
 
     let response: Response;
     let data: any = null;
@@ -147,10 +183,15 @@ export async function POST(req: NextRequest) {
           message: `Provider returned status ${response.status}`,
         };
       }
+
+      console.log(
+        `[Myaza] Upstream response [HTTP ${response.status}]: ${formatOneLineError(data)}`,
+      );
     } catch (fetchErr: any) {
       const isTimeout = isTimeoutError(fetchErr);
       console.error(
-        `[Myaza:verify] ${isTimeout ? `Verification timed out after ${VERIFY_TIMEOUT_MS}ms` : "Network exception"}: ${formatOneLineError(fetchErr)}`
+        `[Myaza] ${isTimeout ? `Verification timed out after ${VERIFY_TIMEOUT_MS}ms` : "Network exception"}:`,
+        fetchErr,
       );
       return NextResponse.json(
         {
@@ -168,7 +209,10 @@ export async function POST(req: NextRequest) {
     const isApproved =
       response.ok &&
       (statusStr === "approved" ||
+        statusStr === "verified" ||
         statusStr === "success" ||
+        statusStr === "completed" ||
+        statusStr === "passed" ||
         data?.success === true);
 
     const isProcessing =
@@ -257,9 +301,8 @@ export async function POST(req: NextRequest) {
       userFacingError = rawMsg;
     }
 
-    // One-line log capped at 400 chars capturing the upstream failure payload
     console.error(
-      `[Myaza] Upstream failure | Status: ${response.status} | Payload: ${formatOneLineError(data)}`
+      `[Myaza] Upstream failure | Status: ${response.status} | Payload: ${formatOneLineError(data)}`,
     );
 
     await completeKycVerification(userId, {

@@ -87,6 +87,7 @@ export default async function HomePage() {
       initialKycComplete = Boolean(
         kyc.isCompleted ||
           kyc.status === "approved" ||
+          kyc.status === "verified" ||
           kyc.stage === "completed",
       );
     }

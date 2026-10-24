@@ -216,10 +216,15 @@ export const environment = {
   /** Comma-separated; the dashboard's admin list, emailed unclaimed-ticket and SLA alerts. Grants nothing here. */
   ADMIN_EMAILS: process.env.ADMIN_EMAILS || "",
 
-  // MYAZA KYC TRUST
-  MYAZA_TRUST_SECRET_KEY: process.env.MYAZA_TRUST_SECRET_KEY || "",
-  MYAZA_TRUST_SANDBOX_KEY: process.env.MYAZA_TRUST_SANDBOX_KEY || "",
-  MYAZA_TRUST_BASE_URL: process.env.MYAZA_TRUST_BASE_URL || "https://trust.myaza.app/api/kyc",
+  // TODEN / MYAZA KYC TRUST
+  MYAZA_TRUST_SECRET_KEY: process.env.MYAZA_TRUST_SECRET_KEY || process.env.TODEN_SECRET_KEY || "",
+  MYAZA_TRUST_SANDBOX_KEY: process.env.MYAZA_TRUST_SANDBOX_KEY || process.env.TODEN_SANDBOX_KEY || "",
+  MYAZA_TRUST_BASE_URL:
+    process.env.MYAZA_TRUST_BASE_URL ||
+    process.env.TODEN_BASE_URL ||
+    (process.env.NODE_ENV === "production"
+      ? "https://api.toden.co/api/kyc"
+      : "https://sandbox-api.toden.co/api/kyc"),
 
   // AELLA MFB (Banking & Wallets)
   AELLA_API_KEY: process.env.AELLA_API_KEY || "",

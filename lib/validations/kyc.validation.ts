@@ -1,20 +1,32 @@
 import { z } from "zod";
 
-export const kycVerifySchema = z.object({
-  idType: z.enum(["nin", "licence", "passport"]),
-  idNumber: z
-    .string()
-    .min(1, "Document or identification number is required")
-    .trim(),
-  docMediaId: z.string().optional().nullable(),
-  selfieMediaId: z.string().min(1, "Selfie photo is required"),
-  userData: z
-    .object({
-      firstName: z.string().optional(),
-      lastName: z.string().optional(),
-    })
-    .optional(),
-});
+export const kycVerifySchema = z
+  .object({
+    idType: z.enum(["nin", "licence", "passport"]),
+    idNumber: z
+      .string()
+      .min(1, "Document or identification number is required")
+      .trim(),
+    docMediaId: z.string().optional().nullable(),
+    docBackMediaId: z.string().optional().nullable(),
+    selfieMediaId: z.string().min(1, "Selfie photo is required"),
+    userData: z
+      .object({
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+      })
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.idType !== "nin" && !data.docMediaId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["docMediaId"],
+        message:
+          "Document photo is required for Driver's License and Passport verification",
+      });
+    }
+  });
 
 export const kycStageSchema = z.object({
   stage: z.enum([

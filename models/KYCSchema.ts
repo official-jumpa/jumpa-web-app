@@ -7,6 +7,7 @@ export type KycStatus =
   | "in_progress"
   | "pending"
   | "approved"
+  | "verified"
   | "rejected"
   | "failed";
 
@@ -60,8 +61,10 @@ export interface IKYCSchema {
   idType?: KycIdType | null;
   idNumber?: string | null;
   docMediaId?: string | null;
+  docBackMediaId?: string | null;
   selfieMediaId?: string | null;
   docPhotoUrl?: string | null;
+  docBackPhotoUrl?: string | null;
   selfiePhotoUrl?: string | null;
 
   // Extracted/Verified Details once KYC is completed
@@ -94,6 +97,7 @@ const KycSchema = new Schema<IKYCSchema>(
         "in_progress",
         "pending",
         "approved",
+        "verified",
         "rejected",
         "failed",
       ],
@@ -131,8 +135,10 @@ const KycSchema = new Schema<IKYCSchema>(
     },
     idNumber: { type: String, default: null },
     docMediaId: { type: String, default: null },
+    docBackMediaId: { type: String, default: null },
     selfieMediaId: { type: String, default: null },
     docPhotoUrl: { type: String, default: null },
+    docBackPhotoUrl: { type: String, default: null },
     selfiePhotoUrl: { type: String, default: null },
 
     // Extracted/Verified Details once KYC is completed

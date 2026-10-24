@@ -16,6 +16,7 @@ import { ImageIcon } from "@/components/ui/icons/image";
 import { RefreshIcon } from "@/components/ui/icons/refresh";
 import { ScanIcon } from "@/components/ui/icons/scan";
 import { SealAlertIcon } from "@/components/ui/icons/seal-alert";
+import { JumpaLoader } from "@/components/ui/jumpa-loader";
 
 // Suppress internal MediaPipe / TFLite C++ Emscripten stdout diagnostic logs in dev mode
 if (typeof window !== "undefined") {
@@ -203,6 +204,7 @@ export function KycCaptureScreen({
   defaultIdNumber,
   initialMediaId,
   initialPreview,
+  isSubmitting,
   onDone,
 }: {
   title: string;
@@ -214,6 +216,7 @@ export function KycCaptureScreen({
   initialMediaId?: string;
   /** The parent's object URL for the selfie already taken; owned and revoked there. */
   initialPreview?: string;
+  isSubmitting?: boolean;
   onDone: (data: { file?: File; idNumber?: string; mediaId?: string }) => void;
 }) {
   const isSelfie = shape === "oval";
@@ -222,6 +225,22 @@ export function KycCaptureScreen({
   const [idNumber, setIdNumber] = useState(
     formatIdInput(defaultIdNumber || "", documentType),
   );
+
+  // Sync internal state when parent props change (e.g. document type switch or preview lifted)
+  useEffect(() => {
+    setPreview(initialPreview ?? null);
+  }, [initialPreview]);
+
+  useEffect(() => {
+    setUploadedMediaId(initialMediaId ?? null);
+  }, [initialMediaId]);
+
+  useEffect(() => {
+    setIdNumber(formatIdInput(defaultIdNumber || "", documentType));
+  }, [defaultIdNumber, documentType]);
+
+  // Hidden file input for physical document photo uploads
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Live Camera Stream state for Selfie
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -835,24 +854,26 @@ export function KycCaptureScreen({
     startCamera();
   };
 
-  // Upload file explicitly triggered by user clicking the upload button
+  // Upload selfie explicitly triggered by user clicking the upload button (minimum 1.5s loader)
   const handleUpload = async () => {
     if (!selectedFile) return;
 
     setUploading(true);
     setUploadError(null);
 
-    const cleanId = idNumber.replace(/\s+/g, "").trim();
-
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
       formData.append("type", "selfie");
 
-      const res = await fetch("/api/v1/kyc/upload", {
-        method: "POST",
-        body: formData,
-      });
+      const minDelay = new Promise((resolve) => setTimeout(resolve, 1500));
+      const [res] = await Promise.all([
+        fetch("/api/v1/kyc/upload", {
+          method: "POST",
+          body: formData,
+        }),
+        minDelay,
+      ]);
 
       const data = (await res.json()) as {
         mediaId?: string;
@@ -873,13 +894,73 @@ export function KycCaptureScreen({
     }
   };
 
+  // Handle document photo selection: purely client-side preview, no automatic upload
+  const handleDocumentFileSelect = (file: File) => {
+    if (!file) return;
+    if (preview && preview !== initialPreview) URL.revokeObjectURL(preview);
+    const objectUrl = URL.createObjectURL(file);
+    setPreview(objectUrl);
+    setSelectedFile(file);
+    setUploadedMediaId(null);
+    setUploadError(null);
+  };
+
+  // Explicit upload document photo triggered by clicking the Upload button (minimum 1.5s loader)
+  const handleUploadDocument = async () => {
+    if (!selectedFile) return;
+
+    setUploading(true);
+    setUploadError(null);
+
+    const cleanId = idNumber.replace(/\s+/g, "").trim();
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("type", "document_front");
+      if (documentType) formData.append("idType", documentType);
+      if (cleanId) formData.append("idNumber", cleanId);
+
+      const minDelay = new Promise((resolve) => setTimeout(resolve, 1500));
+      const [res] = await Promise.all([
+        fetch("/api/v1/kyc/upload", {
+          method: "POST",
+          body: formData,
+        }),
+        minDelay,
+      ]);
+
+      const data = (await res.json()) as {
+        mediaId?: string;
+        error?: string;
+      };
+
+      if (res.ok && data.mediaId) {
+        setUploadedMediaId(data.mediaId);
+      } else {
+        setUploadError(
+          data.error || "Failed to upload document photo. Please try again.",
+        );
+      }
+    } catch {
+      setUploadError("Network connection error while uploading. Please retry.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   // Clean ID for submission
   const rawId = idNumber.replace(/\s+/g, "").trim();
   const isNin = documentType === "nin";
   const isIdValid = isNin ? rawId.length === 11 : rawId.length >= 5;
+  const isDocPhotoReady = isNin || Boolean(uploadedMediaId);
+  const canContinueDocument = isIdValid && isDocPhotoReady;
 
   // Complete step and proceed back to task checklist
   const handleContinue = () => {
+    if (!isSelfie && !canContinueDocument) return;
+    if (isSelfie && !uploadedMediaId) return;
+
     onDone({
       file: selectedFile || undefined,
       idNumber: rawId || undefined,
@@ -967,6 +1048,109 @@ export function KycCaptureScreen({
               ? "Enter your 11-digit NIN ID"
               : "Enter your official document number"}
           </p>
+        </div>
+      )}
+
+      {/* Document Image Capture/Upload Section (Required for Driver's License and Passport) */}
+      {!isSelfie && !isNin && (
+        <div className="mt-4 flex flex-col gap-3 rounded-card border border-jumpa-neutral-100 bg-jumpa-white p-4 shadow-jumpa-sm">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs leading-4 font-semibold text-jumpa-black">
+              Document Photo (Front)
+            </span>
+            {uploadedMediaId ? (
+              <span className="flex shrink-0 items-center gap-1 rounded-pill bg-jumpa-success/10 px-2 py-0.5 text-[11px] leading-4 font-semibold text-jumpa-success">
+                <CheckIcon aria-hidden="true" className="size-3 shrink-0" />
+                Uploaded
+              </span>
+            ) : (
+              <span className="rounded-pill bg-jumpa-danger-50 px-2 py-0.5 text-[11px] leading-4 font-semibold text-jumpa-danger">
+                Photo Required
+              </span>
+            )}
+          </div>
+
+          <p className="text-[11px] leading-4 text-jumpa-neutral-400">
+            Upload a clear photo of your document. Make sure all edges, details, and your photo are visible.
+          </p>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/jpg"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleDocumentFileSelect(file);
+            }}
+          />
+
+          {preview || uploadedMediaId ? (
+            <div className="relative mt-1 flex flex-col items-center overflow-hidden rounded-surface border border-jumpa-neutral-100 bg-jumpa-neutral-50 p-3">
+              {preview ? (
+                <div className="relative h-44 w-full overflow-hidden rounded-panel bg-jumpa-black">
+                  {/* biome-ignore lint/performance/noImgElement: dynamic blob URL preview */}
+                  <img
+                    src={preview}
+                    alt="Document preview"
+                    className="size-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="flex h-24 w-full flex-col items-center justify-center rounded-panel bg-jumpa-neutral-100/70 text-jumpa-neutral-500">
+                  <ImageIcon aria-hidden="true" className="size-6 text-jumpa-neutral-400" />
+                  <span className="mt-1 text-[11px] font-medium text-jumpa-neutral-600">
+                    Document photo attached
+                  </span>
+                </div>
+              )}
+              <div className="mt-3 flex w-full items-center justify-between">
+                {uploadedMediaId ? (
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-jumpa-success">
+                    <CheckIcon aria-hidden="true" className="size-4" />
+                    Uploaded
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-jumpa-primary-600">
+                    <ImageIcon aria-hidden="true" className="size-4" />
+                    Photo selected
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="tap text-xs font-semibold text-jumpa-primary-600 underline active:scale-95"
+                >
+                  Change photo
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="tap flex h-32 w-full flex-col items-center justify-center gap-2 rounded-surface border-2 border-dashed border-jumpa-neutral-200 bg-jumpa-neutral-50 transition-colors hover:border-jumpa-primary-600 hover:bg-jumpa-primary-50/20 active:scale-[0.99] cursor-pointer"
+            >
+              <div className="flex size-10 items-center justify-center rounded-full bg-jumpa-primary-100 text-jumpa-primary-600">
+                <CameraIcon aria-hidden="true" className="size-5" />
+              </div>
+              <span className="text-xs font-semibold text-jumpa-black">
+                Tap to capture or upload document photo
+              </span>
+              <span className="text-[10px] text-jumpa-neutral-400">
+                JPEG or PNG (max 3MB)
+              </span>
+            </button>
+          )}
+
+          {uploading && (
+            <div className="flex items-center gap-2 rounded-panel bg-jumpa-primary-50 px-3 py-2 text-xs font-semibold text-jumpa-primary-600">
+              <RefreshIcon aria-hidden="true" className="size-4 animate-spin" />
+              Uploading document...
+            </div>
+          )}
         </div>
       )}
 
@@ -1180,29 +1364,49 @@ export function KycCaptureScreen({
       {/* Main Dynamic Action Button */}
       <div className="mt-auto pt-6">
         {!isSelfie ? (
-          <Button
-            variant="gradient"
-            size="lg"
-            onClick={handleContinue}
-            disabled={!isIdValid}
-          >
-            <span className="flex items-center gap-2">
-              {isIdValid ? (
-                "Continue to live selfie"
-              ) : isNin ? (
-                "Enter your 11-digit NIN"
-              ) : (
-                "Enter your ID number"
-              )}
-            </span>
-          </Button>
-        ) : uploading ? (
-          <Button variant="gradient" size="lg" disabled>
-            <span className="flex items-center gap-2">
-              <RefreshIcon aria-hidden="true" className="size-5 animate-spin" />
-              Uploading selfie
-            </span>
-          </Button>
+          isNin ? (
+            <Button
+              variant="gradient"
+              size="lg"
+              onClick={handleContinue}
+              disabled={rawId.length !== 11}
+            >
+              {rawId.length === 11
+                ? "Continue to selfie verification"
+                : "Enter your NIN"}
+            </Button>
+          ) : !isIdValid ? (
+            <Button variant="gradient" size="lg" disabled>
+              Enter your ID number
+            </Button>
+          ) : !preview && !selectedFile && !uploadedMediaId ? (
+            <Button
+              variant="gradient"
+              size="lg"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <span className="flex items-center gap-2">
+                <CameraIcon aria-hidden="true" className="size-5" />
+                Select document photo
+              </span>
+            </Button>
+          ) : !uploadedMediaId ? (
+            <Button
+              variant="gradient"
+              size="lg"
+              onClick={handleUploadDocument}
+              disabled={uploading}
+            >
+              <span className="flex items-center gap-2">
+                <CloudIcon aria-hidden="true" className="size-5" />
+                Upload Document
+              </span>
+            </Button>
+          ) : (
+            <Button variant="gradient" size="lg" onClick={handleContinue}>
+              Continue to selfie verification
+            </Button>
+          )
         ) : !preview && !uploadedMediaId ? (
           blocked ? (
             <Button variant="gradient" size="lg" onClick={startCamera}>
@@ -1225,18 +1429,53 @@ export function KycCaptureScreen({
             </Button>
           )
         ) : !uploadedMediaId ? (
-          <Button variant="gradient" size="lg" onClick={handleUpload}>
+          <Button
+            variant="gradient"
+            size="lg"
+            onClick={handleUpload}
+            disabled={uploading}
+          >
             <span className="flex items-center gap-2">
               <CloudIcon aria-hidden="true" className="size-5" />
               Upload selfie
             </span>
           </Button>
         ) : (
-          <Button variant="gradient" size="lg" onClick={handleContinue}>
-            Continue
+          <Button
+            variant="gradient"
+            size="lg"
+            onClick={handleContinue}
+            disabled={isSubmitting}
+          >
+            <span className="flex items-center gap-2">
+              {isSubmitting ? (
+                <>
+                  <RefreshIcon aria-hidden="true" className="size-5 animate-spin" />
+                  Submitting verification...
+                </>
+              ) : (
+                "Submit"
+              )}
+            </span>
           </Button>
         )}
       </div>
+
+      {/* Jumpa Loader overlay displayed during upload for a minimum of 1.5s */}
+      {uploading && (
+        <div className="fixed inset-0 z-50 mx-auto flex max-w-app flex-col items-center justify-center bg-jumpa-white/90 backdrop-blur-sm px-4.5 animate-fade">
+          <JumpaLoader
+            label={isSelfie ? "Uploading selfie" : "Uploading document"}
+            className="size-28"
+          />
+          <p className="mt-4 text-sm font-semibold text-jumpa-black animate-pulse">
+            {isSelfie ? "Uploading selfie..." : "Uploading document..."}
+          </p>
+          <span className="mt-1 text-xs text-jumpa-neutral-400">
+            Please wait a moment
+          </span>
+        </div>
+      )}
     </>
   );
 }

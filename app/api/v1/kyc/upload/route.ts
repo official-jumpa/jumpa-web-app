@@ -84,6 +84,10 @@ export async function POST(req: NextRequest) {
     myazaFormData.append("type", type);
     myazaFormData.append("mimeType", mimeType);
 
+    console.log(
+      `[Myaza] Uploading media for userId=${userId}: type=${type}, mimeType=${mimeType}, size=${file.size} bytes, filename=${safeFilename}`,
+    );
+
     let response: Response;
     try {
       response = await fetch(`${baseUrl}/upload`, {
@@ -95,7 +99,8 @@ export async function POST(req: NextRequest) {
     } catch (fetchErr: any) {
       const isTimeout = isTimeoutError(fetchErr);
       console.error(
-        `[Myaza] ${isTimeout ? `Upload timed out after ${UPLOAD_TIMEOUT_MS}ms` : "Network failure"}: ${formatOneLineError(fetchErr)}`
+        `[Myaza] ${isTimeout ? `Upload timed out after ${UPLOAD_TIMEOUT_MS}ms` : "Network failure"}:`,
+        fetchErr,
       );
       return NextResponse.json(
         {
@@ -113,6 +118,10 @@ export async function POST(req: NextRequest) {
     } catch {
       data = { error: "Failed to parse provider response" };
     }
+
+    console.log(
+      `[Myaza] response [HTTP ${response.status}]: ${formatOneLineError(data)}`,
+    );
 
     if (!response.ok || !data?.mediaId) {
       let customError = "Failed to upload file. Please try again.";
@@ -133,9 +142,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const normalizedType: "document_front" | "document_back" | "selfie" =
+      type === "selfie"
+        ? "selfie"
+        : type === "document_back"
+          ? "document_back"
+          : "document_front";
+
     // Persist media ID to user's KYC record in MongoDB
     await saveKycMedia(userId, {
-      type: type === "selfie" ? "selfie" : "document",
+      type: normalizedType,
       mediaId: data.mediaId,
       idType,
       idNumber: idNumber ? idNumber.trim() : null,
@@ -145,7 +161,7 @@ export async function POST(req: NextRequest) {
       userId,
       action: "KYC_DOCUMENT_UPLOADED",
       details: {
-        type: type === "selfie" ? "selfie" : "document",
+        type: normalizedType,
         mediaId: data.mediaId,
         idType,
       },

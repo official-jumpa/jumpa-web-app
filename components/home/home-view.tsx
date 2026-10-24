@@ -220,7 +220,8 @@ export function HomeView({
           const data = await res.json();
           const isDone = Boolean(
             data?.isCompleted ||
-              data?.status === "approved",
+              data?.status === "approved" ||
+              data?.status === "verified",
           );
           setKycComplete(isDone);
           homeMemoryCache.kycComplete = isDone;

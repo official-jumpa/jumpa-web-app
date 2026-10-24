@@ -41,7 +41,8 @@ export function UsdConfirm({ onContinue }: { onContinue: () => void }) {
           const data = await res.json();
           const isDone = Boolean(
             data?.isCompleted ||
-              data?.status === "approved",
+              data?.status === "approved" ||
+              data?.status === "verified",
           );
           setVerified(isDone);
         }

@@ -163,11 +163,12 @@ export async function updateKycStage(
 export async function saveKycMedia(
   userId: string,
   params: {
-    type: "document" | "selfie";
+    type: "document" | "document_front" | "document_back" | "selfie";
     mediaId: string;
     idType?: KycIdType | null;
     idNumber?: string | null;
     docPhotoUrl?: string | null;
+    docBackPhotoUrl?: string | null;
     selfiePhotoUrl?: string | null;
   },
 ): Promise<IKYCSchema | null> {
@@ -175,12 +176,15 @@ export async function saveKycMedia(
 
   const update: Record<string, unknown> = { status: "in_progress" };
 
-  if (params.type === "document") {
+  if (params.type === "document" || params.type === "document_front") {
     if (params.mediaId) update.docMediaId = params.mediaId;
     update["stepsCompleted.document"] = true;
     if (params.idType) update.idType = params.idType;
     if (params.idNumber) update.idNumber = params.idNumber;
     if (params.docPhotoUrl) update.docPhotoUrl = params.docPhotoUrl;
+  } else if (params.type === "document_back") {
+    if (params.mediaId) update.docBackMediaId = params.mediaId;
+    if (params.docBackPhotoUrl) update.docBackPhotoUrl = params.docBackPhotoUrl;
   } else if (params.type === "selfie") {
     if (params.mediaId) update.selfieMediaId = params.mediaId;
     update["stepsCompleted.selfie"] = true;
@@ -194,6 +198,50 @@ export async function saveKycMedia(
   ).lean<IKYCSchema>();
 
   return updated ?? null;
+}
+
+/**
+ * Resets an in-progress or unapproved KYC draft for a user.
+ * Clears uploaded document media IDs, selfie media IDs, ID number, and resets flow steps.
+ * Does not reset approved or pending verifications.
+ */
+export async function resetKycDraft(userId: string): Promise<boolean> {
+  await connectDB();
+
+  const record = await KYCSchema.findOne({ userId });
+  if (
+    !record ||
+    record.isCompleted ||
+    record.status === "approved" ||
+    record.status === "pending"
+  ) {
+    return false;
+  }
+
+  await KYCSchema.updateOne(
+    { userId },
+    {
+      $unset: {
+        docMediaId: "",
+        docBackMediaId: "",
+        selfieMediaId: "",
+        docPhotoUrl: "",
+        docBackPhotoUrl: "",
+        selfiePhotoUrl: "",
+        idNumber: "",
+        idType: "",
+      },
+      $set: {
+        status: "not_started",
+        stage: "intro",
+        currentStep: 1,
+        stepsCompleted: { document: false, selfie: false, verification: false },
+      },
+    },
+  );
+
+  invalidateKycCache(userId);
+  return true;
 }
 
 /**
@@ -256,6 +304,7 @@ export async function completeKycVerification(
     // Verification failed or was rejected. Clear transient media IDs so subsequent attempts
     // require fresh uploads rather than resubmitting broken/expired media.
     update.docMediaId = null;
+    update.docBackMediaId = null;
     update.selfieMediaId = null;
     update["stepsCompleted.document"] = false;
     update["stepsCompleted.selfie"] = false;
@@ -359,7 +408,7 @@ export async function sendMyazaPhoneOtp(params: {
   const apiKey =
     process.env.MYAZA_TRUST_SECRET_KEY || process.env.MYAZA_TRUST_SANDBOX_KEY;
   const baseUrl =
-    process.env.MYAZA_TRUST_BASE_URL || "https://trust.myaza.app/api/kyc";
+    process.env.MYAZA_TRUST_BASE_URL || "https://api.toden.co/api/kyc";
 
   if (!apiKey) {
     throw new Error(" API key is not configured");
@@ -435,7 +484,7 @@ export async function verifyMyazaPhoneOtp(params: {
   const apiKey =
     process.env.MYAZA_TRUST_SECRET_KEY || process.env.MYAZA_TRUST_SANDBOX_KEY;
   const baseUrl =
-    process.env.MYAZA_TRUST_BASE_URL || "https://trust.myaza.app/api/kyc";
+    process.env.MYAZA_TRUST_BASE_URL || "https://api.toden.co/api/kyc";
 
   if (!apiKey) {
     throw new Error("API key is not configured");
@@ -675,7 +724,7 @@ export async function checkMyazaVerificationStatus(
   const apiKey =
     process.env.MYAZA_TRUST_SECRET_KEY || process.env.MYAZA_TRUST_SANDBOX_KEY;
   const baseUrl =
-    process.env.MYAZA_TRUST_BASE_URL || "https://trust.myaza.app/api/kyc";
+    process.env.MYAZA_TRUST_BASE_URL || "https://api.toden.co/api/kyc";
 
   if (!apiKey || !verificationId) return null;
 

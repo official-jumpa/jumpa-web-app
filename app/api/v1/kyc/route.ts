@@ -5,6 +5,7 @@ import {
   getCachedKycRecord,
   getOrCreateKycRecord,
   parseMyazaBiodata,
+  resetKycDraft,
   setCachedKycRecord,
   syncKycToUserProfile,
 } from "@/lib/functions/kycFunctions";
@@ -92,10 +93,16 @@ export async function GET(req: NextRequest) {
           kycRecord.verificationId
         );
         if (myazaData) {
+          console.log(
+            `[Myaza] Upstream status for verificationId=${kycRecord.verificationId}: ${formatOneLineError(myazaData)}`,
+          );
           const statusStr = String(myazaData.status || "").toLowerCase();
           if (
             statusStr === "approved" ||
+            statusStr === "verified" ||
             statusStr === "success" ||
+            statusStr === "completed" ||
+            statusStr === "passed" ||
             myazaData.success === true
           ) {
             const verifiedDetails = parseMyazaBiodata(myazaData);
@@ -146,6 +153,34 @@ export async function GET(req: NextRequest) {
       status: 500,
       rawError: error,
       customMessage: "Unable to retrieve identity verification status at this time.",
+    });
+  }
+}
+
+/**
+ * DELETE /api/v1/kyc
+ * Clears an in-progress KYC draft (media IDs, ID number, and flow stage)
+ * when a user leaves verification to start over from scratch.
+ */
+export async function DELETE() {
+  try {
+    const auth = await requireAuth({
+      rateLimit: { tier: "medium", action: "kyc_reset" },
+    });
+    if (!auth.ok) return auth.response;
+
+    const cleared = await resetKycDraft(auth.userId);
+    return NextResponse.json(
+      { success: true, cleared, message: "KYC draft media IDs cleared." },
+      { status: 200 },
+    );
+  } catch (error: any) {
+    return handleExternalApiError({
+      provider: "Myaza",
+      action: "status",
+      status: 500,
+      rawError: error,
+      customMessage: "Unable to clear KYC draft at this time.",
     });
   }
 }

@@ -59,6 +59,7 @@ export function useKyc(initialKycComplete?: boolean): UseKycResult {
       const isDone = Boolean(
         data?.isCompleted ||
           data?.status === "approved" ||
+          data?.status === "verified" ||
           data?.stage === "completed",
       );
 

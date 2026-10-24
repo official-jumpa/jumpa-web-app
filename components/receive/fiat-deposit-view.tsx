@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { BankIcon } from "@/components/ui/icons/bank";
 import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { NairaSignIcon } from "@/components/ui/icons/naira-sign";
-import { FlashIcon } from "@/components/ui/icons/flash";
 import { JumpaLoader } from "@/components/ui/jumpa-loader";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { ShareDetailsButton } from "@/components/ngn/share-details-button";

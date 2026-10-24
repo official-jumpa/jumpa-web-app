@@ -1,15 +1,15 @@
 /*
- * Complete list of Nigerian banks and financial institutions supported for Bellmonie transfers.
- * Uses NIBSS standardized 6-digit institution codes matching Bellmonie Bank Transfer specifications.
+ * Complete list of Nigerian banks and financial institutions.
+ * Uses NIBSS standardized 6-digit institution codes matching Nigerian Bank Transfer specifications.
  */
 
-export interface BellmonieBank {
+export interface NigerianBank {
   name: string;
   code: string;
   category?: string;
 }
 
-export const BellmonieBanks: BellmonieBank[] = [
+export const nigerianBanks: NigerianBank[] = [
   {
     "name": "5TT MFB",
     "code": "090832"
@@ -3205,26 +3205,27 @@ export const BellmonieBanks: BellmonieBank[] = [
 ];
 
 /**
- * Finds a Bellmonie bank by code or case-insensitive fuzzy name match.
+ * Finds a Nigerian bank by NIBSS code or case-insensitive fuzzy name match.
  */
-export function findBellmonieBank(query: string): BellmonieBank | undefined {
+export function findNigerianBank(query: string): NigerianBank | undefined {
   if (!query) return undefined;
   const q = query.trim().toLowerCase();
 
   // Exact code match
-  const byCode = BellmonieBanks.find((b) => b.code.toLowerCase() === q);
+  const byCode = nigerianBanks.find((b) => b.code.toLowerCase() === q);
   if (byCode) return byCode;
 
   // Exact name match
-  const byExactName = BellmonieBanks.find((b) => b.name.toLowerCase() === q);
+  const byExactName = nigerianBanks.find((b) => b.name.toLowerCase() === q);
   if (byExactName) return byExactName;
 
   // Prefix match (e.g. "Access" -> "ACCESS BANK")
-  const byPrefix = BellmonieBanks.find((b) => b.name.toLowerCase().startsWith(q));
+  const byPrefix = nigerianBanks.find((b) => b.name.toLowerCase().startsWith(q));
   if (byPrefix) return byPrefix;
 
   // Substring match
-  return BellmonieBanks.find(
+  return nigerianBanks.find(
     (b) => b.name.toLowerCase().includes(q) || q.includes(b.name.toLowerCase())
   );
 }
+

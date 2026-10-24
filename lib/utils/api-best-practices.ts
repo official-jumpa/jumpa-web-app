@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 export type ExternalProvider =
   | "Myaza"
-  | "Bellmonie"
+  | "Aella"
   | "Fossapay"
   | "Brails"
   | "Centiiv"

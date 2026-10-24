@@ -208,20 +208,6 @@ export const environment = {
   JUPITER_API_KEY: process.env.JUPITER_API_KEY || "",
   JUPITER_BASE_URL: process.env.JUPITER_BASE_URL || "https://api.jup.ag/swap/v2",
 
-  // BELLMONIE MFB
-  BELLMONIE_API_KEY: process.env.BELLMONIE_API_KEY || "",
-  BELLMONIE_API_SECRET: process.env.BELLMONIE_API_SECRET || "",
-  BELLMONIE_WEBHOOK:
-    process.env.BELLMONIE_WEBHOOK ||
-    "",
-  BELLMONIE_BASE_URL:
-    process.env.BELLMONIE_BASE_URL ||
-    (process.env.NODE_ENV === "production"
-      ? "https://baas-api.bellmonie.com"
-      : "https://sandbox-baas-api.bellmonie.com"),
-  BELLMONIE_BUSINESS_PREFIX:
-    process.env.BELLMONIE_BUSINESS_PREFIX || "JUMPA",
-
   // LIVE SUPPORT — all optional; an empty value only switches that alert off.
   /** Slack or Discord incoming webhook pinged on every handoff. */
   SUPPORT_WEBHOOK_URL: process.env.SUPPORT_WEBHOOK_URL || "",

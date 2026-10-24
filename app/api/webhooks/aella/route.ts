@@ -5,9 +5,9 @@ import { Transaction } from "@/models/Transaction";
 import {
   atomicCreditNgnBalance,
   verifyAellaWebhookSignature,
+  getDailySubsidizedDepositCount,
 } from "@/lib/functions/aellaFunctions";
 import { calculateNgnDepositFee } from "@/lib/ngn-account";
-import { getDailySubsidizedDepositCount } from "@/lib/functions/bellmonieFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { dispatchTransactionEmail } from "@/lib/functions/transactionEmailFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";

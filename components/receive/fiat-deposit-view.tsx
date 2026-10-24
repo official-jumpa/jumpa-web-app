@@ -21,7 +21,7 @@ export interface NgnAccountData {
   accountNumber: string;
   accountName: string;
   status: string;
-  provider?: "aella" | "bellmonie" | "fossapay" | string;
+  provider?: "aella" | "fossapay" | string;
 }
 
 const HERO =

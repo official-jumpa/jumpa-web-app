@@ -490,45 +490,31 @@ export async function syncPendingRampTransaction(tx: any): Promise<any> {
 }
 
 /**
- * Syncs a single PENDING Bellmonie bank transfer against Bellmonie's transfer status query.
+ * Syncs a single PENDING Aella bank transfer against Aella's transfer status query.
  */
-export async function syncPendingBellmonieTransaction(tx: any): Promise<any> {
-  const reference = tx?.bankDetails?.reference || tx?.txHash;
+export async function syncPendingAellaTransaction(tx: any): Promise<any> {
+  const reference = tx?.bankDetails?.reference || tx?.txHash || tx?._id;
   if (!tx || tx.status !== "PENDING" || !reference) {
     return tx;
   }
 
   try {
-    const { queryBellmonieTransferStatus } = await import(
-      "@/lib/functions/bellmonieFunctions"
+    const { queryAellaTransferStatus } = await import(
+      "@/lib/functions/aellaFunctions"
     );
-    const res = await queryBellmonieTransferStatus(reference);
-    const raw =
-      res?.status ??
-      res?.transactionStatus ??
-      res?.data?.status ??
-      res?.data?.transactionStatus;
-    const status = raw ? String(raw).toLowerCase() : null;
+    const res = await queryAellaTransferStatus(reference);
 
-    if (status === "successful" || status === "success") {
-      const sessionId = res?.sessionId || res?.data?.sessionId;
-      return await _applySyncResult(tx, "CONFIRMED", sessionId || reference);
+    if (res.status === "SUCCESSFUL") {
+      const sessionId = res.sessionId || reference;
+      return await _applySyncResult(tx, "CONFIRMED", sessionId);
     }
 
-    if (
-      status === "failed" ||
-      status === "reversed" ||
-      status === "rejected" ||
-      status === "declined"
-    ) {
+    if (res.status === "FAILED") {
       const failureReason =
-        res?.failureReason ||
-        res?.message ||
-        res?.data?.failureReason ||
-        "Transfer declined by destination bank";
+        res.failureReason || "Transfer declined by destination bank";
 
       console.log(
-        `[Bellmonie] Payout ${reference} marked FAILED (${failureReason}). Awaiting review.`,
+        `[Aella] Payout ${reference} marked FAILED (${failureReason}).`,
       );
 
       return await _applySyncResult(
@@ -541,7 +527,7 @@ export async function syncPendingBellmonieTransaction(tx: any): Promise<any> {
     }
   } catch (err: any) {
     console.warn(
-      `[Bellmonie Sync] Notice querying status for withdrawal ${tx._id}:`,
+      `[Aella Sync] Notice querying status for withdrawal ${tx._id}:`,
       err?.message || err,
     );
   }
@@ -561,12 +547,12 @@ export async function syncPendingTransaction(tx: any): Promise<any> {
     return tx;
   }
 
-  // 1. Bank withdrawal via Bellmonie
+  // 1. Bank withdrawal via Aella
   if (
     tx.type === "WITHDRAW" &&
     (tx.bankDetails?.reference || tx.chain === "fiat")
   ) {
-    return syncPendingBellmonieTransaction(tx);
+    return syncPendingAellaTransaction(tx);
   }
 
   // 2. Ramp transactions (Onramp / Offramp via Switch or Centiiv)
@@ -1466,14 +1452,14 @@ export async function resolveAllPendingTransactions(options?: {
   for (const tx of pendingTxs) {
     const isStale = tx.createdAt && new Date(tx.createdAt) < cutoffTime;
 
-    // 1. Bank withdrawals via Bellmonie
+    // 1. Bank withdrawals via Aella
     if (
       tx.type === "WITHDRAW" &&
       (tx.bankDetails?.reference || tx.chain === "fiat")
     ) {
       const reference = tx.bankDetails?.reference || tx.txHash || tx._id;
       try {
-        const synced = await syncPendingBellmonieTransaction(tx);
+        const synced = await syncPendingAellaTransaction(tx);
         if (synced.status === "CONFIRMED") {
           result.confirmed++;
           result.details.push({

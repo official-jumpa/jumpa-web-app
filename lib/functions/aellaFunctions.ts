@@ -6,22 +6,159 @@ import { Transaction } from "@/models/Transaction";
 import {
   calculateNgnWithdrawalFee,
 } from "@/lib/ngn-account";
-import {
-  atomicDebitNgnBalance,
-  atomicCreditNgnBalance,
-} from "./bellmonieFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { generateId, generateTransactionReference } from "@/lib/schema-ids";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
 import { assertDailyTransactionLimit } from "@/lib/functions/transactionLimitFunctions";
-import { findBellmonieBank } from "@/lib/constants/bellmonie-banks";
+import { findNigerianBank } from "@/lib/constants/nigerian-banks";
+
+/**
+ * Counts how many subsidized deposits (where fee was waived) the user has made today.
+ * Today is evaluated from 00:00:00 UTC.
+ */
+export async function getDailySubsidizedDepositCount(userId: string): Promise<number> {
+  await connectDB();
+
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+
+  const count = await Transaction.countDocuments({
+    userId,
+    type: "DEPOSIT",
+    status: "CONFIRMED",
+    $or: [{ feePaid: "0" }, { feePaid: null }, { feePaid: { $exists: false } }],
+    executedAt: { $gte: startOfDay },
+  });
+
+  return count;
+}
+
+/**
+ * Atomically debits Naira from a user's active Aella account.
+ */
+export async function atomicDebitNgnBalance(params: {
+  userId: string;
+  amount: number;
+  memo?: string;
+}): Promise<{ success: boolean; newBalance: number }> {
+  await connectDB();
+
+  const updatedAccount = await NgnAccount.findOneAndUpdate(
+    {
+      userId: params.userId,
+      provider: "aella",
+      status: "active",
+      balance: { $gte: params.amount },
+    },
+    {
+      $inc: { balance: -params.amount },
+    },
+    { returnDocument: "after" },
+  );
+
+  if (!updatedAccount) {
+    console.warn(`[Debit] Insufficient balance for user ${params.userId} attempting to debit ₦${params.amount}`);
+    throw new Error("Insufficient NGN wallet balance");
+  }
+
+  invalidateBalanceCache(params.userId);
+
+  console.log(`[Debit] ✅ Atomically debited ₦${params.amount} from ${params.userId}. Remaining: ₦${updatedAccount.balance}`);
+  return { success: true, newBalance: updatedAccount.balance };
+}
+
+/**
+ * Atomically credits Naira to a user's active Aella account.
+ */
+export async function atomicCreditNgnBalance(params: {
+  userId: string;
+  amount: number;
+  reference?: string;
+  memo?: string;
+  eventId?: string;
+  feePaid?: number;
+  grossAmount?: number;
+  senderName?: string;
+  senderAccountNumber?: string;
+  senderBank?: string;
+}): Promise<{ success: boolean; newBalance: number }> {
+  await connectDB();
+
+  const dedupKey = params.eventId || params.reference;
+
+  // Idempotency check: Guard against duplicate events
+  if (dedupKey) {
+    const existing = await Transaction.findOne({ txHash: dedupKey });
+    if (existing) {
+      console.log(`[Credit] Duplicate transaction ignored, hash: ${dedupKey}`);
+      const acc = await NgnAccount.findOne({
+        userId: params.userId,
+        provider: "aella",
+      }).lean<INgnAccount>();
+      return { success: true, newBalance: acc?.balance || 0 };
+    }
+  }
+
+  // Atomic Balance Increment (active Aella account)
+  let updatedAccount = await NgnAccount.findOneAndUpdate(
+    { userId: params.userId, provider: "aella", status: "active" },
+    {
+      $inc: { balance: params.amount },
+      $set: { status: "active" },
+    },
+    { returnDocument: "after" },
+  );
+
+  if (!updatedAccount) {
+    updatedAccount = await NgnAccount.findOneAndUpdate(
+      { userId: params.userId },
+      {
+        $inc: { balance: params.amount },
+        $set: { status: "active", provider: "aella" },
+      },
+      { returnDocument: "after", upsert: true },
+    );
+  }
+
+  const newBalance = updatedAccount?.balance ?? params.amount;
+
+  // Create confirmed Transaction record
+  if (params.reference) {
+    await Transaction.create({
+      userId: params.userId,
+      type: "DEPOSIT",
+      status: "CONFIRMED",
+      chain: "fiat",
+      network: "mainnet",
+      toAddress: updatedAccount.accountNumber || "Aella MFB",
+      fromAddress: params.senderName || params.senderAccountNumber || "NGN_BANK_TRANSFER",
+      amount: params.amount.toString(),
+      feePaid: params.feePaid !== undefined ? params.feePaid.toString() : "0",
+      token: "NGN",
+      bankDetails: {
+        bankName: updatedAccount.bankName || "Aella MFB",
+        accountNumber: updatedAccount.accountNumber,
+        accountName: updatedAccount.accountName,
+        reference: params.reference,
+        senderName: params.senderName,
+        senderAccountNumber: params.senderAccountNumber,
+        senderBank: params.senderBank,
+      },
+      memo: params.memo || `Naira Deposit (₦${params.amount.toLocaleString()})`,
+      txHash: dedupKey,
+      executedAt: new Date(),
+    });
+  }
+
+  invalidateBalanceCache(params.userId);
+
+  return { success: true, newBalance };
+}
 
 export {
   calculateNgnWithdrawalFee,
-  atomicDebitNgnBalance,
-  atomicCreditNgnBalance,
 };
 
 // ── Environment & Config ──
@@ -356,6 +493,104 @@ export async function aellaBankTransfer(params: {
   };
 }
 
+export interface AellaTransferStatusResult {
+  ok: boolean;
+  status: "SUCCESSFUL" | "FAILED" | "PENDING" | "NOT_FOUND";
+  sessionId?: string;
+  failureReason?: string;
+  amount?: string;
+  recipientName?: string;
+  recipientBank?: string;
+  raw: any;
+}
+
+/**
+ * Queries Aella Payout Verification API (GET /transfers/verify?reference={reference})
+ * to check the real-time status of an outbound bank payout.
+ */
+export async function queryAellaTransferStatus(
+  reference: string,
+): Promise<AellaTransferStatusResult> {
+  const cleanRef = String(reference || "").trim();
+  if (!cleanRef) {
+    return { ok: false, status: "NOT_FOUND", raw: null };
+  }
+
+  try {
+    const res = await aellaRequest<{
+      success: boolean;
+      message: string;
+      data?: {
+        id?: string;
+        narration?: string;
+        status?: string;
+        amount?: string | number;
+        externalReference?: string;
+        fee?: string | number;
+        currency?: string;
+        sessionId?: string;
+        receiverName?: string;
+        receiverBank?: string;
+        receiverAccountNumber?: string;
+        receiverBankCode?: string;
+        failureReason?: string;
+        message?: string;
+        [key: string]: any;
+      };
+      status: number;
+    }>(`/transfers/verify?reference=${encodeURIComponent(cleanRef)}`);
+
+    const data = res.data;
+    const rawStatus = String(data?.status || res.message || "").toLowerCase();
+
+    if (rawStatus === "success" || rawStatus === "successful") {
+      return {
+        ok: true,
+        status: "SUCCESSFUL",
+        sessionId: data?.sessionId || cleanRef,
+        amount: data?.amount !== undefined ? String(data.amount) : undefined,
+        recipientName: data?.receiverName,
+        recipientBank: data?.receiverBank,
+        raw: data,
+      };
+    }
+
+    if (
+      rawStatus === "failed" ||
+      rawStatus === "reversed" ||
+      rawStatus === "rejected" ||
+      rawStatus === "declined"
+    ) {
+      return {
+        ok: true,
+        status: "FAILED",
+        failureReason: data?.failureReason || data?.message || "Transfer declined by destination bank",
+        raw: data,
+      };
+    }
+
+    return {
+      ok: true,
+      status: "PENDING",
+      raw: data,
+    };
+  } catch (err: any) {
+    const msg = String(err?.message || err?.data?.message || "").toLowerCase();
+    if (
+      err?.status === 400 ||
+      err?.status === 404 ||
+      msg.includes("not found")
+    ) {
+      return {
+        ok: false,
+        status: "NOT_FOUND",
+        raw: err?.data,
+      };
+    }
+    throw err;
+  }
+}
+
 // ── Withdrawal Orchestrator ──
 
 export interface WithdrawAellaNgnFiatParams {
@@ -402,7 +637,7 @@ export async function withdrawAellaNgnFiat(params: WithdrawAellaNgnFiatParams): 
   let resolvedBankName = bankName?.trim();
 
   if (!resolvedBankCode) {
-    const matched = findBellmonieBank(bankName);
+    const matched = findNigerianBank(bankName);
     if (matched) {
       resolvedBankCode = matched.code;
       resolvedBankName = matched.name;
@@ -417,8 +652,8 @@ export async function withdrawAellaNgnFiat(params: WithdrawAellaNgnFiatParams): 
   const account = await NgnAccount.findOne({
     userId,
     status: "active",
-    provider: { $in: ["aella", "bellmonie"] },
-  }).sort({ provider: 1 });
+    provider: "aella",
+  });
 
   if (!account || (account.balance || 0) < totalDebited) {
     throw new Error(`Insufficient funds. You need at least ₦${totalDebited.toLocaleString()}.`);
@@ -564,3 +799,69 @@ export function verifyAellaWebhookSignature(
     return false;
   }
 }
+
+/**
+ * Transfers funds from user's active Aella NGN wallet to Jumpa's operating balance.
+ */
+export async function transferToOfficialJumpaWallet(params: {
+  userId: string;
+  amount: number;
+  narration: string;
+  reference?: string;
+}): Promise<{ success: boolean; reference: string; fromAccount: string }> {
+  await connectDB();
+
+  const userAccount = await NgnAccount.findOne({
+    userId: params.userId,
+    provider: "aella",
+    status: "active",
+  }).lean<INgnAccount>();
+
+  if (!userAccount || !userAccount.accountNumber) {
+    throw new Error("Please create an active Naira account first");
+  }
+
+  const currentBalance = Number(userAccount.balance ?? 0);
+  if (currentBalance < params.amount) {
+    throw new Error("Insufficient NGN wallet balance");
+  }
+
+  const reference = params.reference || generateId("bill");
+
+  await atomicDebitNgnBalance({
+    userId: params.userId,
+    amount: params.amount,
+    memo: params.narration,
+  });
+
+  return {
+    success: true,
+    reference,
+    fromAccount: userAccount.accountNumber,
+  };
+}
+
+/**
+ * Refunds funds back to user's Aella NGN wallet if a downstream provider fails.
+ */
+export async function refundFromOfficialJumpaWallet(params: {
+  userId: string;
+  amount: number;
+  narration: string;
+  reference?: string;
+}): Promise<boolean> {
+  await connectDB();
+  try {
+    await atomicCreditNgnBalance({
+      userId: params.userId,
+      amount: params.amount,
+      memo: params.narration,
+      reference: params.reference || generateId("bill"),
+    });
+    return true;
+  } catch (err: any) {
+    console.error("[Aella] Failed to refund user wallet balance:", err);
+    return false;
+  }
+}
+

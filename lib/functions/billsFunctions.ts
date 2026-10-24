@@ -12,9 +12,9 @@ import {
   type DataPlanPeriod,
 } from "@/lib/bills";
 import {
-  transferToOfficialJumpaBlocAccount,
-  refundFromOfficialJumpaBlocAccount,
-} from "@/lib/functions/bellmonieFunctions";
+  transferToOfficialJumpaWallet,
+  refundFromOfficialJumpaWallet,
+} from "@/lib/functions/aellaFunctions";
 import { generateId } from "@/lib/schema-ids";
 import { hasActiveNgnAccount } from "@/lib/functions/ngnFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
@@ -139,10 +139,8 @@ export async function getCarrierDataPlans(phone: string): Promise<{
 }
 
 export {
-  transferToOfficialJumpaBlocAccount,
-  refundFromOfficialJumpaBlocAccount,
-  transferToOfficialJumpaBlocAccount as transferToOfficialJumpaWallet,
-  refundFromOfficialJumpaBlocAccount as refundFromOfficialJumpaWallet,
+  transferToOfficialJumpaWallet,
+  refundFromOfficialJumpaWallet,
 };
 
 /**
@@ -184,7 +182,7 @@ export async function safeRefundBillPayment({
     return false;
   }
 
-  const success = await refundFromOfficialJumpaBlocAccount({
+  const success = await refundFromOfficialJumpaWallet({
     userId,
     amount,
     narration,
@@ -254,8 +252,8 @@ export async function purchaseAirtime(params: {
 
   const billRef = generateId("bill");
 
-  // 2. Transfer equivalent funds from user's Bloc MFB account to official Jumpa account
-  const transfer = await transferToOfficialJumpaBlocAccount({
+  // 2. Transfer equivalent funds from user's NGN wallet to official Jumpa account
+  const transfer = await transferToOfficialJumpaWallet({
     userId: params.userId,
     amount: params.amount,
     narration: `Airtime: ${normalizedPhone} (${params.network || "VTU"})`,
@@ -430,8 +428,8 @@ export async function purchaseData(params: {
 
   const billRef = generateId("bill");
 
-  // 2. Transfer equivalent funds from user's Bloc MFB account to official Jumpa account
-  const transfer = await transferToOfficialJumpaBlocAccount({
+  // 2. Transfer equivalent funds from user's NGN wallet to official Jumpa account
+  const transfer = await transferToOfficialJumpaWallet({
     userId: params.userId,
     amount: params.amount,
     narration: `Data: ${params.productName} (${normalizedPhone})`,

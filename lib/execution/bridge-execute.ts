@@ -505,6 +505,16 @@ export async function executeBridge(
         },
       ] as const;
 
+      const fastTransfer = transferType === "fast";
+      const feeNum = parseFloat(fee || "0");
+      const maxFeeSubunits =
+        feeNum > 0
+          ? BigInt(Math.round(feeNum * 10 ** evmCctp.decimals))
+          : fastTransfer
+            ? BigInt(150000) // 0.15 USDC default buffer for fast attestation
+            : BigInt(0);
+      const finalityThreshold = fastTransfer ? 1000 : 2000;
+
       txHash = await walletClient.writeContract({
         address: evmCctp.tokenMessenger,
         abi: tokenMessengerV2Abi,
@@ -515,8 +525,8 @@ export async function executeBridge(
           targetRecipientBytes32,
           evmCctp.usdc,
           "0x0000000000000000000000000000000000000000000000000000000000000000", // destinationCaller (0 allows any relayer or user to mint)
-          BigInt(0), // maxFee
-          1000, // minFinalityThreshold
+          maxFeeSubunits,
+          finalityThreshold,
         ],
       });
 

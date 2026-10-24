@@ -19,7 +19,7 @@ import { SegmentedToggle } from "@/components/ui/segmented-toggle";
 import { getAssetLogo } from "@/lib/assets";
 import { MOBILE_NETWORKS, PHONE_NUMBER_MIN } from "@/lib/bills";
 import { supportedBanks } from "@/lib/constants/banks";
-import { BellmonieBanks } from "@/lib/constants/bellmonie-banks";
+import { nigerianBanks } from "@/lib/constants/nigerian-banks";
 import { centiivBanks } from "@/lib/constants/centiiv-banks";
 import {
   ACCOUNT_NUMBER_MIN,
@@ -356,7 +356,7 @@ export function BankTransferForm({
     country?.code === "NG" || form.country.toLowerCase().includes("nigeria");
   const bankOptions =
     form.network === "Nigeria Bank"
-      ? BellmonieBanks.map((b) => b.name)
+      ? nigerianBanks.map((b) => b.name)
       : form.network === "Stellar"
         ? centiivBanks.map((b) => b.name)
         : isNigeria

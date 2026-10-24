@@ -100,8 +100,9 @@ export function relayToStellar({
       let attempts = 0;
       let msgObj: any = null;
 
-      while (attempts < 60) {
-        await new Promise((r) => setTimeout(r, 3000));
+      // Poll up to 250 attempts x 6s = 25 minutes to accommodate standard L1 finality fallback
+      while (attempts < 250) {
+        await new Promise((r) => setTimeout(r, 6000));
         try {
           const res = await fetch(
             `${CIRCLE_IRIS_API.mainnet}/v2/messages/${sourceDomain}?transactionHash=${txHash}`,

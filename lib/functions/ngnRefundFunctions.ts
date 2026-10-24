@@ -1,9 +1,5 @@
 import { connectDB } from "@/lib/db";
-import {
-  invalidateBellmonieNgnBalanceCache,
-  queryBellmonieTransferStatus,
-  queryBellmonieTransactionByReference,
-} from "@/lib/functions/bellmonieFunctions";
+import { queryAellaTransferStatus } from "@/lib/functions/aellaFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { type INgnAccount, NgnAccount } from "@/models/NgnAccount";
@@ -18,13 +14,12 @@ export class RefundError extends Error {
   }
 }
 
-/** Our record can still say CONFIRMED or PENDING when Bellmonie fails or reverses the payout later. */
+/** Our record can still say CONFIRMED or PENDING when bank fails or reverses the payout later. */
 const REFUNDABLE: ITransaction["status"][] = ["FAILED", "CONFIRMED", "PENDING"];
 const FAILED_STATUSES = new Set(["failed", "reversed", "rejected", "declined"]);
 const isFailedStatus = (status: unknown) =>
   FAILED_STATUSES.has(String(status ?? "").toLowerCase());
 
-/** Bellmonie books a payout's reversal under `R-<original reference>`. */
 export const reversalReference = (reference: string) => `R-${reference}`;
 
 /** Any receipt that means the money is already back: our refund, a transfer rollback, a reversal credited as a deposit. */
@@ -34,32 +29,31 @@ const refundKeys = (reference: string) => [
   reversalReference(reference),
 ];
 
-async function lookupBellmonie(reference: string) {
+async function lookupAella(reference: string) {
   try {
-    const res = await queryBellmonieTransferStatus(reference);
-    return res?.data ?? res ?? null;
+    const res = await queryAellaTransferStatus(reference);
+    return res ?? null;
   } catch (err: any) {
-    const status = err?.status ?? 0;
+    const status = err?.status ?? err?.response?.status ?? 0;
     const msg = err?.data?.message || err?.message || "";
     const isNotFound =
       err?.isNotFound ||
       (status >= 400 && status < 500 && status !== 429) ||
-      (status === 500 && (err?.data?.errorCode === "ERR-00" || /reading 'details'/i.test(msg)));
+      /not found/i.test(msg);
 
     if (isNotFound) return null;
     throw err;
   }
 }
 
-/** What Bellmonie says happened to a payout. */
-export type BellmonieVerdict =
+export type PayoutVerdict =
   | "failed"
   | "reversed"
   | "sent"
   | "pending"
   | "not_found";
 
-const SENT_STATUSES = new Set(["successful", "success"]);
+const SENT_STATUSES = new Set(["success", "successful"]);
 
 function extractStatus(record: any): string | null {
   if (!record) return null;
@@ -71,19 +65,14 @@ function extractStatus(record: any): string | null {
   return raw ? String(raw).toLowerCase() : null;
 }
 
-/** Bellmonie's answer for one payout: the transfer itself first, then any reversal booked against it. */
-async function bellmonieVerdict(
+/** Aella's answer for one payout. */
+async function aellaVerdict(
   reference: string,
-): Promise<{ verdict: BellmonieVerdict; status: string | null }> {
-  const original = await lookupBellmonie(reference);
+): Promise<{ verdict: PayoutVerdict; status: string | null }> {
+  const original = await lookupAella(reference);
   const status = extractStatus(original);
   if (original && isFailedStatus(status)) {
     return { verdict: "failed", status };
-  }
-  const reversal = await lookupBellmonie(reversalReference(reference));
-  const reversalStatus = extractStatus(reversal);
-  if (reversal && !isFailedStatus(reversalStatus)) {
-    return { verdict: "reversed", status };
   }
   if (!original) return { verdict: "not_found", status: null };
   return {
@@ -92,16 +81,16 @@ async function bellmonieVerdict(
   };
 }
 
-/** True when Bellmonie shows the payout failed, or has a reversal booked against it. */
-async function bellmonieReportsFailure(reference: string): Promise<boolean> {
-  const { verdict } = await bellmonieVerdict(reference);
+/** True when Aella shows the payout failed or reversed. */
+async function aellaReportsFailure(reference: string): Promise<boolean> {
+  const { verdict } = await aellaVerdict(reference);
   return verdict === "failed" || verdict === "reversed";
 }
 
 /**
  * Credits a failed naira withdrawal (amount + fee) back to its sender, exactly once, with a
  * receipt and one notification. A withdrawal we did not record as FAILED is refunded only once
- * Bellmonie itself confirms the failure, so neither an operator nor a forged webhook can refund
+ * Aella itself confirms the failure, so neither an operator nor a forged webhook can refund
  * a transfer that went through.
  */
 export async function refundFailedNgnWithdrawal({
@@ -143,9 +132,8 @@ export async function refundFailedNgnWithdrawal({
   if (!(refundAmount > 0)) throw new RefundError("Nothing to refund", 400);
 
   const isInternal =
-    /bloc/i.test(tx.bankDetails?.bankName || "") ||
     /transfer to/i.test(tx.memo || "") ||
-    /bloc/i.test(tx.toAddress || "");
+    /internal/i.test(tx.memo || "");
 
   if (isInternal) {
     throw new RefundError(
@@ -154,24 +142,24 @@ export async function refundFailedNgnWithdrawal({
     );
   }
 
-  // FAILED is Bellmonie's own answer to the transfer request; anything else needs its confirmation.
+  // If not already recorded as FAILED, verify with Aella first
   if (tx.status !== "FAILED") {
     let failed: boolean;
     try {
-      failed = await bellmonieReportsFailure(reference);
+      failed = await aellaReportsFailure(reference);
     } catch (err) {
       console.error(
-        `[NGN Refund] Bellmonie lookup failed for ${reference}:`,
+        `[NGN Refund] Aella lookup failed for ${reference}:`,
         err,
       );
       throw new RefundError(
-        "Could not confirm the transfer with Bellmonie. Try again shortly.",
+        "Could not confirm the transfer with Aella. Try again shortly.",
         502,
       );
     }
     if (!failed) {
       throw new RefundError(
-        "Bellmonie does not show this transfer as failed or reversed",
+        "Aella does not show this transfer as failed or reversed",
         409,
       );
     }
@@ -179,12 +167,11 @@ export async function refundFailedNgnWithdrawal({
 
   const account = await NgnAccount.findOne({
     userId: tx.userId,
-    $or: [{ provider: "bellmonie" }, { provider: { $exists: false } }],
+    provider: "aella",
   }).lean<INgnAccount>();
   if (!account) throw new RefundError("User has no naira account", 404);
 
   // The claim is the lock: once `refundedAt` is set, no other caller can match it.
-  // Use $in: REFUNDABLE so that a concurrent status change doesn't break the lock.
   const claimed = await Transaction.findOneAndUpdate(
     { _id: transactionId, status: { $in: REFUNDABLE }, refundedAt: null },
     {
@@ -217,7 +204,7 @@ export async function refundFailedNgnWithdrawal({
   const recipient = tx.bankDetails?.accountName || "beneficiary";
   const bank = tx.bankDetails?.bankName || "Bank";
   const refundRef = `${reference}-refund`;
-  const defaultBankName = account.bankName || "Bloc MFB";
+  const defaultBankName = account.bankName || "Aella MFB";
 
   // Receipt first, balance second: if either write fails the balance has not moved, so releasing is safe.
   let receiptId: string;
@@ -253,7 +240,7 @@ export async function refundFailedNgnWithdrawal({
   const credited = await NgnAccount.findOneAndUpdate(
     {
       userId: tx.userId,
-      $or: [{ provider: "bellmonie" }, { provider: { $exists: false } }],
+      provider: "aella",
     },
     { $inc: { balance: refundAmount } },
     { returnDocument: "after" },
@@ -268,7 +255,6 @@ export async function refundFailedNgnWithdrawal({
   }
 
   invalidateBalanceCache(tx.userId);
-  invalidateBellmonieNgnBalanceCache(tx.userId);
 
   createNotification({
     userId: tx.userId,
@@ -283,5 +269,6 @@ export async function refundFailedNgnWithdrawal({
   console.log(
     `[NGN Refund] ✅ Refunded ₦${refundAmount} to user ${tx.userId} for ${transactionId} (by ${refundedBy}).`,
   );
+
   return { refundAmount, newBalance: credited.balance };
 }

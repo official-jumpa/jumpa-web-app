@@ -6,7 +6,7 @@ export interface FormattedNgnAccountDetails {
   accountNumber: string;
   accountName: string;
   status: string;
-  provider?: "aella" | "bellmonie" | string;
+  provider?: "aella" | string;
 }
 
 export interface FormattedNgnBalance {
@@ -16,7 +16,7 @@ export interface FormattedNgnBalance {
 }
 
 /**
- * Finds an active NGN account for a user, prioritizing Aella then falling back to Bellmonie.
+ * Finds an active NGN account for a user via Aella.
  */
 export async function getUserNgnAccount(
   userId: string,
@@ -24,11 +24,9 @@ export async function getUserNgnAccount(
   await connectDB();
   return NgnAccount.findOne({
     userId,
-    provider: { $in: ["aella", "bellmonie"] },
+    provider: "aella",
     status: "active",
-  })
-    .sort({ provider: 1 }) // "aella" comes before "bellmonie"
-    .lean<INgnAccount>();
+  }).lean<INgnAccount>();
 }
 
 /**
@@ -40,12 +38,12 @@ export async function getAllUserNgnAccounts(userId: string): Promise<INgnAccount
 }
 
 /**
- * Retrieves the user's primary NGN account formatted for UI display, prioritizing Aella MFB.
+ * Retrieves the user's primary NGN account formatted for UI display via Aella MFB.
  */
 export async function getUserNgnAccountDetails(
   userId: string,
   fallbackAccountName = "Jumpa User",
-  options?: { force?: boolean; provider?: "aella" | "bellmonie" | "fossapay" },
+  options?: { force?: boolean; provider?: "aella" | "fossapay" },
 ): Promise<{
   account: FormattedNgnAccountDetails | null;
   balance: FormattedNgnBalance | null;
@@ -56,27 +54,24 @@ export async function getUserNgnAccountDetails(
   await connectDB();
   const allAccounts = await getAllUserNgnAccounts(userId);
   const hasAella = allAccounts.some((a) => a.provider === "aella");
-  const hasBellmonie = allAccounts.some((a) => a.provider === "bellmonie");
 
   // Format all active accounts for UI display
   const formattedAccounts: FormattedNgnAccountDetails[] = allAccounts
-    .filter((a) => a.provider === "aella" || a.provider === "bellmonie")
+    .filter((a) => a.provider === "aella")
     .map((a) => ({
-      bankName: a.bankName || (a.provider === "aella" ? "Aella MFB" : "Bloc MFB"),
+      bankName: a.bankName || "Aella MFB",
       accountNumber: a.accountNumber || "",
       accountName: a.accountName || fallbackAccountName,
       status: a.status || "active",
       provider: a.provider || "aella",
     }));
 
-  // Selected account (strictly prioritize Aella, then Bellmonie)
   const selectedDoc =
     (options?.provider ? allAccounts.find((a) => a.provider === options.provider) : null) ||
     allAccounts.find((a) => a.provider === "aella") ||
-    allAccounts.find((a) => a.provider === "bellmonie") ||
     allAccounts[0];
 
-  const canCreate = !hasAella && !hasBellmonie;
+  const canCreate = !hasAella;
 
   if (!selectedDoc) {
     return {
@@ -115,7 +110,7 @@ export async function getUserNgnAccountDetails(
 
   const rawBal = Number(selectedDoc.balance ?? 0);
   const account: FormattedNgnAccountDetails = {
-    bankName: selectedDoc.bankName || (selectedDoc.provider === "aella" ? "Aella MFB" : "Bloc MFB"),
+    bankName: selectedDoc.bankName || "Aella MFB",
     accountNumber: selectedDoc.accountNumber || "",
     accountName: selectedDoc.accountName || fallbackAccountName,
     status: selectedDoc.status || "active",

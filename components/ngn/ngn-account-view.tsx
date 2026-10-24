@@ -35,9 +35,9 @@ export function NgnAccountView() {
 
         if (ngnRes.ok && isMounted) {
           const data = await ngnRes.json();
-          // If user already has an active Aella or Bellmonie account, redirect to details
+          // If user already has an active Aella account, redirect to details
           const hasActiveAccount = Boolean(
-            data.hasAccount && (data.account?.provider === "aella" || data.account?.provider === "bellmonie"),
+            data.hasAccount && data.account?.provider === "aella",
           );
 
           if (hasActiveAccount) {

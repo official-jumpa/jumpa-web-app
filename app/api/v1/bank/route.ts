@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
 import { supportedBanks } from "@/lib/constants/banks";
-import { findBellmonieBank } from "@/lib/constants/bellmonie-banks";
-import { bellmonieBankNameEnquiry } from "@/lib/functions/bellmonieFunctions";
+import { findNigerianBank } from "@/lib/constants/nigerian-banks";
 import { resolveAccountQuerySchema } from "@/lib/validations/bank.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { connectDB } from "@/lib/db";
@@ -13,14 +12,14 @@ import {
   formatOneLineError,
   isTimeoutError,
 } from "@/lib/utils/api-best-practices";
-import { isAellaBank } from "@/lib/functions/aellaFunctions";
+import { isAellaBank, aellaBankNameEnquiry } from "@/lib/functions/aellaFunctions";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 /**
  * GET /api/v1/bank?accountNumber=...&bank=...
- * Live bank name enquiry prioritizing Paystack with Bellmonie fallback and internal wallet detection.
+ * Live bank name enquiry prioritizing Paystack with Aella fallback and internal wallet detection.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -47,7 +46,7 @@ export async function GET(req: NextRequest) {
 
     const { accountNumber: cleanAccount, bank: bankParam } = validation.data;
 
-    // Check if destination account is an internal Jumpa / Bellmonie / FossaPay wallet
+    // Check if destination account is an internal Jumpa / Aella wallet
     await connectDB();
     const internalAccount = await NgnAccount.findOne({
       accountNumber: cleanAccount,
@@ -120,35 +119,35 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3. Fallback: Bellmonie Name Enquiry
-    const bellmonieBank = findBellmonieBank(bankParam);
-    if (bellmonieBank) {
+    // 3. Fallback: Aella Bank Name Enquiry via NIBSS bank list
+    const nibssBank = findNigerianBank(bankParam);
+    if (nibssBank) {
       try {
-        const bmRes = await bellmonieBankNameEnquiry({
+        const aellaRes = await aellaBankNameEnquiry({
           accountNumber: cleanAccount,
-          bankCode: bellmonieBank.code,
+          bankCode: nibssBank.code,
         });
-        if (bmRes?.accountName) {
-          const isBmInternal =
+        if (aellaRes?.accountName) {
+          const isInternal =
             Boolean(internalAccount) || cleanAccount === jumpaMasterAccount;
 
           return NextResponse.json({
             success: true,
-            accountName: bmRes.accountName.trim(),
-            accountNumber: bmRes.accountNumber || cleanAccount,
-            bankName: bellmonieBank.name,
-            bankCode: bellmonieBank.code,
-            isInternal: isBmInternal,
+            accountName: aellaRes.accountName.trim(),
+            accountNumber: cleanAccount,
+            bankName: aellaRes.bankName || nibssBank.name,
+            bankCode: nibssBank.code,
+            isInternal,
           });
         }
-      } catch (bmErr: any) {
+      } catch (aellaErr: any) {
         console.warn(
-          `[Bank] Bellmonie resolution attempt for ${bellmonieBank.name} failed: ${formatOneLineError(bmErr)}`,
+          `[Bank] Aella resolution fallback for ${nibssBank.name} failed: ${formatOneLineError(aellaErr)}`,
         );
       }
     }
 
-    if (!paystackBank && !bellmonieBank) {
+    if (!paystackBank && !nibssBank) {
       return NextResponse.json(
         { error: `The bank "${bankParam}" is not currently supported.` },
         { status: 400 },
@@ -157,7 +156,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       {
-        error: `Could not verify account name with ${paystackBank?.name || bellmonieBank?.name || "the banking network"}. Please check the account number.`,
+        error: `Could not verify account name with ${paystackBank?.name || nibssBank?.name || "the banking network"}. Please check the account number.`,
       },
       { status: 400 },
     );

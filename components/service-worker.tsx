@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 /**
  * Registers `public/sw.js` and handles PWA lifecycle & update prompts.
  *
- * - Detects waiting service workers and prompts the user with an "Update Available" toast.
+ * - Prompts installed PWA users when a service worker is waiting.
  * - Triggers `registration.update()` whenever the app returns to the foreground (`visibilitychange` / `focus`).
  * - Periodically checks for updates every 30 minutes.
  * - Communicates with the service worker via `SKIP_WAITING` on user confirmation.
@@ -19,6 +19,10 @@ export function ServiceWorker() {
     if (process.env.NODE_ENV !== "production") return;
     if (!("serviceWorker" in navigator)) return;
 
+    const isInstalledPwa =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true;
+
     let registration: ServiceWorkerRegistration | null = null;
 
     navigator.serviceWorker
@@ -27,7 +31,7 @@ export function ServiceWorker() {
         registration = reg;
 
         // If a worker is already waiting in the background
-        if (reg.waiting) {
+        if (reg.waiting && isInstalledPwa) {
           setWaitingWorker(reg.waiting);
         }
 
@@ -38,6 +42,7 @@ export function ServiceWorker() {
 
           newWorker.addEventListener("statechange", () => {
             if (
+              isInstalledPwa &&
               newWorker.state === "installed" &&
               navigator.serviceWorker.controller
             ) {

@@ -11,7 +11,7 @@ import {
 import {
   atomicDebitNgnBalance,
   atomicCreditNgnBalance,
-} from "@/lib/functions/bellmonieFunctions";
+} from "@/lib/functions/aellaFunctions";
 import { createTransactionRecord } from "@/lib/functions/transactionFunctions";
 import {
   setUserCreatedSavings,

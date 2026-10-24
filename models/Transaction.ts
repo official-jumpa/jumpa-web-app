@@ -113,7 +113,7 @@ export interface ITransaction {
   refundedAt?: Date | null;
   refundedBy?: string | null;
   bankVerification?: {
-    provider: "bellmonie";
+    provider?: "aella" | string;
     status: string;
     settlementStatus?: string | null;
     reversedFlag?: number;

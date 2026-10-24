@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     const rawBody = await req.json().catch(() => ({}));
 
-    // Accept both aella and legacy bellmonie sourceProvider payload
+    // Enforce Aella provider
     const sanitizedBody = {
       ...rawBody,
       sourceProvider: "aella",

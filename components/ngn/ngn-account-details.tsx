@@ -37,7 +37,7 @@ export interface NgnAccountData {
   accountNumber: string;
   accountName: string;
   status: string;
-  provider?: "aella" | "bellmonie" | string;
+  provider?: "aella" | string;
 }
 
 export interface NgnBalanceData {

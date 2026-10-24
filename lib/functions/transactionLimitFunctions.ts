@@ -9,10 +9,10 @@ import { formatOneLineError } from "@/lib/utils/api-best-practices";
  * Central Platform Transaction Limits.
  */
 export const TRANSACTION_LIMIT_CONFIG = {
-  NON_KYC_DAILY_USD: 200,
-  KYC_DAY_1_USD: 400, // Day 1 probation (0 - 24 hours)
-  KYC_DAY_2_USD: 800, // Day 2 probation (24 - 48 hours)
-  KYC_MAX_DAILY_USD: 1600, // Standard full limit
+  NON_KYC_DAILY_USD: 500,
+  KYC_DAY_1_USD: 1000, // Day 1 probation (0 - 24 hours)
+  KYC_DAY_2_USD: 2000, // Day 2 probation (24 - 48 hours)
+  KYC_MAX_DAILY_USD: 5000, // Standard full limit
 } as const;
 
 /**

@@ -64,7 +64,7 @@ export async function dispatchTransactionEmail(
     const claim = await Transaction.findOneAndUpdate(
       { _id: tx._id, emailSent: { $ne: true } },
       { $set: { emailSent: true, emailSentAt: new Date() } },
-      { new: true },
+      { returnDocument: "after" },
     );
 
     if (!claim) {

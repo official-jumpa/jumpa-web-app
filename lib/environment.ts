@@ -60,6 +60,13 @@ export const environment = {
 
   // EVM & Alchemy Config
   FEE_WALLET_EVM: process.env.FEE_WALLET_EVM || "",
+  FEE_USD_AMOUNT_EVM: process.env.FEE_USD_AMOUNT_EVM
+    ? Number(process.env.FEE_USD_AMOUNT_EVM)
+    : 0.1,
+  FEE_USD_AMOUNT_BASE: process.env.FEE_USD_AMOUNT_BASE
+    ? Number(process.env.FEE_USD_AMOUNT_BASE)
+    : 0.05,
+  SPONSORED_FEE_EVM_KEY: process.env.SPONSORED_FEE_EVM_KEY || "",
   EVM_RPC_URL:
     (process.env.EVM_RPC_URL && !process.env.EVM_RPC_URL.includes("solana")
       ? process.env.EVM_RPC_URL
@@ -133,7 +140,7 @@ export const environment = {
   FEE_WALLET_STELLAR: process.env.FEE_WALLET_STELLAR || "",
   FEE_USD_AMOUNT_STELLAR: process.env.FEE_USD_AMOUNT_STELLAR
     ? Number(process.env.FEE_USD_AMOUNT_STELLAR)
-    : 0.1,
+    : 0.05,
 
   // Solana Gas Sponsorship & Abstraction
   SPONSORED_FEE_SOLANA_KEY: process.env.SPONSORED_FEE_SOLANA_KEY || "",

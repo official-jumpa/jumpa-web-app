@@ -171,6 +171,30 @@ export const setLoginPasswordSchema = z.object({
 export type SetLoginPasswordInput = z.infer<typeof setLoginPasswordSchema>;
 
 /**
+ * Validation for forgot login password (POST /api/v1/auth/forgot-password)
+ */
+export const forgotPasswordSchema = z.object({
+  email: z
+    .email("Please enter a valid email address")
+    .toLowerCase()
+    .trim(),
+  otp: z
+    .string({ error: "Verification code is required" })
+    .trim()
+    .regex(/^\d{6}$/, "Verification code must be 6 digits"),
+  newPassword: z
+    .string({ error: "Password must be exactly 6 digits" })
+    .trim()
+    .regex(/^\d{6}$/, "Password must be exactly 6 digits")
+    .refine(
+      (val) => !isWeakPassword(val),
+      "Avoid sequences and repeated digits. Pick another password.",
+    ),
+});
+
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+/**
  * Validation for setting unique Jumpa tag (POST /api/v1/user/tag)
  */
 export const setJumpaTagSchema = z.object({

@@ -32,6 +32,12 @@ import {
   executeSponsoredSplTransfer,
   parseSolanaKeypair,
 } from "./solana/sponsor";
+import {
+  getEvmSponsorAccount,
+  executeSponsoredBaseUsdcTransfer,
+  executeSponsoredEvmUsdcTransfer,
+  executeSponsoredEvmErc20Transfer,
+} from "./evm/sponsor";
 
 const ERC20_ABI = [
   {
@@ -272,6 +278,8 @@ export async function executeOfframpTransfer(options: {
               : `0x${mnemonic.trim()}`) as `0x${string}`,
           );
       const tokenAddress = config.address as `0x${string}`;
+      const isUsdc = normalizedAsset.includes("usdc") || asset.toLowerCase().includes("usdc");
+      const isUsdt = normalizedAsset.includes("usdt") || asset.toLowerCase().includes("usdt");
 
       // Pre-flight check: Gas (ETH) balance
       const ethBalanceWei = await publicClient.getBalance({
@@ -281,6 +289,41 @@ export async function executeOfframpTransfer(options: {
       
       const minimumGas = isEthereum ? 0.001 : 0.0003;
       if (ethBalance < minimumGas) {
+        if ((isUsdc || isUsdt) && getEvmSponsorAccount()) {
+          console.log(
+            `[OfframpTransfer] User ${networkName} ETH (${ethBalance} ETH) < ${minimumGas} ETH — routing through ${networkName} ${isUsdc ? "USDC" : "USDT"} sponsor engine...`,
+          );
+          try {
+            const sponsoredRes = isUsdc
+              ? await executeSponsoredEvmUsdcTransfer({
+                  mnemonicOrPrivateKey: mnemonic.trim(),
+                  destination: depositAddress,
+                  amount: numAmount,
+                  chain: isEthereum ? "ethereum" : "base",
+                })
+              : await executeSponsoredEvmErc20Transfer({
+                  mnemonicOrPrivateKey: mnemonic.trim(),
+                  destination: depositAddress,
+                  amount: numAmount,
+                  asset: "USDT",
+                  chain: isEthereum ? "ethereum" : "base",
+                  skipFeeCollection: true,
+                });
+
+            return {
+              success: true,
+              txHash: sponsoredRes.txHash,
+              explorerUrl: sponsoredRes.explorerUrl,
+            };
+          } catch (sponsorErr: any) {
+            console.error(`[OfframpTransfer] Sponsored ${networkName} transfer error:`, sponsorErr);
+            return {
+              success: false,
+              error: sponsorErr?.message || `Sponsored ${networkName} offramp transfer failed`,
+            };
+          }
+        }
+
         return {
           success: false,
           error: `Insufficient ETH balance on ${networkName} network to pay gas fees (minimum ${minimumGas} ETH required).`,

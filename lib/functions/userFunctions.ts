@@ -10,6 +10,7 @@ import { UserPreference, type IUserPreference } from "@/models/UserPreference";
 import { generateId } from "@/lib/schema-ids";
 import type { UpdatePreferencesInput } from "@/lib/validations/user.validation";
 import type { NotificationType } from "@/models/Notification";
+import { normalizeEmail } from "@/lib/utils/email-policy";
 
 /**
  * Retrieves a user by their unique user ID.
@@ -482,4 +483,86 @@ export async function shouldSendNotification(
     console.warn("[shouldSendNotification] Preference check failed, allowing by default:", err);
     return true;
   }
+}
+
+/**
+ * Retrieves a user by their email address.
+ */
+export async function getUserByEmail(email: string): Promise<IUser | null> {
+  await connectDB();
+  const normalized = normalizeEmail(email);
+  const user = await User.findOne({ email: normalized }).lean<IUser>();
+  return user ?? null;
+}
+
+/**
+ * Revokes all active sessions for a user (used during password reset)
+ */
+export async function deleteAllUserSessions(userId: string): Promise<number> {
+  await connectDB();
+  const db = getDb();
+  const result = await db.collection("session").deleteMany({ userId });
+  return result.deletedCount || 0;
+}
+
+/**
+ * Atomically verifies and consumes the email verification OTP from Better-Auth's verification table.
+ * Deletes the record on success to prevent any replay attack.
+ */
+export async function verifyAndConsumeEmailOtp(
+  email: string,
+  otp: string,
+): Promise<{ ok: boolean; error?: string }> {
+  await connectDB();
+  const db = getDb();
+  const normalized = normalizeEmail(email);
+  const identifier = `email-verification-otp-${normalized}`;
+
+  const verificationRecord = await db.collection("verification").findOne({
+    identifier,
+  });
+
+  if (!verificationRecord) {
+    return { ok: false, error: "Invalid or expired verification code." };
+  }
+
+  if (new Date(verificationRecord.expiresAt) < new Date()) {
+    await db.collection("verification").deleteOne({ identifier });
+    return {
+      ok: false,
+      error: "Verification code has expired. Please request a new one.",
+    };
+  }
+
+  // Format in better-auth email-otp: `${storedOtp}:${attempts}`
+  const rawValue = String(verificationRecord.value || "");
+  const lastColonIndex = rawValue.lastIndexOf(":");
+  const storedOtp =
+    lastColonIndex === -1 ? rawValue : rawValue.slice(0, lastColonIndex);
+  const attemptsStr =
+    lastColonIndex === -1 ? "0" : rawValue.slice(lastColonIndex + 1);
+  const attempts = parseInt(attemptsStr, 10) || 0;
+
+  if (attempts >= 3) {
+    await db.collection("verification").deleteOne({ identifier });
+    return {
+      ok: false,
+      error: "Too many failed attempts. Please request a new code.",
+    };
+  }
+
+  if (storedOtp !== otp.trim()) {
+    await db.collection("verification").updateOne(
+      { identifier },
+      { $set: { value: `${storedOtp}:${attempts + 1}` } },
+    );
+    return {
+      ok: false,
+      error: "That code isn't right. Check the 6 digits and try again.",
+    };
+  }
+
+  // Atomically delete the token so it cannot be used again
+  await db.collection("verification").deleteOne({ identifier });
+  return { ok: true };
 }

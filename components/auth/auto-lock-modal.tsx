@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthContext } from "@/components/auth/AuthGuard";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
@@ -129,7 +130,7 @@ export function AutoLockModal({ onUnlock }: AutoLockModalProps) {
             Welcome back, {displayName}
           </h2>
           <p className="mt-1.5 text-xs text-jumpa-neutral-500">
-            Enter your 6-digit login password to unlock Jumpa
+            Enter your 6-digit login password to unlock your wallet
           </p>
         </div>
       </div>
@@ -156,13 +157,22 @@ export function AutoLockModal({ onUnlock }: AutoLockModalProps) {
           </p>
         ) : null}
 
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="cursor-pointer text-xs font-semibold text-jumpa-neutral-400 hover:text-jumpa-danger transition-colors mt-2"
-        >
-          Forgot password? Sign out
-        </button>
+        <div className="flex items-center justify-center gap-3 mt-2">
+          <Link
+            href="/forgot-password"
+            className="cursor-pointer text-xs font-semibold text-jumpa-primary-600 hover:text-jumpa-primary-700 transition-colors"
+          >
+            Forgot password?
+          </Link>
+          <span className="text-xs text-jumpa-neutral-300">•</span>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="cursor-pointer text-xs font-semibold text-jumpa-neutral-400 hover:text-jumpa-danger transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
       </div>
 
       {/* Bottom Numeric Keypad */}

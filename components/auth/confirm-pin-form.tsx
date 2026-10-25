@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
 import { PIN_NOTES, PinNote } from "@/components/auth/pin-note";
+import { PinLoaderSlot } from "@/components/ui/pin-loader";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 
@@ -98,13 +99,9 @@ export function ConfirmPinForm({
           <p className="text-center text-xs text-jumpa-danger">{error}</p>
         )}
 
-        {creating && (
-          <p className="text-center text-xs text-jumpa-neutral-500 animate-pulse">
-            Creating your secure wallet...
-          </p>
-        )}
-
-        <PinNote note={PIN_NOTES.confirm} />
+        <PinLoaderSlot busy={creating} label="Creating your secure wallet">
+          <PinNote note={PIN_NOTES.confirm} />
+        </PinLoaderSlot>
       </div>
 
       <NumericKeypad

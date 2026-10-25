@@ -8,6 +8,7 @@ import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
 import { PIN_NOTES, PinNote } from "@/components/auth/pin-note";
 import { SuccessSheet } from "@/components/auth/success-sheet";
+import { PinLoaderSlot } from "@/components/ui/pin-loader";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 
@@ -279,17 +280,18 @@ export default function MigratePinPage() {
           <p className="text-center text-xs text-jumpa-danger">{error}</p>
         )}
 
-        {status === "submitting" && (
-          <p className="text-center text-xs text-jumpa-neutral-500 animate-pulse">
-            {stage === "confirm-existing"
-              ? "Verifying your PIN..."
+        <PinLoaderSlot
+          busy={status === "submitting"}
+          label={
+            stage === "confirm-existing"
+              ? "Verifying your PIN"
               : stage === "current"
-                ? "Verifying current PIN..."
-                : "Upgrading your wallet security..."}
-          </p>
-        )}
-
-        <PinNote note={PIN_NOTES.migrate} />
+                ? "Verifying current PIN"
+                : "Upgrading your wallet security"
+          }
+        >
+          <PinNote note={PIN_NOTES.migrate} />
+        </PinLoaderSlot>
       </div>
 
       <NumericKeypad

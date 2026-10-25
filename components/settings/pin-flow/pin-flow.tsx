@@ -367,6 +367,7 @@ export function PinFlow({ name }: { name: PinFlowName }) {
           note={flow.note}
           error={error}
           busy={busy}
+          busyLabel="Updating your PIN"
           onEdit={clearError}
           onSubmit={confirmCreated}
         />

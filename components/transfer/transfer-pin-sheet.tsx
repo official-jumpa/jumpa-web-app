@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
-import { JumpaLoader } from "@/components/ui/jumpa-loader";
+import { PinLoader } from "@/components/ui/pin-loader";
 import { SheetPortal } from "@/components/ui/sheet-portal";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
@@ -113,13 +113,7 @@ export function TransferPinSheet({
         />
       </div>
 
-      {pending ? (
-        <JumpaLoader
-          label={pendingLabel}
-          className="mx-auto mt-4 size-12 animate-pop-in"
-          markClassName="w-6"
-        />
-      ) : null}
+      {pending ? <PinLoader label={pendingLabel} className="mt-4" /> : null}
 
       <NumericKeypad
         onDigit={push}

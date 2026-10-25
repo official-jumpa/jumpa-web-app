@@ -10,6 +10,7 @@ import {
   getUserById,
   setUserLoginPassword,
   logUserActivity,
+  verifyAndConsumeEmailOtp,
 } from "@/lib/functions/userFunctions";
 import { triggerWalletBackgroundUpdates } from "@/lib/services/wallet-migration";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
@@ -21,72 +22,8 @@ import {
   migratePinSchema,
 } from "@/lib/validations/user.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
-import { connectDB, getDb } from "@/lib/db";
-import { normalizeEmail } from "@/lib/utils/email-policy";
 import { environment } from "@/lib/environment";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
-
-/**
- * Atomically verifies and consumes the email verification OTP from Better-Auth's verification table.
- * Deletes the record on success to prevent any replay attack.
- */
-async function verifyAndConsumeEmailOtp(
-  email: string,
-  otp: string,
-): Promise<{ ok: boolean; error?: string }> {
-  await connectDB();
-  const db = getDb();
-  const normalized = normalizeEmail(email);
-  const identifier = `email-verification-otp-${normalized}`;
-
-  const verificationRecord = await db.collection("verification").findOne({
-    identifier,
-  });
-
-  if (!verificationRecord) {
-    return { ok: false, error: "Invalid or expired verification code." };
-  }
-
-  if (new Date(verificationRecord.expiresAt) < new Date()) {
-    await db.collection("verification").deleteOne({ identifier });
-    return {
-      ok: false,
-      error: "Verification code has expired. Please request a new one.",
-    };
-  }
-
-  // Format in better-auth email-otp: `${storedOtp}:${attempts}`
-  const rawValue = String(verificationRecord.value || "");
-  const lastColonIndex = rawValue.lastIndexOf(":");
-  const storedOtp =
-    lastColonIndex === -1 ? rawValue : rawValue.slice(0, lastColonIndex);
-  const attemptsStr =
-    lastColonIndex === -1 ? "0" : rawValue.slice(lastColonIndex + 1);
-  const attempts = parseInt(attemptsStr, 10) || 0;
-
-  if (attempts >= 3) {
-    await db.collection("verification").deleteOne({ identifier });
-    return {
-      ok: false,
-      error: "Too many failed attempts. Please request a new code.",
-    };
-  }
-
-  if (storedOtp !== otp.trim()) {
-    await db.collection("verification").updateOne(
-      { identifier },
-      { $set: { value: `${storedOtp}:${attempts + 1}` } },
-    );
-    return {
-      ok: false,
-      error: "That code isn't right. Check the 6 digits and try again.",
-    };
-  }
-
-  // Atomically delete the token so it cannot be used again
-  await db.collection("verification").deleteOne({ identifier });
-  return { ok: true };
-}
 
 /**
  * POST /api/v1/wallet/pin

@@ -58,9 +58,9 @@ export function mapCountryCodeToName(codeOrName: string): string {
  */
 export const NGN_FEE_CONFIG = {
   /** Maximum number of deposits per calendar day subsidized (free) by Jumpa */
-  MAX_DAILY_FREE_DEPOSITS: 3,
+  MAX_DAILY_FREE_DEPOSITS: 5,
   /** Maximum deposit amount (in NGN) eligible for Jumpa fee subsidy */
-  FREE_DEPOSIT_THRESHOLD: 5000,
+  FREE_DEPOSIT_THRESHOLD: 10000,
   /** Provider deposit collection fee rate (1%) */
   DEPOSIT_FEE_PERCENT: 0.01,
   /** Provider maximum fee cap on deposits */
@@ -69,7 +69,7 @@ export const NGN_FEE_CONFIG = {
 
 /**
  * Calculates NGN deposit (virtual account collection) fee:
- * - Free for deposits <= ₦5,000 up to 3 times per calendar day.
+ * - Free for deposits <= ₦10,000 up to 5 times per calendar day.
  * - Otherwise 1% capped at ₦1,500.
  */
 export function calculateNgnDepositFee(
@@ -112,23 +112,23 @@ export function calculateNgnDepositFee(
 
 /**
  * Calculates NGN withdrawal (bank payout) fee based on official tier schedule:
- * - ₦0 – ₦5,000: ₦50
- * - > ₦5,000 – ₦10,000: ₦100
- * - > ₦10,000 – ₦20,000: ₦150
- * - > ₦20,000 – ₦30,000: ₦200
- * - > ₦30,000 – ₦50,000: ₦250
- * - > ₦50,000 – ₦100,000: ₦300
- * - > ₦100,000 – ₦150,000: ₦350
+ * - ₦0 – ₦5,000: ₦25
+ * - > ₦5,000 – ₦10,000: ₦50
+ * - > ₦10,000 – ₦20,000: ₦75
+ * - > ₦20,000 – ₦30,000: ₦100
+ * - > ₦30,000 – ₦50,000: ₦125
+ * - > ₦50,000 – ₦100,000: ₦150
+ * - > ₦100,000 – ₦150,000: ₦300
  * - Above ₦150,000: ₦400
  */
 export function calculateNgnWithdrawalFee(amount: number): number {
   if (amount <= 0) return 0;
   if (amount <= 5000) return 50;
-  if (amount <= 10000) return 100;
-  if (amount <= 20000) return 150;
-  if (amount <= 30000) return 200;
-  if (amount <= 50000) return 250;
-  if (amount <= 100000) return 300;
-  if (amount <= 150000) return 350;
+  if (amount <= 10000) return 75;
+  if (amount <= 20000) return 100;
+  if (amount <= 30000) return 125;
+  if (amount <= 50000) return 150;
+  if (amount <= 100000) return 200;
+  if (amount <= 150000) return 300;
   return 400;
 }

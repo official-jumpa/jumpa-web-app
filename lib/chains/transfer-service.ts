@@ -48,6 +48,10 @@ import {
   getSolanaSponsorKeypair,
   executeSponsoredSplTransfer,
 } from "./solana/sponsor";
+import {
+  getEvmSponsorAccount,
+  executeSponsoredBaseUsdcTransfer,
+} from "./evm/sponsor";
 
 export async function resolveChainPrivateKey(
   secret: string,
@@ -632,6 +636,18 @@ export async function sendEvm(params: {
   } else {
     // For ERC20 transfers (USDC, USDT, etc.), verify native ETH is available for gas
     if (ethBalance < requiredGasWei) {
+      // If transferring USDC on Base and sponsor is configured, activate gas abstraction
+      if (chain === "base" && upperAsset === "USDC" && getEvmSponsorAccount()) {
+        console.log(
+          `[Transfer Service] User Base ETH balance (${(Number(ethBalance) / 1e18).toFixed(6)} ETH) < required gas (${(Number(requiredGasWei) / 1e18).toFixed(6)} ETH) — sponsoring USDC transfer via Base gas abstraction...`,
+        );
+        return await executeSponsoredBaseUsdcTransfer({
+          mnemonicOrPrivateKey: cleanKey,
+          destination,
+          amount,
+        });
+      }
+
       const requiredEth = (Number(requiredGasWei) / 1e18).toFixed(6);
       const currentEth = (Number(ethBalance) / 1e18).toFixed(6);
       throw new Error(

@@ -32,6 +32,10 @@ import {
   executeSponsoredSplTransfer,
   parseSolanaKeypair,
 } from "./solana/sponsor";
+import {
+  getEvmSponsorAccount,
+  executeSponsoredBaseUsdcTransfer,
+} from "./evm/sponsor";
 
 const ERC20_ABI = [
   {
@@ -281,6 +285,30 @@ export async function executeOfframpTransfer(options: {
       
       const minimumGas = isEthereum ? 0.001 : 0.0003;
       if (ethBalance < minimumGas) {
+        if (!isEthereum && (normalizedAsset.includes("usdc") || asset.toLowerCase().includes("usdc")) && getEvmSponsorAccount()) {
+          console.log(
+            `[OfframpTransfer] User Base ETH (${ethBalance} ETH) < ${minimumGas} ETH — routing through Base USDC sponsor engine...`,
+          );
+          try {
+            const sponsoredRes = await executeSponsoredBaseUsdcTransfer({
+              mnemonicOrPrivateKey: mnemonic.trim(),
+              destination: depositAddress,
+              amount: numAmount,
+            });
+            return {
+              success: true,
+              txHash: sponsoredRes.txHash,
+              explorerUrl: sponsoredRes.explorerUrl,
+            };
+          } catch (sponsorErr: any) {
+            console.error("[OfframpTransfer] Sponsored Base transfer error:", sponsorErr);
+            return {
+              success: false,
+              error: sponsorErr?.message || "Sponsored Base offramp transfer failed",
+            };
+          }
+        }
+
         return {
           success: false,
           error: `Insufficient ETH balance on ${networkName} network to pay gas fees (minimum ${minimumGas} ETH required).`,

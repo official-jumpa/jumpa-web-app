@@ -47,10 +47,10 @@ export function getStellarFeeCollectorPubkey(): string | null {
 }
 
 /**
- * Returns the configured USD/token fee amount for gas abstraction (default 0.10).
+ * Returns the configured USD/token fee amount for gas abstraction (default 0.05).
  */
 export function getStellarFeeAmount(): number {
-  return environment.FEE_USD_AMOUNT_STELLAR ?? 0.1;
+  return environment.FEE_USD_AMOUNT_STELLAR ?? 0.05;
 }
 
 /** Maximum fee (in stroops) we're willing to sponsor per transaction — 1 XLM. */

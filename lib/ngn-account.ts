@@ -113,17 +113,17 @@ export function calculateNgnDepositFee(
 /**
  * Calculates NGN withdrawal (bank payout) fee based on official tier schedule:
  * - ₦0 – ₦5,000: ₦25
- * - > ₦5,000 – ₦10,000: ₦50
- * - > ₦10,000 – ₦20,000: ₦75
- * - > ₦20,000 – ₦30,000: ₦100
- * - > ₦30,000 – ₦50,000: ₦125
- * - > ₦50,000 – ₦100,000: ₦150
+ * - > ₦5,000 – ₦10,000: ₦70
+ * - > ₦10,000 – ₦20,000: ₦100
+ * - > ₦20,000 – ₦30,000: ₦125
+ * - > ₦30,000 – ₦50,000: ₦150
+ * - > ₦50,000 – ₦100,000: ₦200
  * - > ₦100,000 – ₦150,000: ₦300
  * - Above ₦150,000: ₦400
  */
 export function calculateNgnWithdrawalFee(amount: number): number {
   if (amount <= 0) return 0;
-  if (amount <= 5000) return 50;
+  if (amount <= 5000) return 25;
   if (amount <= 10000) return 75;
   if (amount <= 20000) return 100;
   if (amount <= 30000) return 125;

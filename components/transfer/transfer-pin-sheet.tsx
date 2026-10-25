@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
+import { JumpaLoader } from "@/components/ui/jumpa-loader";
 import { SheetPortal } from "@/components/ui/sheet-portal";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
@@ -112,7 +113,13 @@ export function TransferPinSheet({
         />
       </div>
 
-      {pending ? <PinProgress /> : null}
+      {pending ? (
+        <JumpaLoader
+          label={pendingLabel}
+          className="mx-auto mt-4 size-12 animate-pop-in"
+          markClassName="w-6"
+        />
+      ) : null}
 
       <NumericKeypad
         onDigit={push}
@@ -121,16 +128,5 @@ export function TransferPinSheet({
         className="mt-5"
       />
     </SheetPortal>
-  );
-}
-
-/** Indeterminate, because nothing here knows how long the chain will take. */
-function PinProgress() {
-  return (
-    <output className="mt-4 flex flex-col items-center gap-2.5">
-      <span className="block h-1 w-full overflow-hidden rounded-pill bg-jumpa-primary-50">
-        <span className="progress-band block h-full w-1/3 animate-progress rounded-pill bg-jumpa-primary-600" />
-      </span>
-    </output>
   );
 }

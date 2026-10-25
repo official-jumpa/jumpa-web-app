@@ -51,6 +51,8 @@ import {
 import {
   getEvmSponsorAccount,
   executeSponsoredBaseUsdcTransfer,
+  executeSponsoredEvmUsdcTransfer,
+  executeSponsoredEvmErc20Transfer,
 } from "./evm/sponsor";
 
 export async function resolveChainPrivateKey(
@@ -109,6 +111,7 @@ const EVM_CONTRACTS: Record<
 > = {
   base: {
     USDC: CONTRACT_ADDRESSES.base.mainnet.USDC,
+    USDT: CONTRACT_ADDRESSES.base.mainnet.USDT,
   },
   eth: {
     USDC: CONTRACT_ADDRESSES.ethereum.mainnet.USDC,
@@ -124,7 +127,7 @@ const ERC20_ABI = [
       { name: "to", type: "address" },
       { name: "value", type: "uint256" },
     ],
-    outputs: [{ name: "", type: "boolean" }],
+    outputs: [],
     stateMutability: "nonpayable",
   },
   {
@@ -636,16 +639,31 @@ export async function sendEvm(params: {
   } else {
     // For ERC20 transfers (USDC, USDT, etc.), verify native ETH is available for gas
     if (ethBalance < requiredGasWei) {
-      // If transferring USDC on Base and sponsor is configured, activate gas abstraction
-      if (chain === "base" && upperAsset === "USDC" && getEvmSponsorAccount()) {
-        console.log(
-          `[Transfer Service] User Base ETH balance (${(Number(ethBalance) / 1e18).toFixed(6)} ETH) < required gas (${(Number(requiredGasWei) / 1e18).toFixed(6)} ETH) — sponsoring USDC transfer via Base gas abstraction...`,
-        );
-        return await executeSponsoredBaseUsdcTransfer({
-          mnemonicOrPrivateKey: cleanKey,
-          destination,
-          amount,
-        });
+      if ((chain === "base" || chain === "eth") && getEvmSponsorAccount()) {
+        if (upperAsset === "USDC") {
+          console.log(
+            `[Transfer Service] User ${chainName} ETH balance (${(Number(ethBalance) / 1e18).toFixed(6)} ETH) < required gas (${(Number(requiredGasWei) / 1e18).toFixed(6)} ETH) — sponsoring USDC...`,
+          );
+          return await executeSponsoredEvmUsdcTransfer({
+            mnemonicOrPrivateKey: cleanKey,
+            destination,
+            amount,
+            chain: chain === "eth" ? "ethereum" : "base",
+          });
+        }
+
+        if (upperAsset === "USDT") {
+          console.log(
+            `[Transfer Service] User ${chainName} ETH balance (${(Number(ethBalance) / 1e18).toFixed(6)} ETH) < required gas (${(Number(requiredGasWei) / 1e18).toFixed(6)} ETH) — sponsoring USDT transfer via micro-ETH top-up...`,
+          );
+          return await executeSponsoredEvmErc20Transfer({
+            mnemonicOrPrivateKey: cleanKey,
+            destination,
+            amount,
+            asset: "USDT",
+            chain: chain === "eth" ? "ethereum" : "base",
+          });
+        }
       }
 
       const requiredEth = (Number(requiredGasWei) / 1e18).toFixed(6);

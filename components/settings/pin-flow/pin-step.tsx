@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { InfoNote } from "@/components/auth/info-note";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
-import { PinLoaderSlot } from "@/components/ui/pin-loader";
+import { LoadingModal } from "@/components/ui/loading-modal";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 import type { PinFlow } from "@/lib/pin-flows";
@@ -29,7 +29,7 @@ export function PinStep({
   /** A rejected entry stays on screen in red until the next keypress. */
   error?: string;
   busy?: boolean;
-  /** What the loader says while `busy`. */
+  /** What the overlay says while `busy`. */
   busyLabel?: string;
   onSubmit: (pin: string) => void;
   /** Fires on the first keypress after a rejection, so the caller clears `error`. */
@@ -85,14 +85,12 @@ export function PinStep({
         ) : null}
 
         {note ? (
-          <PinLoaderSlot busy={Boolean(busy)} label={busyLabel}>
-            <InfoNote tone="warning">
-              <span className="flex flex-col gap-1">
-                <span className="font-semibold">{note.heading}</span>
-                <span>{note.body}</span>
-              </span>
-            </InfoNote>
-          </PinLoaderSlot>
+          <InfoNote tone="warning">
+            <span className="flex flex-col gap-1">
+              <span className="font-semibold">{note.heading}</span>
+              <span>{note.body}</span>
+            </span>
+          </InfoNote>
         ) : null}
       </div>
 
@@ -108,6 +106,8 @@ export function PinStep({
         }}
         className={KEYPAD_PANEL}
       />
+
+      {busy ? <LoadingModal label={busyLabel} caption /> : null}
     </>
   );
 }

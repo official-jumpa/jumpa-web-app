@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
-import { PinLoader } from "@/components/ui/pin-loader";
+import { LoadingModal } from "@/components/ui/loading-modal";
 import { SheetPortal } from "@/components/ui/sheet-portal";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
@@ -16,8 +16,8 @@ const NOOP = () => {};
 /**
  * Authorises a transfer. The title carries the error — the design shows
  * "Incorrect PIN" with the slots in red, not a separate screen. Once the last
- * digit is in, `pending` turns the sheet into a progress state that cannot be
- * dismissed, so nobody walks away from a transaction mid-flight.
+ * digit is in, `pending` locks the sheet and covers the screen with the loader,
+ * so nobody walks away from a transaction mid-flight.
  */
 export function TransferPinSheet({
   length = PIN_LENGTH,
@@ -83,44 +83,41 @@ export function TransferPinSheet({
 
   useKeypadKeys({ push, backspace, set, enabled: !pending });
 
-  const title = pending
-    ? pendingLabel
-    : error
-      ? "Incorrect PIN"
-      : "Enter your PIN";
+  const title = error && !pending ? "Incorrect PIN" : "Enter your PIN";
 
   return (
-    <SheetPortal
-      onClose={pending ? NOOP : onClose}
-      className="px-6 pt-6 pb-7.5"
-    >
-      <h2
-        className={`text-center text-base leading-4.5 font-semibold ${
-          error && !pending ? "text-jumpa-danger" : "text-jumpa-black"
-        }`}
+    <>
+      <SheetPortal
+        onClose={pending ? NOOP : onClose}
+        className="px-6 pt-6 pb-7.5"
       >
-        {title}
-      </h2>
+        <h2
+          className={`text-center text-base leading-4.5 font-semibold ${
+            error && !pending ? "text-jumpa-danger" : "text-jumpa-black"
+          }`}
+        >
+          {title}
+        </h2>
 
-      <div className="mt-4">
-        <PinDisplay
-          length={length}
-          value={pin.value}
-          tone="sheet"
-          error={error && !pending}
-          autoFocus={!pending}
-          onValueChange={set}
+        <div className="mt-4">
+          <PinDisplay
+            length={length}
+            value={pin.value}
+            tone="sheet"
+            error={error && !pending}
+            autoFocus={!pending}
+            onValueChange={set}
+          />
+        </div>
+
+        <NumericKeypad
+          onDigit={push}
+          onBackspace={backspace}
+          disabled={pending}
+          className="mt-5"
         />
-      </div>
-
-      {pending ? <PinLoader label={pendingLabel} className="mt-4" /> : null}
-
-      <NumericKeypad
-        onDigit={push}
-        onBackspace={backspace}
-        disabled={pending}
-        className="mt-5"
-      />
-    </SheetPortal>
+      </SheetPortal>
+      {pending ? <LoadingModal label={pendingLabel} caption /> : null}
+    </>
   );
 }

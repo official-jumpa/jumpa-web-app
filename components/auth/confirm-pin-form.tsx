@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { KEYPAD_PANEL, NumericKeypad } from "@/components/auth/numeric-keypad";
 import { PinDisplay } from "@/components/auth/pin-display";
 import { PIN_NOTES, PinNote } from "@/components/auth/pin-note";
-import { PinLoaderSlot } from "@/components/ui/pin-loader";
+import { LoadingModal } from "@/components/ui/loading-modal";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 
@@ -82,7 +82,8 @@ export function ConfirmPinForm({
     }
   };
 
-  const creating = status === "submitting";
+  // Held through the redirect, so nothing is tappable before the next screen.
+  const creating = status === "submitting" || status === "success";
 
   return (
     <>
@@ -99,9 +100,7 @@ export function ConfirmPinForm({
           <p className="text-center text-xs text-jumpa-danger">{error}</p>
         )}
 
-        <PinLoaderSlot busy={creating} label="Creating your secure wallet">
-          <PinNote note={PIN_NOTES.confirm} />
-        </PinLoaderSlot>
+        <PinNote note={PIN_NOTES.confirm} />
       </div>
 
       <NumericKeypad
@@ -110,6 +109,10 @@ export function ConfirmPinForm({
         disabled={status !== "idle"}
         className={KEYPAD_PANEL}
       />
+
+      {creating ? (
+        <LoadingModal label="Creating your secure wallet" caption />
+      ) : null}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import type { TransactionFilter } from "@/lib/cards";
@@ -24,6 +24,19 @@ export function FilterSheet({
       }),
     ),
   );
+
+  // Sync state if selectedFilters prop changes externally
+  useEffect(() => {
+    setSelected(
+      Object.fromEntries(
+        filters.map((filter) => {
+          const activeOption = selectedFilters?.[filter.label];
+          const isValid = activeOption && filter.options.includes(activeOption);
+          return [filter.label, isValid ? activeOption : "Show All"];
+        }),
+      ),
+    );
+  }, [filters, selectedFilters]);
 
   const handleReset = () => {
     setSelected(

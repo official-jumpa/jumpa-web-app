@@ -1265,7 +1265,10 @@ export async function queryUserTransactions(params: {
     filterClauses.push({ $or: typeClauses });
   }
 
-  if (params.status) filterClauses.push({ status: params.status.toUpperCase() });
+  if (params.status) {
+    const s = params.status.toUpperCase();
+    filterClauses.push({ status: s === "COMPLETED" ? "CONFIRMED" : s });
+  }
   if (params.chain) filterClauses.push({ chain: params.chain.toLowerCase() });
   if (params.network) filterClauses.push({ network: params.network.toLowerCase() });
 

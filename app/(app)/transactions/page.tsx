@@ -12,7 +12,13 @@ import { TRANSACTION_FILTERS } from "@/lib/cards";
 import type { Transaction } from "@/lib/wallet";
 
 type TransactionsPageProps = {
-  searchParams: Promise<{ id?: string; chain?: string }>;
+  searchParams: Promise<{
+    id?: string;
+    chain?: string;
+    type?: string;
+    status?: string;
+    duration?: string;
+  }>;
 };
 
 export async function generateMetadata({
@@ -25,12 +31,33 @@ export async function generateMetadata({
 export default async function TransactionsPage({
   searchParams,
 }: TransactionsPageProps) {
-  const { id, chain } = await searchParams;
+  const params = await searchParams;
 
-  if (id && (id.toLowerCase().startsWith("tx_") || /[A-Z]/.test(id))) {
-    const cleanId = id.replace(/^tx_/i, "").toLowerCase();
-    redirect(`/transactions?id=${encodeURIComponent(cleanId)}`);
+  let hasUppercase = false;
+  const cleanParams = new URLSearchParams();
+
+  for (const [key, val] of Object.entries(params)) {
+    if (!val) continue;
+    const lowerKey = key.toLowerCase();
+    let lowerVal = val.toLowerCase();
+    if (lowerKey === "id") {
+      lowerVal = lowerVal.replace(/^tx_/i, "");
+    }
+    if (key !== lowerKey || val !== lowerVal) {
+      hasUppercase = true;
+    }
+    cleanParams.set(lowerKey, lowerVal);
   }
+
+  if (hasUppercase) {
+    redirect(`/transactions?${cleanParams.toString()}`);
+  }
+
+  const id = params.id ? params.id.replace(/^tx_/i, "").toLowerCase() : undefined;
+  const chain = params.chain?.toLowerCase();
+  const type = params.type?.toLowerCase();
+  const status = params.status?.toLowerCase();
+  const duration = params.duration?.toLowerCase();
 
   let initialTransactions: Transaction[] = [];
   let initialTransactionDetail: Transaction | null = null;
@@ -48,8 +75,11 @@ export default async function TransactionsPage({
       } else {
         const { transactions: rawTx } = await queryUserTransactions({
           userId: session.user.id,
-          chain: chain?.toLowerCase(),
-          limit: 10,
+          chain,
+          type,
+          status,
+          duration,
+          limit: 15,
           page: 1,
         });
         initialTransactions = rawTx.map(formatDbTransaction);

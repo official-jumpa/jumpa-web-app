@@ -14,10 +14,12 @@ import {
   createWalletClient,
   createPublicClient,
   http,
+  fallback,
   parseUnits,
   parseEther,
   erc20Abi,
   getAddress,
+  maxUint256,
 } from "viem";
 import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
 import { base, mainnet } from "viem/chains";
@@ -47,6 +49,7 @@ import {
 import { relayToSolana, submitSolanaDepositForBurn } from "@/lib/chains/solana/cctp-bridge";
 import { relayToStellar } from "@/lib/chains/stellar/cctp-bridge";
 import { getSolanaSponsorKeypair } from "@/lib/chains/solana/sponsor";
+import { ensureStellarAccountActiveAndTrustlined } from "@/lib/chains/stellar/sponsor";
 import { Connection, PublicKey, Keypair as SolanaKeypair } from "@solana/web3.js";
 import * as bip39 from "bip39";
 import { derivePath } from "ed25519-hd-key";
@@ -394,22 +397,130 @@ export async function executeBridge(
       const chainLabel = isEth ? "Ethereum" : "Base";
 
       const evmAccount = mnemonicToAccount(phrase);
+      const fallbackUrl = isEth ? "https://eth.drpc.org" : "https://mainnet.base.org";
+      const evmTransport = fallback([http(evmRpcUrl), http(fallbackUrl)]);
       const publicClient = createPublicClient({
         chain: evmChain,
-        transport: http(evmRpcUrl),
+        transport: evmTransport,
       });
       const walletClient = createWalletClient({
         account: evmAccount,
         chain: evmChain,
-        transport: http(evmRpcUrl),
+        transport: evmTransport,
       });
 
-      const sendAmount = parseUnits(amount, evmCctp.decimals);
+      let sendAmount = parseUnits(amount, evmCctp.decimals);
+      const fastTransfer = transferType === "fast";
+      const feeNum = parseFloat(fee || "0");
+      const maxFeeSubunits =
+        feeNum > 0
+          ? BigInt(Math.round(feeNum * 10 ** evmCctp.decimals))
+          : fastTransfer
+            ? BigInt(150000) // 0.15 USDC default buffer for fast attestation
+            : BigInt(0);
+      const finalityThreshold = fastTransfer ? 1000 : 2000;
+
+      // ── Destination Stellar Pre-flight Check & Auto-Activation ──
+      let needsStellarActivation = false;
+      const activationFeeUsdc = 0.30;
+      const activationFeeSubunits = parseUnits(activationFeeUsdc.toString(), evmCctp.decimals);
+
+      if (toChain === "stellar") {
+        if (!recipientAddress.startsWith("G") && !recipientAddress.startsWith("C")) {
+          return {
+            ok: false,
+            error: "Invalid Stellar recipient address. Must start with G (account) or C (contract).",
+            status: 400,
+          };
+        }
+
+        const userStellarAddress =
+          derived.addresses?.xlm || deriveStellarKeypairFromMnemonic(phrase).publicKey;
+        const isOwnStellarWallet =
+          recipientAddress.trim().toLowerCase() === userStellarAddress.trim().toLowerCase();
+
+        if (recipientAddress.startsWith("G")) {
+          const horizon = getHorizonServer("mainnet");
+          try {
+            const destAcc = await horizon.loadAccount(recipientAddress);
+            const usdcIssuer = CONTRACT_ADDRESSES.stellar.mainnet.USDC;
+            const hasTrustline = (destAcc.balances || []).some(
+              (b: any) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuer,
+            );
+            if (!hasTrustline) {
+              if (isOwnStellarWallet) {
+                needsStellarActivation = true;
+              } else {
+                return {
+                  ok: false,
+                  error:
+                    "Destination external Stellar account is missing the USDC trustline. External wallets must establish a USDC trustline before receiving bridged USDC.",
+                  status: 400,
+                };
+              }
+            }
+          } catch (err: any) {
+            if (err?.response?.status === 404 || err?.status === 404) {
+              if (isOwnStellarWallet) {
+                needsStellarActivation = true;
+              } else {
+                return {
+                  ok: false,
+                  error:
+                    "Destination external Stellar account is not activated. On Stellar, external wallets must be funded with at least 1 XLM before they can receive USDC.",
+                  status: 400,
+                };
+              }
+            } else {
+              throw err;
+            }
+          }
+        }
+      }
 
       // Check EVM ETH balance for gas dynamically based on current gas price and required operations
       const ethBalance = await publicClient.getBalance({
         address: evmAccount.address,
       });
+
+      // Check EVM USDC balance against bridge amount + relayer fee + activation fee
+      const usdcBalance = await publicClient.readContract({
+        address: evmCctp.usdc,
+        abi: erc20Abi,
+        functionName: "balanceOf",
+        args: [evmAccount.address],
+      });
+
+      const requiredExtraSubunits = needsStellarActivation ? activationFeeSubunits : BigInt(0);
+      const minBridgeSubunits = parseUnits("1.0", evmCctp.decimals);
+
+      if (usdcBalance < sendAmount + maxFeeSubunits + requiredExtraSubunits) {
+        if (
+          needsStellarActivation &&
+          usdcBalance >= minBridgeSubunits + maxFeeSubunits + requiredExtraSubunits
+        ) {
+          sendAmount = usdcBalance - maxFeeSubunits - requiredExtraSubunits;
+          console.log(
+            `[Bridge] Adjusted bridge amount to ${(Number(sendAmount) / 10 ** evmCctp.decimals).toFixed(2)} USDC to cover Stellar wallet activation fee (${activationFeeUsdc} USDC).`,
+          );
+        } else {
+          const totalNeededFormatted = (
+            Number(sendAmount + maxFeeSubunits + requiredExtraSubunits) /
+            10 ** evmCctp.decimals
+          ).toFixed(2);
+          const availableFormatted = (
+            Number(usdcBalance) /
+            10 ** evmCctp.decimals
+          ).toFixed(2);
+          return {
+            ok: false,
+            error: `Insufficient ${chainLabel} USDC balance (available: ${availableFormatted} USDC, required: ${totalNeededFormatted} USDC${needsStellarActivation ? ` including ${activationFeeUsdc} USDC wallet activation fee` : ""})`,
+            status: 400,
+          };
+        }
+      }
+
+      const totalRequiredUsdc = sendAmount + maxFeeSubunits;
 
       // Check USDC allowance for TokenMessenger on EVM
       const currentAllowance = await publicClient.readContract({
@@ -419,7 +530,7 @@ export async function executeBridge(
         args: [evmAccount.address, evmCctp.tokenMessenger],
       });
 
-      const needsApprove = currentAllowance < sendAmount;
+      const needsApprove = currentAllowance < totalRequiredUsdc;
       // depositForBurn on TokenMessengerV2 uses ~110,000 gas; approve uses ~46,000 gas.
       const estimatedGasUnits = isEth
         ? (needsApprove ? BigInt(200000) : BigInt(150000))
@@ -439,69 +550,49 @@ export async function executeBridge(
         };
       }
 
-      // Check EVM USDC balance
-      const usdcBalance = await publicClient.readContract({
-        address: evmCctp.usdc,
-        abi: erc20Abi,
-        functionName: "balanceOf",
-        args: [evmAccount.address],
-      });
-
-      if (usdcBalance < sendAmount) {
-        return {
-          ok: false,
-          error: `Insufficient ${chainLabel} USDC balance (available: ${(Number(usdcBalance) / 10 ** evmCctp.decimals).toFixed(2)} USDC)`,
-          status: 400,
-        };
-      }
-
       if (needsApprove) {
         const approveHash = await walletClient.writeContract({
           address: evmCctp.usdc,
           abi: erc20Abi,
           functionName: "approve",
-          args: [evmCctp.tokenMessenger, sendAmount * BigInt(100)],
+          args: [evmCctp.tokenMessenger, maxUint256],
         });
         await publicClient.waitForTransactionReceipt({ hash: approveHash });
       }
 
-      // Destination Stellar Pre-flight Check:
-      // On Stellar, Soroban SAC transfers fail if the recipient account does not exist or lacks a USDC trustline.
-      if (toChain === "stellar") {
-        if (!recipientAddress.startsWith("G") && !recipientAddress.startsWith("C")) {
+      // If user's own Stellar account needs activation, transfer the 0.30 USDC activation fee to platform sponsor
+      // and invoke ensureStellarAccountActiveAndTrustlined before initiating the burn.
+      if (needsStellarActivation) {
+        const platformEvmSponsor = "0xA27A9D31635bD73A5DD9fafB6c821769EF022C50";
+        try {
+          const feeTxHash = await walletClient.writeContract({
+            address: evmCctp.usdc,
+            abi: erc20Abi,
+            functionName: "transfer",
+            args: [platformEvmSponsor, activationFeeSubunits],
+          });
+          await publicClient.waitForTransactionReceipt({ hash: feeTxHash });
+          console.log(`[Bridge] Collected ${activationFeeUsdc} USDC Stellar activation fee: ${feeTxHash}`);
+        } catch (feeErr: any) {
+          console.error("[Bridge] Failed to transfer activation fee:", feeErr);
           return {
             ok: false,
-            error: "Invalid Stellar recipient address. Must start with G (account) or C (contract).",
-            status: 400,
+            error: "Failed to process Stellar wallet activation fee payment.",
+            status: 500,
           };
         }
-        if (recipientAddress.startsWith("G")) {
-          const horizon = getHorizonServer("mainnet");
-          try {
-            const destAcc = await horizon.loadAccount(recipientAddress);
-            const usdcIssuer = CONTRACT_ADDRESSES.stellar.mainnet.USDC;
-            const hasTrustline = (destAcc.balances || []).some(
-              (b: any) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuer,
-            );
-            if (!hasTrustline) {
-              return {
-                ok: false,
-                error:
-                  "Destination Stellar account is missing the USDC trustline. Please establish a USDC trustline on your Stellar wallet before bridging.",
-                status: 400,
-              };
-            }
-          } catch (err: any) {
-            if (err?.response?.status === 404 || err?.status === 404) {
-              return {
-                ok: false,
-                error:
-                  "Destination Stellar account is not activated. On Stellar, wallets must be funded with at least 1 XLM before they can receive USDC.",
-                status: 400,
-              };
-            }
-          }
+
+        const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
+        const stellarKeypair = StellarSdk.Keypair.fromSecret(stellarKeys.secretKey);
+        const actRes = await ensureStellarAccountActiveAndTrustlined(stellarKeypair, "mainnet");
+        if (!actRes.ok) {
+          return {
+            ok: false,
+            error: actRes.error || "Failed to activate Stellar account and establish USDC trustline.",
+            status: 500,
+          };
         }
+        console.log(`[Bridge] Successfully activated Stellar account & established USDC trustline for ${recipientAddress}`);
       }
 
       // Resolve destination CCTP domain and 32-byte recipient address
@@ -567,16 +658,6 @@ export async function executeBridge(
         },
       ] as const;
 
-      const fastTransfer = transferType === "fast";
-      const feeNum = parseFloat(fee || "0");
-      const maxFeeSubunits =
-        feeNum > 0
-          ? BigInt(Math.round(feeNum * 10 ** evmCctp.decimals))
-          : fastTransfer
-            ? BigInt(150000) // 0.15 USDC default buffer for fast attestation
-            : BigInt(0);
-      const finalityThreshold = fastTransfer ? 1000 : 2000;
-
       if (hookData) {
         txHash = await walletClient.writeContract({
           address: evmCctp.tokenMessenger,
@@ -618,7 +699,65 @@ export async function executeBridge(
       const ownerKeypair = await SolanaKeypair.fromSeed(solDerived);
 
       const solanaCctp = CONTRACT_ADDRESSES.cctp.mainnet.solana;
-      const sendAmountSubunits = BigInt(Math.round(parseFloat(amount) * 10 ** solanaCctp.decimals));
+      let sendAmountSubunits = BigInt(Math.round(parseFloat(amount) * 10 ** solanaCctp.decimals));
+
+      // ── Destination Stellar Pre-flight Check & Auto-Activation ──
+      let needsStellarActivation = false;
+      const activationFeeUsdc = 0.30;
+      const activationFeeSubunits = BigInt(Math.round(activationFeeUsdc * 10 ** solanaCctp.decimals));
+
+      if (toChain === "stellar") {
+        if (!recipientAddress.startsWith("G") && !recipientAddress.startsWith("C")) {
+          return {
+            ok: false,
+            error: "Invalid Stellar recipient address. Must start with G (account) or C (contract).",
+            status: 400,
+          };
+        }
+
+        const userStellarAddress =
+          derived.addresses?.xlm || deriveStellarKeypairFromMnemonic(phrase).publicKey;
+        const isOwnStellarWallet =
+          recipientAddress.trim().toLowerCase() === userStellarAddress.trim().toLowerCase();
+
+        if (recipientAddress.startsWith("G")) {
+          const horizon = getHorizonServer("mainnet");
+          try {
+            const destAcc = await horizon.loadAccount(recipientAddress);
+            const usdcIssuer = CONTRACT_ADDRESSES.stellar.mainnet.USDC;
+            const hasTrustline = (destAcc.balances || []).some(
+              (b: any) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuer,
+            );
+            if (!hasTrustline) {
+              if (isOwnStellarWallet) {
+                needsStellarActivation = true;
+              } else {
+                return {
+                  ok: false,
+                  error:
+                    "Destination external Stellar account is missing the USDC trustline. External wallets must establish a USDC trustline before receiving bridged USDC.",
+                  status: 400,
+                };
+              }
+            }
+          } catch (err: any) {
+            if (err?.response?.status === 404 || err?.status === 404) {
+              if (isOwnStellarWallet) {
+                needsStellarActivation = true;
+              } else {
+                return {
+                  ok: false,
+                  error:
+                    "Destination external Stellar account is not activated. On Stellar, external wallets must be funded with at least 1 XLM before they can receive USDC.",
+                  status: 400,
+                };
+              }
+            } else {
+              throw err;
+            }
+          }
+        }
+      }
 
       // Pre-flight check: determine if user has enough SOL or if gas abstraction should be activated
       const solConnection = new Connection(getSolanaRpcUrl(), "confirmed");
@@ -627,6 +766,12 @@ export async function executeBridge(
 
       let sponsorKeypair: SolanaKeypair | undefined = undefined;
       let feeSubunits: bigint | undefined = undefined;
+
+      const userAta = await getSolanaUsdcAta(ownerKeypair.publicKey.toBase58());
+      const ataBalanceRes = await solConnection
+        .getTokenAccountBalance(new PublicKey(userAta))
+        .catch(() => null);
+      const availableUsdc = ataBalanceRes?.value?.uiAmount ?? 0;
 
       if (solLamports < MIN_REQUIRED_LAMPORTS) {
         // User does not have enough SOL: activate Gas Abstraction
@@ -641,33 +786,61 @@ export async function executeBridge(
         sponsorKeypair = platformSponsor;
 
         const numNetworkFee = parseFloat(networkFee || "0.32");
-        feeSubunits = BigInt(Math.round(numNetworkFee * 10 ** solanaCctp.decimals));
+        const extraActivationFee = needsStellarActivation ? activationFeeUsdc : 0;
+        const totalExtraFee = numNetworkFee + extraActivationFee;
+        feeSubunits = BigInt(Math.round(totalExtraFee * 10 ** solanaCctp.decimals));
 
-        // Verify user has enough USDC to pay both the bridge amount and the abstracted network fee
-        const userAta = await getSolanaUsdcAta(ownerKeypair.publicKey.toBase58());
-        const ataBalanceRes = await solConnection
-          .getTokenAccountBalance(new PublicKey(userAta))
-          .catch(() => null);
-        const availableUsdc = ataBalanceRes?.value?.uiAmount ?? 0;
-        const totalRequiredUsdc = parseFloat(amount) + numNetworkFee;
+        const minBridgeSubunits = BigInt(1_000_000); // 1.0 USDC
+        const requiredSubunits = sendAmountSubunits + feeSubunits;
+        const availableSubunits = BigInt(Math.round(availableUsdc * 10 ** solanaCctp.decimals));
 
-        if (availableUsdc < totalRequiredUsdc) {
+        if (availableSubunits < requiredSubunits) {
+          if (
+            needsStellarActivation &&
+            availableSubunits >= minBridgeSubunits + feeSubunits
+          ) {
+            sendAmountSubunits = availableSubunits - feeSubunits;
+            console.log(
+              `[Bridge] Adjusted Solana bridge amount to ${Number(sendAmountSubunits) / 1e6} USDC to cover activation fee.`,
+            );
+          } else {
+            return {
+              ok: false,
+              error: `Insufficient USDC balance for bridge amount and network/activation fees (available: ${availableUsdc.toFixed(2)} USDC, need ${(Number(requiredSubunits) / 1e6).toFixed(2)} USDC)`,
+              status: 400,
+            };
+          }
+        }
+      }
+
+      // Activate Stellar account & trustline if needed before burning on Solana
+      if (needsStellarActivation) {
+        const stellarKeys = deriveStellarKeypairFromMnemonic(phrase);
+        const stellarKeypair = StellarSdk.Keypair.fromSecret(stellarKeys.secretKey);
+        const actRes = await ensureStellarAccountActiveAndTrustlined(stellarKeypair, "mainnet");
+        if (!actRes.ok) {
           return {
             ok: false,
-            error: `Insufficient USDC balance for bridge amount and solana network fee (available: ${availableUsdc.toFixed(2)} USDC, need ${totalRequiredUsdc.toFixed(2)} USDC)`,
-            status: 400,
+            error: actRes.error || "Failed to activate destination Stellar account and USDC trustline.",
+            status: 500,
           };
         }
+        console.log(`[Bridge] Successfully activated Stellar account & established USDC trustline for ${recipientAddress}`);
       }
 
       // Resolve destination CCTP domain and 32-byte recipient
       let destDomain: number;
       let targetRecipientBytes32: `0x${string}`;
 
+      let destCallerBytes32: `0x${string}` | undefined = undefined;
+      let hookHex: `0x${string}` | undefined = undefined;
+
       if (toChain === "stellar") {
         const stellarCctp = CONTRACT_ADDRESSES.cctp.mainnet.stellar;
         destDomain = stellarCctp.domain;
         targetRecipientBytes32 = stellarAddressToBytes32(stellarCctp.cctpForwarder);
+        destCallerBytes32 = stellarAddressToBytes32(stellarCctp.cctpForwarder);
+        hookHex = buildStellarForwarderHookData(recipientAddress);
       } else if (toChain === "ethereum") {
         destDomain = CONTRACT_ADDRESSES.cctp.mainnet.ethereum.domain;
         targetRecipientBytes32 = evmAddressToBytes32(recipientAddress);
@@ -681,6 +854,8 @@ export async function executeBridge(
         amountSubunits: sendAmountSubunits,
         destinationDomain: destDomain,
         mintRecipientBytes32: targetRecipientBytes32,
+        destinationCallerBytes32: destCallerBytes32,
+        hookDataHex: hookHex,
         sponsorKeypair,
         feeSubunits,
       });

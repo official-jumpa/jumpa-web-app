@@ -47,10 +47,11 @@ export async function submitStellarReceiveMessage({
       stellarAddressToBytes32(stellarCctp.cctpForwarder).replace(/^0x/, ""),
       "hex",
     );
-    // In MessageV2, header is 148 bytes; BurnMessageV2 mintRecipient is at offset 36 (index 184)
+    // In MessageV2, destinationCaller is at offset 108..140; BurnMessageV2 mintRecipient is at 184..216
     const isTargetingForwarder =
       msgBytes.length >= 216 &&
-      msgBytes.subarray(184, 216).equals(forwarderBytes32);
+      (msgBytes.subarray(184, 216).equals(forwarderBytes32) ||
+        msgBytes.subarray(108, 140).equals(forwarderBytes32));
 
     let operation: StellarSdk.xdr.Operation;
     if (isTargetingForwarder) {

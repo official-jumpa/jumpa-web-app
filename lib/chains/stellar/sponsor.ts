@@ -299,6 +299,106 @@ export async function activateStellarAccount(
 }
 
 /**
+ * Ensures a Stellar account is both activated (funded with 1.6 XLM) and has the Circle USDC trustline.
+ * Uses the platform sponsor to fund the starting reserve and sponsor fees.
+ * Signed by the user's keypair for the changeTrust operation.
+ */
+export async function ensureStellarAccountActiveAndTrustlined(
+  userKey: StellarKeyInput,
+  network: "mainnet" | "testnet" = "mainnet",
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const userKeypair = toKeypair(userKey);
+    const server = getHorizonServer(network);
+    const sponsorKey = getSponsorKeypair();
+    if (!sponsorKey) {
+      return { ok: false, error: "SPONSORED_FEE_STELLAR_KEY not configured or invalid" };
+    }
+
+    const userAddress = userKeypair.publicKey();
+    const usdcIssuer =
+      network === "mainnet"
+        ? CONTRACT_ADDRESSES.stellar.mainnet.USDC
+        : CONTRACT_ADDRESSES.stellar.testnet.USDC;
+
+    let accountExists = false;
+    let hasTrustline = false;
+
+    try {
+      const acc = await server.loadAccount(userAddress);
+      accountExists = true;
+      hasTrustline = (acc.balances || []).some(
+        (b: any) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuer,
+      );
+    } catch (loadErr: any) {
+      if (loadErr?.response?.status !== 404 && loadErr?.status !== 404) {
+        throw loadErr;
+      }
+    }
+
+    if (accountExists && hasTrustline) {
+      return { ok: true };
+    }
+
+    const passphrase =
+      network === "mainnet"
+        ? StellarSdk.Networks.PUBLIC
+        : StellarSdk.Networks.TESTNET;
+
+    // 1. If account does not exist, activate it with 1.6 XLM from sponsor
+    if (!accountExists) {
+      const sponsorAccount = await server.loadAccount(sponsorKey.publicKey());
+      const tx = new StellarSdk.TransactionBuilder(sponsorAccount, {
+        fee: "200",
+        networkPassphrase: passphrase,
+      })
+        .addOperation(
+          StellarSdk.Operation.createAccount({
+            destination: userAddress,
+            startingBalance: "1.6",
+          }),
+        )
+        .setTimeout(60)
+        .build();
+
+      tx.sign(sponsorKey);
+      await server.submitTransaction(tx);
+    }
+
+    // 2. Establish USDC trustline if missing
+    if (!hasTrustline) {
+      const userAcc = await server.loadAccount(userAddress);
+      const usdcAsset = new StellarSdk.Asset("USDC", usdcIssuer);
+      const trustTx = new StellarSdk.TransactionBuilder(userAcc, {
+        fee: "200",
+        networkPassphrase: passphrase,
+      })
+        .addOperation(
+          StellarSdk.Operation.changeTrust({
+            asset: usdcAsset,
+          }),
+        )
+        .setTimeout(60)
+        .build();
+
+      trustTx.sign(userKeypair);
+      const { tx: finalTx } = wrapWithFeeBump(trustTx, network);
+      await server.submitTransaction(finalTx);
+    }
+
+    return { ok: true };
+  } catch (err: any) {
+    const detail =
+      err?.response?.data?.extras?.result_codes || err?.message || String(err);
+    console.error(`[Stellar Sponsor] Error ensuring active + trustlined account:`, detail);
+    return {
+      ok: false,
+      error: typeof detail === "object" ? JSON.stringify(detail) : String(detail),
+    };
+  }
+}
+
+/**
  * Establishes Circle USDC trustline on an existing activated Stellar account.
  * Signed by the user's keypair.
  */

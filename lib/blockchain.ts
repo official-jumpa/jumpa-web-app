@@ -282,6 +282,29 @@ export function stellarAddressToBytes32(stellarAddress: string): `0x${string}` {
 }
 
 /**
+ * Builds the hookData payload for Circle CCTP transfers targeting Stellar via CctpForwarder.
+ * Required layout for Circle's CctpForwarder contract:
+ * - bytes 0-23: Magic bytes "cctp-forward" (padded with 12 zero bytes to 24 bytes)
+ * - bytes 24-27: Hook data version (uint32 BE = 0)
+ * - bytes 28-31: Forward recipient length (uint32 BE = length of strkey string)
+ * - bytes 32+: UTF-8 string bytes of destination Stellar strkey (e.g. GBFOX...)
+ */
+export function buildStellarForwarderHookData(destinationAddress: string): `0x${string}` {
+  const magic = Buffer.alloc(24);
+  magic.write("cctp-forward", 0, "utf8");
+
+  const version = Buffer.alloc(4);
+  version.writeUInt32BE(0, 0);
+
+  const recipientBytes = Buffer.from(destinationAddress, "utf8");
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(recipientBytes.length, 0);
+
+  const hookData = Buffer.concat([magic, version, length, recipientBytes]);
+  return `0x${hookData.toString("hex")}` as `0x${string}`;
+}
+
+/**
  * Converts a 32-byte hex string (0x...) back to a Stellar G... address.
  */
 export function bytes32ToStellarAddress(bytes32: string): string {

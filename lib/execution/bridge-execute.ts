@@ -36,6 +36,7 @@ import {
   CIRCLE_IRIS_API,
   evmAddressToBytes32,
   stellarAddressToBytes32,
+  buildStellarForwarderHookData,
   solanaAddressToBytes32,
   solanaRecipientToCctpBytes32,
   getSolanaUsdcAta,
@@ -464,14 +465,59 @@ export async function executeBridge(
         await publicClient.waitForTransactionReceipt({ hash: approveHash });
       }
 
+      // Destination Stellar Pre-flight Check:
+      // On Stellar, Soroban SAC transfers fail if the recipient account does not exist or lacks a USDC trustline.
+      if (toChain === "stellar") {
+        if (!recipientAddress.startsWith("G") && !recipientAddress.startsWith("C")) {
+          return {
+            ok: false,
+            error: "Invalid Stellar recipient address. Must start with G (account) or C (contract).",
+            status: 400,
+          };
+        }
+        if (recipientAddress.startsWith("G")) {
+          const horizon = getHorizonServer("mainnet");
+          try {
+            const destAcc = await horizon.loadAccount(recipientAddress);
+            const usdcIssuer = CONTRACT_ADDRESSES.stellar.mainnet.USDC;
+            const hasTrustline = (destAcc.balances || []).some(
+              (b: any) => b.asset_code === "USDC" && b.asset_issuer === usdcIssuer,
+            );
+            if (!hasTrustline) {
+              return {
+                ok: false,
+                error:
+                  "Destination Stellar account is missing the USDC trustline. Please establish a USDC trustline on your Stellar wallet before bridging.",
+                status: 400,
+              };
+            }
+          } catch (err: any) {
+            if (err?.response?.status === 404 || err?.status === 404) {
+              return {
+                ok: false,
+                error:
+                  "Destination Stellar account is not activated. On Stellar, wallets must be funded with at least 1 XLM before they can receive USDC.",
+                status: 400,
+              };
+            }
+          }
+        }
+      }
+
       // Resolve destination CCTP domain and 32-byte recipient address
       let targetDomain: number;
       let targetRecipientBytes32: `0x${string}`;
+      let destinationCallerBytes32: `0x${string}` =
+        "0x0000000000000000000000000000000000000000000000000000000000000000";
+      let hookData: `0x${string}` | null = null;
 
       if (toChain === "stellar") {
         const stellarCctp = CONTRACT_ADDRESSES.cctp.mainnet.stellar;
         targetDomain = stellarCctp.domain;
+        // On Stellar, CCTP routes through Circle's CctpForwarder contract
         targetRecipientBytes32 = stellarAddressToBytes32(stellarCctp.cctpForwarder);
+        destinationCallerBytes32 = stellarAddressToBytes32(stellarCctp.cctpForwarder);
+        hookData = buildStellarForwarderHookData(recipientAddress);
       } else if (toChain === "solana") {
         targetDomain = CONTRACT_ADDRESSES.cctp.mainnet.solana.domain;
         // Guardrail: On Solana, CCTP strictly requires the recipient's USDC ATA,
@@ -486,7 +532,7 @@ export async function executeBridge(
         targetRecipientBytes32 = evmAddressToBytes32(recipientAddress);
       }
 
-      // Circle CCTP V2 TokenMessenger ABI
+      // Circle CCTP V2 TokenMessenger ABI supporting both standard and hook-based deposits
       const tokenMessengerV2Abi = [
         {
           type: "function",
@@ -503,6 +549,22 @@ export async function executeBridge(
           outputs: [{ name: "_nonce", type: "uint64" }],
           stateMutability: "nonpayable",
         },
+        {
+          type: "function",
+          name: "depositForBurnWithHook",
+          inputs: [
+            { name: "amount", type: "uint256" },
+            { name: "destinationDomain", type: "uint32" },
+            { name: "mintRecipient", type: "bytes32" },
+            { name: "burnToken", type: "address" },
+            { name: "destinationCaller", type: "bytes32" },
+            { name: "maxFee", type: "uint256" },
+            { name: "minFinalityThreshold", type: "uint32" },
+            { name: "hookData", type: "bytes" },
+          ],
+          outputs: [{ name: "_nonce", type: "uint64" }],
+          stateMutability: "nonpayable",
+        },
       ] as const;
 
       const fastTransfer = transferType === "fast";
@@ -515,20 +577,38 @@ export async function executeBridge(
             : BigInt(0);
       const finalityThreshold = fastTransfer ? 1000 : 2000;
 
-      txHash = await walletClient.writeContract({
-        address: evmCctp.tokenMessenger,
-        abi: tokenMessengerV2Abi,
-        functionName: "depositForBurn",
-        args: [
-          sendAmount,
-          targetDomain,
-          targetRecipientBytes32,
-          evmCctp.usdc,
-          "0x0000000000000000000000000000000000000000000000000000000000000000", // destinationCaller (0 allows any relayer or user to mint)
-          maxFeeSubunits,
-          finalityThreshold,
-        ],
-      });
+      if (hookData) {
+        txHash = await walletClient.writeContract({
+          address: evmCctp.tokenMessenger,
+          abi: tokenMessengerV2Abi,
+          functionName: "depositForBurnWithHook",
+          args: [
+            sendAmount,
+            targetDomain,
+            targetRecipientBytes32,
+            evmCctp.usdc,
+            destinationCallerBytes32,
+            maxFeeSubunits,
+            finalityThreshold,
+            hookData,
+          ],
+        });
+      } else {
+        txHash = await walletClient.writeContract({
+          address: evmCctp.tokenMessenger,
+          abi: tokenMessengerV2Abi,
+          functionName: "depositForBurn",
+          args: [
+            sendAmount,
+            targetDomain,
+            targetRecipientBytes32,
+            evmCctp.usdc,
+            destinationCallerBytes32,
+            maxFeeSubunits,
+            finalityThreshold,
+          ],
+        });
+      }
 
       explorerUrl = getExplorerTxUrl(isEth ? "ethereum" : "base", txHash, false);
     } else {

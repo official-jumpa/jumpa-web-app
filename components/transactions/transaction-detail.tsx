@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/auth/copy-button";
 import { TransactionHelpButton } from "@/components/support/transaction-help-button";
@@ -121,9 +122,57 @@ export function TransactionDetail({
     ? formatTxTimestamp(transaction.createdAt)
     : transaction?.timestamp || "";
 
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const handleBack = () => {
+    // If there's browser history, step back to preserve exact state
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    const searchString =
+      typeof window !== "undefined" && window.location.search
+        ? window.location.search
+        : searchParams?.toString() || "";
+    const rawParams = new URLSearchParams(
+      searchString.startsWith("?") ? searchString.slice(1) : searchString,
+    );
+    rawParams.delete("id");
+    const fallbackParams = new URLSearchParams();
+    rawParams.forEach((val, key) => {
+      fallbackParams.set(key.toLowerCase(), val.toLowerCase());
+    });
+    const queryStr = fallbackParams.toString();
+    router.replace(queryStr ? `/transactions?${queryStr}` : "/transactions");
+  };
+
+  const fallbackHref = (() => {
+    const searchString =
+      typeof window !== "undefined" && window.location.search
+        ? window.location.search
+        : searchParams?.toString() || "";
+    const rawParams = new URLSearchParams(
+      searchString.startsWith("?") ? searchString.slice(1) : searchString,
+    );
+    rawParams.delete("id");
+    const fallbackParams = new URLSearchParams();
+    rawParams.forEach((val, key) => {
+      fallbackParams.set(key.toLowerCase(), val.toLowerCase());
+    });
+    const queryStr = fallbackParams.toString();
+    return queryStr ? `/transactions?${queryStr}` : "/transactions";
+  })();
+
   return (
     <div className="flex flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-10">
-      <ScreenHeader back="/transactions" title="Transactions" round />
+      <ScreenHeader
+        back={fallbackHref}
+        onBack={handleBack}
+        title="Transactions"
+        round
+      />
 
       <section className="mt-2 flex flex-col items-center gap-6 rounded-3xl bg-jumpa-neutral-50 py-6">
         {transaction ? (

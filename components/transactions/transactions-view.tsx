@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { StatementForm } from "@/components/settings/statement-form";
 import { FilterSheet } from "@/components/transactions/filter-sheet";
 import { HistoryMenuSheet } from "@/components/transactions/history-menu-sheet";
@@ -10,49 +10,80 @@ import { FilterLinesIcon } from "@/components/ui/icons/filter-lines";
 import { SearchAltIcon } from "@/components/ui/icons/search-alt";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import type { TransactionFilter } from "@/lib/cards";
+import { useRefreshSignal } from "@/lib/refresh";
 import { formatTxDate, type Transaction } from "@/lib/wallet";
 
 type Sheet = "menu" | "filters" | null;
 
-function buildFilterParams(selected: Record<string, string>): string {
+const PAGE_SIZE = 15;
+
+type TransactionsCache = {
+  cacheKey: string;
+  transactions: Transaction[];
+  selectedFilters: Record<string, string>;
+  page: number;
+  hasMore: boolean;
+};
+
+let cachedState: TransactionsCache | null = null;
+
+function computeCacheKey(
+  filters: Record<string, string>,
+  search?: string,
+): string {
+  const parts: string[] = [];
+  for (const [k, v] of Object.entries(filters)) {
+    if (v && v !== "Show All") {
+      parts.push(`${k}=${v}`);
+    }
+  }
+  parts.sort();
+  if (search && search.trim().length >= 3) {
+    parts.push(`q=${search.trim()}`);
+  }
+  return parts.join("&");
+}
+
+function buildFilterParams(
+  selected: Record<string, string>,
+  page: number = 1,
+  search?: string,
+): string {
   const params = new URLSearchParams();
-  params.set("limit", "10");
+  params.set("limit", String(PAGE_SIZE));
+  params.set("page", String(page));
 
   const type = selected["Transaction Type"];
   if (type && type !== "Show All") {
-    if (type === "Transfer") params.set("type", "TRANSFER");
-    else if (type === "Swap") params.set("type", "SWAP");
-    else if (type === "Bridge") params.set("type", "BRIDGE");
-    else if (type === "Deposit") params.set("type", "DEPOSIT");
-    else if (type === "Withdraw") params.set("type", "WITHDRAW");
-    else if (type === "Savings") params.set("type", "SAVINGS_DEPOSIT");
-    else if (type === "Airtime") params.set("type", "AIRTIME");
-    else if (type === "Data") params.set("type", "DATA");
-    else if (type === "Utility") params.set("type", "UTILITY");
+    params.set("type", type.toLowerCase());
   }
 
   const card = selected["Card"];
   if (card && card !== "Show All") {
-    params.set("card", card);
+    params.set("card", card.toLowerCase());
   }
 
   const status = selected["Status"];
   if (status && status !== "Show All") {
-    if (status === "Completed") params.set("status", "CONFIRMED");
-    else if (status === "Pending") params.set("status", "PENDING");
-    else if (status === "Failed") params.set("status", "FAILED");
+    params.set("status", status.toLowerCase());
   }
 
   const duration = selected["Duration"];
   if (duration && duration !== "Show All") {
     if (duration.includes("7")) params.set("duration", "7d");
-    else if (duration.includes("30") || duration.includes("1 Month")) params.set("duration", "30d");
-    else if (duration.includes("90") || duration.includes("3 Months")) params.set("duration", "90d");
+    else if (duration.includes("30") || duration.includes("1 Month"))
+      params.set("duration", "30d");
+    else if (duration.includes("90") || duration.includes("3 Months"))
+      params.set("duration", "90d");
   }
 
   const chain = selected["Chain"];
   if (chain && chain !== "Show All") {
     params.set("chain", chain.toLowerCase());
+  }
+
+  if (search && search.trim().length >= 3) {
+    params.set("search", search.trim().toLowerCase());
   }
 
   return params.toString();
@@ -75,68 +106,334 @@ export function TransactionsView({
   const searchParams = useSearchParams();
   const [sheet, setSheet] = useState<Sheet>(null);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
-  // The statement screen is `?statement=1` rather than local state, so the tab
-  // bar hides itself on it the same way it does on `?id=`.
   const onStatement = searchParams.get("statement") !== null;
 
-  const defaultChainOption = initialChain
-    ? initialChain.charAt(0).toUpperCase() + initialChain.slice(1).toLowerCase()
-    : undefined;
+  // Map URL search params back to user-friendly filter labels on mount
+  const getInitialFiltersFromUrl = (): Record<string, string> => {
+    const map: Record<string, string> = {};
 
-  const [selectedFilters, setSelectedFilters] = useState<Record<string, string>>(
-    defaultChainOption ? { Chain: defaultChainOption } : {},
-  );
-  const hasServerData = initialTransactions !== undefined;
-  const [transactions, setTransactions] = useState<Transaction[]>(
-    initialTransactions ?? [],
-  );
-  const [loading, setLoading] = useState(!hasServerData);
-  const prevFiltersRef = useRef<Record<string, string>>(selectedFilters);
+    const searchStr =
+      typeof window !== "undefined" && window.location.search
+        ? window.location.search
+        : searchParams?.toString() || "";
+    const rawParams = new URLSearchParams(
+      searchStr.startsWith("?") ? searchStr.slice(1) : searchStr,
+    );
+    const params = new URLSearchParams();
+    rawParams.forEach((val, key) => {
+      params.set(key.toLowerCase(), val.toLowerCase());
+    });
 
-  useEffect(() => {
-    // If server provided hydrated data, only fetch when filters actually change
-    if (hasServerData && prevFiltersRef.current === selectedFilters) {
-      return;
+    const chainParam = params.get("chain") || initialChain?.toLowerCase();
+    if (chainParam && chainParam !== "show all") {
+      map.Chain =
+        chainParam.charAt(0).toUpperCase() + chainParam.slice(1).toLowerCase();
     }
-    prevFiltersRef.current = selectedFilters;
 
-    let isMounted = true;
+    const typeParam = params.get("type");
+    if (typeParam) {
+      const t = typeParam.toLowerCase();
+      if (t === "transfer") map["Transaction Type"] = "Transfer";
+      else if (t === "swap") map["Transaction Type"] = "Swap";
+      else if (t === "bridge") map["Transaction Type"] = "Bridge";
+      else if (t === "deposit") map["Transaction Type"] = "Deposit";
+      else if (t === "withdraw") map["Transaction Type"] = "Withdraw";
+      else if (t === "savings" || t === "savings_deposit")
+        map["Transaction Type"] = "Savings";
+      else if (t === "airtime") map["Transaction Type"] = "Airtime";
+      else if (t === "data") map["Transaction Type"] = "Data";
+      else if (t === "utility") map["Transaction Type"] = "Utility";
+    }
 
-    async function loadTransactions() {
+    const statusParam = params.get("status");
+    if (statusParam) {
+      const s = statusParam.toLowerCase();
+      if (s === "completed" || s === "confirmed") map.Status = "Completed";
+      else if (s === "pending") map.Status = "Pending";
+      else if (s === "failed") map.Status = "Failed";
+    }
+
+    const durationParam = params.get("duration");
+    if (durationParam) {
+      const d = durationParam.toLowerCase();
+      if (d.includes("7")) map.Duration = "Last 7 Days";
+      else if (d.includes("30")) map.Duration = "Last 30 Days";
+      else if (d.includes("90")) map.Duration = "Last 90 Days";
+    }
+
+    return map;
+  };
+
+  const initialFilterMap = getInitialFiltersFromUrl();
+  const hasActiveInitialFilters = Object.values(initialFilterMap).some(
+    (val) => val && val !== "Show All",
+  );
+  const currentCacheKey = computeCacheKey(initialFilterMap, "");
+  const hasMatchingCache =
+    cachedState !== null && cachedState.cacheKey === currentCacheKey;
+
+  const [selectedFilters, setSelectedFilters] = useState<
+    Record<string, string>
+  >(hasMatchingCache && cachedState ? cachedState.selectedFilters : initialFilterMap);
+
+  // If there are active filters in the URL on mount, don't show un-filtered server initialTransactions
+  const hasServerData =
+    initialTransactions !== undefined &&
+    !hasActiveInitialFilters &&
+    !hasMatchingCache;
+
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    if (hasMatchingCache && cachedState) return cachedState.transactions;
+    if (hasServerData && initialTransactions) return initialTransactions;
+    return [];
+  });
+  const [page, setPage] = useState(() => {
+    if (hasMatchingCache && cachedState) return cachedState.page;
+    return 1;
+  });
+  const [hasMore, setHasMore] = useState(() => {
+    if (hasMatchingCache && cachedState) return cachedState.hasMore;
+    if (hasServerData) return (initialTransactions?.length ?? 0) >= 10;
+    return true;
+  });
+  const [loading, setLoading] = useState(() => {
+    if (hasMatchingCache) return false;
+    return !hasServerData;
+  });
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const prevFiltersRef = useRef<string>(
+    JSON.stringify(
+      hasMatchingCache && cachedState
+        ? cachedState.selectedFilters
+        : initialFilterMap,
+    ),
+  );
+  const isFirstMount = useRef(true);
+
+  // Debounce search query: trigger query only if empty or >= 3 characters
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      const trimmed = query.trim();
+      if (trimmed.length === 0 || trimmed.length >= 3) {
+        setDebouncedQuery(trimmed);
+      }
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [query]);
+
+  // Sync all selected filters to the URL query string cleanly
+  const syncFiltersToUrl = useCallback(
+    (filtersToSync: Record<string, string>) => {
+      const currentUrlParams = new URLSearchParams(window.location.search);
+
+      // 1. Chain
+      const chainVal = filtersToSync["Chain"];
+      if (chainVal && chainVal !== "Show All") {
+        currentUrlParams.set("chain", chainVal.toLowerCase());
+      } else {
+        currentUrlParams.delete("chain");
+      }
+
+      // 2. Transaction Type
+      const typeVal = filtersToSync["Transaction Type"];
+      if (typeVal && typeVal !== "Show All") {
+        currentUrlParams.set("type", typeVal.toLowerCase());
+      } else {
+        currentUrlParams.delete("type");
+      }
+
+      // 3. Status
+      const statusVal = filtersToSync["Status"];
+      if (statusVal && statusVal !== "Show All") {
+        currentUrlParams.set("status", statusVal.toLowerCase());
+      } else {
+        currentUrlParams.delete("status");
+      }
+
+      // 4. Duration
+      const durationVal = filtersToSync["Duration"];
+      if (durationVal && durationVal !== "Show All") {
+        if (durationVal.includes("7")) currentUrlParams.set("duration", "7d");
+        else if (durationVal.includes("30")) currentUrlParams.set("duration", "30d");
+        else if (durationVal.includes("90")) currentUrlParams.set("duration", "90d");
+      } else {
+        currentUrlParams.delete("duration");
+      }
+
+      const newQuery = currentUrlParams.toString();
+      const newPath = newQuery
+        ? `${window.location.pathname}?${newQuery}`
+        : window.location.pathname;
+      router.replace(newPath, { scroll: false });
+    },
+    [router],
+  );
+
+  // Core fetcher for page 1 transactions (filters or search change)
+  const fetchPageOne = useCallback(
+    async (filtersState: Record<string, string>, searchParam: string) => {
       setLoading(true);
-      const queryStr = buildFilterParams(selectedFilters);
+      setPage(1);
 
       try {
+        const queryStr = buildFilterParams(filtersState, 1, searchParam);
         const res = await fetch(`/api/v1/transactions?${queryStr}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        if (isMounted && Array.isArray(data.transactions)) {
+
+        if (Array.isArray(data.transactions)) {
           setTransactions(data.transactions);
+          setHasMore(Boolean(data.pagination?.hasMore));
+          cachedState = {
+            cacheKey: computeCacheKey(filtersState, searchParam),
+            transactions: data.transactions,
+            selectedFilters: filtersState,
+            page: 1,
+            hasMore: Boolean(data.pagination?.hasMore),
+          };
         }
       } catch (err) {
         console.warn("[Transactions] Failed to fetch history:", err);
       } finally {
-        if (isMounted) setLoading(false);
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  // Listen for global pull-to-refresh signal
+  useRefreshSignal(() => {
+    fetchPageOne(selectedFilters, debouncedQuery);
+  });
+
+  // Re-fetch when filters or debounced search change
+  useEffect(() => {
+    const currentFiltersStr = JSON.stringify(selectedFilters);
+
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      // If we already have server-hydrated transactions or cached transactions with no search, skip
+      if ((hasServerData || hasMatchingCache) && !debouncedQuery) {
+        prevFiltersRef.current = currentFiltersStr;
+        return;
       }
     }
 
-    loadTransactions();
+    prevFiltersRef.current = currentFiltersStr;
+    fetchPageOne(selectedFilters, debouncedQuery);
+  }, [selectedFilters, debouncedQuery, hasServerData, hasMatchingCache, fetchPageOne]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedFilters, hasServerData]);
+  // Load next page (Infinite Scroll)
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || loading) return;
+    setLoadingMore(true);
+
+    const nextPage = page + 1;
+    try {
+      const queryStr = buildFilterParams(
+        selectedFilters,
+        nextPage,
+        debouncedQuery,
+      );
+      const res = await fetch(`/api/v1/transactions?${queryStr}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+
+      if (Array.isArray(data.transactions) && data.transactions.length > 0) {
+        setTransactions((prev) => {
+          const existingIds = new Set(prev.map((t) => t.id || (t as any)._id));
+          const incoming = data.transactions.filter(
+            (t: Transaction) => !existingIds.has(t.id || (t as any)._id),
+          );
+          const updated = [...prev, ...incoming];
+          if (
+            cachedState &&
+            cachedState.cacheKey ===
+              computeCacheKey(selectedFilters, debouncedQuery)
+          ) {
+            cachedState.transactions = updated;
+            cachedState.page = nextPage;
+            cachedState.hasMore = Boolean(data.pagination?.hasMore);
+          }
+          return updated;
+        });
+        setPage(nextPage);
+        setHasMore(Boolean(data.pagination?.hasMore));
+      } else {
+        setHasMore(false);
+        if (
+          cachedState &&
+          cachedState.cacheKey ===
+            computeCacheKey(selectedFilters, debouncedQuery)
+        ) {
+          cachedState.hasMore = false;
+        }
+      }
+    } catch (err) {
+      console.warn("[Transactions] Failed to load more:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [
+    loadingMore,
+    hasMore,
+    loading,
+    page,
+    selectedFilters,
+    debouncedQuery,
+  ]);
+
+  // IntersectionObserver for bottom infinite scroll sentinel
+  useEffect(() => {
+    if (!hasMore || loadingMore || loading) return;
+
+    const el = sentinelRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMore();
+        }
+      },
+      { rootMargin: "250px" },
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, loadMore]);
+
+  // Real-time polling when pending transactions exist
+  useEffect(() => {
+    const hasPending = transactions.some((t) => t.status === "pending");
+    if (!hasPending) return;
+
+    const interval = setInterval(() => {
+      fetchPageOne(selectedFilters, debouncedQuery);
+    }, 12000);
+
+    return () => clearInterval(interval);
+  }, [transactions, selectedFilters, debouncedQuery, fetchPageOne]);
 
   const hasActiveFilters = Object.values(selectedFilters).some(
     (val) => val && val !== "Show All",
   );
 
+  // Client-side quick filter for instantaneous matching on already loaded items
   const visible = transactions.filter((transaction) => {
     const q = query.trim().toLowerCase();
-    if (!q) return true;
+    if (!q || q.length < 3) return true;
     const cleanQ = q.replace(/^(?:JUMPA-tx_|JUMPA-|Jumpa_|tx_)/i, "").trim();
-    const rawId = (transaction.id || (transaction as any)._id || "").toLowerCase();
+    const rawId = (
+      transaction.id ||
+      (transaction as any)._id ||
+      ""
+    ).toLowerCase();
     const cleanId = rawId.replace(/^(?:JUMPA-tx_|JUMPA-|Jumpa_|tx_)/i, "");
     const displayId = ((transaction as any).displayId || "").toLowerCase();
     const dateStr = transaction.createdAt
@@ -166,7 +463,6 @@ export function TransactionsView({
 
   return (
     <>
-      {/* No nav clearance here — `BottomNav` renders its own spacer. */}
       <div className="flex flex-col gap-4 px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-6">
         <ScreenHeader
           back="/home"
@@ -192,7 +488,7 @@ export function TransactionsView({
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search for transactions"
+            placeholder="Search for transactions (min. 3 chars)"
             className="min-w-0 flex-1 bg-transparent text-sm leading-4 text-jumpa-black outline-none placeholder:text-jumpa-primary-950"
           />
         </label>
@@ -202,7 +498,11 @@ export function TransactionsView({
             Loading transactions...
           </div>
         ) : (
-          <TransactionList transactions={visible} />
+          <TransactionList
+            transactions={visible}
+            sentinelRef={sentinelRef}
+            loadingMore={loadingMore}
+          />
         )}
       </div>
 
@@ -223,7 +523,10 @@ export function TransactionsView({
         <FilterSheet
           filters={filters}
           selectedFilters={selectedFilters}
-          onApply={(newFilters) => setSelectedFilters(newFilters)}
+          onApply={(newFilters) => {
+            setSelectedFilters(newFilters);
+            syncFiltersToUrl(newFilters);
+          }}
           onClose={() => setSheet(null)}
         />
       ) : null}

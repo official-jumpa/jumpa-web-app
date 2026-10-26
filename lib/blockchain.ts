@@ -282,6 +282,38 @@ export function stellarAddressToBytes32(stellarAddress: string): `0x${string}` {
 }
 
 /**
+ * Builds the hookData buffer for a CCTP Forwarder burn message.
+ * Directly implements Circle's official reference implementation:
+ * https://developers.circle.com/cctp/references/stellar.md#building-forwarder-hook-data-example
+ *
+ * Hook data layout:
+ *   bytes  0–23: reserved (zeroed)
+ *   bytes 24–27: hook data version (u32 BE, currently 0)
+ *   bytes 28–31: forward_recipient byte length (u32 BE)
+ *   bytes 32+  : forward_recipient (UTF-8 encoded Stellar strkey: C..., G..., or M...)
+ */
+export function buildStellarForwarderHookData(
+  forwardRecipientStrkey: string,
+): `0x${string}` {
+  const isValid =
+    StrKey.isValidEd25519PublicKey(forwardRecipientStrkey) ||
+    StrKey.isValidContract(forwardRecipientStrkey) ||
+    StrKey.isValidMed25519PublicKey(forwardRecipientStrkey);
+  if (!isValid) {
+    throw new Error(
+      `Invalid forward recipient: ${forwardRecipientStrkey} (expected G..., C..., or M... address)`,
+    );
+  }
+
+  const recipientBytes = Buffer.from(forwardRecipientStrkey, "utf8");
+  const hookData = Buffer.alloc(32 + recipientBytes.length);
+  hookData.writeUInt32BE(0, 24); // hook version = 0
+  hookData.writeUInt32BE(recipientBytes.length, 28); // recipient byte length
+  recipientBytes.copy(hookData, 32); // recipient strkey as UTF-8
+  return `0x${hookData.toString("hex")}`;
+}
+
+/**
  * Converts a 32-byte hex string (0x...) back to a Stellar G... address.
  */
 export function bytes32ToStellarAddress(bytes32: string): string {

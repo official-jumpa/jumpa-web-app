@@ -11,6 +11,7 @@
     "format": "biome format --write",
     "resolve-pending-txs": "node --import tsx script/resolve-transactions.ts",
     "check-deposits": "node --import tsx script/check-deposits.ts",
+    "daily-interest": "node --import tsx script/daily-interest.ts",
     "support-sla": "node --import tsx script/support-sla.ts"
   },
   "dependencies": {

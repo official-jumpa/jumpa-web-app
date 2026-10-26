@@ -1,14 +1,19 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { CIRCLE_IRIS_API, CONTRACT_ADDRESSES, getExplorerTxUrl } from "@/lib/blockchain";
+import {
+  CIRCLE_IRIS_API,
+  CONTRACT_ADDRESSES,
+  getExplorerTxUrl,
+  stellarAddressToBytes32,
+} from "@/lib/blockchain";
 import { connectDB } from "@/lib/db";
 import { Transaction } from "@/models/Transaction";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 
 /**
- * Submits receive_message to Stellar MessageTransmitter contract.
- * Exact Soroban function signature:
- * receive_message(caller: Address, message: Bytes, attestation: Bytes) -> Bool
+ * Submits CCTP receive message on Stellar.
+ * If the message mintRecipient is Circle's CctpForwarder, calls cctpForwarder.mint_and_forward.
+ * Otherwise, calls messageTransmitter.receive_message.
  */
 export async function submitStellarReceiveMessage({
   messageHex,
@@ -35,30 +40,67 @@ export async function submitStellarReceiveMessage({
     const sourceAddress = relayerKeypair.publicKey();
 
     const acc = await rpc.getAccount(sourceAddress);
-    const mtAddress = CONTRACT_ADDRESSES.cctp.mainnet.stellar.messageTransmitter;
-    const mtContract = new StellarSdk.Contract(mtAddress);
+    const stellarCctp = CONTRACT_ADDRESSES.cctp.mainnet.stellar;
 
-    const receiveOp = mtContract.call(
-      "receive_message",
-      new StellarSdk.Address(sourceAddress).toScVal(),
-      StellarSdk.xdr.ScVal.scvBytes(msgBytes),
-      StellarSdk.xdr.ScVal.scvBytes(attBytes),
+    // Detect if this message targets Circle's CctpForwarder contract on Stellar
+    const forwarderBytes32 = Buffer.from(
+      stellarAddressToBytes32(stellarCctp.cctpForwarder).replace(/^0x/, ""),
+      "hex",
     );
+    // In MessageV2, destinationCaller is at offset 108..140; BurnMessageV2 mintRecipient is at 184..216
+    const isTargetingForwarder =
+      msgBytes.length >= 216 &&
+      (msgBytes.subarray(184, 216).equals(forwarderBytes32) ||
+        msgBytes.subarray(108, 140).equals(forwarderBytes32));
+
+    let operation: StellarSdk.xdr.Operation;
+    if (isTargetingForwarder) {
+      const forwarderContract = new StellarSdk.Contract(stellarCctp.cctpForwarder);
+      operation = forwarderContract.call(
+        "mint_and_forward",
+        StellarSdk.xdr.ScVal.scvBytes(msgBytes),
+        StellarSdk.xdr.ScVal.scvBytes(attBytes),
+      );
+    } else {
+      const mtAddress = stellarCctp.messageTransmitter;
+      const mtContract = new StellarSdk.Contract(mtAddress);
+      operation = mtContract.call(
+        "receive_message",
+        new StellarSdk.Address(sourceAddress).toScVal(),
+        StellarSdk.xdr.ScVal.scvBytes(msgBytes),
+        StellarSdk.xdr.ScVal.scvBytes(attBytes),
+      );
+    }
 
     let tx = new StellarSdk.TransactionBuilder(acc, {
       fee: "500000",
       networkPassphrase: StellarSdk.Networks.PUBLIC,
     })
-      .addOperation(receiveOp)
+      .addOperation(operation)
       .setTimeout(60)
       .build();
 
-    tx = await rpc.prepareTransaction(tx);
+    try {
+      tx = await rpc.prepareTransaction(tx);
+    } catch (prepErr: any) {
+      const prepErrMsg = prepErr?.message || String(prepErr);
+      if (prepErrMsg.includes("6908") || prepErrMsg.includes("NonceAlreadyUsed")) {
+        console.log("[Stellar Relayer] Nonce already used; transfer already executed on Stellar");
+        return { ok: true, mintTxHash: "already_minted" };
+      }
+      throw prepErr;
+    }
+
     tx.sign(relayerKeypair);
 
     const sendRes = await rpc.sendTransaction(tx);
     if (sendRes.status === "ERROR") {
-      return { ok: false, error: `Stellar sendTransaction failed: ${JSON.stringify(sendRes)}` };
+      const errStr = JSON.stringify(sendRes);
+      if (errStr.includes("6908") || errStr.includes("NonceAlreadyUsed")) {
+        console.log("[Stellar Relayer] Nonce already used; transfer already executed on Stellar");
+        return { ok: true, mintTxHash: "already_minted" };
+      }
+      return { ok: false, error: `Stellar sendTransaction failed: ${errStr}` };
     }
 
     let txStatus = await rpc.getTransaction(sendRes.hash);
@@ -124,20 +166,26 @@ export function relayToStellar({
         return;
       }
 
-      if (msgObj.destinationMintTxHash) {
-        console.log("[Stellar Relayer] Already minted on destination:", msgObj.destinationMintTxHash);
-        return;
-      }
+      let mintTxHash = msgObj.destinationMintTxHash;
 
-      console.log("[Stellar Relayer] Attestation ready! Minting on Stellar...");
-      const result = await submitStellarReceiveMessage({
-        messageHex: msgObj.message,
-        attestationHex: msgObj.attestation,
-      });
+      if (mintTxHash) {
+        console.log("[Stellar Relayer] Already minted on destination:", mintTxHash);
+      } else {
+        console.log("[Stellar Relayer] Attestation ready! Minting on Stellar...");
+        const result = await submitStellarReceiveMessage({
+          messageHex: msgObj.message,
+          attestationHex: msgObj.attestation,
+        });
 
-      if (!result.ok || !result.mintTxHash) {
-        console.error("[Stellar Relayer] Failed to mint on Stellar:", result.error);
-        return;
+        if (!result.ok || !result.mintTxHash) {
+          console.error("[Stellar Relayer] Failed to mint on Stellar:", result.error);
+          return;
+        }
+
+        mintTxHash =
+          result.mintTxHash === "already_minted"
+            ? (msgObj.destinationMintTxHash || "confirmed_on_stellar")
+            : result.mintTxHash;
       }
 
       await connectDB();
@@ -146,12 +194,11 @@ export function relayToStellar({
         {
           $set: {
             status: "CONFIRMED",
-            "bridgeDetails.mintTxHash": result.mintTxHash,
-            "bridgeDetails.mintExplorerUrl": getExplorerTxUrl(
-              "stellar",
-              result.mintTxHash,
-              false,
-            ),
+            "bridgeDetails.mintTxHash": mintTxHash,
+            "bridgeDetails.mintExplorerUrl":
+              mintTxHash && mintTxHash !== "confirmed_on_stellar"
+                ? getExplorerTxUrl("stellar", mintTxHash, false)
+                : undefined,
           },
         },
       );

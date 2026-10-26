@@ -291,7 +291,7 @@ export async function purchaseAirtime(params: {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: formData.toString(),
-      signal: AbortSignal.timeout(20000), // 20s timeout
+      signal: AbortSignal.timeout(30000), // 30s timeout
     });
     data = await res.json().catch(() => null);
   } catch (fetchErr: any) {

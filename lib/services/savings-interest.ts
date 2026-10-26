@@ -1,12 +1,12 @@
 import { connectDB } from "@/lib/db";
 import { SavingsPlan, type ISavingsPlan } from "@/models/SavingsPlan";
+import { SavingsTransaction } from "@/models/SavingsTransaction";
 import { createSavingsTransaction } from "@/lib/functions/savingsFunctions";
-
-//TODO: REVISIT THE CALCULATIONS HERE
 
 export interface DailyInterestRunResult {
   processedPlans: number;
   skippedPlans: number;
+  maturedPlans: number;
   totalInterestCredited: {
     NGN: number;
     USDC: number;
@@ -15,7 +15,7 @@ export interface DailyInterestRunResult {
 }
 
 /**
- * Returns the current date in YYYY-MM-DD (UTC).
+ * Returns the date in YYYY-MM-DD (UTC).
  */
 export function getUtcDateString(date: Date = new Date()): string {
   const y = date.getUTCFullYear();
@@ -25,22 +25,55 @@ export function getUtcDateString(date: Date = new Date()): string {
 }
 
 /**
- * Calculates simple daily interest based on the plan's initial deposit and configured fixed APY.
- * DailyYield = initialDeposit * (APY / 100) / 365
+ * Calculates number of full calendar days between two UTC date strings (YYYY-MM-DD).
+ */
+export function getDayDiff(startDateStr: string, endDateStr: string): number {
+  const [sy, sm, sd] = startDateStr.split("-").map(Number);
+  const [ey, em, ed] = endDateStr.split("-").map(Number);
+  const start = Date.UTC(sy, sm - 1, sd);
+  const end = Date.UTC(ey, em - 1, ed);
+  return Math.max(0, Math.floor((end - start) / (1000 * 60 * 60 * 24)));
+}
+
+/**
+ * Calculates simple interest for an exact number of calendar days.
+ * Interest = balance * (APY / 100) * (days / 365)
+ * Precision: 6 decimal places for USDC, 2 decimal places for NGN.
+ */
+export function calculateInterestForPeriod(
+  balance: number,
+  lockedApy: number,
+  days: number,
+  currency: "NGN" | "USDC" = "NGN",
+): number {
+  if (balance <= 0 || !lockedApy || lockedApy <= 0 || days <= 0) return 0;
+  const yieldAmount = (balance * (lockedApy / 100) * days) / 365;
+  const precision = currency === "NGN" ? 2 : 6;
+  return Number(yieldAmount.toFixed(precision));
+}
+
+/**
+ * Calculates simple daily interest based on active balance and locked APY.
  */
 export function calculateDailyInterest(
-  initialDeposit: number,
+  balance: number,
   lockedApy: number,
+  currency: "NGN" | "USDC" = "NGN",
 ): number {
-  if (initialDeposit <= 0 || !lockedApy || lockedApy <= 0) return 0;
-  const daily = (initialDeposit * (lockedApy / 100)) / 365;
-  // Round to 4 decimal places for precision
-  return Math.max(0, Number(daily.toFixed(4)));
+  return calculateInterestForPeriod(balance, lockedApy, 1, currency);
 }
 
 /**
  * Processes daily midnight interest accrual across all active plans.
- * Idempotent: checks each plan's `lastAccruedDate` against today's date.
+ *
+ * Features:
+ * - Anti-Sniping Protection: Inspects deposit history in the last 24h and excludes
+ *   un-matured deposits from today's yield.
+ * - Multi-day catch-up: Accrues missing calendar days if cron is delayed.
+ * - Segregated Ledger: Stores interest strictly in `interestEarned` (leaving `currentAmount` principal uncompounded).
+ * - Atomic Compare-And-Swap (CAS): Guards against concurrent duplicate cron executions.
+ * - Maturity Handling: Matures locked plans when the end date is reached.
+ * - Currency-aware precision: 6 decimals for USDC, 2 decimals for NGN.
  */
 export async function processDailySavingsInterest(
   referenceDate: Date = new Date(),
@@ -51,15 +84,21 @@ export async function processDailySavingsInterest(
   const result: DailyInterestRunResult = {
     processedPlans: 0,
     skippedPlans: 0,
+    maturedPlans: 0,
     totalInterestCredited: { NGN: 0, USDC: 0 },
     errors: [],
   };
 
-  // Find all active savings plans with a positive initial deposit
+  // Find all active savings plans with a positive current balance
   const activePlans = await SavingsPlan.find({
     status: "Active",
-    initialDeposit: { $gt: 0 },
+    currentAmount: { $gt: 0 },
   });
+
+  // 24-hour maturation cutoff: deposits made after this timestamp cannot earn today's yield
+  const twentyFourHoursAgo = new Date(
+    referenceDate.getTime() - 24 * 60 * 60 * 1000,
+  );
 
   for (const plan of activePlans) {
     try {
@@ -69,52 +108,132 @@ export async function processDailySavingsInterest(
         continue;
       }
 
-      // 2. Check if plan is locked and past its maturity date -> mark matured and stop accruing
-      if (plan.kind === "lock" && plan.endDate && referenceDate >= new Date(plan.endDate)) {
-        await SavingsPlan.updateOne(
-          { _id: plan._id },
-          { $set: { status: "Matured" } },
+      // 2. Determine baseline accrual start date
+      const baselineStartStr =
+        plan.lastAccruedDate ||
+        getUtcDateString(
+          new Date(plan.startDate || plan.createdAt || referenceDate),
         );
+
+      // 3. Check for lock plan maturity boundary
+      let effectiveEndStr = todayStr;
+      let isPlanMatured = false;
+
+      if (plan.kind === "lock" && plan.endDate) {
+        const lockEndDateStr = getUtcDateString(new Date(plan.endDate));
+        if (referenceDate >= new Date(plan.endDate)) {
+          isPlanMatured = true;
+          // Only accrue interest up to the lock maturity date
+          if (lockEndDateStr < effectiveEndStr) {
+            effectiveEndStr = lockEndDateStr;
+          }
+        }
+      }
+
+      // 4. Calculate elapsed days to accrue
+      const daysElapsed = getDayDiff(baselineStartStr, effectiveEndStr);
+
+      if (daysElapsed <= 0) {
+        // No new calendar days elapsed (e.g. plan created today or already at end date)
+        if (isPlanMatured && plan.status === "Active") {
+          await SavingsPlan.updateOne(
+            { _id: plan._id, status: "Active" },
+            { $set: { status: "Matured", lastAccruedDate: todayStr } },
+          );
+          result.maturedPlans += 1;
+        }
         result.skippedPlans += 1;
         continue;
       }
 
-      // 3. Calculate 1 day of simple interest based on initialDeposit and locked APY
-      const dailyYield = calculateDailyInterest(
-        plan.initialDeposit,
-        plan.apy,
+      // 5. Anti-Sniping Protection: Check deposit history in the last 24h
+      // Any deposit or top-up made within the last 24h has NOT matured for today's payout.
+      const recentDeposits = await SavingsTransaction.find({
+        planId: plan._id,
+        kind: { $in: ["deposit", "top_up"] },
+        at: { $gte: twentyFourHoursAgo },
+      })
+        .select("amount")
+        .lean();
+
+      const unMaturedDepositAmount = recentDeposits.reduce(
+        (sum, d) => sum + (d.amount || 0),
+        0,
       );
 
-      if (dailyYield <= 0) {
+      // Eligible principal balance is active balance minus un-matured recent top-ups
+      const eligibleBalance = Math.min(
+        plan.currentAmount,
+        Math.max(0, plan.currentAmount - unMaturedDepositAmount),
+      );
+
+      if (eligibleBalance <= 0) {
         result.skippedPlans += 1;
         continue;
       }
 
-      // 4. Record savings transaction
+      // 6. Calculate accrued interest for elapsed days based on eligible matured balance
+      const interestToAdd = calculateInterestForPeriod(
+        eligibleBalance,
+        plan.apy,
+        daysElapsed,
+        plan.currency as "NGN" | "USDC",
+      );
+
+      if (interestToAdd <= 0) {
+        result.skippedPlans += 1;
+        continue;
+      }
+
+      // 7. Atomic Compare-And-Swap update: guards against concurrent cron workers
+      // Notice: interestToAdd is incremented into interestEarned (leaving currentAmount principal clean)
+      const updatedPlan = await SavingsPlan.findOneAndUpdate(
+        { _id: plan._id, status: "Active", lastAccruedDate: { $ne: todayStr } },
+        {
+          $inc: { interestEarned: interestToAdd },
+          $set: {
+            lastAccruedDate: todayStr,
+            ...(isPlanMatured ? { status: "Matured" } : {}),
+          },
+        },
+        { returnDocument: "after" },
+      );
+
+      if (!updatedPlan) {
+        // Race condition: another worker already accrued this plan for today
+        result.skippedPlans += 1;
+        continue;
+      }
+
+      // 8. Record an immutable savings transaction ledger entry
       await createSavingsTransaction({
         planId: plan._id,
         userId: plan.userId,
         currency: plan.currency,
         kind: "interest",
-        amount: Number(dailyYield.toFixed(2)),
+        amount: interestToAdd,
         at: referenceDate,
       });
 
-      // 5. Update plan interestEarned and lastAccruedDate atomically
-      await SavingsPlan.updateOne(
-        { _id: plan._id },
-        {
-          $inc: { interestEarned: Number(dailyYield.toFixed(2)) },
-          $set: { lastAccruedDate: todayStr },
-        },
-      );
-
       result.processedPlans += 1;
+      if (isPlanMatured) result.maturedPlans += 1;
+
       const cur = plan.currency === "NGN" ? "NGN" : "USDC";
-      result.totalInterestCredited[cur] += Number(dailyYield.toFixed(2));
-    } catch (err: any) {
-      console.error(`[SavingsInterest] Failed processing plan ${plan._id}:`, err);
-      result.errors.push({ planId: plan._id, error: err.message || String(err) });
+      result.totalInterestCredited[cur] = Number(
+        (result.totalInterestCredited[cur] + interestToAdd).toFixed(
+          cur === "NGN" ? 2 : 6,
+        ),
+      );
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error(
+        `[SavingsInterest] Failed processing plan ${plan._id}:`,
+        err,
+      );
+      result.errors.push({
+        planId: plan._id,
+        error: errorMsg,
+      });
     }
   }
 

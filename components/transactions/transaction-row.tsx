@@ -12,6 +12,7 @@ import { getAssetLogo } from "@/lib/assets";
 import { getCarrierLogo } from "@/lib/bills";
 import { cn } from "@/lib/cn";
 import { formatTxDate, type Transaction, type TransactionKind } from "@/lib/wallet";
+import { useSearchParams } from "next/navigation";
 
 const STATUS_LABEL = {
   completed: "Completed",
@@ -145,10 +146,24 @@ export function TransactionRow({
     );
   }
 
+  const searchParams = useSearchParams();
+  const searchString =
+    typeof window !== "undefined" && window.location.search
+      ? window.location.search
+      : searchParams?.toString() || "";
+  const rawParams = new URLSearchParams(
+    searchString.startsWith("?") ? searchString.slice(1) : searchString,
+  );
+  const currentParams = new URLSearchParams();
+  rawParams.forEach((val, key) => {
+    currentParams.set(key.toLowerCase(), val.toLowerCase());
+  });
+  currentParams.set("id", targetId.toLowerCase());
+
   return (
     <Link
       prefetch={false}
-      href={`/transactions?id=${encodeURIComponent(targetId)}`}
+      href={`/transactions?${currentParams.toString()}`}
       className={ROW}
     >
       {body}

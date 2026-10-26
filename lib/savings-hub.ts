@@ -243,189 +243,7 @@ export function savingStyle(goal: HubGoal): string {
   return `${circleStyle(circle).label} · ${circle.members.length} of ${circle.capacity} members`;
 }
 
-/**
- * TODO(backend): placeholder plans for the prototype — replace with the
- * user's real plans from `/api/v1/savings` before this screen ships. Your own
- * deposits sit on whole weeks back (7, 14, 21…), so the demo always opens on a
- * 3-week streak with this week still open, and ₦150,000 takes the MacBook halfway.
- */
-export const HUB_GOALS: HubGoal[] = [
-  {
-    id: "g-1",
-    name: "MacBook Pro M4 Fund",
-    kind: "individual",
-    currency: "NGN",
-    saved: 450000,
-    target: 1200000,
-    interestEarned: 18500,
-    termDays: 90,
-    daysLeft: 41,
-    startDate: startedAgo(49),
-    apy: 12,
-    activity: [
-      { id: "h-5", kind: "interest", amount: 18500, at: isoDaysAgo(0) },
-      { id: "h-4", kind: "deposit", amount: 50000, at: isoDaysAgo(7) },
-      { id: "h-3", kind: "deposit", amount: 50000, at: isoDaysAgo(14) },
-      { id: "h-2", kind: "deposit", amount: 100000, at: isoDaysAgo(21) },
-      { id: "h-1", kind: "deposit", amount: 250000, at: isoDaysAgo(49) },
-    ],
-  },
-  {
-    id: "g-2",
-    name: "Emergency Reserve",
-    kind: "individual",
-    currency: "USDC",
-    saved: 1200,
-    target: 2500,
-    interestEarned: 48.75,
-    termDays: 180,
-    daysLeft: 89,
-    startDate: startedAgo(91),
-    apy: 8,
-    activity: [
-      { id: "h-8", kind: "interest", amount: 48.75, at: isoDaysAgo(0) },
-      { id: "h-7", kind: "deposit", amount: 200, at: isoDaysAgo(42) },
-      { id: "h-6", kind: "deposit", amount: 1000, at: isoDaysAgo(91) },
-    ],
-  },
-  {
-    id: "g-3",
-    name: "Rent reserve",
-    kind: "lock",
-    currency: "NGN",
-    saved: 800000,
-    target: 800000,
-    interestEarned: 32000,
-    termDays: 90,
-    daysLeft: 20,
-    startDate: startedAgo(70),
-    apy: 16,
-    activity: [
-      { id: "h-10", kind: "interest", amount: 32000, at: isoDaysAgo(0) },
-      { id: "h-9", kind: "deposit", amount: 800000, at: isoDaysAgo(70) },
-    ],
-  },
-  {
-    id: "g-4",
-    name: "Trip to Kigali",
-    kind: "circle",
-    currency: "NGN",
-    saved: 650000,
-    target: 1500000,
-    interestEarned: 14200,
-    termDays: 90,
-    daysLeft: 55,
-    startDate: startedAgo(35),
-    apy: 10,
-    circle: {
-      inviteCode: "kgl482",
-      capacity: 6,
-      reminders: true,
-      members: [
-        { id: "m-1", name: "You", you: true, owner: true, saved: 350000 },
-        { id: "m-2", name: "Ada", saved: 200000 },
-        { id: "m-3", name: "Tobi", saved: 100000 },
-        { id: "m-4", name: "Kemi", saved: 0 },
-      ],
-    },
-    activity: [
-      { id: "h-15", kind: "interest", amount: 14200, at: isoDaysAgo(0) },
-      {
-        id: "h-14",
-        kind: "deposit",
-        amount: 100000,
-        at: isoDaysAgo(6),
-        by: "Tobi",
-      },
-      {
-        id: "h-13",
-        kind: "deposit",
-        amount: 200000,
-        at: isoDaysAgo(9),
-        by: "Ada",
-      },
-      { id: "h-12", kind: "deposit", amount: 50000, at: isoDaysAgo(14) },
-      { id: "h-11", kind: "deposit", amount: 300000, at: isoDaysAgo(35) },
-    ],
-  },
-  {
-    id: "g-5",
-    name: "School fees",
-    kind: "lock",
-    currency: "NGN",
-    saved: 500000,
-    target: 500000,
-    interestEarned: 41000,
-    termDays: 180,
-    daysLeft: 0,
-    startDate: "15 Feb 2026",
-    apy: 16,
-    closed: { date: "14 Aug 2026", paidOut: 541000, forfeited: false },
-    activity: [
-      { id: "h-18", kind: "withdrawal", amount: 541000, at: "2026-08-14" },
-      { id: "h-17", kind: "interest", amount: 41000, at: "2026-08-14" },
-      { id: "h-16", kind: "deposit", amount: 500000, at: "2026-02-15" },
-    ],
-  },
-  {
-    id: "g-6",
-    name: "Wedding gift",
-    kind: "individual",
-    currency: "NGN",
-    saved: 300000,
-    target: 300000,
-    interestEarned: 9200,
-    termDays: 90,
-    daysLeft: 0,
-    startDate: "02 Mar 2026",
-    apy: 12,
-    closed: { date: "31 May 2026", paidOut: 309200, forfeited: false },
-    activity: [
-      { id: "h-22", kind: "withdrawal", amount: 309200, at: "2026-05-31" },
-      { id: "h-21", kind: "interest", amount: 9200, at: "2026-05-31" },
-      { id: "h-20", kind: "deposit", amount: 150000, at: "2026-04-04" },
-      { id: "h-19", kind: "deposit", amount: 150000, at: "2026-03-02" },
-    ],
-  },
-  {
-    id: "g-7",
-    name: "New phone",
-    kind: "individual",
-    currency: "USDC",
-    saved: 650,
-    target: 900,
-    interestEarned: 14.2,
-    termDays: 120,
-    daysLeft: 31,
-    startDate: "23 May 2026",
-    apy: 8,
-    closed: { date: "20 Aug 2026", paidOut: 664.2, forfeited: false },
-    activity: [
-      { id: "h-26", kind: "withdrawal", amount: 664.2, at: "2026-08-20" },
-      { id: "h-25", kind: "interest", amount: 14.2, at: "2026-08-20" },
-      { id: "h-24", kind: "deposit", amount: 250, at: "2026-07-01" },
-      { id: "h-23", kind: "deposit", amount: 400, at: "2026-05-23" },
-    ],
-  },
-  {
-    id: "g-8",
-    name: "Conference trip",
-    kind: "lock",
-    currency: "USDC",
-    saved: 800,
-    target: 800,
-    interestEarned: 9.6,
-    termDays: 90,
-    daysLeft: 54,
-    startDate: "10 Jun 2026",
-    apy: 8,
-    closed: { date: "16 Jul 2026", paidOut: 800, forfeited: true },
-    activity: [
-      { id: "h-28", kind: "withdrawal", amount: 800, at: "2026-07-16" },
-      { id: "h-27", kind: "deposit", amount: 800, at: "2026-06-10" },
-    ],
-  },
-];
+
 
 /** "09 Oct 2026" — the one date format the hub prints. */
 function dayLabel(date: Date): string {
@@ -440,7 +258,6 @@ export function todayLabel(): string {
   return dayLabel(new Date());
 }
 
-// Declarations, not consts: `HUB_GOALS` above calls these while the module loads.
 function pad(value: number): string {
   return String(value).padStart(2, "0");
 }
@@ -474,20 +291,6 @@ export function activityLabel(iso: string): string {
   return dayLabel(new Date(year, month - 1, day));
 }
 
-function daysAgo(days: number): Date {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  return date;
-}
-
-function isoDaysAgo(days: number): string {
-  return isoDay(daysAgo(days));
-}
-
-function startedAgo(days: number): string {
-  return dayLabel(daysAgo(days));
-}
-
 /** A new plan, opened with its first deposit already in it. */
 export function createGoal(input: {
   kind: SavingsKind;
@@ -517,7 +320,6 @@ export function createGoal(input: {
       input.kind === "circle"
         ? {
             style: input.circleStyle || "save_together",
-            // TODO(backend): the circles API issues the invite code.
             inviteCode: stamp.toString(36).slice(-6),
             capacity: input.members ?? 2,
             reminders: true,

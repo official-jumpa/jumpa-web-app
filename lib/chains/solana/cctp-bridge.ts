@@ -41,6 +41,8 @@ export async function submitSolanaDepositForBurn({
   amountSubunits,
   destinationDomain,
   mintRecipientBytes32,
+  destinationCallerBytes32,
+  hookDataHex,
   sponsorKeypair,
   feeSubunits,
 }: {
@@ -48,6 +50,8 @@ export async function submitSolanaDepositForBurn({
   amountSubunits: bigint;
   destinationDomain: number;
   mintRecipientBytes32: `0x${string}`;
+  destinationCallerBytes32?: `0x${string}`;
+  hookDataHex?: `0x${string}`;
   sponsorKeypair?: Keypair;
   feeSubunits?: bigint;
 }): Promise<{ ok: boolean; txHash?: string; error?: string }> {
@@ -119,8 +123,17 @@ export async function submitSolanaDepositForBurn({
     const cleanRecipient = mintRecipientBytes32.replace(/^0x/, "");
     const recipientBuf = Buffer.from(cleanRecipient, "hex");
 
-    // Anchor discriminator for deposit_for_burn: d73c3d2e723780b0
-    const discriminator = Buffer.from("d73c3d2e723780b0", "hex");
+    // Destination caller buffer (default all zeros)
+    const destCallerBuf = destinationCallerBytes32
+      ? Buffer.from(destinationCallerBytes32.replace(/^0x/, ""), "hex")
+      : Buffer.alloc(32);
+
+    const hasHook = Boolean(hookDataHex);
+    // Anchor discriminator: deposit_for_burn (d73c3d2e723780b0) or deposit_for_burn_with_hook (6ff53e83cc6cdf9b)
+    const discriminator = Buffer.from(
+      hasHook ? "6ff53e83cc6cdf9b" : "d73c3d2e723780b0",
+      "hex",
+    );
     const paramsBuf = Buffer.alloc(88);
     let offset = 0;
     paramsBuf.writeBigUInt64LE(amountSubunits, offset);
@@ -129,14 +142,22 @@ export async function submitSolanaDepositForBurn({
     offset += 4;
     recipientBuf.copy(paramsBuf, offset);
     offset += 32;
-    Buffer.alloc(32).copy(paramsBuf, offset); // destination_caller: Pubkey::default()
+    destCallerBuf.copy(paramsBuf, offset);
     offset += 32;
     paramsBuf.writeBigUInt64LE(BigInt(0), offset); // max_fee
     offset += 8;
     paramsBuf.writeUInt32LE(2000, offset); // min_finality_threshold (2000 for standard)
     offset += 4;
 
-    const ixData = Buffer.concat([discriminator, paramsBuf]);
+    let ixData: Buffer;
+    if (hasHook && hookDataHex) {
+      const hookRawBytes = Buffer.from(hookDataHex.replace(/^0x/, ""), "hex");
+      const hookLenBuf = Buffer.alloc(4);
+      hookLenBuf.writeUInt32LE(hookRawBytes.length, 0);
+      ixData = Buffer.concat([discriminator, paramsBuf, hookLenBuf, hookRawBytes]);
+    } else {
+      ixData = Buffer.concat([discriminator, paramsBuf]);
+    }
 
     // If sponsorKeypair is provided (gas abstraction), sponsor pays network gas & event storage rent
     const feePayerPubkey = sponsorKeypair ? sponsorKeypair.publicKey : ownerKeypair.publicKey;
@@ -525,14 +546,35 @@ export function relayToSolana({
       }
 
       console.log("[Solana Relayer] Attestation ready! Minting on Solana...");
-      const result = await submitSolanaReceiveMessage({
-        messageHex: msgObj.message,
-        attestationHex: msgObj.attestation,
-        recipientWallet,
-      });
+      let result: { ok: boolean; mintTxHash?: string; error?: string } = {
+        ok: false,
+        error: "Not attempted",
+      };
+
+      for (let mintAttempt = 1; mintAttempt <= 5; mintAttempt++) {
+        result = await submitSolanaReceiveMessage({
+          messageHex: msgObj.message,
+          attestationHex: msgObj.attestation,
+          recipientWallet,
+        });
+
+        if (result.ok && result.mintTxHash) {
+          break;
+        }
+
+        if (result.error?.includes("already been executed")) {
+          console.log("[Solana Relayer] Message already executed on Solana");
+          break;
+        }
+
+        console.warn(
+          `[Solana Relayer] Mint attempt ${mintAttempt}/5 failed: ${result.error}. Retrying in ${mintAttempt * 2}s...`,
+        );
+        await new Promise((r) => setTimeout(r, mintAttempt * 2000));
+      }
 
       if (!result.ok || !result.mintTxHash) {
-        console.error("[Solana Relayer] Failed to mint on Solana:", result.error);
+        console.error("[Solana Relayer] Failed to mint on Solana after retries:", result.error);
         return;
       }
 

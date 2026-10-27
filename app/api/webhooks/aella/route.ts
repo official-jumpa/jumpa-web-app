@@ -5,7 +5,6 @@ import { Transaction } from "@/models/Transaction";
 import {
   atomicCreditNgnBalance,
   verifyAellaWebhookSignature,
-  getDailySubsidizedDepositCount,
 } from "@/lib/functions/aellaFunctions";
 import { calculateNgnDepositFee } from "@/lib/ngn-account";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
@@ -112,9 +111,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, message: "Account not found on platform" });
       }
 
-      // Check user's daily subsidized deposit count and calculate fee
-      const subsidizedCountToday = await getDailySubsidizedDepositCount(account.userId);
-      const feeEvaluation = calculateNgnDepositFee(amountReceived, subsidizedCountToday);
+      // Deposits are 100% free on Jumpa with no fee charged to users
+      const feeEvaluation = calculateNgnDepositFee(amountReceived);
       const feeCharged = feeEvaluation.feeChargedToUser;
       const creditAmount = feeEvaluation.netCreditToUser;
 

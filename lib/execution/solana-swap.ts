@@ -250,23 +250,44 @@ export async function executeSolanaSwap(
     const txBytes = Buffer.from(orderResponse.transaction, "base64");
     const transaction = VersionedTransaction.deserialize(txBytes);
 
-    const signers = [signer];
-    const sponsorPubkeyBase58 = sponsorKeypair?.publicKey.toBase58();
-    const isSponsorSigner = Boolean(
-      sponsorKeypair &&
-      (orderResponse.signatureFeePayer === sponsorPubkeyBase58 ||
-        transaction.message.staticAccountKeys.some(
-          (key, idx) =>
-            idx < transaction.message.header.numRequiredSignatures &&
-            key.toBase58() === sponsorPubkeyBase58,
-        )),
-    );
+    const requiredSignersCount = transaction.message.header.numRequiredSignatures;
+    const requiredSignerPubkeys = transaction.message.staticAccountKeys
+      .slice(0, requiredSignersCount)
+      .map((k) => k.toBase58());
 
-    if (isSponsorSigner && sponsorKeypair) {
+    const signers: SolanaKeypair[] = [];
+    if (requiredSignerPubkeys.includes(signer.publicKey.toBase58())) {
+      signers.push(signer);
+    }
+
+    const sponsorPubkeyBase58 = sponsorKeypair?.publicKey.toBase58();
+    if (
+      sponsorKeypair &&
+      sponsorPubkeyBase58 &&
+      requiredSignerPubkeys.includes(sponsorPubkeyBase58)
+    ) {
       signers.push(sponsorKeypair);
     }
 
-    transaction.sign(signers);
+    await transaction.sign(signers);
+
+    const hasUnsigned = transaction.signatures.some((sig) =>
+      sig.every((b) => b === 0),
+    );
+    if (hasUnsigned) {
+      console.error(
+        "[executeSolanaSwap] Transaction has unsigned slots after signing. Required:",
+        requiredSignerPubkeys,
+        "Signers provided:",
+        signers.map((s) => s.publicKey.toBase58()),
+      );
+      return {
+        ok: false,
+        error: "Unable to fully sign Solana swap transaction (missing required signer)",
+        status: 500,
+      };
+    }
+
     signedTxBase64 = Buffer.from(transaction.serialize()).toString("base64");
   } catch (signErr: any) {
     console.error("[executeSolanaSwap] Signing error:", signErr);

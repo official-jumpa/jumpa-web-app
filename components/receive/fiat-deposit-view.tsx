@@ -8,12 +8,10 @@ import { InfoNote } from "@/components/auth/info-note";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { Button } from "@/components/ui/button";
 import { BankIcon } from "@/components/ui/icons/bank";
-import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { NairaSignIcon } from "@/components/ui/icons/naira-sign";
 import { JumpaLoader } from "@/components/ui/jumpa-loader";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { ShareDetailsButton } from "@/components/ngn/share-details-button";
-import { cn } from "@/lib/cn";
 
 export interface NgnAccountData {
   bankName: string;
@@ -52,7 +50,6 @@ export function FiatDepositView({
   const [loading, setLoading] = useState(() => !initialAccount);
   const [account, setAccount] = useState<NgnAccountData | null>(initialAccount);
   const [error, setError] = useState<string | null>(null);
-  const [showFeeTiers, setShowFeeTiers] = useState(false);
 
   const loadAccount = async () => {
     try {
@@ -186,37 +183,9 @@ export function FiatDepositView({
         </InfoNote>
 
         <div className={CARD}>
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between gap-3 text-xs leading-4 font-medium text-jumpa-black">
-              <span className="text-jumpa-neutral-400">Deposit fee</span>
-              <button
-                type="button"
-                onClick={() => setShowFeeTiers((prev) => !prev)}
-                className="tap flex items-center gap-1 text-jumpa-neutral-500 hover:text-jumpa-black"
-                title="View fee schedule"
-              >
-                <span>Free under ₦10k</span>
-                <ChevronDownIcon
-                  className={cn(
-                    "size-3 text-jumpa-neutral-400 transition-transform duration-200",
-                    showFeeTiers && "rotate-180",
-                  )}
-                />
-              </button>
-            </div>
-
-            {showFeeTiers && (
-              <div className="flex flex-col gap-1.5 rounded-md bg-jumpa-neutral-80/40 p-2.5 text-[11px] leading-3.5 text-jumpa-neutral-400 animate-in fade-in duration-150">
-                <div className="flex justify-between">
-                  <span>Below ₦5,000</span>
-                  <span className="font-semibold text-emerald-600">Free</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>₦5,001 and above</span>
-                  <span className="font-semibold text-jumpa-black">1%</span>
-                </div>
-              </div>
-            )}
+          <div className="flex items-center justify-between gap-3 text-xs leading-4 font-medium text-jumpa-black">
+            <span className="text-jumpa-neutral-400">Deposit fee</span>
+            <span className="font-semibold text-emerald-600">Free (₦0)</span>
           </div>
           <span className="-mb-px block h-px w-full bg-jumpa-neutral-95" />
           <p className="flex items-center justify-between gap-3 text-xs leading-4 font-medium text-jumpa-black">

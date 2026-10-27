@@ -68,8 +68,10 @@ const NATIVE_HOLDBACK: Record<
   { amount: number; reason: string; ifHeld?: number }
 > = {
   XLM: { amount: 0.01, reason: "Stellar's account reserve and fees" },
-  // Measured against Jupiter: ~0.0053 SOL to open the output token's account, ~0.0007 once it exists.
-  SOL: { amount: 0.0056, ifHeld: 0.001, reason: "network fees and account rent" },
+  // Network fee is sponsored by Jumpa; only a tiny residual balance is required for native SOL
+  SOL: { amount: 0.001, ifHeld: 0, reason: "minimum network reserve" },
+  USDC: { amount: 0.05, reason: "Jumpa's service fee" },
+  USDT: { amount: 0.05, reason: "Jumpa's service fee" },
 };
 
 /** The reserve when Horizon gave no figure: two base reserves plus a USDC trustline. */
@@ -164,7 +166,8 @@ export function SwapView({
 
   const received = quote?.amountOut ?? "0.00";
   const rate = quote?.rate ?? (quoteLoading ? "Fetching…" : "0.00");
-  const estimatedFee = network === "solana" ? "~0.00005 SOL" : "0.00";
+  const estimatedFee = "0.00 (Sponsored)";
+  const platformFee = "$0.05";
   const quoteSlippage = quote?.slippage ?? `${slippage}%`;
 
   // ── Balance lookup ──
@@ -326,6 +329,7 @@ export function SwapView({
         details={
           <DetailList tone="secondary">
             <DetailRow label="Network fee" value={estimatedFee} />
+            <DetailRow label="Service fee" value={platformFee} />
             <DetailRow label="Slippage" value={quoteSlippage} />
             {txResult.txHash && (
               <DetailRow
@@ -518,6 +522,7 @@ export function SwapView({
 
             <DetailList tone="secondary">
               <DetailRow label="Network fee" value={estimatedFee} />
+              <DetailRow label="Service fee" value={platformFee} />
               <DetailRow
                 label="Slippage"
                 value={
@@ -593,7 +598,8 @@ export function SwapView({
               onClose={() => setStage("quote")}
             >
               <DetailList tone="secondary">
-                <DetailRow label="Fee" value={estimatedFee} />
+                <DetailRow label="Network fee" value={estimatedFee} />
+                <DetailRow label="Service fee" value={platformFee} />
                 <DetailRow label="Slippage" value={quoteSlippage} />
                 <DetailRow
                   label="Network"

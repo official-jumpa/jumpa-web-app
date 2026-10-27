@@ -223,8 +223,8 @@ export async function executeStellarSwap(
     const tx = StellarSdk.TransactionBuilder.fromXDR(builtXdr, passphrase) as StellarSdk.Transaction;
     tx.sign(sourceKeypair);
 
-    // sponsoredSubmit: bumps fee to 1000 stroops and submits asynchronously (returns mempool txHash immediately)
-    const submitResult = await sponsoredSubmit(tx, network, { async: true });
+    // sponsoredSubmit: bumps fee to 1000 stroops and submits (returns confirmed response or pending if Horizon timed out)
+    const submitResult = await sponsoredSubmit(tx, network);
     feeSponsored = submitResult.sponsored;
 
     if (submitResult.status === "pending") {
@@ -239,6 +239,22 @@ export async function executeStellarSwap(
 
     explorerUrl = getExplorerTxUrl("stellar", txHash, network === "testnet");
     console.log(`SUCCESS — txHash: ${txHash}${feeSponsored ? " (fee sponsored)" : ""}${txStatus === "pending" ? " [PENDING]" : ""}`);
+
+    // Collect Jumpa platform sponsorship fee if user has USDC (either as input or received output)
+    try {
+      if (fromToken.toUpperCase() === "USDC" || toToken.toUpperCase() === "USDC") {
+        const { collectStellarGasFeeUsdc, getStellarFeeAmount } = await import(
+          "@/lib/chains/stellar/sponsor"
+        );
+        await collectStellarGasFeeUsdc({
+          userKeypair: sourceKeypair,
+          amountUsdc: getStellarFeeAmount(),
+          network: network as "mainnet" | "testnet",
+        });
+      }
+    } catch (feeErr) {
+      console.warn("[executeStellarSwap] Platform fee collection note:", feeErr);
+    }
   } catch (signErr: any) {
     const errorMsg = horizonErrorMessage(signErr);
     console.error("[executeSwap] Horizon submission error:", signErr?.response?.data?.extras?.result_codes || signErr?.message);
@@ -291,7 +307,7 @@ export async function executeStellarSwap(
     txHash,
     explorerUrl,
     feePaid: feeSponsored
-      ? "None"
+      ? "$0.05 (Sponsored)"
       : horizonRes?.fee_charged
         ? `${(Number(horizonRes.fee_charged) / 10_000_000).toFixed(5)} XLM`
         : "0.00001 XLM",

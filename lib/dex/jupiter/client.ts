@@ -29,6 +29,9 @@ export interface JupiterOrderResponse {
     feeMint: string;
   };
   taker?: string;
+  gasless?: boolean;
+  signatureFeePayer?: string;
+  rentFeePayer?: string;
   transaction?: string; // base64 VersionedTransaction
   errorCode?: number;
   errorMessage?: string;
@@ -155,7 +158,7 @@ export async function fetchJupiterQuote(
     priceImpact: order.priceImpactPct ? `${order.priceImpactPct}%` : "< 0.05%",
     minimumReceived: minReceivedStr,
     slippage: `${params.slippageTolerance ?? 0.5}%`,
-    estimatedFee: "~0.00005 SOL",
+    estimatedFee: "0.00 (Sponsored)",
     path: [params.assetIn.toUpperCase(), params.assetOut.toUpperCase()],
     rawQuote: {
       _isJupiter: true,

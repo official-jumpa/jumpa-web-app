@@ -223,7 +223,7 @@ export async function fetchSoroswapQuote(
       priceImpact: "< 0.05%",
       minimumReceived: minReceivedStr,
       slippage: `${slippage}%`,
-      estimatedFee: onChainQuote.estimatedFee,
+      estimatedFee: "0.00 (Sponsored)",
       path: [symbolIn, symbolOut],
       rawQuote: {
         _isSoroswapRouter: true,
@@ -239,7 +239,7 @@ export async function fetchSoroswapQuote(
         amountIn: params.amount,
         amountOut: rawOutFormatted,
         minimumReceived: minReceivedStr,
-        estimatedFee: onChainQuote.estimatedFee,
+        estimatedFee: "0.00 (Sponsored)",
       },
     };
   }
@@ -276,7 +276,7 @@ export async function fetchSoroswapQuote(
       priceImpact: "< 0.01%",
       minimumReceived: (rawDest * (1 - slippage / 100)).toFixed(4),
       slippage: `${slippage}%`,
-      estimatedFee: "0.00002 XLM",
+      estimatedFee: "0.00 (Sponsored)",
       path: [symbolIn, symbolOut],
       rawQuote: {
         _isNativeSdex: true,

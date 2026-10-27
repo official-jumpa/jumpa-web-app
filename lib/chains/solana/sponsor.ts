@@ -12,6 +12,7 @@ import {
   PublicKey,
   Keypair as SolKeypair,
   Transaction as SolTransaction,
+  SystemProgram,
 } from "@solana/web3.js";
 import { sendAndConfirmTransactionPolling } from "./send-and-confirm";
 import {
@@ -363,3 +364,102 @@ export async function executeSponsoredSplTransfer(params: {
     fromAddress: userKeypair.publicKey.toBase58(),
   };
 }
+
+/**
+ * Collects the platform sponsorship fee (from environment.FEE_USD_AMOUNT_SOLANA + ATA rent surcharge)
+ * from the user's wallet in the input token (USDC, USDT, or SOL) to the Jumpa fee collector.
+ * The transaction fee itself is paid by the sponsorKeypair.
+ */
+export async function collectSolanaSwapFee(params: {
+  userKeypair: SolKeypair;
+  tokenSymbol: string;
+  amountToken: number;
+  connection?: Connection;
+}): Promise<string | null> {
+  const {
+    userKeypair,
+    tokenSymbol,
+    amountToken,
+    connection = new Connection(getSolanaRpcUrl(), "confirmed"),
+  } = params;
+
+  const sponsorKeypair = await getSolanaSponsorKeypair();
+  const feeCollectorPubkey = await getSolanaFeeCollectorPubkey();
+  if (!sponsorKeypair || !feeCollectorPubkey || amountToken <= 0) return null;
+
+  const upperToken = tokenSymbol.toUpperCase();
+
+  try {
+    const transaction = new SolTransaction();
+    transaction.feePayer = sponsorKeypair.publicKey;
+
+    if (upperToken === "SOL") {
+      const lamports = BigInt(Math.round(amountToken * 1e9));
+      transaction.add(
+        SystemProgram.transfer({
+          fromPubkey: userKeypair.publicKey,
+          toPubkey: feeCollectorPubkey,
+          lamports,
+        }),
+      );
+    } else {
+      const tokenInfo = SOLANA_SPL_MINTS[upperToken];
+      if (!tokenInfo) return null;
+
+      const mintPubkey = new PublicKey(tokenInfo.mint);
+      const sourceATA = await getAssociatedTokenAddress(
+        mintPubkey,
+        userKeypair.publicKey,
+        true,
+      );
+      const feeCollectorATA = await getAssociatedTokenAddress(
+        mintPubkey,
+        feeCollectorPubkey,
+        true,
+      );
+
+      // Ensure feeCollectorATA exists
+      const feeCollectorAtaInfo = await connection.getAccountInfo(feeCollectorATA);
+      if (!feeCollectorAtaInfo) {
+        transaction.add(
+          createAssociatedTokenAccountInstruction(
+            sponsorKeypair.publicKey,
+            feeCollectorATA,
+            feeCollectorPubkey,
+            mintPubkey,
+          ),
+        );
+      }
+
+      const rawAmount = BigInt(
+        Math.round(amountToken * Math.pow(10, tokenInfo.decimals)),
+      );
+      transaction.add(
+        createTransferInstruction(
+          sourceATA,
+          feeCollectorATA,
+          userKeypair.publicKey,
+          rawAmount,
+        ),
+      );
+    }
+
+    const txHash = await sendAndConfirmTransactionPolling(
+      connection,
+      transaction,
+      [userKeypair, sponsorKeypair],
+      { commitment: "confirmed" },
+    );
+    console.log(
+      `[Solana Swap Sponsor] Collected fee (${amountToken} ${upperToken}) TxHash: ${txHash}`,
+    );
+    return txHash;
+  } catch (err: any) {
+    console.warn(
+      `[Solana Swap Sponsor] Fee collection note:`,
+      err?.message || err,
+    );
+    return null;
+  }
+}
+

@@ -105,48 +105,93 @@ export async function executeSolanaSwap(
   const takerAddress = signer.publicKey.toBase58();
   const assetInInfo = resolveSolanaMint(fromToken);
   const assetOutInfo = resolveSolanaMint(toToken);
+  const fromTokenUpper = fromToken.toUpperCase();
 
-  // 2. Pre-flight balance verification
+  const connection = new Connection(getSolanaRpcUrl(), "confirmed");
+  const { getSolanaSponsorKeypair } = await import("@/lib/chains/solana/sponsor");
+  const sponsorKeypair = await getSolanaSponsorKeypair();
+
+  // 2. Platform Fee & ATA Surcharge Calculation (from environment.ts)
+  let ataNeedsCreation = false;
   try {
-    const connection = new Connection(getSolanaRpcUrl(), "confirmed");
-    const neededAtomic = Number(toAtomicSolanaUnits(fromAmount, assetInInfo.decimals));
+    if (assetOutInfo.mint !== "So11111111111111111111111111111111111111112") {
+      const { getAssociatedTokenAddress } = await import("@/lib/chains/solana/spl-token");
+      const destATA = await getAssociatedTokenAddress(
+        new PublicKey(assetOutInfo.mint),
+        signer.publicKey,
+        true,
+      );
+      const destAtaInfo = await connection.getAccountInfo(destATA);
+      ataNeedsCreation = !destAtaInfo;
+    }
+  } catch (ataCheckErr) {
+    console.warn("[executeSolanaSwap] ATA check warning:", ataCheckErr);
+  }
 
-    if (fromToken.toUpperCase() === "SOL") {
+  const baseFeeUsd = environment.FEE_USD_AMOUNT_SOLANA ?? 0.05;
+  const ataRentSurchargeUsd = ataNeedsCreation ? 0.3 : 0.0;
+  const totalFeeUsd = baseFeeUsd + ataRentSurchargeUsd;
+
+  let feeInToken = totalFeeUsd;
+  if (fromTokenUpper === "SOL") {
+    const solPrice = (await convertToUsd(1, "SOL").catch(() => 150)) || 150;
+    feeInToken = parseFloat((totalFeeUsd / solPrice).toFixed(6));
+  } else {
+    feeInToken = totalFeeUsd;
+  }
+
+  // 3. Pre-flight balance verification & net swap amount resolution
+  let actualSwapAmount = parseFloat(fromAmount);
+  try {
+    if (fromTokenUpper === "SOL") {
       const lamports = await connection.getBalance(signer.publicKey);
-      if (Number(lamports) < neededAtomic) {
-        return {
-          ok: false,
-          error: `Insufficient SOL balance. Required: ${fromAmount} SOL`,
-          status: 400,
-        };
+      const userSol = Number(lamports) / 1e9;
+      const totalNeeded = parseFloat(fromAmount) + feeInToken;
+
+      if (userSol < totalNeeded) {
+        if (userSol >= parseFloat(fromAmount)) {
+          actualSwapAmount = Math.max(0.001, parseFloat(fromAmount) - feeInToken);
+        } else {
+          return {
+            ok: false,
+            error: `Insufficient SOL balance. Required: ${fromAmount} SOL (+ ${feeInToken} SOL fee)`,
+            status: 400,
+          };
+        }
       }
     } else {
-      // Check SPL Token balance
+      // Check SPL Token balance (No native SOL required!)
       const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
         signer.publicKey,
         { mint: new PublicKey(assetInInfo.mint) },
       );
       const parsedAmount =
-        tokenAccounts.value[0]?.account.data.parsed.info.tokenAmount.amount || "0";
-      if (Number(parsedAmount) < neededAtomic) {
-        return {
-          ok: false,
-          error: `Insufficient ${fromToken} balance. Required: ${fromAmount}, Available: ${fromAtomicSolanaUnits(parsedAmount, assetInInfo.decimals)}`,
-          status: 400,
-        };
+        tokenAccounts.value[0]?.account.data.parsed.info.tokenAmount.uiAmount ?? 0;
+      const totalNeeded = parseFloat(fromAmount) + feeInToken;
+
+      if (parsedAmount < totalNeeded) {
+        if (parsedAmount >= parseFloat(fromAmount)) {
+          actualSwapAmount = Math.max(0.01, parseFloat(fromAmount) - feeInToken);
+        } else {
+          return {
+            ok: false,
+            error: `Insufficient ${fromToken} balance. Required: ${fromAmount} (+ ${feeInToken} ${fromToken} fee), Available: ${parsedAmount}`,
+            status: 400,
+          };
+        }
       }
     }
   } catch (balErr: any) {
     console.warn("[executeSolanaSwap] Pre-flight balance check warning:", balErr?.message);
   }
 
-  // 3. Obtain fresh assembled VersionedTransaction from Jupiter /order
+  // 4. Obtain fresh assembled VersionedTransaction from Jupiter /order
   let orderResponse: JupiterOrderResponse;
   try {
     const apiKey = environment.JUPITER_API_KEY;
     const baseUrl = environment.JUPITER_BASE_URL;
 
-    const amountAtomic = toAtomicSolanaUnits(fromAmount, assetInInfo.decimals);
+    const amountAtomic = toAtomicSolanaUnits(actualSwapAmount.toString(), assetInInfo.decimals);
     const slippageBps = rawQuote.rawQuote?.slippageBps || 50;
 
     const queryParams = new URLSearchParams({
@@ -156,6 +201,10 @@ export async function executeSolanaSwap(
       slippageBps: slippageBps.toString(),
       taker: takerAddress,
     });
+
+    if (sponsorKeypair) {
+      queryParams.set("payer", sponsorKeypair.publicKey.toBase58());
+    }
 
     const headers: Record<string, string> = { Accept: "application/json" };
     if (apiKey) headers["x-api-key"] = apiKey;
@@ -169,13 +218,10 @@ export async function executeSolanaSwap(
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       const raw = `Jupiter swap order failed (${res.status}): ${errText || res.statusText}`;
-      // A 400 here means the wallet can't cover fees and rent after the swap.
-      if (res.status !== 400) return { ok: false, error: raw, status: 400 };
       console.error("[executeSolanaSwap]", raw);
       return {
         ok: false,
-        error:
-          "Solana needs a little SOL left in your wallet for network fees. Try a slightly smaller amount. Nothing left your wallet.",
+        error: "Unable to calculate swap route on Solana. Please try a different amount.",
         status: 400,
       };
     }
@@ -198,12 +244,29 @@ export async function executeSolanaSwap(
     };
   }
 
-  // 4. Sign transaction
+  // 5. Dual-Sign transaction (User as taker + Jumpa as sponsor fee payer)
   let signedTxBase64 = "";
   try {
     const txBytes = Buffer.from(orderResponse.transaction, "base64");
     const transaction = VersionedTransaction.deserialize(txBytes);
-    await transaction.sign([signer]);
+
+    const signers = [signer];
+    const sponsorPubkeyBase58 = sponsorKeypair?.publicKey.toBase58();
+    const isSponsorSigner = Boolean(
+      sponsorKeypair &&
+      (orderResponse.signatureFeePayer === sponsorPubkeyBase58 ||
+        transaction.message.staticAccountKeys.some(
+          (key, idx) =>
+            idx < transaction.message.header.numRequiredSignatures &&
+            key.toBase58() === sponsorPubkeyBase58,
+        )),
+    );
+
+    if (isSponsorSigner && sponsorKeypair) {
+      signers.push(sponsorKeypair);
+    }
+
+    transaction.sign(signers);
     signedTxBase64 = Buffer.from(transaction.serialize()).toString("base64");
   } catch (signErr: any) {
     console.error("[executeSolanaSwap] Signing error:", signErr);
@@ -214,7 +277,7 @@ export async function executeSolanaSwap(
     };
   }
 
-  // 5. Land transaction via Jupiter (/swap/v2/execute)
+  // 6. Land transaction via Jupiter Beam (/swap/v2/execute)
   let txHash = "";
   let explorerUrl = "";
   try {
@@ -240,7 +303,20 @@ export async function executeSolanaSwap(
     };
   }
 
-  // 6. Persist Transaction in MongoDB
+  // 7. Collect Jumpa platform fee in input token (only after swap has landed on-chain)
+  try {
+    const { collectSolanaSwapFee } = await import("@/lib/chains/solana/sponsor");
+    await collectSolanaSwapFee({
+      userKeypair: signer,
+      tokenSymbol: fromToken,
+      amountToken: feeInToken,
+      connection,
+    });
+  } catch (feeErr) {
+    console.warn("[executeSolanaSwap] Platform fee collection warning:", feeErr);
+  }
+
+  // 8. Persist Transaction in MongoDB
   try {
     await connectDB();
     await Transaction.create({
@@ -266,7 +342,7 @@ export async function executeSolanaSwap(
       },
       txHash,
       explorerUrl,
-      feePaid: "~0.00005 SOL",
+      feePaid: `$${totalFeeUsd.toFixed(2)} (Sponsored)`,
     });
 
     await Wallet.updateOne(

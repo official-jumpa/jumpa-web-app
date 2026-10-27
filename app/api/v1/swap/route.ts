@@ -244,6 +244,7 @@ export async function POST(req: NextRequest) {
         data: {
           txHash: result.txHash,
           explorerUrl: result.explorerUrl,
+          feeSponsored: true,
         },
       });
     } catch (err: any) {

@@ -21,6 +21,7 @@ type TransactionsCache = {
   cacheKey: string;
   transactions: Transaction[];
   selectedFilters: Record<string, string>;
+  searchQuery: string;
   page: number;
   hasMore: boolean;
 };
@@ -94,19 +95,33 @@ export function TransactionsView({
   transactions: initialTransactions,
   filters,
   initialChain,
+  initialSearch,
   accountEmail,
 }: {
   transactions?: Transaction[];
   filters: TransactionFilter[];
   initialChain?: string;
+  initialSearch?: string;
   /** Seeds the statement screen's email field. */
   accountEmail?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [sheet, setSheet] = useState<Sheet>(null);
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+
+  const getInitialSearchFromUrl = (): string => {
+    const searchStr =
+      typeof window !== "undefined" && window.location.search
+        ? window.location.search
+        : searchParams?.toString() || "";
+    const rawParams = new URLSearchParams(
+      searchStr.startsWith("?") ? searchStr.slice(1) : searchStr,
+    );
+    const s = rawParams.get("search") || rawParams.get("q") || initialSearch || "";
+    return s.trim();
+  };
+
+  const initialSearchVal = getInitialSearchFromUrl();
 
   const onStatement = searchParams.get("statement") !== null;
 
@@ -167,10 +182,7 @@ export function TransactionsView({
   };
 
   const initialFilterMap = getInitialFiltersFromUrl();
-  const hasActiveInitialFilters = Object.values(initialFilterMap).some(
-    (val) => val && val !== "Show All",
-  );
-  const currentCacheKey = computeCacheKey(initialFilterMap, "");
+  const currentCacheKey = computeCacheKey(initialFilterMap, initialSearchVal);
   const hasMatchingCache =
     cachedState !== null && cachedState.cacheKey === currentCacheKey;
 
@@ -178,10 +190,16 @@ export function TransactionsView({
     Record<string, string>
   >(hasMatchingCache && cachedState ? cachedState.selectedFilters : initialFilterMap);
 
+  const [query, setQuery] = useState(
+    hasMatchingCache && cachedState ? cachedState.searchQuery : initialSearchVal,
+  );
+  const [debouncedQuery, setDebouncedQuery] = useState(
+    hasMatchingCache && cachedState ? cachedState.searchQuery : initialSearchVal,
+  );
+
   // If there are active filters in the URL on mount, don't show un-filtered server initialTransactions
   const hasServerData =
     initialTransactions !== undefined &&
-    !hasActiveInitialFilters &&
     !hasMatchingCache;
 
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
@@ -226,10 +244,55 @@ export function TransactionsView({
     return () => clearTimeout(handler);
   }, [query]);
 
+  // Keep URL search parameter in sync with debouncedQuery
+  useEffect(() => {
+    const searchStr =
+      typeof window !== "undefined" && window.location.search
+        ? window.location.search
+        : searchParams?.toString() || "";
+    const currentUrlParams = new URLSearchParams(
+      searchStr.startsWith("?") ? searchStr.slice(1) : searchStr,
+    );
+    const urlSearch = (currentUrlParams.get("search") || currentUrlParams.get("q") || "").trim();
+
+    if (debouncedQuery === urlSearch) return;
+
+    if (debouncedQuery.length >= 3) {
+      currentUrlParams.set("search", debouncedQuery);
+      currentUrlParams.delete("q");
+    } else {
+      currentUrlParams.delete("search");
+      currentUrlParams.delete("q");
+    }
+
+    const newQuery = currentUrlParams.toString();
+    const newPath = newQuery
+      ? `${window.location.pathname}?${newQuery}`
+      : window.location.pathname;
+    router.replace(newPath, { scroll: false });
+  }, [debouncedQuery, router, searchParams]);
+
+  // Sync state if browser back / forward buttons change URL searchParams
+  useEffect(() => {
+    const urlSearch = (searchParams.get("search") || searchParams.get("q") || "").trim();
+    if (urlSearch !== debouncedQuery && (urlSearch.length >= 3 || urlSearch.length === 0)) {
+      setQuery(urlSearch);
+      setDebouncedQuery(urlSearch);
+    }
+  }, [searchParams]);
+
   // Sync all selected filters to the URL query string cleanly
   const syncFiltersToUrl = useCallback(
     (filtersToSync: Record<string, string>) => {
       const currentUrlParams = new URLSearchParams(window.location.search);
+
+      // Preserve active search
+      if (debouncedQuery && debouncedQuery.length >= 3) {
+        currentUrlParams.set("search", debouncedQuery);
+      } else {
+        currentUrlParams.delete("search");
+        currentUrlParams.delete("q");
+      }
 
       // 1. Chain
       const chainVal = filtersToSync["Chain"];
@@ -271,7 +334,7 @@ export function TransactionsView({
         : window.location.pathname;
       router.replace(newPath, { scroll: false });
     },
-    [router],
+    [router, debouncedQuery],
   );
 
   // Core fetcher for page 1 transactions (filters or search change)
@@ -293,6 +356,7 @@ export function TransactionsView({
             cacheKey: computeCacheKey(filtersState, searchParam),
             transactions: data.transactions,
             selectedFilters: filtersState,
+            searchQuery: searchParam,
             page: 1,
             hasMore: Boolean(data.pagination?.hasMore),
           };
@@ -317,8 +381,13 @@ export function TransactionsView({
 
     if (isFirstMount.current) {
       isFirstMount.current = false;
-      // If we already have server-hydrated transactions or cached transactions with no search, skip
-      if ((hasServerData || hasMatchingCache) && !debouncedQuery) {
+      // If we already have matching cache, don't re-fetch on first mount
+      if (hasMatchingCache) {
+        prevFiltersRef.current = currentFiltersStr;
+        return;
+      }
+      // If server already hydrated transactions matching the initial query, skip
+      if (hasServerData && (!initialSearchVal || initialSearchVal === debouncedQuery)) {
         prevFiltersRef.current = currentFiltersStr;
         return;
       }
@@ -326,7 +395,7 @@ export function TransactionsView({
 
     prevFiltersRef.current = currentFiltersStr;
     fetchPageOne(selectedFilters, debouncedQuery);
-  }, [selectedFilters, debouncedQuery, hasServerData, hasMatchingCache, fetchPageOne]);
+  }, [selectedFilters, debouncedQuery, hasServerData, hasMatchingCache, initialSearchVal, fetchPageOne]);
 
   // Load next page (Infinite Scroll)
   const loadMore = useCallback(async () => {

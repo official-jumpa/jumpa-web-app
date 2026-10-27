@@ -18,6 +18,8 @@ type TransactionsPageProps = {
     type?: string;
     status?: string;
     duration?: string;
+    search?: string;
+    q?: string;
   }>;
 };
 
@@ -58,6 +60,7 @@ export default async function TransactionsPage({
   const type = params.type?.toLowerCase();
   const status = params.status?.toLowerCase();
   const duration = params.duration?.toLowerCase();
+  const search = (params.search || params.q)?.trim().toLowerCase();
 
   let initialTransactions: Transaction[] = [];
   let initialTransactionDetail: Transaction | null = null;
@@ -79,6 +82,7 @@ export default async function TransactionsPage({
           type,
           status,
           duration,
+          search: search && search.length >= 3 ? search : undefined,
           limit: 15,
           page: 1,
         });
@@ -100,6 +104,7 @@ export default async function TransactionsPage({
       transactions={initialTransactions}
       filters={TRANSACTION_FILTERS}
       initialChain={chain}
+      initialSearch={search}
       accountEmail={accountEmail}
     />
   );

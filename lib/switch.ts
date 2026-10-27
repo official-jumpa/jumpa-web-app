@@ -68,7 +68,6 @@ export interface QuoteResponse {
 
 export const SUPPORTED_SWITCH_ASSETS = [
   "base:usdc",
-  "base:cngn",
   "solana:usdc",
   "solana:usdt",
   "ethereum:usdc",
@@ -88,7 +87,6 @@ export function normalizeSwitchAsset(asset: string): string {
 /** Human-readable labels for each supported Switch asset — use these when presenting assets to users */
 export const SWITCH_ASSET_LABELS: Record<string, string> = {
   "base:usdc": "USDC on Base",
-  "base:cngn": "cNGN on Base",
   "solana:usdc": "USDC on Solana",
   "solana:usdt": "USDT on Solana",
   "ethereum:usdc": "USDC on Ethereum",

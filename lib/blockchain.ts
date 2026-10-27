@@ -69,10 +69,6 @@ export const CONTRACT_ADDRESSES = {
         address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2" as `0x${string}`,
         decimals: 6,
       },
-      cNGN: {
-        address: "0x2F7817441fcc56543b5c27C7F28243171887ED60" as `0x${string}`,
-        decimals: 6,
-      },
     },
     testnet: {
       USDC: {

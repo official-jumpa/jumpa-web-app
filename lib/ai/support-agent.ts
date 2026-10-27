@@ -172,7 +172,7 @@ ${userGreeting}
    - Fast, instant, and accessible 24/7.
 
 4. **FIAT ONRAMP & OFFRAMP**:
-   - **Buy Crypto**: Buy crypto (USDC, USDT, cNGN, XLM) directly with Nigerian Naira via direct bank transfer.
+   - **Buy Crypto**: Buy crypto (USDC, USDT, XLM) directly with Nigerian Naira via direct bank transfer.
    - **Sell Crypto / Cash Out**: Sell crypto to receive Naira directly into any Nigerian commercial bank account (10-digit NUBAN).
    - Exchange rates are transparent and calculated in real time before confirmation.
 

@@ -71,7 +71,6 @@ You ask clarifying questions when details are missing. You never assume, guess, 
 - **USDC**: Base ('base:usdc'), Solana ('solana:usdc'), Ethereum ('ethereum:usdc'), Stellar ('stellar:usdc'), Tron ('tron:usdc').
 - **USDT**: Tron ('tron:usdt'), Solana ('solana:usdt'), Ethereum ('ethereum:usdt').
   *(CRITICAL: USDT is NOT supported on Base or Stellar! If the user wants USDT, offer Tron, Solana, or Ethereum)*.
-- **cNGN**: Base ('base:cngn').
 - **Stellar**: USDC only ('stellar:usdc'). It settles through Centiiv instead of Switch, which the tool handles — treat it as a normal cash-out network and never tell the user Stellar is unsupported.
 - **MAINNET ONLY**: All fiat onramps and offramps operate strictly on MAINNET. Never set or use testnet for fiat ramps.
 
@@ -96,7 +95,7 @@ You ask clarifying questions when details are missing. You never assume, guess, 
 7. CRITICAL: NEVER hallucinate, invent, or guess transaction amounts or networks!
    - If the user asks to deposit, buy, onramp or send WITHOUT providing an amount (e.g. "I want to deposit naira for usdt"), DO NOT CALL A TOOL. Reply conversationally asking for the amount in Naira or crypto and their preferred network/chain.
    - For onramp / buying crypto:
-     * If the user wants to buy **stablecoins** (USDC, USDT, cNGN): call 'onramp_ngn'. Pass 'fiatAmount' or 'cryptoAmount'.
+     * If the user wants to buy **stablecoins** (USDC, USDT): call 'onramp_ngn'. Pass 'fiatAmount' or 'cryptoAmount'.
      * If the user wants to buy **XLM** with Naira (e.g. "buy 50 XLM with naira", "deposit ₦10,000 for XLM", "buy XLM"): call 'onramp_ngn_custom' with targetToken='XLM'. Pass 'fiatAmount' or 'cryptoAmount' respectively.
    - Swaps and Bridging are the exceptions: an open-ended swap goes to 'swap_tokens', and bridging goes to 'bridge_tokens', both of which ask with interactive cards (see SWAPPING and BRIDGING below). Never ask for bridge or swap networks or amounts in prose text — always call the tool to display the interactive cards.
    - If the user wants USDT, inform them that USDT is available on Tron, Solana, or Ethereum (not Base), and ask which network they prefer.
@@ -265,7 +264,7 @@ export function parseDSMLToolCalls(content: string): ParsedToolCall[] {
           recoveredArgs.accountNumber = val;
         } else if (val.includes(":")) {
           recoveredArgs.asset = val;
-        } else if (["USDC", "USDT", "CNGN", "XLM", "SOL", "ETH"].includes(val.toUpperCase())) {
+        } else if (["USDC", "USDT", "XLM", "SOL", "ETH"].includes(val.toUpperCase())) {
           recoveredArgs.cryptoToken = val.toUpperCase();
         } else if (/^\d+(\.\d+)?$/.test(val)) {
           recoveredArgs.fiatAmount = val;

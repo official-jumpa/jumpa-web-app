@@ -216,7 +216,6 @@ const onrampNgn: DeepSeekTool = {
       "Supported Switch asset pairs: " +
       "USDC: 'base:usdc', 'solana:usdc', 'ethereum:usdc', 'stellar:usdc', 'tron:usdc'. " +
       "USDT: 'tron:usdt', 'solana:usdt', 'ethereum:usdt'. " +
-      "cNGN: 'base:cngn'. " +
       "(USDT on Base is NOT supported for NGN onramp). " +
       "(All fiat onramps operate exclusively on MAINNET). " +
       "MANDATORY: Provide fiatAmount OR cryptoAmount, and target network/chain. If user specified cryptoAmount (e.g. 'buy 50 USDC with Naira'), the tool computes fiatAmount automatically using live rates.",
@@ -235,7 +234,7 @@ const onrampNgn: DeepSeekTool = {
         },
         cryptoToken: {
           type: "string",
-          description: "Crypto token to receive ('USDC', 'USDT', 'cNGN').",
+          description: "Crypto token to receive ('USDC', 'USDT').",
         },
         asset: {
           type: "string",
@@ -299,7 +298,6 @@ const offrampNgn: DeepSeekTool = {
       "Supported Switch asset pairs: " +
       "USDC: 'base:usdc', 'solana:usdc', 'ethereum:usdc', 'stellar:usdc', 'tron:usdc'. " +
       "USDT: 'tron:usdt', 'solana:usdt', 'ethereum:usdt'. " +
-      "cNGN: 'base:cngn'. " +
       "(USDT on Base is NOT supported for NGN offramp). " +
       "(All fiat offramps operate exclusively on MAINNET). " +
       "Call this as soon as the user says they want to cash out, with WHATEVER they have given so far — " +
@@ -323,7 +321,7 @@ const offrampNgn: DeepSeekTool = {
         },
         cryptoToken: {
           type: "string",
-          description: "Token to sell ('USDC', 'USDT', 'cNGN').",
+          description: "Token to sell ('USDC', 'USDT').",
         },
         asset: {
           type: "string",

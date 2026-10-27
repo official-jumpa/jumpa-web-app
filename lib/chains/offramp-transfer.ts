@@ -78,11 +78,6 @@ export const OFFRAMP_ASSETS: Record<string, OfframpAssetConfig> = {
     address: CONTRACT_ADDRESSES.base.mainnet.USDC.address,
     decimals: CONTRACT_ADDRESSES.base.mainnet.USDC.decimals,
   },
-  "base:cngn": {
-    chain: "base",
-    address: CONTRACT_ADDRESSES.base.mainnet.cNGN.address,
-    decimals: CONTRACT_ADDRESSES.base.mainnet.cNGN.decimals,
-  },
   "solana:usdc": {
     chain: "solana",
     mint: CONTRACT_ADDRESSES.solana.mainnet.USDC.mint,

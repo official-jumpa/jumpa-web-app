@@ -92,7 +92,7 @@ function mapAssetToTxChain(
  * @param userCtx   - Runtime context (user addresses, authenticated userId, etc.)
  */
 /** Assets Switch can pay out to NGN. */
-const OFFRAMPABLE = new Set(["USDC", "USDT", "CNGN"]);
+const OFFRAMPABLE = new Set(["USDC", "USDT"]);
 
 /**
  * Can this holding actually be cashed out? Stellar settles through Centiiv
@@ -2181,14 +2181,8 @@ export async function executeTool(
       // Resolve asset identifier if not explicitly provided
       const upperToken = (token || "USDC").toUpperCase();
       const targetAsset =
-        asset ||
-        (upperToken === "USDT"
-          ? "solana:usdt"
-          : upperToken === "CNGN"
-            ? "base:cngn"
-            : "base:usdc");
-      const tokenSymbol =
-        upperToken === "USDT" ? "USDT" : upperToken === "CNGN" ? "cNGN" : "USDC";
+        asset || (upperToken === "USDT" ? "solana:usdt" : "base:usdc");
+      const tokenSymbol = upperToken === "USDT" ? "USDT" : "USDC";
 
       console.log(`[ToolExecutor] [User: ${userId}] get_ramp_rate →`, {
         direction,

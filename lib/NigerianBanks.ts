@@ -177,20 +177,10 @@ export const NIGERIAN_BANKS: NigerianBank[] = [
     "aliases": [
       "access",
       "access bank",
+      "access bank plc",
       "diamond",
       "diamond bank",
       "access bank (diamond)"
-    ]
-  },
-  {
-    "name": "ACCESS BANK",
-    "cbnCode": "000005",
-    "paystackCode": "",
-    "switchCode": "000005",
-    "centiivCode": "000005",
-    "aliases": [
-      "access bank",
-      "access bank plc"
     ]
   },
   {
@@ -8399,27 +8389,40 @@ for (const bank of NIGERIAN_BANKS) {
     byPaystackCode.set(bank.paystackCode, bank);
   }
 
+  function registerAlias(key: string, candidate: NigerianBank) {
+    if (!key) return;
+    const existing = byAlias.get(key);
+    if (!existing) {
+      byAlias.set(key, candidate);
+      return;
+    }
+    // Prefer entry with populated paystackCode if existing has none
+    if (!existing.paystackCode && candidate.paystackCode) {
+      byAlias.set(key, candidate);
+    }
+  }
+
   const canonicalLower = bank.name.toLowerCase().trim();
-  byAlias.set(canonicalLower, bank);
+  registerAlias(canonicalLower, bank);
 
   const canonicalClean = canonicalLower.replace(/[^a-z0-9]/g, "");
-  byAlias.set(canonicalClean, bank);
+  registerAlias(canonicalClean, bank);
 
   const canonicalToken = normalizeBankToken(bank.name);
   if (canonicalToken) {
-    byAlias.set(canonicalToken, bank);
+    registerAlias(canonicalToken, bank);
   }
 
   for (const alias of bank.aliases) {
     const aLower = alias.toLowerCase().trim();
-    byAlias.set(aLower, bank);
+    registerAlias(aLower, bank);
 
     const aClean = aLower.replace(/[^a-z0-9]/g, "");
-    byAlias.set(aClean, bank);
+    registerAlias(aClean, bank);
 
     const aToken = normalizeBankToken(alias);
     if (aToken) {
-      byAlias.set(aToken, bank);
+      registerAlias(aToken, bank);
     }
   }
 }

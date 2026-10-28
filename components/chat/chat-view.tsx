@@ -224,11 +224,12 @@ export function ChatView({
   // Load recent sessions list
   const refreshSessionsList = useCallback(async () => {
     try {
-      const res = await fetch("/api/chat/history?list=true");
+      const res = await fetch("/api/v1/chat/history?list=true");
       if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data.sessions)) {
-          setSessions(data.sessions);
+        const resJson = await res.json();
+        const sessions = resJson.data?.sessions || resJson.sessions;
+        if (Array.isArray(sessions)) {
+          setSessions(sessions);
         }
       }
     } catch (err) {
@@ -247,21 +248,23 @@ export function ChatView({
     async function initChat() {
       setLoading(true);
       try {
-        const listRes = await fetch("/api/chat/history?list=true");
+        const listRes = await fetch("/api/v1/chat/history?list=true");
         if (listRes.ok) {
-          const listData = await listRes.json();
-          if (mounted && Array.isArray(listData.sessions)) {
-            setSessions(listData.sessions);
+          const listJson = await listRes.json();
+          const sessions = listJson.data?.sessions || listJson.sessions;
+          if (mounted && Array.isArray(sessions)) {
+            setSessions(sessions);
           }
         }
 
-        const latestRes = await fetch("/api/chat/history?latest=true");
+        const latestRes = await fetch("/api/v1/chat/history?latest=true");
         if (latestRes.ok) {
-          const latestData = await latestRes.json();
-          if (mounted && latestData.session) {
-            setActiveSessionId(latestData.session.sessionId);
-            setMessages(latestData.session.messages || []);
-            setTotalMessagesCount(latestData.session.totalMessages || 0);
+          const latestJson = await latestRes.json();
+          const session = latestJson.data?.session !== undefined ? latestJson.data.session : latestJson.session;
+          if (mounted && session) {
+            setActiveSessionId(session.sessionId);
+            setMessages(session.messages || []);
+            setTotalMessagesCount(session.totalMessages || 0);
           }
         }
       } catch (err) {
@@ -287,13 +290,14 @@ export function ChatView({
       setPendingQuoteCard(null);
       setRevealId(null);
       try {
-        const res = await fetch(`/api/chat/history?sessionId=${sessionId}`);
+        const res = await fetch(`/api/v1/chat/history?sessionId=${sessionId}`);
         if (res.ok) {
-          const data = await res.json();
-          if (data.session) {
-            setActiveSessionId(data.session.sessionId);
-            setMessages(data.session.messages || []);
-            setTotalMessagesCount(data.session.totalMessages || 0);
+          const resJson = await res.json();
+          const session = resJson.data?.session || resJson.session;
+          if (session) {
+            setActiveSessionId(session.sessionId);
+            setMessages(session.messages || []);
+            setTotalMessagesCount(session.totalMessages || 0);
           }
         }
       } catch (err) {
@@ -311,13 +315,14 @@ export function ChatView({
     setLoadingEarlier(true);
     try {
       const res = await fetch(
-        `/api/chat/history?sessionId=${activeSessionId}&all=true`,
+        `/api/v1/chat/history?sessionId=${activeSessionId}&all=true`,
       );
       if (res.ok) {
-        const data = await res.json();
-        if (data.session?.messages) {
-          setMessages(data.session.messages);
-          setTotalMessagesCount(data.session.messages.length);
+        const resJson = await res.json();
+        const session = resJson.data?.session || resJson.session;
+        if (session?.messages) {
+          setMessages(session.messages);
+          setTotalMessagesCount(session.messages.length);
         }
       }
     } catch (err) {
@@ -331,7 +336,7 @@ export function ChatView({
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
       try {
-        const res = await fetch(`/api/chat/history?sessionId=${sessionId}`, {
+        const res = await fetch(`/api/v1/chat/history?sessionId=${sessionId}`, {
           method: "DELETE",
         });
         if (res.ok) {
@@ -384,7 +389,7 @@ export function ChatView({
       setIsResponding(true);
 
       try {
-        const res = await fetch("/api/chat/send", {
+        const res = await fetch("/api/v1/chat/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -399,7 +404,8 @@ export function ChatView({
           throw new Error(`HTTP ${res.status}`);
         }
 
-        const data = await res.json();
+        const resJson = await res.json();
+        const data = resJson.data || resJson;
 
         if (data.sessionId) {
           setActiveSessionId(data.sessionId);
@@ -476,7 +482,7 @@ export function ChatView({
       const targetId = pendingActionMsgId || latestPendingMsg?.id;
 
       try {
-        const res = await fetch("/api/chat/confirm", {
+        const res = await fetch("/api/v1/chat/action?action=confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -487,14 +493,15 @@ export function ChatView({
           }),
         });
 
-        const data = await res.json();
+        const resJson = await res.json();
+        const data = resJson.data || resJson;
 
         if (!res.ok) {
           if (res.status === 401) {
             setPinError(true);
             setPinProcessing(false);
           } else {
-            fail(data.error);
+            fail(data.error || resJson.error);
           }
           return;
         }
@@ -554,7 +561,7 @@ export function ChatView({
     );
 
     try {
-      const res = await fetch("/api/chat/cancel", {
+      const res = await fetch("/api/v1/chat/action?action=cancel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -564,7 +571,8 @@ export function ChatView({
       });
 
       if (res.ok) {
-        const data = await res.json();
+        const resJson = await res.json();
+        const data = resJson.data || resJson;
         if (data.assistantMessage) {
           setRevealId(data.assistantMessage.id);
           setMessages((prev) => [...prev, data.assistantMessage]);

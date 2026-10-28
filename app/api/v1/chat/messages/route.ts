@@ -13,20 +13,20 @@ import { getChatAttachments } from "@/lib/functions/chatAttachmentFunctions";
 import { generateId } from "@/lib/schema-ids";
 import {
   getCachedWalletBalances,
-  type SupportedChain,
 } from "@/lib/wallet-balances";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { getOrCreateChatLog } from "@/lib/functions/chatFunctions";
 import { sendMessageSchema } from "@/lib/validations/chat.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { type IChatMessage } from "@/models/ChatLog";
-
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 /**
- * POST /api/chat/send
- * Body: { sessionId?: string, message: string, attachmentIds?: string[] }
+ * POST /api/v1/chat/messages
+ * Sends a chat message (text, image, audio) and runs the Jumpa AI agent loop.
  */
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
   try {
     const auth = await requireActiveUser({
       rateLimit: { tier: "medium", action: "chat_send" },
@@ -39,7 +39,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(formatZodError(validation.error), { status: 400 });
     }
 
-    const { sessionId, message, attachmentIds, attachments: rawAttachments } = validation.data;
+    const {
+      sessionId,
+      message,
+      attachmentIds,
+      attachments: rawAttachments,
+    } = validation.data;
     const userId = auth.userId;
 
     // Use direct attachments when provided; otherwise resolve by attachmentIds
@@ -49,16 +54,13 @@ export async function POST(req: NextRequest) {
         ? await getChatAttachments(userId, attachmentIds)
         : [];
 
-    // Pre-analyze images
+    // Pre-analyze images with timeout-guarded Gemini vision
     let visionAnalysis = "";
     const imageAttachments = attachments.filter(
       (att) => att.mime?.startsWith("image/") && att.url?.startsWith("http"),
     );
 
     if (imageAttachments.length > 0) {
-      console.log(
-        `[Chat Send] Analyzing ${imageAttachments.length} image attachment(s)...`,
-      );
       try {
         const analysisResults = await Promise.all(
           imageAttachments.map((img) =>
@@ -72,21 +74,21 @@ export async function POST(req: NextRequest) {
           )
           .join("\n\n");
       } catch (visErr) {
-        console.error("[Chat Send] Vision analysis failed:", visErr);
+        console.error(
+          `[Chat] Vision analysis failed: ${formatOneLineError(visErr)}`,
+        );
       }
     }
 
-    // The model receives rich visual analysis for images; voice notes are already in message text
     const nonAudioAttachments = attachments.filter(
       (att) => !isAudioAttachment(att.mime, att.name),
     );
     const attachmentNote = describeAttachments(nonAudioAttachments, visionAnalysis);
 
-    // Fetch wallet via walletFunctions
     const wallet = await findWalletForUser(userId);
     const walletAddress = wallet?.address || "";
 
-    // Fetch live balances (only chains mentioned in the message)
+    // Fetch live balances for relevant chains
     const targetChains = detectTargetChains(message);
     const balanceData = await getCachedWalletBalances(userId, targetChains);
 
@@ -102,15 +104,11 @@ export async function POST(req: NextRequest) {
     const liveBalances = balanceData?.summary || {};
     const testnetBalances = balanceData?.testnetSummary || {};
 
-    console.log(`[Chat Send] "${userId}" sent: "${message.trim()}"`);
-
-    // Load or create chat session via chatFunctions
     const chatLog = await getOrCreateChatLog({
       userId,
       sessionId,
       walletAddress,
     });
-
 
     const userMessage: IChatMessage = {
       id: generateId("msg"),
@@ -127,7 +125,6 @@ export async function POST(req: NextRequest) {
         let text = [m.content || "", describeAttachments(m.attachments)]
           .filter(Boolean)
           .join("\n\n");
-        // Ensure the assistant has context of proposed transaction or options card data
         if (m.role === "assistant" && m.transactionParams) {
           text += `\n[Context: Pending ${m.transactionParams.type || m.cardType} with data: ${JSON.stringify(m.transactionParams)}]`;
         }
@@ -159,7 +156,7 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    // A standalone numerical amount (e.g. "50", "10.5", "$25", "₦5000", "5k", "10k", "1.5m"), excluding phone/account numbers (10+ digits)
+    // Detect action intents for tool gating
     const sanitizedMsg = message
       .replace(/(?:\+?234|\b0)\d{9,11}\b/g, "")
       .replace(/\b\d{10,}\b/g, "");
@@ -175,35 +172,41 @@ export async function POST(req: NextRequest) {
         message,
       );
 
-    // This message answers a chooser we just drew, and the next card only exists if
-    // the tool runs — on "auto" the model answers the step in prose and it never renders.
     const lastAssistantCard = [...(chatLog.messages || [])]
       .reverse()
       .find((m: IChatMessage) => m.role === "assistant")?.cardType;
     const isChooserReply =
       lastAssistantCard === "options" || lastAssistantCard === "plans";
 
-    // Force tool execution if it's a lookup, chooser response, or transaction prompt
     const isActionPrompt =
       isLookupAction ||
       isChooserReply ||
-      (isTransactionalAction && (hasNumericalAmount || /\b(opay|palmpay|kuda|gtbank|access|zenith|bank|\d{10})\b/i.test(sanitizedMsg)));
+      (isTransactionalAction &&
+        (hasNumericalAmount ||
+          /\b(opay|palmpay|kuda|gtbank|access|zenith|bank|\d{10})\b/i.test(
+            sanitizedMsg,
+          )));
 
-    // If user replies with affirmative text like "yes", "confirm", "proceed" while a pending transaction card is waiting.
-    // Crucial: Only trigger if the user gave a pure confirmation without modifying intent (e.g. NOT "yes add the fees on top" or "proceed with kuda").
+    // Fast-path for pure confirmations without modifications
     const trimmedMsg = message.trim();
     const hasModifyingIntent =
-      /\b(add|change|modify|fee|fees|top|account|bank|instead|different|regenerate|redo|update)\b/i.test(trimmedMsg);
+      /\b(add|change|modify|fee|fees|top|account|bank|instead|different|regenerate|redo|update)\b/i.test(
+        trimmedMsg,
+      );
     const isPureAffirmativeReply =
-      /^(yes|yeah|yep|confirm|approved|proceed|send it|ok|okay)[.!]?$/i.test(trimmedMsg) ||
-      (/^(yes|yeah|yep|confirm|approved|proceed|send it|ok|okay)\b/i.test(trimmedMsg) && !hasModifyingIntent);
+      /^(yes|yeah|yep|confirm|approved|proceed|send it|ok|okay)[.!]?$/i.test(
+        trimmedMsg,
+      ) ||
+      (/^(yes|yeah|yep|confirm|approved|proceed|send it|ok|okay)\b/i.test(
+        trimmedMsg,
+      ) &&
+        !hasModifyingIntent);
 
     const lastPendingTxMsg = [...(chatLog.messages || [])]
       .reverse()
       .find((m: IChatMessage) => m.isTransaction && m.status === "pending");
 
     if (isPureAffirmativeReply && lastPendingTxMsg) {
-      // Don't let AI hallucinate that it sent money in text without PIN!
       const reminderContent =
         "Please review the card above and confirm to enter your PIN to complete this transaction.";
       const assistantMessage: IChatMessage = {
@@ -218,10 +221,13 @@ export async function POST(req: NextRequest) {
       await chatLog.save();
 
       return NextResponse.json({
-        sessionId: chatLog.sessionId,
-        title: chatLog.title,
-        userMessage,
-        assistantMessage,
+        success: true,
+        data: {
+          sessionId: chatLog._id || chatLog.sessionId,
+          title: chatLog.title,
+          userMessage,
+          assistantMessage,
+        },
       });
     }
 
@@ -243,19 +249,12 @@ export async function POST(req: NextRequest) {
             ? "none"
             : "auto";
 
-      console.log(
-        `[Chat Send] Calling Jumpa AI (Turn ${turn}/${MAX_TURNS}, toolChoice: ${toolChoice})...`,
-      );
-
       const stepResponse = await runAgentStep({
         messages,
         toolChoice,
       });
 
       if (stepResponse.mode === "chat") {
-        console.log(
-          `[Chat Send] AI text response (Turn ${turn}): "${stepResponse.message}"`,
-        );
         finalAssistantContent = stepResponse.message;
         break;
       }
@@ -265,18 +264,10 @@ export async function POST(req: NextRequest) {
       messages.push(rawAssistantMessage);
 
       for (const tc of toolCalls) {
-        console.log(
-          `[Chat Send] Executing tool [${tc.toolName}] with args:`,
-          tc.toolArgs,
-        );
         const toolResult = await executeTool(tc.toolName, tc.toolArgs, {
           stellarAddress,
           userId,
         });
-
-        console.log(
-          `[Chat Send] Tool [${tc.toolName}] executed. requiresConfirmation: ${toolResult.requiresConfirmation}`,
-        );
 
         lastToolSummaries.push(toolResult.summaryForAI);
 
@@ -412,7 +403,6 @@ export async function POST(req: NextRequest) {
       };
     }
 
-    // Ensure content is never empty
     if (!assistantMessage.content) {
       assistantMessage.content = "I've processed your request.";
     }
@@ -421,21 +411,28 @@ export async function POST(req: NextRequest) {
     chatLog.messages.push(assistantMessage);
 
     if (!chatLog.title || chatLog.title === "New Chat") {
-      // An attachment-only message has no words to name the thread with.
       const subject = message.trim() || attachments[0]?.name || "New Chat";
       chatLog.title = subject.slice(0, 35) + (subject.length > 35 ? "…" : "");
     }
 
     await chatLog.save();
 
+    const elapsedMs = Date.now() - startTime;
+    console.log(
+      `[Chat] Sent message: session=${chatLog._id || chatLog.sessionId} turns=${turn} card=${primaryCardHint.type} (${elapsedMs}ms)`,
+    );
+
     return NextResponse.json({
-      sessionId: chatLog._id,
-      title: chatLog.title,
-      userMessage,
-      assistantMessage,
+      success: true,
+      data: {
+        sessionId: chatLog._id || chatLog.sessionId,
+        title: chatLog.title,
+        userMessage,
+        assistantMessage,
+      },
     });
-  } catch (err) {
-    console.error("[Chat Error]", err);
+  } catch (err: any) {
+    console.error(`[Chat] Messages error: ${formatOneLineError(err)}`);
     return NextResponse.json(
       { error: "Failed to process message" },
       { status: 500 },

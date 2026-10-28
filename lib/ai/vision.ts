@@ -65,6 +65,7 @@ export async function analyzeImageWithGemini(
         "HTTP-Referer": "https://usejumpa.com",
         "X-Title": "Jumpa App",
       },
+      signal: AbortSignal.timeout(15000),
       body: JSON.stringify({
         model,
         messages: [

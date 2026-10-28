@@ -72,6 +72,7 @@ export async function transcribeAudioWithGemini(
         "HTTP-Referer": "https://usejumpa.com",
         "X-Title": "Jumpa App",
       },
+      signal: AbortSignal.timeout(20000),
       body: JSON.stringify({
         model,
         messages: [

@@ -1,0 +1,24 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="114" height="114" viewBox="0 0 114 114" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Group 1410104778">
+<path id="Ellipse 2158" d="M113.5 57C113.5 88.2041 88.2041 113.5 57 113.5C25.7959 113.5 0.5 88.2041 0.5 57C0.5 25.7959 25.7959 0.5 57 0.5C88.2041 0.5 113.5 25.7959 113.5 57Z" fill="#18C07A" fill-opacity="0.05" stroke="url(#paint0_linear_0_22)"/>
+<path id="Ellipse 2157" d="M98.5131 57C98.5131 79.9271 79.9271 98.5131 57 98.5131C34.073 98.5131 15.4869 79.9271 15.4869 57C15.4869 34.073 34.073 15.4869 57 15.4869C79.9271 15.4869 98.5131 34.073 98.5131 57Z" fill="#18C07A" fill-opacity="0.2" stroke-width="0.728913" stroke="url(#paint1_linear_0_22)"/>
+<path id="Ellipse 2156" d="M83.9697 56.9998C83.9697 71.8948 71.8949 83.9696 56.9999 83.9696C42.1049 83.9696 30.0301 71.8948 30.0301 56.9998C30.0301 42.1048 42.1049 30.03 56.9999 30.03C71.8949 30.03 83.9697 42.1048 83.9697 56.9998Z" fill="#18C07A" stroke-width="0.728913" stroke="url(#paint2_linear_0_22)"/>
+<g id="Sticker">
+<path id="Vector" d="M52.9973 65.5467L46.1104 58.664C45.849 58.4022 45.7022 58.0474 45.7022 57.6775C45.7022 57.3076 45.849 56.9528 46.1104 56.691L46.9471 55.8532C47.2089 55.5918 47.5637 55.445 47.9336 55.445C48.3035 55.445 48.6584 55.5918 48.9201 55.8532L53.9264 60.8562L65.7164 48.3272C65.9701 48.058 66.3202 47.9005 66.69 47.8892C67.0597 47.8779 67.4188 48.0138 67.6884 48.2671L68.5477 49.078C68.8172 49.3317 68.9749 49.6821 68.9862 50.0521C68.9974 50.422 68.8614 50.7814 68.6078 51.051L55.0037 65.5155C54.8756 65.652 54.7213 65.7614 54.5501 65.8371C54.3789 65.9128 54.1943 65.9533 54.0071 65.9562C53.8199 65.9591 53.6341 65.9244 53.4606 65.854C53.2871 65.7837 53.1296 65.6791 52.9973 65.5467V65.5467Z" fill="white"/>
+</g>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_22" x1="57" y1="0" x2="57" y2="114" gradientUnits="userSpaceOnUse">
+<stop offset="0.432014" stop-color="white"/>
+<stop offset="1" stop-color="#18C07A"/>
+</linearGradient>
+<linearGradient id="paint1_linear_0_22" x1="57" y1="15.1224" x2="57" y2="98.8776" gradientUnits="userSpaceOnUse">
+<stop offset="0.432014" stop-color="white"/>
+<stop offset="1" stop-color="#18C07A"/>
+</linearGradient>
+<linearGradient id="paint2_linear_0_22" x1="56.9999" y1="29.6655" x2="56.9999" y2="84.334" gradientUnits="userSpaceOnUse">
+<stop offset="0.432014" stop-color="white"/>
+<stop offset="1" stop-color="#18C07A"/>
+</linearGradient>
+</defs>
+</svg>

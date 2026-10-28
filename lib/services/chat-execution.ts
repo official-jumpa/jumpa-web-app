@@ -31,7 +31,7 @@ import {
   updateTransactionByReference,
 } from "@/lib/functions/transactionFunctions";
 import { updateWalletById } from "@/lib/functions/walletFunctions";
-import { logUserActivity } from "@/lib/functions/userFunctions";
+import { logUserActivity, trackRecent } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import {
   assertDailyTransactionLimit,
@@ -142,6 +142,17 @@ async function recordTransferSuccess(params: {
     body: `Sent ${amount} ${token} to ${toAddress.slice(0, 4)}...${toAddress.slice(-4)} (${networkLabel}).`,
     type: "TRANSFER_SENT",
   }).catch(() => null);
+
+  trackRecent(userId, {
+    type: "wallet",
+    name: `${toAddress.slice(0, 4)}...${toAddress.slice(-4)}`,
+    identifier: toAddress,
+    details: {
+      walletAddress: toAddress,
+      chain,
+      network,
+    },
+  }).catch(() => {});
 
   const receiptCardData = {
     title: "Transfer",
@@ -504,7 +515,7 @@ export async function executeChatTransfer(params: {
 
   const amount = String(txParams?.amount || "0");
   const token = (txParams?.token || "XLM").toUpperCase();
-  const recipient = String(txParams?.recipient || "").trim();
+  let recipient = String(txParams?.recipient || "").trim();
   const network = (txParams?.network || "mainnet") as "testnet" | "mainnet";
   const paramChain = (txParams?.chain || "").toLowerCase();
 
@@ -523,6 +534,18 @@ export async function executeChatTransfer(params: {
     }
     throw limitErr;
   }
+
+  let cleanRecipient = recipient.trim();
+  if (cleanRecipient.includes(":")) {
+    cleanRecipient = cleanRecipient.split(":")[1];
+  }
+  if (
+    (cleanRecipient.startsWith("G") || cleanRecipient.startsWith("g")) &&
+    cleanRecipient.length === 56
+  ) {
+    cleanRecipient = cleanRecipient.toUpperCase();
+  }
+  recipient = cleanRecipient;
 
   const isEvmDest = recipient.startsWith("0x") && recipient.length === 42;
   const isStellarDest = recipient.startsWith("G") && recipient.length === 56;
@@ -754,6 +777,20 @@ export async function executeChatOfframp(params: {
       txHash,
     },
     req,
+  }).catch(() => {});
+
+  trackRecent(userId, {
+    type: "bank",
+    name: accountName || bankName || "Bank Account",
+    identifier: `${effectiveCardData?.bankCode || txParams?.bankCode || bankName}:${accountNumber}`,
+    details: {
+      accountNumber,
+      accountName,
+      bankName,
+      bankCode: effectiveCardData?.bankCode || txParams?.bankCode,
+      country: "Nigeria",
+      currency: "NGN",
+    },
   }).catch(() => {});
 
   const receiptCardData = {

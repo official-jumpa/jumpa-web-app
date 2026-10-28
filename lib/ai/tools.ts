@@ -341,6 +341,11 @@ const offrampNgn: DeepSeekTool = {
           description:
             "Optional account holder name. The system verifies and fetches the official registered name via Paystack automatically.",
         },
+        beneficiaryName: {
+          type: "string",
+          description:
+            "Optional name of a saved beneficiary (e.g. 'Mom', 'Alice'). If provided, the account number and bank will be resolved from saved beneficiaries.",
+        },
       },
       required: [],
     },
@@ -681,6 +686,122 @@ const analyzeImage: DeepSeekTool = {
   },
 };
 
+const listBeneficiariesTool: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "list_beneficiaries",
+    description:
+      "List the user's saved beneficiaries (contacts) for bank accounts and crypto wallets. " +
+      "Only returns officially saved beneficiaries (up to 10 most recent), NOT raw unmanaged recents. " +
+      "Use this when the user asks 'show my beneficiaries', 'list my contacts', 'who can I send to', etc.",
+    parameters: {
+      type: "object",
+      properties: {
+        type: {
+          type: "string",
+          enum: ["bank", "wallet", "all"],
+          description: "Filter beneficiaries by type: 'bank', 'wallet', or 'all' (default).",
+        },
+      },
+      required: [],
+    },
+  },
+};
+
+const saveBeneficiaryTool: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "save_beneficiary",
+    description:
+      "Save a destination (wallet address or bank account) as an official Beneficiary with a friendly name. " +
+      "Use this when the user answers YES to saving a recipient after a transfer, or asks 'save this wallet as Alice', 'add bank beneficiary', etc. " +
+      "For Nigerian bank transfers, use the verified account name if the user didn't specify a custom name.",
+    parameters: {
+      type: "object",
+      properties: {
+        type: {
+          type: "string",
+          enum: ["bank", "wallet"],
+          description: "Type of beneficiary: 'bank' or 'wallet'.",
+        },
+        name: {
+          type: "string",
+          description: "Friendly name / label to save this beneficiary as (e.g. 'Mom', 'Alice Solana', 'CHUKWUEMEKA OBI').",
+        },
+        identifier: {
+          type: "string",
+          description: "Identifier of the recipient. For bank: 'bankCode:accountNumber' or 'accountNumber'. For wallet: wallet address.",
+        },
+        accountNumber: {
+          type: "string",
+          description: "Bank account number (if type is bank).",
+        },
+        bankName: {
+          type: "string",
+          description: "Bank name (if type is bank).",
+        },
+        bankCode: {
+          type: "string",
+          description: "Bank code (if type is bank).",
+        },
+        walletAddress: {
+          type: "string",
+          description: "Crypto wallet address (if type is wallet).",
+        },
+        chain: {
+          type: "string",
+          description: "Blockchain name: 'stellar', 'solana', 'base', 'ethereum', 'tron' (if type is wallet).",
+        },
+      },
+      required: ["type", "name"],
+    },
+  },
+};
+
+const editBeneficiaryTool: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "edit_beneficiary",
+    description:
+      "Edit or rename an existing saved beneficiary. Recents cannot be edited, only saved beneficiaries. " +
+      "Use this when the user asks 'rename beneficiary Alice to Alice Work', 'change contact name', etc.",
+    parameters: {
+      type: "object",
+      properties: {
+        nameOrIdentifier: {
+          type: "string",
+          description: "Current name or account number/address of the saved beneficiary to rename.",
+        },
+        newName: {
+          type: "string",
+          description: "New friendly name for the beneficiary.",
+        },
+      },
+      required: ["nameOrIdentifier", "newName"],
+    },
+  },
+};
+
+const deleteBeneficiaryTool: DeepSeekTool = {
+  type: "function",
+  function: {
+    name: "delete_beneficiary",
+    description:
+      "Delete/remove a saved beneficiary from the user's contacts. Recents cannot be managed or deleted from chat. " +
+      "Use this when the user asks 'delete beneficiary Alice', 'remove contact Dad', etc.",
+    parameters: {
+      type: "object",
+      properties: {
+        nameOrIdentifier: {
+          type: "string",
+          description: "Name, wallet address, or account number of the saved beneficiary to remove.",
+        },
+      },
+      required: ["nameOrIdentifier"],
+    },
+  },
+};
+
 export const JUMPA_TOOLS: DeepSeekTool[] = [
   swapTokens,
   stellarTestnetSwapQuote,
@@ -701,6 +822,10 @@ export const JUMPA_TOOLS: DeepSeekTool[] = [
   withdrawSavings,
   bridgeTokens,
   analyzeImage,
+  listBeneficiariesTool,
+  saveBeneficiaryTool,
+  editBeneficiaryTool,
+  deleteBeneficiaryTool,
 ];
 
 export type JumpaToolName =
@@ -722,7 +847,11 @@ export type JumpaToolName =
   | "deposit_savings"
   | "withdraw_savings"
   | "bridge_tokens"
-  | "analyze_image";
+  | "analyze_image"
+  | "list_beneficiaries"
+  | "save_beneficiary"
+  | "edit_beneficiary"
+  | "delete_beneficiary";
 
 /** Infer network from tool name — single source of truth */
 export function getNetworkFromToolName(

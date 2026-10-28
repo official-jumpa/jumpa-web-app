@@ -9,7 +9,7 @@ import { createNotification } from "@/lib/functions/notificationFunctions";
 import { dispatchTransactionEmail } from "@/lib/functions/transactionEmailFunctions";
 import {
   logUserActivity,
-  saveOrUpdateBeneficiary,
+  trackRecent,
 } from "@/lib/functions/userFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { sendTokenSchema } from "@/lib/validations/wallet.validation";
@@ -196,11 +196,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Auto-save beneficiary for future fast transfers
-  saveOrUpdateBeneficiary(session.user.id, {
+  // Record recent destination for fast transfer history
+  trackRecent(session.user.id, {
     type: "wallet",
     name: shortenAddress(recipient),
-    identifier: `${config.chain}:${recipient}`,
+    identifier: recipient,
     details: {
       walletAddress: recipient,
       network: networkName,
@@ -209,7 +209,7 @@ export async function POST(req: NextRequest) {
     },
   }).catch((e) =>
     console.warn(
-      `Error: ${formatOneLineError(e)}`,
+      `[Wallet Send] trackRecent notice: ${formatOneLineError(e)}`,
     ),
   );
 

@@ -119,24 +119,28 @@ export function WalletAddressView({
     };
   }, [form.asset, form.network, currentConfig.chain, currentConfig.network]);
 
-  // Fetch recent wallet beneficiaries
+  // Fetch saved beneficiaries and recent wallet destinations
   useEffect(() => {
     let isMounted = true;
     async function loadRecentWallets() {
       try {
-        const res = await fetch("/api/beneficiaries?type=wallet");
+        const res = await fetch("/api/v1/beneficiaries?type=wallet&view=all");
         if (!res.ok) return;
-        const data = await res.json();
-        if (isMounted && Array.isArray(data.beneficiaries)) {
-          const mapped: WalletContact[] = data.beneficiaries.map((b: any) => {
+        const resData = await res.json();
+        const savedList = resData?.data?.beneficiaries || [];
+        const recentList = resData?.data?.recents || [];
+        const combined = [...savedList, ...recentList];
+        if (isMounted && combined.length > 0) {
+          const mapped: WalletContact[] = combined.map((b: any) => {
             const rawAddress =
               b.details?.walletAddress ||
               (b.identifier?.includes(":") ? b.identifier.split(":")[1] : b.identifier) ||
               "";
+            const star = b.isFavorite ? "★ " : "";
             return {
-              id: b._id,
-              handle: b.name || shortenAddress(rawAddress),
-              network: b.details?.network || "Stellar Mainnet",
+              id: String(b._id || b.id),
+              handle: `${star}${b.name || shortenAddress(rawAddress)}`,
+              network: b.details?.chain ? `${b.details.chain.toUpperCase()}` : "Stellar",
               address: rawAddress,
               memo: b.details?.memo || "",
             };

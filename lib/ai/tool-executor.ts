@@ -29,7 +29,14 @@ import { Transaction } from "@/models/Transaction";
 import { User } from "@/models/User";
 import { Wallet } from "@/models/Wallet";
 import { listSavingsPlansByUserId } from "@/lib/functions/savingsFunctions";
-import { logUserActivity } from "@/lib/functions/userFunctions";
+import {
+  logUserActivity,
+  getUserBeneficiaries,
+  saveBeneficiary,
+  updateBeneficiary,
+  deleteBeneficiary,
+  findSavedBeneficiaryByName,
+} from "@/lib/functions/userFunctions";
 import { toChatPlan } from "./savings-plan-card";
 import { getNetworkFromToolName, type JumpaToolName } from "./tools";
 import { analyzeImageWithGemini } from "./vision";
@@ -212,9 +219,28 @@ async function resolveBankCandidates(accountNumber: string) {
   );
 }
 
-/** The last account this user cashed out to, so the design's Saved Account row is real. */
+/** The favorite/saved bank account or last account this user cashed out to, so the design's Saved Account row is real. */
 async function lastPayoutAccount(userId: string) {
   await connectDB();
+  // 1. Prioritize officially saved bank beneficiaries (isSaved: true, sorted by favorite and lastUsedAt)
+  try {
+    const savedBens = await getUserBeneficiaries(userId, "bank", true, 1);
+    if (
+      savedBens.length > 0 &&
+      savedBens[0].details?.accountNumber &&
+      savedBens[0].details?.bankName
+    ) {
+      return {
+        bankName: savedBens[0].details.bankName,
+        accountNumber: savedBens[0].details.accountNumber,
+        accountName: savedBens[0].details.accountName || savedBens[0].name,
+      };
+    }
+  } catch (err) {
+    console.error("[ToolExecutor] Error fetching saved beneficiary for lastPayoutAccount:", err);
+  }
+
+  // 2. Fall back to previous successful transactions
   const previous = await Transaction.findOne({
     userId,
     "rampDetails.bankDetails.accountNumber": {
@@ -1037,10 +1063,32 @@ export async function executeTool(
         recipient = userCtx.stellarAddress;
       }
 
+      let savedRecipientName: string | undefined;
+      if (userId && userId !== "UNKNOWN" && recipient && !recipient.startsWith("G")) {
+        try {
+          const found = await findSavedBeneficiaryByName(userId, recipient, "wallet");
+          if (found) {
+            savedRecipientName = found.name;
+            recipient = found.details?.walletAddress || found.identifier;
+            if (recipient.includes(":")) {
+              recipient = recipient.split(":")[1];
+            }
+          }
+        } catch (err) {
+          console.error("[ToolExecutor] Error finding saved wallet beneficiary:", err);
+        }
+      }
+
+      // If it's a Stellar address (starting with G or g and length 56), ensure uppercase
+      if ((recipient.startsWith("G") || recipient.startsWith("g")) && recipient.length === 56) {
+        recipient = recipient.toUpperCase();
+      }
+
       console.log(`[ToolExecutor] [User: ${userId}] send_funds draft:`, {
         amount,
         token,
         recipient,
+        savedRecipientName,
         chain,
         network,
       });
@@ -1055,9 +1103,10 @@ export async function executeTool(
         title: "Transfer Funds",
         contact: {
           name:
-            recipient.length > 20
+            savedRecipientName ||
+            (recipient.length > 20
               ? `${recipient.slice(0, 8)}...${recipient.slice(-6)}`
-              : recipient,
+              : recipient),
           handle: recipient.startsWith("G")
             ? `${recipient.slice(0, 6)}...${recipient.slice(-6)}`
             : recipient.startsWith("@")
@@ -1567,7 +1616,7 @@ export async function executeTool(
 
     // ── Offramp NGN — powered by Switch + Paystack Account Verification
     case "offramp_ngn": {
-      const {
+      let {
         cryptoAmount,
         fiatAmount,
         cryptoToken,
@@ -1575,15 +1624,38 @@ export async function executeTool(
         bankName,
         accountNumber,
         holderName,
+        beneficiaryName,
       } = toolArgs as {
         cryptoAmount?: string;
         fiatAmount?: string;
         cryptoToken?: string;
         asset?: string;
-        bankName: string;
-        accountNumber: string;
+        bankName?: string;
+        accountNumber?: string;
         holderName?: string;
+        beneficiaryName?: string;
       };
+
+      // Auto-resolve bank details if a beneficiary name is provided or accountNumber is a non-numeric contact name
+      const potentialBeneficiary = beneficiaryName || (accountNumber && isNaN(Number(accountNumber)) ? accountNumber : undefined);
+      if (potentialBeneficiary && userId && userId !== "UNKNOWN") {
+        try {
+          const found = await findSavedBeneficiaryByName(userId, potentialBeneficiary, "bank");
+          if (found && found.details) {
+            if (found.details.accountNumber) {
+              accountNumber = found.details.accountNumber;
+            }
+            if (!bankName && found.details.bankName) {
+              bankName = found.details.bankName;
+            }
+            if (!holderName && (found.details.accountName || found.name)) {
+              holderName = found.details.accountName || found.name;
+            }
+          }
+        } catch (err) {
+          console.error("[ToolExecutor] Error finding bank beneficiary:", err);
+        }
+      }
 
       console.log(
         `[ToolExecutor] [User: ${userId}] offramp_ngn → ${JSON.stringify({
@@ -2918,6 +2990,263 @@ export async function executeTool(
         },
         requiresConfirmation: true,
       };
+    }
+
+    // ── List Saved Beneficiaries
+    case "list_beneficiaries": {
+      const { type } = toolArgs as { type?: "bank" | "wallet" | "all" };
+      const filterType = type === "all" ? undefined : type;
+
+      try {
+        const beneficiaries = await getUserBeneficiaries(userId, filterType, true, 10);
+        if (beneficiaries.length === 0) {
+          return {
+            toolName: name,
+            summaryForAI: "The user has no saved beneficiaries yet.",
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+
+        const formatted = beneficiaries.map((b, idx) => {
+          const star = b.isFavorite ? "★ " : "";
+          if (b.type === "bank") {
+            const bName = b.details?.bankName || "Bank";
+            const acct = b.details?.accountNumber || b.identifier;
+            return `${idx + 1}. ${star}${b.name} (${bName} - ${acct})`;
+          } else {
+            const chain = b.details?.chain || "stellar";
+            const shortAddr =
+              b.identifier.length > 16
+                ? `${b.identifier.slice(0, 6)}...${b.identifier.slice(-4)}`
+                : b.identifier;
+            return `${idx + 1}. ${star}${b.name} (${shortAddr} on ${chain})`;
+          }
+        });
+
+        return {
+          toolName: name,
+          summaryForAI: `User's saved beneficiaries (up to 10):\n${formatted.join("\n")}`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      } catch (err: any) {
+        return {
+          toolName: name,
+          summaryForAI: `Failed to list beneficiaries: ${err.message}`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+    }
+
+    // ── Save Beneficiary
+    case "save_beneficiary": {
+      const {
+        type,
+        name: benName,
+        identifier: rawIdentifier,
+        accountNumber,
+        bankName,
+        bankCode,
+        walletAddress,
+        chain,
+      } = toolArgs as {
+        type: "bank" | "wallet";
+        name: string;
+        identifier?: string;
+        accountNumber?: string;
+        bankName?: string;
+        bankCode?: string;
+        walletAddress?: string;
+        chain?: string;
+      };
+
+      if (!benName?.trim()) {
+        return {
+          toolName: name,
+          summaryForAI: "Beneficiary name is required to save a contact.",
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      try {
+        let identifier = rawIdentifier?.trim() || "";
+        let details: Record<string, any> = {};
+
+        if (type === "bank") {
+          let resolvedBankCode = bankCode?.trim();
+          let resolvedBankName = bankName?.trim();
+          let resolvedAccount = accountNumber?.trim();
+
+          if (!resolvedAccount && identifier) {
+            if (identifier.includes(":")) {
+              const parts = identifier.split(":");
+              resolvedBankCode = resolvedBankCode || parts[0];
+              resolvedAccount = parts[1];
+            } else {
+              resolvedAccount = identifier;
+            }
+          }
+
+          if (resolvedBankName && !resolvedBankCode) {
+            const ps = findPaystackBank(resolvedBankName);
+            if (ps) resolvedBankCode = ps.code;
+          }
+
+          identifier = resolvedBankCode && resolvedAccount
+            ? `${resolvedBankCode}:${resolvedAccount}`
+            : resolvedAccount || identifier;
+
+          details = {
+            bankName: resolvedBankName || "Bank",
+            bankCode: resolvedBankCode,
+            accountNumber: resolvedAccount,
+            accountName: benName.trim(),
+          };
+        } else {
+          identifier = walletAddress?.trim() || identifier;
+          if (identifier.includes(":")) {
+            identifier = identifier.split(":")[1];
+          }
+          if ((identifier.startsWith("g") || identifier.startsWith("G")) && identifier.length === 56) {
+            identifier = identifier.toUpperCase();
+          }
+          details = {
+            walletAddress: identifier,
+            chain: (chain || "stellar").toLowerCase(),
+          };
+        }
+
+        if (!identifier) {
+          return {
+            toolName: name,
+            summaryForAI: `Missing recipient identifier or account number to save ${type} beneficiary.`,
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+
+        const saved = await saveBeneficiary(userId, {
+          type,
+          identifier,
+          name: benName.trim(),
+          isFavorite: false,
+          details,
+        });
+
+        return {
+          toolName: name,
+          summaryForAI: `Successfully saved beneficiary "${saved.name}" (${type}: ${identifier}).`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      } catch (err: any) {
+        return {
+          toolName: name,
+          summaryForAI: `Failed to save beneficiary: ${err.message}`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+    }
+
+    // ── Edit Beneficiary
+    case "edit_beneficiary": {
+      const { nameOrIdentifier, newName } = toolArgs as {
+        nameOrIdentifier: string;
+        newName: string;
+      };
+
+      if (!nameOrIdentifier?.trim() || !newName?.trim()) {
+        return {
+          toolName: name,
+          summaryForAI: "Both current contact name and new name are required.",
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      try {
+        const existing = await findSavedBeneficiaryByName(userId, nameOrIdentifier);
+        if (!existing) {
+          return {
+            toolName: name,
+            summaryForAI: `Could not find a saved beneficiary matching "${nameOrIdentifier}". Saved beneficiaries can be viewed by asking to list beneficiaries. Note that recents cannot be edited or renamed.`,
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+
+        const updated = await updateBeneficiary(userId, String(existing._id), {
+          name: newName.trim(),
+        });
+
+        return {
+          toolName: name,
+          summaryForAI: `Successfully renamed beneficiary from "${existing.name}" to "${updated?.name || newName.trim()}".`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      } catch (err: any) {
+        return {
+          toolName: name,
+          summaryForAI: `Failed to edit beneficiary: ${err.message}`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+    }
+
+    // ── Delete Beneficiary
+    case "delete_beneficiary": {
+      const { nameOrIdentifier } = toolArgs as { nameOrIdentifier: string };
+
+      if (!nameOrIdentifier?.trim()) {
+        return {
+          toolName: name,
+          summaryForAI: "Name or identifier of the beneficiary to delete is required.",
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
+      try {
+        const existing = await findSavedBeneficiaryByName(userId, nameOrIdentifier);
+        if (!existing) {
+          return {
+            toolName: name,
+            summaryForAI: `Could not find a saved beneficiary matching "${nameOrIdentifier}". Note that recents cannot be managed or deleted from chat.`,
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+
+        const success = await deleteBeneficiary(userId, String(existing._id));
+        if (success) {
+          return {
+            toolName: name,
+            summaryForAI: `Successfully removed "${existing.name}" from saved beneficiaries.`,
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        } else {
+          return {
+            toolName: name,
+            summaryForAI: `Could not delete beneficiary "${nameOrIdentifier}".`,
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+      } catch (err: any) {
+        return {
+          toolName: name,
+          summaryForAI: `Failed to delete beneficiary: ${err.message}`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
     }
 
     default:

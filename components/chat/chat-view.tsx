@@ -210,15 +210,36 @@ export function ChatView({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const isSendingRef = useRef(false);
+  const shouldAutoScrollRef = useRef(true);
+  const skipNextAutoScrollRef = useRef(false);
 
-  const scrollToBottom = useCallback(() => {
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     if (scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: "smooth" });
+      scrollRef.current.scrollIntoView({ behavior });
     }
   }, []);
 
+  // Update shouldAutoScrollRef on scroll: if user is within 150px of bottom, auto-scroll is enabled
   useEffect(() => {
-    scrollToBottom();
+    const handleScroll = () => {
+      const scrollHeight = document.documentElement.scrollHeight;
+      const scrollPos = window.scrollY + window.innerHeight;
+      const distanceToBottom = scrollHeight - scrollPos;
+      shouldAutoScrollRef.current = distanceToBottom < 150;
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    if (skipNextAutoScrollRef.current) {
+      skipNextAutoScrollRef.current = false;
+      return;
+    }
+    if (shouldAutoScrollRef.current || isSendingRef.current || isResponding) {
+      scrollToBottom();
+    }
   }, [messages, isResponding, scrollToBottom]);
 
   // Load recent sessions list
@@ -321,8 +342,29 @@ export function ChatView({
         const resJson = await res.json();
         const session = resJson.data?.session || resJson.session;
         if (session?.messages) {
+          skipNextAutoScrollRef.current = true;
+          const oldScrollHeight =
+            typeof document !== "undefined"
+              ? document.documentElement.scrollHeight
+              : 0;
+          const oldScrollTop = typeof window !== "undefined" ? window.scrollY : 0;
+
           setMessages(session.messages);
           setTotalMessagesCount(session.messages.length);
+
+          requestAnimationFrame(() => {
+            if (
+              typeof window !== "undefined" &&
+              typeof document !== "undefined"
+            ) {
+              const heightDiff =
+                document.documentElement.scrollHeight - oldScrollHeight;
+              window.scrollTo({
+                top: oldScrollTop + heightDiff,
+                behavior: "instant" as ScrollBehavior,
+              });
+            }
+          });
         }
       }
     } catch (err) {
@@ -612,7 +654,7 @@ export function ChatView({
           <ChatTopFade />
           {/* pt clears ChatTopFade's 90px wash, which starts at the viewport top
               while the scroller starts below the 51px header. */}
-          <div className="flex-1 overflow-y-auto pt-8 pb-2">
+          <div className="flex-1 pt-8 pb-2">
             {/* Load Earlier Messages Button */}
             {hasMoreMessages && (
               <div className="flex justify-center mb-3">

@@ -60,6 +60,8 @@ export interface BankAccountItem {
   bank: string;
   number: string;
   country?: string;
+  isSaved?: boolean;
+  isFavorite?: boolean;
 }
 
 export const OFFRAMP_NETWORKS = [
@@ -240,17 +242,22 @@ export function BankTransferForm({
     let live = true;
     async function loadBeneficiaries() {
       try {
-        const res = await fetch("/api/beneficiaries?type=bank");
+        const res = await fetch("/api/v1/beneficiaries?type=bank&view=all");
         if (!res.ok) return;
-        const data = await res.json();
-        if (live && Array.isArray(data.beneficiaries)) {
-          const mapped: BankAccountItem[] = data.beneficiaries.map(
+        const resData = await res.json();
+        const savedList = resData?.data?.beneficiaries || [];
+        const recentList = resData?.data?.recents || [];
+        const combined = [...savedList, ...recentList];
+        if (live && combined.length > 0) {
+          const mapped: BankAccountItem[] = combined.map(
             (b: any) => ({
-              id: b._id,
+              id: String(b._id || b.id),
               name: b.name,
               bank: b.details?.bankName || "",
               number: b.details?.accountNumber || "",
               country: b.details?.country || "Nigeria",
+              isSaved: Boolean(b.isSaved),
+              isFavorite: Boolean(b.isFavorite),
             }),
           );
           setRecentAccounts(mapped);
@@ -263,7 +270,7 @@ export function BankTransferForm({
     return () => {
       live = false;
     };
-  }, []);
+  }, [initialBeneficiaries]);
 
   const country = COUNTRIES.find((entry) => entry.label === form.country);
   const momo = form.destination === "momo";
@@ -391,18 +398,18 @@ export function BankTransferForm({
         onChange={(destination) => set({ destination })}
       />
 
-      {/* Show recent beneficiaries when account number field is empty */}
+      {/* Show saved beneficiaries & recent accounts when account number field is empty */}
       {!form.account && recentAccounts.length > 0 && !momo && (
         <section className="flex flex-col gap-3">
           <h2 className="text-xs leading-5 font-medium text-jumpa-black">
-            Recent accounts
+            Saved & recent accounts
           </h2>
           <ul className="flex flex-col gap-4 rounded-surface bg-jumpa-primary-50 px-4 py-4">
             {recentAccounts.slice(0, 5).map((entry) => (
               <li key={entry.id}>
                 <OptionRow
                   Icon={CircleInformationIcon}
-                  title={entry.name}
+                  title={`${entry.isFavorite ? "★ " : ""}${entry.name}`}
                   caption={`${entry.bank} - ${entry.number}`}
                   onClick={() => onPickRecent(entry)}
                 />

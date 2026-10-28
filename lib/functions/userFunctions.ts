@@ -187,28 +187,145 @@ export async function deleteUserAndAccountData(userId: string): Promise<void> {
 }
 
 /**
- * Retrieves the user's saved beneficiaries, optionally filtered by type (bank, wallet, jumpa, momo).
+ * Retrieves the user's saved beneficiaries or recents, optionally filtered by type.
  */
 export async function getUserBeneficiaries(
   userId: string,
   type?: BeneficiaryType,
-  limit = 20,
+  savedOnly = true,
+  limit = 10,
 ): Promise<IBeneficiary[]> {
   await connectDB();
   const query: Record<string, any> = { userId };
   if (type) query.type = type;
+  if (savedOnly !== undefined) query.isSaved = savedOnly;
+
+  const sortOrder: Record<string, any> = savedOnly
+    ? { isFavorite: -1, lastUsedAt: -1 }
+    : { lastUsedAt: -1 };
 
   return Beneficiary.find(query)
-    .sort({ lastUsedAt: -1 })
+    .sort(sortOrder)
     .limit(limit)
     .lean<IBeneficiary[]>();
 }
 
 /**
- * Saves or updates a beneficiary for the user upon successful transfer.
- * Upserts by (userId, type, identifier) and bumps lastUsedAt.
+ * Returns both saved beneficiaries and recent transfer history in parallel.
  */
-export async function saveOrUpdateBeneficiary(
+export async function getBeneficiariesAndRecents(
+  userId: string,
+  type?: BeneficiaryType,
+  limit = 10,
+): Promise<{ beneficiaries: IBeneficiary[]; recents: IBeneficiary[] }> {
+  await connectDB();
+  const [beneficiaries, recents] = await Promise.all([
+    getUserBeneficiaries(userId, type, true, limit),
+    getUserBeneficiaries(userId, type, false, limit),
+  ]);
+  return { beneficiaries, recents };
+}
+
+/**
+ * Normalizes a beneficiary identifier appropriately per destination type and blockchain.
+ * - Stellar: 56-character Base32 starting with G. Case-sensitive uppercase.
+ * - Solana: 32-44 character Base58. Case-sensitive (case MUST be preserved).
+ * - Tron: 34-character Base58 starting with T. Case-sensitive (case MUST be preserved).
+ * - EVM: 42-character hex starting with 0x. Case-insensitive (lowercase standard).
+ * - Bank: Digits or "bankCode:accountNumber".
+ */
+export function normalizeBeneficiaryIdentifier(
+  type: BeneficiaryType,
+  identifier: string,
+): string {
+  const trimmed = (identifier || "").trim();
+  if (!trimmed) return "";
+
+  if (type === "bank") {
+    return trimmed;
+  }
+
+  if (type === "wallet") {
+    let addr = trimmed;
+    if (addr.includes(":")) {
+      addr = addr.split(":")[1] || addr;
+    }
+
+    if (
+      (addr.startsWith("G") || addr.startsWith("g")) &&
+      addr.length === 56
+    ) {
+      return addr.toUpperCase();
+    }
+
+    if (addr.startsWith("0x") || addr.startsWith("0X")) {
+      return addr.toLowerCase();
+    }
+
+    return addr;
+  }
+
+  return trimmed.toLowerCase();
+}
+
+/**
+ * Checks if a destination (wallet address or bank account) is already an explicitly saved beneficiary.
+ */
+export async function isExistingSavedBeneficiary(
+  userId: string,
+  type: BeneficiaryType,
+  identifier: string,
+): Promise<boolean> {
+  await connectDB();
+  const cleanId = normalizeBeneficiaryIdentifier(type, identifier);
+  if (!cleanId) return false;
+
+  const escaped = cleanId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  if (type === "wallet") {
+    const exists = await Beneficiary.exists({
+      userId,
+      type: "wallet",
+      isSaved: true,
+      $or: [
+        { identifier: cleanId },
+        { identifier: new RegExp(`^${escaped}$`, "i") },
+        { identifier: new RegExp(`:${escaped}$`, "i") },
+        { "details.walletAddress": new RegExp(`^${escaped}$`, "i") },
+      ],
+    });
+    return Boolean(exists);
+  }
+
+  if (type === "bank") {
+    const acct = cleanId.includes(":") ? cleanId.split(":")[1] : cleanId;
+    const exists = await Beneficiary.exists({
+      userId,
+      type: "bank",
+      isSaved: true,
+      $or: [
+        { identifier: cleanId },
+        { identifier: new RegExp(`${acct}$`, "i") },
+        { "details.accountNumber": acct },
+      ],
+    });
+    return Boolean(exists);
+  }
+
+  const exists = await Beneficiary.exists({
+    userId,
+    type,
+    identifier: new RegExp(`^${escaped}$`, "i"),
+    isSaved: true,
+  });
+  return Boolean(exists);
+}
+
+/**
+ * Automatically records a transfer destination as a "Recent" (isSaved: false).
+ * If it is already a saved beneficiary (isSaved: true), preserves custom name and star.
+ */
+export async function trackRecent(
   userId: string,
   data: {
     type: BeneficiaryType;
@@ -219,30 +336,152 @@ export async function saveOrUpdateBeneficiary(
 ): Promise<IBeneficiary> {
   await connectDB();
 
+  const cleanIdentifier = normalizeBeneficiaryIdentifier(data.type, data.identifier);
+  const escaped = cleanIdentifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const orConditions: any[] = [
+    { identifier: cleanIdentifier },
+    { identifier: new RegExp(`^${escaped}$`, "i") },
+    { identifier: new RegExp(`:${escaped}$`, "i") },
+  ];
+  if (data.type === "wallet") {
+    orConditions.push({ "details.walletAddress": new RegExp(`^${escaped}$`, "i") });
+  } else if (data.type === "bank") {
+    const acct = cleanIdentifier.includes(":") ? cleanIdentifier.split(":")[1] : cleanIdentifier;
+    orConditions.push({ "details.accountNumber": acct });
+  }
+
+  // Prioritize existing saved beneficiary first so custom name is preserved
+  const existing = await Beneficiary.findOne({
+    userId,
+    type: data.type,
+    $or: orConditions,
+  }).sort({ isSaved: -1, lastUsedAt: -1 });
+
+  if (existing) {
+    existing.lastUsedAt = new Date();
+    existing.identifier = cleanIdentifier;
+    if (!existing.isSaved) {
+      existing.name = data.name.trim();
+    }
+    if (data.details) {
+      existing.details = { ...existing.details, ...data.details };
+      if (data.type === "wallet") {
+        existing.details.walletAddress = cleanIdentifier;
+      }
+    }
+    await existing.save();
+
+    // Clean up any stale unmanaged recents with the same identifier if this is a saved beneficiary
+    if (existing.isSaved) {
+      await Beneficiary.deleteMany({
+        _id: { $ne: existing._id },
+        userId,
+        type: data.type,
+        isSaved: false,
+        $or: orConditions,
+      }).catch(() => {});
+    }
+
+    return existing;
+  }
+
+  const newRecent = await Beneficiary.create({
+    userId,
+    type: data.type,
+    identifier: cleanIdentifier,
+    name: data.name.trim(),
+    details: {
+      ...(data.details || {}),
+      ...(data.type === "wallet" ? { walletAddress: cleanIdentifier } : {}),
+    },
+    isSaved: false,
+    isFavorite: false,
+    lastUsedAt: new Date(),
+  });
+
+  return newRecent;
+}
+
+/**
+ * Explicitly saves or upgrades an account or wallet to a proper Beneficiary (isSaved: true).
+ */
+export async function saveBeneficiary(
+  userId: string,
+  data: {
+    type: BeneficiaryType;
+    name: string;
+    identifier: string;
+    details?: IBeneficiary["details"];
+    isFavorite?: boolean;
+  },
+): Promise<IBeneficiary> {
+  await connectDB();
+
+  const cleanIdentifier = normalizeBeneficiaryIdentifier(data.type, data.identifier);
+  const escaped = cleanIdentifier.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  const orConditions: any[] = [
+    { identifier: cleanIdentifier },
+    { identifier: new RegExp(`^${escaped}$`, "i") },
+    { identifier: new RegExp(`:${escaped}$`, "i") },
+  ];
+  if (data.type === "wallet") {
+    orConditions.push({ "details.walletAddress": new RegExp(`^${escaped}$`, "i") });
+  } else if (data.type === "bank") {
+    const acct = cleanIdentifier.includes(":") ? cleanIdentifier.split(":")[1] : cleanIdentifier;
+    orConditions.push({ "details.accountNumber": acct });
+  }
+
   const filter = {
     userId,
     type: data.type,
-    identifier: data.identifier.trim().toLowerCase(),
+    $or: orConditions,
   };
 
-  const update = {
-    $set: {
-      name: data.name.trim(),
-      details: data.details || {},
-      lastUsedAt: new Date(),
-    },
-    $setOnInsert: {
+  let cleanDetails = data.details ? { ...data.details } : undefined;
+  if (data.type === "wallet") {
+    cleanDetails = {
+      ...(cleanDetails || {}),
+      walletAddress: cleanIdentifier,
+    };
+  }
+
+  const existing = await Beneficiary.findOne(filter).sort({ isSaved: -1, lastUsedAt: -1 });
+
+  let doc: IBeneficiary;
+  if (existing) {
+    existing.name = data.name.trim();
+    existing.identifier = cleanIdentifier;
+    existing.isSaved = true;
+    existing.lastUsedAt = new Date();
+    if (cleanDetails) {
+      existing.details = { ...existing.details, ...cleanDetails };
+    }
+    if (data.isFavorite !== undefined) {
+      existing.isFavorite = data.isFavorite;
+    }
+    doc = await existing.save();
+
+    // Clean up any other duplicate recent records
+    await Beneficiary.deleteMany({
+      _id: { $ne: existing._id },
       userId,
       type: data.type,
-      identifier: data.identifier.trim().toLowerCase(),
-    },
-  };
-
-  const doc = await Beneficiary.findOneAndUpdate(filter, update, {
-    upsert: true,
-    returnDocument: "after",
-    setDefaultsOnInsert: true,
-  });
+      $or: orConditions,
+    }).catch(() => {});
+  } else {
+    doc = await Beneficiary.create({
+      userId,
+      type: data.type,
+      identifier: cleanIdentifier,
+      name: data.name.trim(),
+      details: cleanDetails || {},
+      isSaved: true,
+      isFavorite: data.isFavorite ?? false,
+      lastUsedAt: new Date(),
+    });
+  }
 
   logUserActivity({
     userId,
@@ -250,7 +489,8 @@ export async function saveOrUpdateBeneficiary(
     details: {
       type: data.type,
       name: data.name,
-      identifier: data.identifier,
+      identifier: cleanIdentifier,
+      isFavorite: Boolean(data.isFavorite),
     },
   }).catch(() => {});
 
@@ -258,23 +498,137 @@ export async function saveOrUpdateBeneficiary(
 }
 
 /**
- * Deletes a saved beneficiary belonging to the user.
+ * Backward compatibility alias for trackRecent
+ */
+export const saveOrUpdateBeneficiary = trackRecent;
+
+/**
+ * Updates a saved beneficiary's name or favorite status.
+ */
+export async function updateBeneficiary(
+  userId: string,
+  beneficiaryId: string,
+  updates: {
+    name?: string;
+    isFavorite?: boolean;
+  },
+): Promise<IBeneficiary | null> {
+  await connectDB();
+
+  const $set: Record<string, any> = {};
+  if (updates.name !== undefined) $set.name = updates.name.trim();
+  if (updates.isFavorite !== undefined) $set.isFavorite = updates.isFavorite;
+
+  const doc = await Beneficiary.findOneAndUpdate(
+    { _id: beneficiaryId, userId, isSaved: true },
+    { $set },
+    { new: true },
+  );
+
+  if (doc) {
+    logUserActivity({
+      userId,
+      action: "BENEFICIARY_UPDATED",
+      details: { beneficiaryId, ...updates },
+    }).catch(() => {});
+  }
+
+  return doc;
+}
+
+/**
+ * Deletes a saved beneficiary by downgrading it to Recent (Option A).
+ * Removes custom friendly name and isFavorite, keeping past transfer history in recents.
  */
 export async function deleteBeneficiary(
   userId: string,
   beneficiaryId: string,
+  options?: { hard?: boolean },
 ): Promise<boolean> {
   await connectDB();
-  const result = await Beneficiary.deleteOne({ _id: beneficiaryId, userId });
-  const deleted = (result.deletedCount || 0) > 0;
-  if (deleted) {
+
+  if (options?.hard) {
+    const result = await Beneficiary.deleteOne({ _id: beneficiaryId, userId });
+    return (result.deletedCount || 0) > 0;
+  }
+
+  // Downgrade to recent: clear isSaved and isFavorite
+  const result = await Beneficiary.updateOne(
+    { _id: beneficiaryId, userId, isSaved: true },
+    { $set: { isSaved: false, isFavorite: false } },
+  );
+
+  const downgraded = (result.modifiedCount || 0) > 0;
+  if (downgraded) {
     logUserActivity({
       userId,
       action: "BENEFICIARY_DELETED",
-      details: { beneficiaryId },
+      details: { beneficiaryId, downgradedToRecent: true },
     }).catch(() => {});
   }
-  return deleted;
+  return downgraded;
+}
+
+/**
+ * Resolves a contact name or identifier to a saved beneficiary for AI chat routing.
+ */
+export async function findSavedBeneficiaryByName(
+  userId: string,
+  nameOrIdentifier: string,
+  type?: BeneficiaryType,
+): Promise<IBeneficiary | null> {
+  await connectDB();
+  const trimmed = nameOrIdentifier.trim();
+  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const query: Record<string, any> = {
+    userId,
+    isSaved: true,
+    $or: [
+      { name: new RegExp(`^${escaped}$`, "i") },
+      { name: new RegExp(escaped, "i") },
+      { identifier: new RegExp(`^${escaped}$`, "i") },
+    ],
+  };
+  if (type) query.type = type;
+
+  const doc = await Beneficiary.findOne(query).sort({ isFavorite: -1, lastUsedAt: -1 });
+
+  if (doc && doc.type === "wallet") {
+    // Auto-repair Stellar public key casing if stored lowercase
+    const rawAddr =
+      doc.details?.walletAddress ||
+      (doc.identifier.includes(":") ? doc.identifier.split(":")[1] : doc.identifier);
+
+    if (rawAddr && (rawAddr.startsWith("g") || rawAddr.startsWith("G")) && rawAddr.length === 56) {
+      const upperAddr = rawAddr.toUpperCase();
+      let changed = false;
+
+      if (doc.identifier.includes(":")) {
+        const chain = doc.identifier.split(":")[0];
+        if (doc.identifier !== `${chain}:${upperAddr}`) {
+          doc.identifier = `${chain}:${upperAddr}`;
+          changed = true;
+        }
+      } else if (doc.identifier !== upperAddr) {
+        doc.identifier = upperAddr;
+        changed = true;
+      }
+
+      if (!doc.details) {
+        doc.details = { walletAddress: upperAddr, chain: "stellar" };
+        changed = true;
+      } else if (doc.details.walletAddress !== upperAddr) {
+        doc.details.walletAddress = upperAddr;
+        changed = true;
+      }
+
+      if (changed) {
+        doc.save().catch(() => {});
+      }
+    }
+  }
+
+  return doc;
 }
 
 /**

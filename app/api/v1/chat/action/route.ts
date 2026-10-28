@@ -14,7 +14,7 @@ import {
 } from "@/lib/functions/chatFunctions";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
-import { logUserActivity } from "@/lib/functions/userFunctions";
+import { logUserActivity, isExistingSavedBeneficiary } from "@/lib/functions/userFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
 import {
@@ -287,10 +287,39 @@ export async function POST(req: NextRequest) {
                   ? `✓ Withdrawal processing for ${effectiveCardData?.bankName || txParams?.bankName || "bank"}`
                   : `✓ Transfer successful`;
 
+    // Check if recipient is already a saved beneficiary; if not, ask the user if they'd like to save it
+    let beneficiaryPrompt = "";
+    if (cardType === "offramp") {
+      const accountNumber =
+        effectiveCardData?.accountNumber || txParams?.accountNumber || "";
+      const isSaved = await isExistingSavedBeneficiary(userId, "bank", accountNumber);
+      if (!isSaved && accountNumber) {
+        const displayName =
+          effectiveCardData?.accountName ||
+          txParams?.holderName ||
+          txParams?.accountName ||
+          effectiveCardData?.bankName ||
+          "bank account";
+        beneficiaryPrompt = `\n\nWould you like to save this bank account (${displayName}) as a beneficiary so you can easily send money to them in the future?`;
+      }
+    } else if (cardType === "transfer") {
+      const recipient = String(txParams?.recipient || "").trim();
+      const isSaved = await isExistingSavedBeneficiary(userId, "wallet", recipient);
+      if (!isSaved && recipient) {
+        const shortAddr =
+          recipient.length > 10
+            ? `${recipient.slice(0, 4)}...${recipient.slice(-4)}`
+            : recipient;
+        beneficiaryPrompt = `\n\nWould you like to save this wallet address (${shortAddr}) as a beneficiary so you can easily send money to them in the future?`;
+      }
+    }
+
     const receiptMsg: IChatMessage = {
       id: generateId("msg"),
       role: "assistant",
-      content: executionResult.assistantSummary || defaultReceiptContent,
+      content:
+        (executionResult.assistantSummary || defaultReceiptContent) +
+        beneficiaryPrompt,
       isTransaction: true,
       cardType: "receipt",
       status: cardType === "offramp" ? "pending" : "confirmed",

@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { type ReactNode, useEffect } from "react";
 import { APP_COLUMN_ID } from "@/hooks/use-popover-boundary";
 import { recordVisit } from "@/lib/nav-history";
+import { forceReleaseScrollLock } from "@/hooks/use-scroll-lock";
 
 /**
  * The centred column every screen sits in, plus the fade between screens. Keying
@@ -22,7 +23,11 @@ export function AppColumn({ children }: { children: ReactNode }) {
 
   // Every screen passes through here, so this is where a back arrow learns
   // whether there is an in-app screen behind it.
-  useEffect(() => recordVisit(pathname), [pathname]);
+  useEffect(() => {
+    recordVisit(pathname);
+    // Release any lingering scroll locks when navigating between pages
+    forceReleaseScrollLock();
+  }, [pathname]);
 
   return (
     <div

@@ -22,6 +22,8 @@ const VARIANTS = {
   softStrong: "bg-jumpa-primary-50 text-jumpa-primary-950 font-bold",
   /** Purple label on a deeper tint, before a form has what it needs. */
   softBrand: "bg-jumpa-primary-100 text-jumpa-primary-600 font-semibold",
+  /** Solid purple with the lime label — Edit Profile, KYC tiers. */
+  brandAccent: "bg-jumpa-primary-600 text-jumpa-alt-400 font-semibold",
   /** Quiet second action under a CTA — purple label, no shape of its own. */
   plain: "text-jumpa-primary-525 font-medium",
   /** Irreversible action — deleting an account. */

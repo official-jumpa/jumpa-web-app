@@ -84,6 +84,7 @@
   --color-jumpa-secondary-200: #ecd4ff; /* placeholder inside a transfer field */
   --color-jumpa-secondary-300: #ddb2ff; /* balance line on the amount screen */
   --color-jumpa-grey-100: #f1f2f4; /* transfer field border */
+  --color-jumpa-slate-500: #6d739b; /* option captions in the auto-lock sheet */
   --color-jumpa-slate-600: #545367; /* amount and asset text on the Jumpa send screens */
   --color-jumpa-grey-450: #898a8d; /* inactive tab in the asset picker */
 
@@ -111,6 +112,7 @@
   --color-jumpa-surface-faq: #f6f1ff; /* FAQ band on phones */
   --color-jumpa-lavender-200: #e6dcf5; /* hero badge, security card strokes */
   --color-jumpa-lavender-250: #e5dbff; /* hero badge on phones, FAQ rules */
+  --color-jumpa-lavender-275: #d9c8f5; /* device sign-out pill, auto-lock radio */
   --color-jumpa-lavender-300: #d3bffc; /* PIN preview shadow */
   --color-jumpa-lavender-500: #9f9fc5; /* testimonial roles */
   --color-jumpa-sand: #e6d9d0; /* testimonial screenshot ground */
@@ -133,6 +135,10 @@
   --color-jumpa-warning-50: #fff5e6; /* caution ground */
   --color-jumpa-success: #11a929; /* positive 24h change on an asset card */
   --color-jumpa-pin-rule: #193d26; /* slot underline in the chat PIN sheet */
+  --color-jumpa-success-50: #e7f8ee; /* "Done" pill on the KYC tier cards */
+  --color-jumpa-success-700: #15803d; /* "Done" pill label */
+  --color-jumpa-tier-track: #5b2fa0; /* unfilled segment of the KYC tier meter */
+  --color-jumpa-avatar: #f9b4c8; /* edit-profile avatar disc */
 
   /* Typography. Geist at every size — the face the Figma file specifies.
      `display` and `numeric` still stand in for Gotham Ultra and Neue Montreal,
@@ -162,6 +168,7 @@
   --radius-tile: 10px; /* inner surface of an inset card */
   --radius-panel: 16px; /* PIN box, backup option rows */
   --radius-card: 18px;
+  --radius-row: 20px; /* device cards */
   --radius-surface: 22px; /* every surface in the chat thread, plus the composer and its suggestion card */
   --radius-dock: 32px; /* chat composer dock and its suggestion card */
   --radius-key: 24px; /* keypad keys */

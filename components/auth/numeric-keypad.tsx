@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { BackspaceIcon } from "@/components/ui/icons/backspace";
 import { triggerHaptic } from "@/lib/haptics";
 
@@ -20,6 +21,7 @@ export function NumericKeypad({
   disabled,
   className,
   withDecimal = false,
+  leftKey,
 }: {
   onDigit: (digit: string) => void;
   onBackspace: () => void;
@@ -29,6 +31,8 @@ export function NumericKeypad({
   className?: string;
   /** Show a decimal point (.) in the bottom-left position */
   withDecimal?: boolean;
+  /** Fills the bottom-left cell when there is no decimal point, e.g. a biometric key. */
+  leftKey?: ReactNode;
 }) {
   const keys = [
     "1",
@@ -50,7 +54,9 @@ export function NumericKeypad({
       <div className="grid h-69.5 grid-cols-3 grid-rows-4 gap-x-3 gap-y-2.5">
         {keys.map((key, index) =>
           key === "" ? (
-            <span key={`blank-${index}`} />
+            <span key={`blank-${index}`} className="flex items-center justify-center">
+              {leftKey}
+            </span>
           ) : key === "del" ? (
             <button
               key={key}

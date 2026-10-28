@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/auth/copy-button";
 import { JumpaTagForm } from "@/components/auth/jumpa-tag-form";
 import { EditNicknameSheet } from "@/components/profile/edit-nickname-sheet";
+import { SettingsGearLink } from "@/components/profile/settings-gear-link";
 import { SheetPortal } from "@/components/ui/sheet-portal";
 import {
   SettingAction,
@@ -21,14 +22,17 @@ import {
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { CornerUpRightIcon } from "@/components/ui/icons/corner-up-right";
-import { GearIcon } from "@/components/ui/icons/gear";
-import { HeartAltIcon } from "@/components/ui/icons/heart-alt";
+import { GlobeIcon } from "@/components/ui/icons/globe";
 import { PartyBellIcon } from "@/components/ui/icons/party-bell";
+import { PenLineIcon } from "@/components/ui/icons/pen-line";
+import { PhoneIcon } from "@/components/ui/icons/phone";
+import { ShieldUserIcon } from "@/components/ui/icons/shield-user";
 import { TagsIcon } from "@/components/ui/icons/tags";
-import { UserAlt1Icon } from "@/components/ui/icons/user-alt-1";
 import { UsersIcon } from "@/components/ui/icons/users";
-import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
+import { VerifiedFilledIcon } from "@/components/ui/icons/verified-filled";
 import { getAssetLogo } from "@/lib/assets";
+import { getCanonicalCountryName } from "@/lib/countries";
+import { profileHref } from "@/lib/profile";
 import { useAuthContext } from "@/components/auth/AuthGuard";
 import { useUserProfile } from "@/components/profile/user-profile-provider";
 import { ACCOUNT } from "@/lib/wallet";
@@ -134,8 +138,8 @@ export function ProfileView({
     currentNickname || profile?.name || user?.name || profile?.jumpaTag || user?.jumpaTag || ACCOUNT.firstName;
   const displayEmail = profile?.email || user?.email || "";
   const currentTag = profile?.jumpaTag || user?.jumpaTag || null;
-  const jumpaTag = currentTag || "user@jumpa";
   const referralCode = (user?.referralCode || "JUMPA").toUpperCase();
+  const country = getCanonicalCountryName(user?.country);
 
   const handleSaveNickname = async (nextNickname: string) => {
     await updateProfile({ nickname: nextNickname });
@@ -165,20 +169,11 @@ export function ProfileView({
       <SettingsHeader
         back="/home"
         title="Your Profile"
-        action={
-          <Link
-            prefetch={false}
-            href="/profile/settings"
-            aria-label="Settings"
-            className="flex size-11 items-center justify-center rounded-pill bg-jumpa-neutral-50 text-jumpa-primary-950 tap active:scale-95"
-          >
-            <GearIcon className="size-6" />
-          </Link>
-        }
+        action={<SettingsGearLink />}
       />
 
-      <div className="mt-7.25 flex flex-col items-center">
-        <span className="relative">
+      <div className="mt-5.25 flex items-start">
+        <span className="relative size-20 shrink-0">
           <Image
             src={user?.image || ACCOUNT.avatar}
             alt=""
@@ -186,59 +181,75 @@ export function ProfileView({
             height={160}
             className="size-20 rounded-full object-cover"
           />
-          {/* The tick is a verification mark, so it follows KYC, not a flag. */}
+          {/* TODO(backend): read the account's tier; KYC status stands in for it. */}
+          <span className="absolute top-2 left-15 flex h-4.25 items-center whitespace-nowrap rounded-pill border-[1.2px] border-jumpa-white bg-jumpa-alt-400 pr-3 pl-2 text-[8px] leading-none font-semibold text-jumpa-ink">
+            Tier {kycVerified ? 2 : 1}
+          </span>
+        </span>
+
+        <span className="mt-3.25 ml-5.5 flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-base leading-4 font-semibold tracking-jumpa-snug text-jumpa-black">
+            {displayName}
+          </span>
+          <span className="mt-1.5 truncate text-xs leading-3 font-medium tracking-jumpa-snug text-jumpa-grey-450">
+            {displayEmail}
+          </span>
           {kycVerified ? (
-            <VerifiedBadgeIcon className="absolute -top-0.5 -right-0.5 size-5.5" />
+            <span className="mt-1 flex items-center gap-0.5 text-[10px] leading-4 font-medium text-jumpa-success">
+              <VerifiedFilledIcon className="size-3" />
+              KYC Verified
+            </span>
           ) : null}
         </span>
 
-        <p className="mt-3.75 text-sm leading-4 font-semibold text-jumpa-black">
-          {displayName}
-        </p>
-        <p className="mt-2 text-[10px] leading-3 font-medium text-jumpa-primary-600">
-          {displayEmail}
-        </p>
-      </div>
-
-      {kycVerified ? (
-        <div className="mt-6 flex items-center gap-1.5 rounded-xl border-[1.5px] border-jumpa-primary-50 bg-jumpa-neutral-50 px-3.25 py-3">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-pill bg-jumpa-primary-600 text-jumpa-white">
-            <UserAlt1Icon className="size-5" />
-          </span>
-          <span className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="text-sm leading-4 font-semibold text-jumpa-primary-950">
-              KYC Complete
-            </span>
-            <span className="text-[11px] leading-3.25 text-jumpa-neutral-350">
-              Your identity has been verified
-            </span>
-          </span>
-        </div>
-      ) : (
         <Link
           prefetch={false}
-          href="/kyc"
-          className="mt-6 flex items-center gap-1.5 rounded-xl border-[1.5px] border-jumpa-primary-50 bg-jumpa-neutral-50 px-3.25 py-4 tap active:scale-[0.99]"
+          href={profileHref("edit")}
+          className="mt-2 flex h-5.75 w-14 shrink-0 items-center gap-0.75 rounded-row bg-jumpa-surface pl-2.5 text-xs leading-3 font-medium tracking-jumpa text-jumpa-grey-450 tap active:scale-95"
         >
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-pill bg-jumpa-primary-600 text-jumpa-white">
-            <UserAlt1Icon className="size-6" />
-          </span>
-          <span className="flex min-w-0 flex-1 flex-col gap-1">
-            <span className="text-sm leading-4 font-semibold text-jumpa-primary-950">
-              Complete your KYC
-            </span>
-            <span className="text-[10px] leading-3.25 text-jumpa-neutral-350">
-              Verify your identity to unlock all features and keep your account
-              secure
-            </span>
-          </span>
-          <CornerUpRightIcon className="size-6 shrink-0 text-jumpa-primary-950" />
+          <PenLineIcon className="size-2.75" />
+          Edit
         </Link>
-      )}
+      </div>
 
-      <div className="mt-4.25 flex flex-col gap-4">
-        <SettingSection label="Your wallet Information">
+      <Link
+        prefetch={false}
+        href={kycVerified ? profileHref("tiers") : "/kyc"}
+        className="mt-5 flex h-20 items-center gap-2.5 rounded-xl border-[1.5px] border-jumpa-primary-50 bg-jumpa-neutral-50 pr-3.5 pl-3.5 tap active:scale-[0.99]"
+      >
+        <ShieldUserIcon className="h-11 w-9.75 shrink-0" />
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="text-xs font-semibold tracking-[-0.04em] text-jumpa-primary-950">
+            {kycVerified ? "KYC Complete" : "Complete your KYC"}
+          </span>
+          <span className="max-w-59 text-[11px] font-medium tracking-[-0.05em] text-jumpa-neutral-300">
+            {kycVerified
+              ? "Your identity is verified. See what your tier unlocks."
+              : "Verify your identity to unlock all features and keep your account secure."}
+          </span>
+        </span>
+        <CornerUpRightIcon className="size-6 shrink-0 text-jumpa-primary-950" />
+      </Link>
+
+      <div className="mt-4 flex flex-col gap-4">
+        <SettingSection label="Your profile Information">
           <SettingCard className="pb-4">
+            {country ? (
+              <>
+                <SettingRow icon={GlobeIcon} label="Country" value={country} />
+                <SettingRule />
+              </>
+            ) : null}
+            {user?.phoneNumber ? (
+              <>
+                <SettingRow
+                  icon={PhoneIcon}
+                  label="Phone Number"
+                  value={user.phoneNumber}
+                />
+                <SettingRule />
+              </>
+            ) : null}
             {currentTag ? (
               <SettingRow
                 icon={TagsIcon}
@@ -255,15 +266,17 @@ export function ProfileView({
               />
             )}
             <SettingRule />
-
             <SettingAction
               icon={TagsIcon}
               label="Nickname"
               value={currentNickname || "Tap to set"}
               onClick={() => setEditingNickname(true)}
             />
-            <SettingRule />
+          </SettingCard>
+        </SettingSection>
 
+        <SettingSection label="Your wallet Information">
+          <SettingCard>
             {/* Default Stellar Address */}
             <SettingRow
               icon={
@@ -361,11 +374,7 @@ export function ProfileView({
                 )}
               </>
             )}
-          </SettingCard>
-        </SettingSection>
-
-        <SettingSection label="Referral Information">
-          <SettingCard>
+            <SettingRule />
             <SettingRow
               icon={UsersIcon}
               label="Your Referral Code"
@@ -378,12 +387,6 @@ export function ProfileView({
               icon={PartyBellIcon}
               label="Invite friends to Jumpa and earn rewards"
               brand
-            />
-            <SettingRule />
-            <SettingLink
-              href="/support"
-              icon={HeartAltIcon}
-              label="Help & Support"
             />
           </SettingCard>
         </SettingSection>

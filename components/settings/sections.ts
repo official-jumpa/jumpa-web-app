@@ -17,6 +17,7 @@ export const SETTINGS_SECTIONS = {
     parent: "security",
   },
   devices: { title: "Your Devices", parent: "security" },
+  signout: { title: "Signout from this device", parent: "devices" },
   "private-key": { title: "Export Private key", parent: "security" },
   "seed-phrase": { title: "Export Seed Phrase", parent: "security" },
 } as const satisfies Record<

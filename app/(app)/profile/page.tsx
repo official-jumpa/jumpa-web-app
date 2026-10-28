@@ -1,4 +1,8 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { EditProfile } from "@/components/profile/edit-profile";
+import { KycTiers } from "@/components/profile/kyc-tiers";
+import { getCanonicalCountryName } from "@/lib/countries";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import { getUserById } from "@/lib/functions/userFunctions";
 import {
@@ -7,12 +11,24 @@ import {
 } from "@/lib/functions/walletFunctions";
 import { getKycRecordByUserId } from "@/lib/functions/kycFunctions";
 import { ProfileView } from "@/components/profile/profile-view";
+import { isProfileView, PROFILE_VIEWS } from "@/lib/profile";
 
-export const metadata: Metadata = {
-  title: "Profile",
-};
+interface ProfilePageProps {
+  searchParams: Promise<{ view?: string }>;
+}
 
-export default async function ProfilePage() {
+export async function generateMetadata({
+  searchParams,
+}: ProfilePageProps): Promise<Metadata> {
+  const { view } = await searchParams;
+  if (view && isProfileView(view)) return { title: PROFILE_VIEWS[view].title };
+  return { title: "Profile" };
+}
+
+export default async function ProfilePage({ searchParams }: ProfilePageProps) {
+  const { view } = await searchParams;
+  if (view && !isProfileView(view)) notFound();
+
   let initialUser: any = null;
   let initialWalletAddresses: {
     xlm?: string;
@@ -40,9 +56,12 @@ export default async function ProfilePage() {
           kyc?.stage === "completed",
       );
 
-      const wallet = user?.activeWalletId
-        ? await findWalletById(user.activeWalletId)
-        : await findWalletForUser(session.user.id);
+      // Only the profile itself shows the wallet.
+      const wallet = view
+        ? null
+        : user?.activeWalletId
+          ? await findWalletById(user.activeWalletId)
+          : await findWalletForUser(session.user.id);
 
       if (wallet) {
         if (wallet.addresses && Object.keys(wallet.addresses).length > 0) {
@@ -55,6 +74,22 @@ export default async function ProfilePage() {
   } catch (err) {
     console.warn("[ProfilePage SSR] Prefetch fallback:", err);
   }
+
+  if (view === "edit") {
+    return (
+      <EditProfile
+        name={initialUser?.name ?? null}
+        nickname={initialUser?.nickname ?? null}
+        country={
+          getCanonicalCountryName(initialUser?.country) ??
+          initialUser?.country ??
+          null
+        }
+        image={initialUser?.image ?? null}
+      />
+    );
+  }
+  if (view === "tiers") return <KycTiers kycVerified={initialKycVerified} />;
 
   return (
     <ProfileView

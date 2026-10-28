@@ -11,6 +11,7 @@ import { SecuritySettings } from "@/components/settings/security-settings";
 import { DevicesSettings } from "@/components/settings/devices-settings";
 import { ExportSecret } from "@/components/settings/export-secret";
 import { SettingsIndex } from "@/components/settings/settings-index";
+import { SignoutDevice } from "@/components/settings/signout-device";
 import { StatementForm } from "@/components/settings/statement-form";
 import { isPinFlow } from "@/lib/pin-flows";
 import {
@@ -49,6 +50,7 @@ export default async function SettingsPage({
 
   if (section === "security") return <SecuritySettings />;
   if (section === "devices") return <DevicesSettings />;
+  if (section === "signout") return <SignoutDevice />;
   if (section === "notifications") {
     let initialPreferences;
     try {

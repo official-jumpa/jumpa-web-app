@@ -79,7 +79,7 @@ export function BottomNav() {
     (pathname === "/transactions" &&
       !searchParams?.get("id") &&
       !searchParams?.get("statement")) ||
-    pathname === "/profile";
+    (pathname === "/profile" && !searchParams?.get("view"));
 
   if (!isTabRoute) {
     return null;

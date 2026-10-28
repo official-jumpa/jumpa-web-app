@@ -5,8 +5,15 @@ import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { executeBridge } from "@/lib/execution/bridge-execute";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { createNotification } from "@/lib/functions/notificationFunctions";
-import { logUserActivity } from "@/lib/functions/userFunctions";
+import { bridgeExecuteSchema } from "@/lib/validations/bridge.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
+/**
+ * POST /api/v1/bridge/execute
+ * Authenticates PIN, enforces daily transaction limits, initiates cross-chain bridge,
+ * and spins up background attestation & relay pipeline.
+ */
 export async function POST(req: NextRequest) {
   try {
     const authResult = await requireActiveUser({
@@ -16,6 +23,13 @@ export async function POST(req: NextRequest) {
     const session = authResult.session;
 
     const body = await req.json().catch(() => ({}));
+    const validation = bridgeExecuteSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), {
+        status: 400,
+      });
+    }
+
     const {
       pin,
       fromChain,
@@ -26,42 +40,35 @@ export async function POST(req: NextRequest) {
       transferType = "fast",
       fee = "0.00",
       networkFee,
-    } = body;
-
-    if (!pin || typeof pin !== "string") {
-      return NextResponse.json({ error: "PIN is required" }, { status: 400 });
-    }
-    if (!amount || parseFloat(amount) <= 0) {
-      return NextResponse.json({ error: "Invalid bridge amount" }, { status: 400 });
-    }
-    if (!recipientAddress) {
-      return NextResponse.json({ error: "Recipient address is required" }, { status: 400 });
-    }
+    } = validation.data;
 
     const userId = session.user.id;
     const wallet = await findWalletForUser(userId);
 
     if (!wallet) {
-      return NextResponse.json({ error: "Wallet not found" }, { status: 404 });
+      return NextResponse.json(
+        { success: false, error: "Wallet not found" },
+        { status: 404 },
+      );
     }
 
-    // Verify PIN
+    // Verify PIN with lockout protection
     const pinResult = await verifyWalletPin(wallet, pin, { userId });
     if (!pinResult.ok) {
       return NextResponse.json(
-        { error: pinResult.error },
+        { success: false, error: pinResult.error },
         { status: pinResult.status },
       );
     }
 
-    // Execute bridge transaction
+    // Execute bridge transaction pipeline (enforces daily limit and dispatches to chain)
     const result = await executeBridge({
       wallet,
       pin,
       fromChain,
       toChain,
       amount,
-      toAmount,
+      toAmount: toAmount || amount,
       recipientAddress,
       transferType,
       fee,
@@ -70,23 +77,28 @@ export async function POST(req: NextRequest) {
     });
 
     if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: result.status });
+      console.error(
+        `[Bridge] Execution failed | Status: ${result.status} | Details: ${formatOneLineError(result.error)}`,
+      );
+      return NextResponse.json(
+        { success: false, error: result.error },
+        { status: result.status },
+      );
     }
 
     // Invalidate cached balances
     invalidateBalanceCache(userId);
 
-    // Create user notification asynchronously in background
+    // Create user notification in background
     createNotification({
       userId,
       tab: "transactions",
-      title: "Bridge Transfer Initiated",
+      title: "Bridge Initiated",
       body: `Bridging ${amount} USDC from ${result.fromChain} to ${result.toChain}.`,
       type: "BRIDGE_INITIATED",
     }).catch(() => null);
 
-    return NextResponse.json({
-      success: true,
+    const dataPayload = {
       txHash: result.txHash,
       explorerUrl: result.explorerUrl,
       fromChain: result.fromChain,
@@ -95,10 +107,18 @@ export async function POST(req: NextRequest) {
       receivedAmount: result.receivedAmount,
       recipientAddress: result.recipientAddress,
       status: result.status,
+    };
+
+    return NextResponse.json({
+      success: true,
+      data: dataPayload,
     });
   } catch (error: any) {
+    console.error(
+      `[Bridge] Execution error | Details: ${formatOneLineError(error)}`,
+    );
     return NextResponse.json(
-      { error: error?.message || "Failed to execute bridge transfer" },
+      { success: false, error: error?.message || "Failed to execute bridge transfer" },
       { status: 500 },
     );
   }

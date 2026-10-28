@@ -4,6 +4,7 @@ import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { PinForm } from "@/components/auth/pin-form";
 import { pageMetadata } from "@/lib/seo";
 import { SIGN_UP_FLOW } from "@/lib/sign-up";
+import { guardAuthPage } from "@/lib/auth/auth-page-guard";
 
 export const metadata: Metadata = pageMetadata({
   title: "Set transaction PIN",
@@ -13,7 +14,9 @@ export const metadata: Metadata = pageMetadata({
   noIndex: true,
 });
 
-export default function SetPinPage() {
+export default async function SetPinPage() {
+  await guardAuthPage({ step: "pin" });
+
   return (
     <AuthScreen
       header={<AuthHeader backHref={SIGN_UP_FLOW.confirmPassword} />}

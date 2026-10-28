@@ -5,6 +5,7 @@ import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { Button } from "@/components/ui/button";
 import { pageMetadata } from "@/lib/seo";
+import { guardAuthPage } from "@/lib/auth/auth-page-guard";
 
 export const metadata: Metadata = pageMetadata({
   title: "Turn on biometrics",
@@ -14,7 +15,9 @@ export const metadata: Metadata = pageMetadata({
   noIndex: true,
 });
 
-export default function BiometricsPage() {
+export default async function BiometricsPage() {
+  await guardAuthPage({ step: "biometrics" });
+
   return (
     <AuthScreen
       header={

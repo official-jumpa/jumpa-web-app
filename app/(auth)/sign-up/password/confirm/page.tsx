@@ -4,6 +4,7 @@ import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { LoginPasswordForm } from "@/components/auth/login-password-form";
 import { pageMetadata } from "@/lib/seo";
 import { SIGN_UP_FLOW } from "@/lib/sign-up";
+import { guardAuthPage } from "@/lib/auth/auth-page-guard";
 
 export const metadata: Metadata = pageMetadata({
   title: "Confirm login password",
@@ -13,7 +14,9 @@ export const metadata: Metadata = pageMetadata({
   noIndex: true,
 });
 
-export default function ConfirmLoginPasswordPage() {
+export default async function ConfirmLoginPasswordPage() {
+  await guardAuthPage({ step: "password-confirm" });
+
   return (
     <AuthScreen
       header={<AuthHeader backHref={SIGN_UP_FLOW.password} />}

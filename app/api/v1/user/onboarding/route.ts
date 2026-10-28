@@ -14,12 +14,10 @@ export function resolveNextOnboardingRoute(user: any, wallet: any): string {
   const hasPhone = Boolean(user?.phoneNumberVerified || user?.phoneSkipped);
   const hasPassword = Boolean(user?.loginPasswordHash);
   const hasPin = Boolean(wallet?.pinHash);
-  const needsPinMigration = Boolean(wallet && wallet.pinVersion === "v1");
 
   if (!hasPhone) return "/sign-up/phone";
   if (!hasPassword) return "/sign-up/password";
   if (!hasPin) return "/sign-up/pin";
-  if (needsPinMigration) return "/migrate-pin";
   return "/home";
 }
 
@@ -31,7 +29,6 @@ export function resolveNextOnboardingRoute(user: any, wallet: any): string {
  * - hasPassword: 6-digit login password set
  * - hasTag: Unique Jumpa handle chosen
  * - hasPin: 4-digit transaction PIN set on wallet
- * - needsPinMigration: Legacy v1 PIN needs upgrade to v3
  * - nextRoute: Next destination route for guards and signup flow
  * - isComplete: All required steps finished
  */
@@ -52,7 +49,6 @@ export async function GET(req: NextRequest) {
     const hasPassword = Boolean(user?.loginPasswordHash);
     const hasTag = Boolean(user?.jumpaTag);
     const hasPin = Boolean(wallet?.pinHash);
-    const needsPinMigration = Boolean(wallet && wallet.pinVersion === "v1");
     const nextRoute = resolveNextOnboardingRoute(user, wallet);
 
     return NextResponse.json({
@@ -62,13 +58,12 @@ export async function GET(req: NextRequest) {
         hasPassword,
         hasTag,
         hasPin,
-        needsPinMigration,
         isV3Wallet: Boolean(wallet && wallet.pinVersion === "v3"),
         nextRoute,
         userStatus: user?.status || "active",
         nickname: user?.nickname ?? null,
         jumpaTag: user?.jumpaTag ?? null,
-        isComplete: hasPhone && hasPassword && hasPin && !needsPinMigration,
+        isComplete: hasPhone && hasPassword && hasPin,
       },
     });
   } catch (err: any) {

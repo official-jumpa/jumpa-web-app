@@ -20,6 +20,8 @@ const VARIANTS = {
   soft: "bg-jumpa-primary-50 text-jumpa-primary-400 font-semibold",
   /** Tinted secondary action that is available, e.g. "i'll do this later". */
   softStrong: "bg-jumpa-primary-50 text-jumpa-primary-950 font-bold",
+  /** Purple label on a deeper tint, before a form has what it needs. */
+  softBrand: "bg-jumpa-primary-100 text-jumpa-primary-600 font-semibold",
   /** Quiet second action under a CTA — purple label, no shape of its own. */
   plain: "text-jumpa-primary-525 font-medium",
   /** Irreversible action — deleting an account. */

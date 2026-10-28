@@ -84,6 +84,8 @@
   --color-jumpa-secondary-200: #ecd4ff; /* placeholder inside a transfer field */
   --color-jumpa-secondary-300: #ddb2ff; /* balance line on the amount screen */
   --color-jumpa-grey-100: #f1f2f4; /* transfer field border */
+  --color-jumpa-slate-600: #545367; /* amount and asset text on the Jumpa send screens */
+  --color-jumpa-grey-450: #898a8d; /* inactive tab in the asset picker */
 
   /* Semantic */
   --color-jumpa-verified: #47c2ff;

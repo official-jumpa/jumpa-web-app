@@ -2,6 +2,11 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { CornerUpLeftIcon } from "@/components/ui/icons/corner-up-left";
 
+const TITLE = {
+  md: "text-base leading-4.5",
+  lg: "text-lg leading-4 tracking-jumpa-snug",
+} as const;
+
 const CONTROL =
   "flex size-11 items-center justify-center rounded-pill bg-jumpa-neutral-50 text-jumpa-primary-950 tap active:scale-95";
 
@@ -11,6 +16,7 @@ export function SettingsHeader({
   onBack,
   title,
   action,
+  size = "md",
 }: {
   /** Where the arrow goes. Omit it when the screen steps back in its own state. */
   back?: string;
@@ -18,6 +24,8 @@ export function SettingsHeader({
   onBack?: () => void;
   title: string;
   action?: ReactNode;
+  /** `lg` is the 18px title the send and profile screens draw. */
+  size?: keyof typeof TITLE;
 }) {
   return (
     <header className="relative flex h-11 items-center justify-between">
@@ -41,7 +49,9 @@ export function SettingsHeader({
         </Link>
       )}
 
-      <h1 className="pointer-events-none absolute inset-x-11 text-center text-base leading-4.5 font-medium text-jumpa-black">
+      <h1
+        className={`pointer-events-none absolute inset-x-11 text-center font-medium text-jumpa-black ${TITLE[size]}`}
+      >
         {title}
       </h1>
 

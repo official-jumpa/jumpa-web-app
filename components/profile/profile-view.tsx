@@ -179,6 +179,8 @@ export function ProfileView({
             alt=""
             width={160}
             height={160}
+            priority
+            unoptimized
             className="size-20 rounded-full object-cover"
           />
           {/* TODO(backend): read the account's tier; KYC status stands in for it. */}

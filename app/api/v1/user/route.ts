@@ -126,6 +126,15 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const body = await req.json().catch(() => ({}));
+
+    // Enforce that country cannot be modified
+    if (body.country !== undefined || body.profile?.country !== undefined) {
+      return NextResponse.json(
+        { success: false, error: "Country cannot be modified" },
+        { status: 400 },
+      );
+    }
+
     const validation = updateUserSchema.safeParse(body);
     if (!validation.success) {
       return NextResponse.json(formatZodError(validation.error), {
@@ -140,7 +149,6 @@ export async function PATCH(req: NextRequest) {
     const profileKeys = [
       "nickname",
       "jumpaTag",
-      "country",
       "image",
     ] as const;
 

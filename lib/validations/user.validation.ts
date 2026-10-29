@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { getCanonicalCountryName } from "@/lib/countries";
 
 /**
  * Validates a 4-digit numeric transaction PIN.
@@ -56,11 +55,8 @@ export const updateProfileSchema = z.object({
     })
     .optional(),
   country: z
-    .string()
-    .trim()
-    .transform((v) => getCanonicalCountryName(v))
-    .refine((v): v is string => v !== null, {
-      message: "Please enter a valid country name",
+    .never({
+      message: "Country cannot be modified",
     })
     .optional(),
   image: z.string().url("Image must be a valid URL").optional(),

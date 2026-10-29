@@ -13,6 +13,7 @@ export type ExternalProvider =
   | "Bills"
   | "Bridge"
   | "CircleIris"
+  | "VercyStorage"
   | "Generic";
 
 export interface SafeFetchOptions {
@@ -77,6 +78,32 @@ export function isTimeoutError(err: any): boolean {
     String(err?.message || "").toLowerCase().includes("timeout") ||
     String(err?.message || "").toLowerCase().includes("aborted")
   );
+}
+
+/**
+ * Executes an async operation with an automatic timeout rejection.
+ * Useful for SDK wrappers and 3rd-party library calls where AbortSignal is not accepted natively.
+ */
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs = 15000,
+  operationName = "Operation"
+): Promise<T> {
+  let timer: NodeJS.Timeout | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const err: any = new Error(`${operationName} timed out after ${timeoutMs}ms`);
+      err.name = "TimeoutError";
+      err.code = "ETIMEDOUT";
+      reject(err);
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /**

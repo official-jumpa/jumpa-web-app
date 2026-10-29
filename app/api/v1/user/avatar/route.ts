@@ -1,4 +1,4 @@
-import { createFolder, del, put } from "@vercy/storage";
+import { del, put } from "@vercy/storage";
 import { type NextRequest, NextResponse } from "next/server";
 import { auth as authInstance } from "@/lib/auth";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
@@ -9,7 +9,11 @@ import {
   MAX_AVATAR_BYTES,
 } from "@/lib/profile-photo";
 import { generateId } from "@/lib/schema-ids";
-import { formatOneLineError } from "@/lib/utils/api-best-practices";
+import {
+  formatOneLineError,
+  handleExternalApiError,
+  withTimeout,
+} from "@/lib/utils/api-best-practices";
 
 export const dynamic = "force-dynamic";
 
@@ -41,19 +45,25 @@ export async function POST(req: NextRequest) {
   try {
     const previous = (await getUserById(auth.userId))?.image ?? null;
 
-    try {
-      await createFolder(FOLDER);
-    } catch {
-      // Already exists.
-    }
     const ext = AVATAR_TYPES[file.type as keyof typeof AVATAR_TYPES];
-    const uploaded = await put(
-      `${generateId("att")}.${ext}`,
-      Buffer.from(await file.arrayBuffer()),
-      { folder: FOLDER, contentType: file.type },
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    const uploaded = await withTimeout(
+      put(`${generateId("att")}.${ext}`, buffer, {
+        folder: FOLDER,
+        contentType: file.type,
+      }),
+      30000,
+      "Avatar upload"
     );
 
-    const user = await updateUserProfile(auth.userId, { image: uploaded.url });
+    // Vercy Storage responsive sizing:
+    // - `?size=sm`: Fast thumbnail (~6 KB, 98% smaller)
+    // - `?size=md`: Web-optimized compressed WebP display (~37 KB, 87% smaller)
+    // We use `?size=md` to ensure crisp rendering on retina displays while cutting 87%+ bandwidth.
+    const optimizedUrl = `${uploaded.url}?size=md`;
+
+    const user = await updateUserProfile(auth.userId, { image: optimizedUrl });
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
@@ -62,7 +72,7 @@ export async function POST(req: NextRequest) {
     let headers: Headers | undefined;
     try {
       const res = await authInstance.api.updateUser({
-        body: { image: uploaded.url },
+        body: { image: optimizedUrl },
         headers: req.headers,
         asResponse: true,
       });
@@ -72,22 +82,32 @@ export async function POST(req: NextRequest) {
     }
 
     // Only our own uploads are ours to delete; a Google photo is not.
-    if (previous && new URL(previous).hostname === STORAGE_HOST) {
-      del(previous).catch(() => {});
+    if (
+      previous &&
+      URL.canParse(previous) &&
+      new URL(previous).hostname === STORAGE_HOST
+    ) {
+      const cleanUrl = previous.split("?")[0];
+      withTimeout(del(cleanUrl), 10000, "Avatar old photo cleanup").catch((err) => {
+        console.warn(`[avatar] old photo cleanup failed: ${formatOneLineError(err)}`);
+      });
     }
 
     return NextResponse.json(
-      { success: true, image: uploaded.url },
-      headers ? { headers } : undefined,
+      { success: true, image: optimizedUrl },
+      headers ? { headers } : undefined
     );
-  } catch (err) {
-    console.error(`[avatar] upload failed: ${formatOneLineError(err)}`);
-    return NextResponse.json(
-      {
-        error: `Could not save that photo. Use a JPG, PNG or WebP under ${MAX_AVATAR_BYTES / 1024 / 1024} MB.`,
-      },
-      { status: 500 },
-    );
+  } catch (err: any) {
+    return handleExternalApiError({
+      provider: "VercyStorage",
+      action: "avatar_upload",
+      status: err?.status,
+      rawError: err,
+      customMessage:
+        err?.status === 413
+          ? `File is too large. Use a photo under ${MAX_AVATAR_BYTES / 1024 / 1024} MB.`
+          : undefined,
+    });
   }
 }
 
@@ -126,18 +146,23 @@ export async function DELETE(req: NextRequest) {
       URL.canParse(previous) &&
       new URL(previous).hostname === STORAGE_HOST
     ) {
-      del(previous).catch(() => {});
+      const cleanUrl = previous.split("?")[0];
+      await withTimeout(del(cleanUrl), 10000, "Avatar delete").catch((err) => {
+        console.warn(`[avatar] storage deletion failed: ${formatOneLineError(err)}`);
+      });
     }
 
     return NextResponse.json(
       { success: true, image: null },
-      headers ? { headers } : undefined,
+      headers ? { headers } : undefined
     );
-  } catch (err) {
-    console.error(`[avatar] remove failed: ${formatOneLineError(err)}`);
-    return NextResponse.json(
-      { error: "Could not remove your photo. Please try again." },
-      { status: 500 },
-    );
+  } catch (err: any) {
+    return handleExternalApiError({
+      provider: "VercyStorage",
+      action: "avatar_delete",
+      status: err?.status,
+      rawError: err,
+      customMessage: "Could not remove your photo. Please try again.",
+    });
   }
 }

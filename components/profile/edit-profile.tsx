@@ -4,7 +4,6 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useAuthContext } from "@/components/auth/AuthGuard";
-import { CountrySheet } from "@/components/profile/country-sheet";
 import { ProfilePhotoSheet } from "@/components/profile/profile-photo-sheet";
 import { SettingsGearLink } from "@/components/profile/settings-gear-link";
 import { useUserProfile } from "@/components/profile/user-profile-provider";
@@ -87,9 +86,7 @@ export function EditProfile({
   const cameraInput = useRef<HTMLInputElement>(null);
 
   const [nickname, setNickname] = useState(savedNickname ?? "");
-  const [country, setCountry] = useState(savedCountry);
   const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null);
-  const [picking, setPicking] = useState(false);
   const [photoSheet, setPhotoSheet] = useState(false);
   // Removal waits for Save, like a new photo does.
   const [removing, setRemoving] = useState(false);
@@ -110,7 +107,6 @@ export function EditProfile({
 
   const nicknameError = nicknameProblem(nickname, Boolean(savedNickname));
   const nicknameChanged = nickname.trim() !== (savedNickname ?? "");
-  const countryChanged = Boolean(country) && country !== savedCountry;
 
   const onPhoto = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -145,7 +141,7 @@ export function EditProfile({
       document.getElementById("nickname")?.focus();
       return;
     }
-    if (!photo && !removing && !nicknameChanged && !countryChanged) {
+    if (!photo && !removing && !nicknameChanged) {
       router.replace(profileHref());
       return;
     }
@@ -172,9 +168,8 @@ export function EditProfile({
         auth?.updateUser?.({ image: null });
       }
 
-      const updates: { nickname?: string; country?: string } = {};
+      const updates: { nickname?: string } = {};
       if (nicknameChanged) updates.nickname = nickname.trim();
-      if (countryChanged && country) updates.country = country;
       if (Object.keys(updates).length > 0) await updateProfile(updates);
       else await refreshProfile();
 
@@ -236,6 +231,8 @@ export function EditProfile({
               alt=""
               width={208}
               height={208}
+              priority
+              unoptimized
               className="size-26 rounded-full object-cover"
             />
           ) : (
@@ -323,21 +320,12 @@ export function EditProfile({
           </div>
         </ProfileField>
 
-        <ProfileField label="Country" htmlFor="country">
-          <button
-            id="country"
-            type="button"
-            onClick={() => setPicking(true)}
-            disabled={pending}
-            className={`${BOX} border-jumpa-lavender-200 text-left tap`}
-          >
+        <ProfileField label="Country">
+          <div className={`${BOX} border-jumpa-lavender-200`}>
             <span className="truncate text-sm leading-none tracking-jumpa-snug text-jumpa-ink">
-              {country || "Not set"}
+              {savedCountry || "Not set"}
             </span>
-            <span className="shrink-0 text-xs leading-none font-medium text-jumpa-primary-600">
-              Change Country
-            </span>
-          </button>
+          </div>
         </ProfileField>
       </div>
 
@@ -360,18 +348,6 @@ export function EditProfile({
           onGallery={() => choose(galleryInput)}
           onRemove={removePhoto}
           onClose={() => setPhotoSheet(false)}
-        />
-      ) : null}
-
-      {picking ? (
-        <CountrySheet
-          value={country}
-          onPick={(next) => {
-            setCountry(next);
-            setErrors((prev) => ({ ...prev, save: undefined }));
-            setPicking(false);
-          }}
-          onClose={() => setPicking(false)}
         />
       ) : null}
     </div>

@@ -98,6 +98,7 @@ export function WalletHeader({
             width={40}
             height={40}
             priority
+            unoptimized
             className="size-8 rounded-full object-cover"
           />
           {kycVerified ? (

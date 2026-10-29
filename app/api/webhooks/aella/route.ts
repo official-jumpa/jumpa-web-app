@@ -25,13 +25,10 @@ export async function POST(req: NextRequest) {
       req.headers.get("x-signature") ||
       "";
 
-    // In production or when signature is present, verify HMAC-SHA512
-    if (process.env.NODE_ENV === "production" || signature) {
-      const isValid = verifyAellaWebhookSignature(rawBody, signature);
-      if (!isValid) {
-        console.warn("[Aella Webhook] ❌ Invalid webhook signature rejected");
-        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-      }
+    // Always verify HMAC-SHA512 signature on incoming webhook events
+    if (!signature || !verifyAellaWebhookSignature(rawBody, signature)) {
+      console.warn("[Aella Webhook] ❌ Invalid or missing webhook signature rejected");
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
     }
 
     let payload: any = {};
@@ -82,15 +79,18 @@ export async function POST(req: NextRequest) {
         data.reference ||
         data.transactionReference ||
         data.transaction_reference ||
-        `inward-${Date.now()}`
+        ""
       );
       const senderName = data.senderName || data.sender_name || data.originatorAccountName || "Bank Transfer";
       const senderBank = data.senderBank || data.sender_bank || data.originatorBankName || "Commercial Bank";
       const senderAccountNumber = data.senderAccountNumber || data.sender_account_number || "";
 
-      if (!accountNumber || amountReceived <= 0) {
+      if (!accountNumber || amountReceived <= 0 || !reference) {
         console.warn("[Aella Webhook] Inward deposit missing account number or valid amount:", data);
-        return NextResponse.json({ success: true, message: "Ignored invalid inward payload" });
+        return NextResponse.json(
+          { error: "Missing account number, valid amount, or provider reference" },
+          { status: 400 },
+        );
       }
 
       // Check idempotency on transaction reference

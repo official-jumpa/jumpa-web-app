@@ -7,13 +7,18 @@ import { processDailySavingsInterest } from "@/lib/services/savings-interest";
 async function handleInterestCron(req: NextRequest) {
   try {
     const cronSecret = process.env.CRON_SECRET;
-    if (cronSecret && process.env.NODE_ENV === "production") {
+    if (!cronSecret) {
+      console.error("CRON_SECRET is missing");
+      return NextResponse.json(
+        { success: false, error: "Cron authentication failed" },
+        { status: 503 },
+      );
+    }
+    if (cronSecret) {
       const authHeader = req.headers.get("authorization");
-      const urlSecret = req.nextUrl.searchParams.get("secret");
       const isBearerValid = authHeader === `Bearer ${cronSecret}`;
-      const isQueryValid = urlSecret === cronSecret;
 
-      if (!isBearerValid && !isQueryValid) {
+      if (!isBearerValid) {
         return NextResponse.json(
           { success: false, error: "Unauthorized" },
           { status: 401 },

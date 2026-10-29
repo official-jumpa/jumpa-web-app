@@ -14,7 +14,6 @@ import { ArrowDownArrowUpIcon } from "@/components/ui/icons/arrow-down-arrow-up"
 import { CaretDownIcon } from "@/components/ui/icons/caret-down";
 import { CheckIcon } from "@/components/ui/icons/check";
 import { ResultSheet } from "@/components/ui/result-sheet";
-import { WalletIcon } from "@/components/ui/icons/wallet";
 import { usePopoverBoundary } from "@/hooks/use-popover-boundary";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import { invalidateClientBalances } from "@/lib/client-events";
@@ -183,7 +182,7 @@ export function BridgeView({
     let active = true;
     setQuoteLoading(true);
 
-    fetch("/api/bridge/quote", {
+    fetch("/api/v1/bridge/quote", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -194,10 +193,10 @@ export function BridgeView({
       }),
     })
       .then((res) => res.json())
-      .then((data) => {
+      .then((json) => {
         if (!active) return;
-        if (data && !data.error) {
-          setQuote(data);
+        if (json?.success && json?.data) {
+          setQuote(json.data);
         } else {
           setQuote(null);
         }
@@ -244,7 +243,7 @@ export function BridgeView({
 
     setSubmitting(true);
     try {
-      const res = await fetch("/api/bridge/execute", {
+      const res = await fetch("/api/v1/bridge/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -262,16 +261,18 @@ export function BridgeView({
 
       const json = await res.json();
 
-      if (!res.ok) {
-        if (res.status === 401 && json?.error?.toLowerCase().includes("pin")) {
+      if (!res.ok || !json?.success) {
+        const errMsg = (json?.error || "").toLowerCase();
+        if (res.status === 401 && errMsg.includes("pin")) {
           setPinError(true);
         } else {
           fail(json?.error);
         }
       } else {
+        const result = json.data;
         setTxResult({
-          txHash: json.txHash,
-          explorerUrl: json.explorerUrl,
+          txHash: result.txHash,
+          explorerUrl: result.explorerUrl,
           fromChain: sourceChainName,
           toChain: destChainName,
           sentAmount: amount,

@@ -6,6 +6,7 @@ import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { EmailAuthForm } from "@/components/auth/email-auth-form";
 import { SocialSignUp } from "@/components/auth/social-sign-up";
 import { pageMetadata } from "@/lib/seo";
+import { guardAuthPage } from "@/lib/auth/auth-page-guard";
 
 export const metadata: Metadata = pageMetadata({
   title: "Sign in",
@@ -14,7 +15,9 @@ export const metadata: Metadata = pageMetadata({
   path: "/sign-in",
 });
 
-export default function SignInPage() {
+export default async function SignInPage() {
+  await guardAuthPage({ step: "sign-in" });
+
   return (
     <AuthScreen
       header={<AuthHeader backHref="/onboarding" />}

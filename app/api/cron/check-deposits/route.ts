@@ -7,7 +7,7 @@ import { syncWalletInboundDeposits } from "@/lib/functions/depositSyncFunctions"
  * GET or POST /api/cron/check-deposits
  *
  * Runs every 10 minutes to sync on-chain inbound deposits for users who were
- * active in the past 10 minutes across Stellar, Solana, Base, and Ethereum.
+ * active in the past 30 minutes across Stellar, Solana, Base, and Ethereum.
  *
  * Query Params / Auth:
  *  - secret: string (optional) or Authorization: Bearer <CRON_SECRET>
@@ -15,13 +15,18 @@ import { syncWalletInboundDeposits } from "@/lib/functions/depositSyncFunctions"
 async function handleCheckDeposits(req: NextRequest) {
   try {
     const cronSecret = process.env.CRON_SECRET;
-    if (cronSecret && process.env.NODE_ENV === "production") {
+    if (!cronSecret) {
+      console.error("[Deposits Cron] CRON_SECRET is not configured");
+      return NextResponse.json(
+        { success: false, error: "Cron authentication is unavailable" },
+        { status: 503 },
+      );
+    }
+    if (cronSecret) {
       const authHeader = req.headers.get("authorization");
-      const urlSecret = req.nextUrl.searchParams.get("secret");
       const isBearerValid = authHeader === `Bearer ${cronSecret}`;
-      const isQueryValid = urlSecret === cronSecret;
 
-      if (!isBearerValid && !isQueryValid) {
+      if (!isBearerValid) {
         return NextResponse.json(
           { success: false, error: "Unauthorized" },
           { status: 401 },
@@ -31,12 +36,12 @@ async function handleCheckDeposits(req: NextRequest) {
 
     await connectDB();
 
-    // Query wallets belonging to users active in the last 10 minutes
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    // Query wallets belonging to users active in the last 30 minutes
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
     const activeWallets = await Wallet.find({
       $or: [
-        { lastUsedAt: { $gte: tenMinutesAgo } },
-        { updatedAt: { $gte: tenMinutesAgo } },
+        { lastUsedAt: { $gte: thirtyMinutesAgo } },
+        { updatedAt: { $gte: thirtyMinutesAgo } },
       ],
     }).lean();
 

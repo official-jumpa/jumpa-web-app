@@ -6,48 +6,35 @@ import { CCTP_DOMAINS, getRpcUrl, getSolanaRpcUrl } from "@/lib/blockchain";
 import { getLiveRates } from "@/lib/rates";
 import { createPublicClient, http } from "viem";
 import { mainnet, base } from "viem/chains";
+import { bridgeQuoteSchema } from "@/lib/validations/bridge.validation";
+import { formatZodError } from "@/lib/validations/validation-helper";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
+/**
+ * POST /api/v1/bridge/quote
+ * Calculates cross-chain USDC bridge fees, gas abstraction, arrival time, and net received amount.
+ */
 export async function POST(req: NextRequest) {
   try {
     const authResult = await requireActiveUser({
-      rateLimit: { tier: "low", action: "bridge_quote" },
+      rateLimit: { tier: "medium", action: "bridge_quote" },
     });
     if (!authResult.ok) return authResult.response;
 
     const body = await req.json().catch(() => ({}));
-    const { fromChain, toChain, amount, transferType = "fast" } = body;
-
-    const numAmount = parseFloat(amount || "0");
-    if (isNaN(numAmount) || numAmount <= 0) {
-      return NextResponse.json(
-        { error: "Please enter a valid amount" },
-        { status: 400 },
-      );
+    const validation = bridgeQuoteSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(formatZodError(validation.error), {
+        status: 400,
+      });
     }
+
+    const { fromChain, toChain, amount, transferType = "fast" } = validation.data;
+    const numAmount = parseFloat(amount);
 
     const isStellarSource = fromChain === "stellar";
     const isEvmSource = fromChain === "base" || fromChain === "ethereum";
     const isSolanaSource = fromChain === "solana";
-
-    if (!isStellarSource && !isEvmSource && !isSolanaSource) {
-      return NextResponse.json(
-        { error: "Unsupported source chain" },
-        { status: 400 },
-      );
-    }
-
-    const isValidDestination =
-      toChain === "base" ||
-      toChain === "ethereum" ||
-      toChain === "stellar" ||
-      toChain === "solana";
-
-    if (!isValidDestination || fromChain === toChain) {
-      return NextResponse.json(
-        { error: "Invalid bridge destination chain" },
-        { status: 400 },
-      );
-    }
 
     let protocolFeeBps = 0;
     let estimatedTime = "~15–30 seconds";
@@ -59,11 +46,11 @@ export async function POST(req: NextRequest) {
     let requiresGasAbstraction = false;
 
     if (toChain === "ethereum") {
-      // Destination Ethereum L1 has higher gas minting costs (~172,000 gas units for receiveMessage)
+      // Destination Ethereum L1 has higher gas minting costs (~175,000 gas units for receiveMessage)
       try {
         const publicClient = createPublicClient({
           chain: mainnet,
-          transport: http(getRpcUrl("ethereum")),
+          transport: http(getRpcUrl("ethereum"), { timeout: 8000 }),
         });
         const gasPrice = await publicClient.getGasPrice();
         const rates = await getLiveRates();
@@ -72,7 +59,8 @@ export async function POST(req: NextRequest) {
         const mintFeeWei = (gasPrice * mintGasUnits * BigInt(12)) / BigInt(10);
         const mintFeeUsd = (Number(mintFeeWei) / 1e18) * ethPriceUsd;
         feeAmount = Math.max(0.5, Math.round(mintFeeUsd * 100) / 100);
-      } catch {
+      } catch (ethGasErr: any) {
+        console.warn(`[Bridge] Eth gas quote fallback: ${formatOneLineError(ethGasErr)}`);
         feeAmount = 3.5;
       }
       protocolFeeBps = 0;
@@ -94,9 +82,15 @@ export async function POST(req: NextRequest) {
         if (solAddress) {
           try {
             const solConn = new Connection(getSolanaRpcUrl(), "confirmed");
-            const lamports = await solConn.getBalance(new PublicKey(solAddress));
+            const balancePromise = solConn.getBalance(new PublicKey(solAddress));
+            const timeoutPromise = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("Solana balance lookup timed out")), 8000)
+            );
+            const lamports = await Promise.race([balancePromise, timeoutPromise]);
             userSol = Number(lamports) / 1e9;
-          } catch {}
+          } catch (solBalErr: any) {
+            console.warn(`[Bridge] Solana balance check fallback: ${formatOneLineError(solBalErr)}`);
+          }
         }
       }
 
@@ -147,14 +141,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Dynamic source network fee for EVM when not already set by Solana.
-    // Note: Stellar source transactions are sponsored by Jumpa (free), so no networkFeeLabel is set for Stellar.
     if (!networkFeeLabel) {
       if (fromChain === "ethereum") {
         networkFeeName = "Ethereum network fee";
         try {
           const publicClient = createPublicClient({
             chain: mainnet,
-            transport: http(getRpcUrl("ethereum")),
+            transport: http(getRpcUrl("ethereum"), { timeout: 8000 }),
           });
           const gasPrice = await publicClient.getGasPrice();
           const rates = await getLiveRates();
@@ -174,7 +167,7 @@ export async function POST(req: NextRequest) {
         try {
           const publicClient = createPublicClient({
             chain: base,
-            transport: http(getRpcUrl("base")),
+            transport: http(getRpcUrl("base"), { timeout: 8000 }),
           });
           const gasPrice = await publicClient.getGasPrice();
           const rates = await getLiveRates();
@@ -208,7 +201,7 @@ export async function POST(req: NextRequest) {
     const fromDomainKey = (fromChain || "stellar") as keyof typeof CCTP_DOMAINS;
     const toDomainKey = (toChain || "ethereum") as keyof typeof CCTP_DOMAINS;
 
-    return NextResponse.json({
+    const quoteData = {
       fromChain,
       toChain,
       fromDomain: CCTP_DOMAINS[fromDomainKey] ?? 0,
@@ -225,10 +218,16 @@ export async function POST(req: NextRequest) {
       requiresGasAbstraction,
       estimatedTime,
       transferType: effectiveTransferType,
+    };
+
+    return NextResponse.json({
+      success: true,
+      data: quoteData,
     });
   } catch (error: any) {
+    console.error(`[Bridge] Quote calculation failed | Details: ${formatOneLineError(error)}`);
     return NextResponse.json(
-      { error: error?.message || "Failed to calculate bridge quote" },
+      { success: false, error: "Failed to calculate bridge quote. Please try again shortly." },
       { status: 500 },
     );
   }

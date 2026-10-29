@@ -11,11 +11,13 @@ export type ExternalProvider =
   | "Stellar"
   | "Rates"
   | "Bills"
+  | "Bridge"
+  | "CircleIris"
   | "Generic";
 
 export interface SafeFetchOptions {
   provider: ExternalProvider | string;
-  action: string;
+  action?: string;
   /** Timeout in milliseconds. Defaults to 15,000ms (15s). Use 8000 for fast reads, 30000 for uploads. */
   timeoutMs?: number;
   /** Custom error message mapper based on upstream response payload or status. */
@@ -122,7 +124,7 @@ export async function safeExternalFetch<T = any>(
   } catch (err: any) {
     const isTimeout = isTimeoutError(err);
     console.error(
-      `[${provider}:${action}] ${isTimeout ? `Timed out after ${timeoutMs}ms` : "Network Exception"}: ${formatOneLineError(err)}`
+      `[${provider}] ${isTimeout ? `Timed out after ${timeoutMs}ms` : "Network Exception"}: ${formatOneLineError(err)}`
     );
 
     return {
@@ -140,7 +142,7 @@ export async function safeExternalFetch<T = any>(
 
 export interface HandleErrorParams {
   provider: ExternalProvider | string;
-  action: string;
+  action?: string;
   status?: number;
   rawError?: any;
   /** Optional custom client message override */
@@ -152,11 +154,11 @@ export interface HandleErrorParams {
  * and returns a sanitized, user-friendly NextResponse.
  */
 export function handleExternalApiError(params: HandleErrorParams): NextResponse {
-  const { provider, action, status = 500, rawError, customMessage } = params;
+  const { provider, status = 500, rawError, customMessage } = params;
 
   // 1. One-line console log capped at 400 chars max
   console.error(
-    `[${provider}:${action}] Upstream failure | Status: ${status} | Payload: ${formatOneLineError(rawError)}`
+    `[${provider}] Upstream failure | Status: ${status} | Payload: ${formatOneLineError(rawError)}`
   );
 
   // 2. Identify error type and craft user-friendly error copy

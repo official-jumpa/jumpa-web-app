@@ -45,6 +45,13 @@ export async function GET(req: NextRequest) {
       validation.data.reference,
     );
 
+    if (!existingTx || existingTx.userId !== session.user.id) {
+      return NextResponse.json(
+        { success: false, error: "Transaction not found" },
+        { status: 404 },
+      );
+    }
+
     const isCustomPendingSettlement =
       existingTx?.rampDetails?.fulfillmentAction === "CUSTOM_ONRAMP" &&
       existingTx?.rampDetails?.settlementStatus !== "COMPLETED";
@@ -148,7 +155,7 @@ export async function GET(req: NextRequest) {
             cryptoAmount: existingTx.amount,
             centiivTxHash: txHash,
             expectedUsdcAmount: existingTx.rampDetails?.expectedUsdc,
-            userId: session.user.id,
+            userId: existingTx.userId,
           });
 
           if (settlementRes.success && settlementRes.txHash) {

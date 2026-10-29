@@ -28,7 +28,6 @@ export interface OnboardingStatus {
   hasPassword: boolean;
   hasTag: boolean;
   hasPin: boolean;
-  needsPinMigration?: boolean;//delete once everyone has migrated to v2
   nextRoute?: string;
   userStatus?: "pending" | "active" | "banned" | "suspended" | "deleted";
   nickname?: string | null;
@@ -142,8 +141,6 @@ export function AuthGuard({
           router.replace("/sign-up/password");
         } else if (!data.hasPin) {
           router.replace("/sign-up/pin");
-        } else if (data.needsPinMigration) {
-          router.replace("/migrate-pin");
         }
       }
     } catch (err) {

@@ -1,26 +1,59 @@
 import { useEffect } from "react";
 
-/** Freezes the page behind an overlay. Pads for the scrollbar so nothing shifts. */
+let lockCount = 0;
+let originalStyles: {
+  htmlOverflow: string;
+  bodyOverflow: string;
+  bodyPaddingRight: string;
+} | null = null;
+
+/**
+ * Freezes the page behind an overlay. Pads for the scrollbar so nothing shifts.
+ * Uses global reference counting so nested or overlapping overlays (e.g. PinSheet + LoadingModal,
+ * or SheetPortal + ResultSheet) never leave the body permanently locked with overflow: hidden.
+ */
 export function useScrollLock(locked: boolean) {
   useEffect(() => {
-    if (!locked) return;
+    if (!locked || typeof document === "undefined") return;
 
     const { body, documentElement: html } = document;
-    const gap = window.innerWidth - html.clientWidth;
-    const previous = {
-      html: html.style.overflow,
-      body: body.style.overflow,
-      padding: body.style.paddingRight,
-    };
 
-    html.style.overflow = "hidden";
-    body.style.overflow = "hidden";
-    if (gap > 0) body.style.paddingRight = `${gap}px`;
+    if (lockCount === 0) {
+      originalStyles = {
+        htmlOverflow: html.style.overflow === "hidden" ? "" : html.style.overflow,
+        bodyOverflow: body.style.overflow === "hidden" ? "" : body.style.overflow,
+        bodyPaddingRight: body.style.paddingRight,
+      };
+
+      const gap = window.innerWidth - html.clientWidth;
+      html.style.overflow = "hidden";
+      body.style.overflow = "hidden";
+      if (gap > 0) body.style.paddingRight = `${gap}px`;
+    }
+
+    lockCount++;
 
     return () => {
-      html.style.overflow = previous.html;
-      body.style.overflow = previous.body;
-      body.style.paddingRight = previous.padding;
+      lockCount = Math.max(0, lockCount - 1);
+
+      if (lockCount === 0) {
+        html.style.overflow = originalStyles?.htmlOverflow ?? "";
+        body.style.overflow = originalStyles?.bodyOverflow ?? "";
+        body.style.paddingRight = originalStyles?.bodyPaddingRight ?? "";
+        originalStyles = null;
+      }
     };
   }, [locked]);
+}
+
+/**
+ * Force-releases all active scroll locks (e.g. on route navigation or unhandled dismissal).
+ */
+export function forceReleaseScrollLock() {
+  if (typeof document === "undefined") return;
+  lockCount = 0;
+  originalStyles = null;
+  document.documentElement.style.overflow = "";
+  document.body.style.overflow = "";
+  document.body.style.paddingRight = "";
 }

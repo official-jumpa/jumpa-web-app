@@ -215,16 +215,25 @@ export async function GET(req: NextRequest) {
               reminders: true,
             }
           : undefined;
+      const currentCircleMember = circleData?.members.find((member) => member.you);
+      const isSaveTogether = circleData?.style === "save_together";
+      const visibleSaved = isSaveTogether
+        ? currentCircleMember?.saved || 0
+        : plan.currentAmount || 0;
+      const visibleInterest = isSaveTogether && plan.currentAmount > 0
+        ? (plan.interestEarned * (currentCircleMember?.saved || 0)) /
+          plan.currentAmount
+        : plan.interestEarned || 0;
 
       return {
         id: plan._id,
         name: plan.name,
         kind: plan.kind as SavingsKind,
         currency: (plan.currency as "NGN" | "USDC") || "USDC",
-        saved: plan.currentAmount || 0,
+        saved: visibleSaved,
         initialDeposit: plan.initialDeposit || 0,
         target: plan.targetAmount || 0,
-        interestEarned: plan.interestEarned || 0,
+        interestEarned: visibleInterest,
         termDays,
         daysLeft,
         startDate: startDateFormatted,

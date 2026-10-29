@@ -11,7 +11,7 @@ export const chatAttachmentSchema = z.object({
 });
 
 /**
- * Validation for sending a message (/api/chat/send)
+ * Validation for sending a message (/api/v1/chat/messages)
  */
 export const sendMessageSchema = z
   .object({
@@ -38,7 +38,7 @@ export const sendMessageSchema = z
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
 
 /**
- * Validation for confirming a pending chat transaction (/api/chat/confirm)
+ * Validation for confirming a pending chat transaction (/api/v1/chat/action?action=confirm)
  */
 export const confirmChatActionSchema = z.object({
   sessionId: z
@@ -55,8 +55,16 @@ export const confirmChatActionSchema = z.object({
 
 export type ConfirmChatActionInput = z.infer<typeof confirmChatActionSchema>;
 
+export const chatActionQuerySchema = z.object({
+  action: z.enum(["confirm", "cancel"], {
+    error: "Action must be either 'confirm' or 'cancel'",
+  }),
+});
+
+export type ChatActionQueryInput = z.infer<typeof chatActionQuerySchema>;
+
 /**
- * Validation for cancelling a pending chat action (/api/chat/cancel)
+ * Validation for cancelling a pending chat action (/api/v1/chat/action?action=cancel)
  */
 export const cancelChatActionSchema = z.object({
   sessionId: z
@@ -71,7 +79,7 @@ export const cancelChatActionSchema = z.object({
 export type CancelChatActionInput = z.infer<typeof cancelChatActionSchema>;
 
 /**
- * Validation for chat history queries (/api/chat/history)
+ * Validation for chat history queries (/api/v1/chat/history)
  */
 export const chatHistoryQuerySchema = z.object({
   sessionId: z.string().trim().optional(),
@@ -83,7 +91,7 @@ export const chatHistoryQuerySchema = z.object({
 export type ChatHistoryQueryInput = z.infer<typeof chatHistoryQuerySchema>;
 
 /**
- * Validation for deleting a chat session (DELETE /api/chat/history)
+ * Validation for deleting a chat session (DELETE /api/v1/chat/history)
  */
 export const deleteChatSessionQuerySchema = z.object({
   sessionId: z

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from "@/lib/chat-attachments";
 import { MESSAGE_MAX, TICKET_CATEGORIES } from "@/lib/support-tickets";
 
-/** An upload from POST /api/chat/attachments, echoed back as-is. */
+/** An upload from POST /api/v1/chat/attachments, echoed back as-is. */
 export const supportAttachmentSchema = z.object({
   id: z.string().trim().min(1).max(64),
   url: z.url({ protocol: /^https$/ }).max(2048),

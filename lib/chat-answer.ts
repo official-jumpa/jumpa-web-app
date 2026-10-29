@@ -1,6 +1,6 @@
 /**
  * Which row a chooser card's answer picked. A chooser is answered by the next
- * user message — the same rule `/api/chat/send` uses to know a bare value
+ * user message — the same rule `/api/v1/chat/messages` uses to know a bare value
  * belongs to a card — so the pick survives a reload without being persisted.
  */
 

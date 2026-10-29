@@ -54,6 +54,7 @@ export const USER_ACTIVITY_ACTIONS = [
   "DATA_PURCHASED",
   // Beneficiaries & Contacts
   "BENEFICIARY_ADDED",
+  "BENEFICIARY_UPDATED",
   "BENEFICIARY_DELETED",
   // Chat & AI Interactions
   "CHAT_TRANSACTION_CONFIRMED",

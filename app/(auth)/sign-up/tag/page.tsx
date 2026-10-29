@@ -4,6 +4,7 @@ import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { JumpaTagForm } from "@/components/auth/jumpa-tag-form";
 import { pageMetadata } from "@/lib/seo";
 import { SIGN_UP_FLOW } from "@/lib/sign-up";
+import { guardAuthPage } from "@/lib/auth/auth-page-guard";
 
 export const metadata: Metadata = pageMetadata({
   title: "Pick your Jumpa Tag",
@@ -13,7 +14,9 @@ export const metadata: Metadata = pageMetadata({
   noIndex: true,
 });
 
-export default function JumpaTagPage() {
+export default async function JumpaTagPage() {
+  await guardAuthPage({ step: "tag" });
+
   return (
     <AuthScreen
       header={<AuthHeader backHref={SIGN_UP_FLOW.confirmPassword} />}

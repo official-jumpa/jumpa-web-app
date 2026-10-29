@@ -4,6 +4,7 @@ import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { PhoneForm } from "@/components/auth/phone-form";
 import { pageMetadata } from "@/lib/seo";
 import { SIGN_UP_FLOW } from "@/lib/sign-up";
+import { guardAuthPage } from "@/lib/auth/auth-page-guard";
 
 export const metadata: Metadata = pageMetadata({
   title: "Verify your mobile number",
@@ -13,7 +14,16 @@ export const metadata: Metadata = pageMetadata({
   noIndex: true,
 });
 
-export default function SignUpPhonePage() {
+interface SignUpPhonePageProps {
+  searchParams?: Promise<{ from?: string }>;
+}
+
+export default async function SignUpPhonePage({
+  searchParams,
+}: SignUpPhonePageProps = {}) {
+  const resolvedParams = searchParams ? await searchParams : {};
+  await guardAuthPage({ step: "phone", searchParams: resolvedParams });
+
   return (
     <AuthScreen
       header={<AuthHeader backHref={SIGN_UP_FLOW.verifyEmail} />}

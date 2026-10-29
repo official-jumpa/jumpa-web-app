@@ -239,7 +239,7 @@ const TransactionSchema = new Schema<ITransaction>(
       relayerFee: { type: String },
     },
 
-    txHash: { type: String, default: null, index: true },
+    txHash: { type: String, default: null },
     explorerUrl: { type: String, default: null },
     feePaid: { type: String, default: null },
     errorMessage: { type: String, default: null },
@@ -269,6 +269,10 @@ const TransactionSchema = new Schema<ITransaction>(
 TransactionSchema.index({ userId: 1, createdAt: -1 });
 TransactionSchema.index({ userId: 1, createdAt: -1, status: 1 });
 TransactionSchema.index({ userId: 1, type: 1, status: 1 });
+TransactionSchema.index(
+  { txHash: 1 },
+  { unique: true, partialFilterExpression: { txHash: { $type: "string" } } },
+);
 
 export const Transaction: Model<ITransaction> =
   mongoose.models.Transaction ||

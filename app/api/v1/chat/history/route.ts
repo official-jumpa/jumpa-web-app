@@ -13,6 +13,7 @@ import {
   deleteChatSessionQuerySchema,
 } from "@/lib/validations/chat.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 /**
  * Cross-references pending onramp messages in the DB. If settled, updates cardData.status = "confirmed"
@@ -66,20 +67,19 @@ async function syncMessagesWithSettledTransactions(
     if (hasUpdates && chatId) {
       updateChatLogMessages(chatId, userId, messages).catch((err) =>
         console.warn(
-          "[Chat History] Notice updating ChatLog messages:",
-          err?.message,
+          `[Chat] History sync notice: ${formatOneLineError(err)}`,
         ),
       );
     }
   } catch (err) {
-    console.warn("[Chat History] Notice checking settled transactions:", err);
+    console.warn(`[Chat] Notice checking settled transactions: ${formatOneLineError(err)}`);
   }
 
   return messages;
 }
 
 /**
- * GET /api/chat/history
+ * GET /api/v1/chat/history?list=true | latest=true | sessionId=... [&all=true]
  */
 export async function GET(req: NextRequest) {
   try {
@@ -110,20 +110,26 @@ export async function GET(req: NextRequest) {
     // 1. Return recent sessions summary list
     if (isList) {
       const sessions = await listRecentChatSessions(userId, 10);
-      return NextResponse.json({ sessions });
+      return NextResponse.json({
+        success: true,
+        data: { sessions },
+      });
     }
 
     // 2. Return latest session
     if (isLatest) {
       const latestChat = await getLatestChatLog(userId);
       if (!latestChat) {
-        return NextResponse.json({ session: null });
+        return NextResponse.json({
+          success: true,
+          data: { session: null },
+        });
       }
 
       const totalCount = latestChat.messages?.length || 0;
       const rawMessages = loadAll
         ? latestChat.messages || []
-        : (latestChat.messages || []).slice(-20); //load recent 20 messages max
+        : (latestChat.messages || []).slice(-20);
 
       const returnedMessages = await syncMessagesWithSettledTransactions(
         latestChat._id,
@@ -132,12 +138,15 @@ export async function GET(req: NextRequest) {
       );
 
       return NextResponse.json({
-        session: {
-          sessionId: latestChat._id,
-          title: latestChat.title || "New Chat",
-          messages: returnedMessages,
-          totalMessages: totalCount,
-          updatedAt: latestChat.updatedAt,
+        success: true,
+        data: {
+          session: {
+            sessionId: latestChat._id,
+            title: latestChat.title || "New Chat",
+            messages: returnedMessages,
+            totalMessages: totalCount,
+            updatedAt: latestChat.updatedAt,
+          },
         },
       });
     }
@@ -164,21 +173,27 @@ export async function GET(req: NextRequest) {
       );
 
       return NextResponse.json({
-        session: {
-          sessionId: chatLog._id,
-          title: chatLog.title || "New Chat",
-          messages: returnedMessages,
-          totalMessages: totalCount,
-          updatedAt: chatLog.updatedAt,
+        success: true,
+        data: {
+          session: {
+            sessionId: chatLog._id,
+            title: chatLog.title || "New Chat",
+            messages: returnedMessages,
+            totalMessages: totalCount,
+            updatedAt: chatLog.updatedAt,
+          },
         },
       });
     }
 
     // Default fallback: Return list of 10 recent sessions
     const sessions = await listRecentChatSessions(userId, 10);
-    return NextResponse.json({ sessions });
-  } catch (err) {
-    console.error("[Chat History Error]", err);
+    return NextResponse.json({
+      success: true,
+      data: { sessions },
+    });
+  } catch (err: any) {
+    console.error(`[Chat] History GET error: ${formatOneLineError(err)}`);
     return NextResponse.json(
       { error: "Failed to fetch chat history" },
       { status: 500 },
@@ -187,7 +202,7 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * DELETE /api/chat/history?sessionId=...
+ * DELETE /api/v1/chat/history?sessionId=...
  * Deletes a chat session permanently from the database.
  */
 export async function DELETE(req: NextRequest) {
@@ -208,10 +223,17 @@ export async function DELETE(req: NextRequest) {
       });
     }
 
-    await deleteChatSession(validation.data.sessionId, auth.session.user.id);
-    return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error("[Chat History Error]", err);
+    const { sessionId } = validation.data;
+    await deleteChatSession(sessionId, auth.session.user.id);
+
+    console.log(`[Chat] Deleted session: ${sessionId}`);
+
+    return NextResponse.json({
+      success: true,
+      data: { sessionId },
+    });
+  } catch (err: any) {
+    console.error(`[Chat] History DELETE error: ${formatOneLineError(err)}`);
     return NextResponse.json(
       { error: "Failed to delete chat session" },
       { status: 500 },

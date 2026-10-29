@@ -187,7 +187,12 @@ export async function processDailySavingsInterest(
 
       // 7. Atomic Compare-And-Swap update: guards against concurrent cron workers
       // Notice: interestToAdd is incremented into interestEarned (leaving currentAmount principal clean)
-      const updatedPlan = await SavingsPlan.findOneAndUpdate(
+      const session = await SavingsPlan.startSession();
+      let updatedPlan: any;
+      let raced = false;
+      try {
+        await session.withTransaction(async () => {
+      updatedPlan = await SavingsPlan.findOneAndUpdate(
         { _id: plan._id, status: "Active", lastAccruedDate: { $ne: todayStr } },
         {
           $inc: { interestEarned: interestToAdd },
@@ -196,13 +201,13 @@ export async function processDailySavingsInterest(
             ...(isPlanMatured ? { status: "Matured" } : {}),
           },
         },
-        { returnDocument: "after" },
+        { returnDocument: "after", session },
       );
 
       if (!updatedPlan) {
         // Race condition: another worker already accrued this plan for today
-        result.skippedPlans += 1;
-        continue;
+        raced = true;
+        return;
       }
 
       // 8. Record an immutable savings transaction ledger entry
@@ -213,7 +218,15 @@ export async function processDailySavingsInterest(
         kind: "interest",
         amount: interestToAdd,
         at: referenceDate,
-      });
+      }, session);
+        });
+      } finally {
+        await session.endSession();
+      }
+      if (raced) {
+        result.skippedPlans += 1;
+        continue;
+      }
 
       result.processedPlans += 1;
       if (isPlanMatured) result.maturedPlans += 1;

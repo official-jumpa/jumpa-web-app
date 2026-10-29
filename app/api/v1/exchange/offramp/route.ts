@@ -11,7 +11,7 @@ import { switchOfframpSchema } from "@/lib/validations/switch.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import {
   logUserActivity,
-  saveOrUpdateBeneficiary,
+  trackRecent,
 } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
@@ -431,8 +431,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Auto-save beneficiary for future one-tap transfers
-    saveOrUpdateBeneficiary(userId, {
+    // Record recent destination for transfer history
+    trackRecent(userId, {
       type: "bank",
       name: holderName.trim(),
       identifier: `${bankMatch.code}:${accountNumber.trim()}`,
@@ -445,7 +445,7 @@ export async function POST(req: NextRequest) {
       },
     }).catch((e) =>
       console.warn(
-        `Error: ${formatOneLineError(e)}`,
+        `[Offramp] trackRecent notice: ${formatOneLineError(e)}`,
       ),
     );
 

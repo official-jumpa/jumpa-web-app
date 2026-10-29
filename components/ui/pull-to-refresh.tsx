@@ -82,6 +82,12 @@ export function PullToRefresh() {
     };
 
     const onStart = (e: TouchEvent) => {
+      // Never intercept gestures in conversational chat views
+      if (typeof window !== "undefined" && window.location.pathname.includes("/chat")) {
+        start.current = null;
+        return;
+      }
+
       if (
         busy.current ||
         e.touches.length !== 1 ||

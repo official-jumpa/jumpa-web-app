@@ -5,6 +5,7 @@ export type BeneficiaryType = "bank" | "wallet" | "jumpa" | "momo";
 
 export interface IBeneficiaryDetails {
   accountNumber?: string;
+  accountName?: string;
   bankName?: string;
   bankCode?: string;
   country?: string;
@@ -26,6 +27,8 @@ export interface IBeneficiary {
   name: string;
   identifier: string; // Unique key: e.g. "058:0048392012" or "base:0x..." or "user@jumpa"
   details: IBeneficiaryDetails;
+  isSaved: boolean; // true = saved beneficiary; false = recent
+  isFavorite: boolean; // true = pinned / starred
   lastUsedAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -62,6 +65,16 @@ const BeneficiarySchema = new Schema<IBeneficiary>(
       type: Schema.Types.Mixed,
       default: {},
     },
+    isSaved: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    isFavorite: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     lastUsedAt: {
       type: Date,
       default: Date.now,
@@ -75,7 +88,8 @@ const BeneficiarySchema = new Schema<IBeneficiary>(
 
 // Compound indexes
 BeneficiarySchema.index({ userId: 1, type: 1, identifier: 1 }, { unique: true });
-BeneficiarySchema.index({ userId: 1, type: 1, lastUsedAt: -1 });
+BeneficiarySchema.index({ userId: 1, isSaved: 1, isFavorite: -1, lastUsedAt: -1 });
+BeneficiarySchema.index({ userId: 1, type: 1, isSaved: 1, isFavorite: -1, lastUsedAt: -1 });
 BeneficiarySchema.index({ userId: 1, lastUsedAt: -1 });
 
 export const Beneficiary: Model<IBeneficiary> =

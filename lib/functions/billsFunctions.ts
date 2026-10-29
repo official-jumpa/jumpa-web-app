@@ -252,15 +252,7 @@ export async function purchaseAirtime(params: {
 
   const billRef = generateId("bill");
 
-  // 2. Transfer equivalent funds from user's NGN wallet to official Jumpa account
-  const transfer = await transferToOfficialJumpaWallet({
-    userId: params.userId,
-    amount: params.amount,
-    narration: `Airtime: ${normalizedPhone} (${params.network || "VTU"})`,
-    reference: billRef,
-  });
-
-  // 2. Create pre-flight record in MongoDB in PENDING status
+  // Create the idempotency/reconciliation record before any provider or wallet call.
   const order = await BillPayment.create({
     _id: billRef,
     userId: params.userId,
@@ -275,6 +267,21 @@ export async function purchaseAirtime(params: {
 
   const refId = order._id;
   console.log(`Pre-flight order created: ${refId} (User: ${params.userId}, Phone: ${normalizedPhone}, Amount: ₦${params.amount}, Network: ${params.network})`);
+
+  // Transfer equivalent funds from user's NGN wallet to official Jumpa account.
+  // A failure remains PENDING
+  let transfer: Awaited<ReturnType<typeof transferToOfficialJumpaWallet>>;
+  try {
+    transfer = await transferToOfficialJumpaWallet({
+      userId: params.userId,
+      amount: params.amount,
+      narration: `Airtime: ${normalizedPhone} (${params.network || "VTU"})`,
+      reference: billRef,
+    });
+  } catch (err: any) {
+    await BillPayment.updateOne({ _id: order._id }, { $set: { errorMessage: err?.message || "Funding transfer pending verification" } });
+    throw err;
+  }
 
   const formData = new URLSearchParams();
   formData.append("phone", normalizedPhone);
@@ -428,15 +435,7 @@ export async function purchaseData(params: {
 
   const billRef = generateId("bill");
 
-  // 2. Transfer equivalent funds from user's NGN wallet to official Jumpa account
-  const transfer = await transferToOfficialJumpaWallet({
-    userId: params.userId,
-    amount: params.amount,
-    narration: `Data: ${params.productName} (${normalizedPhone})`,
-    reference: billRef,
-  });
-
-  // 2. Create pre-flight record in MongoDB in PENDING status
+  // Create the idempotency/reconciliation record before any provider or wallet call.
   const order = await BillPayment.create({
     _id: billRef,
     userId: params.userId,
@@ -454,6 +453,19 @@ export async function purchaseData(params: {
 
   const refId = order._id;
   console.log(`Pre-flight order created: ${refId} (User: ${params.userId}, Phone: ${normalizedPhone}, Product: ${params.productName}, Amount: ₦${params.amount}, Network: ${params.network})`);
+
+  let transfer: Awaited<ReturnType<typeof transferToOfficialJumpaWallet>>;
+  try {
+    transfer = await transferToOfficialJumpaWallet({
+      userId: params.userId,
+      amount: params.amount,
+      narration: `Data: ${params.productName} (${normalizedPhone})`,
+      reference: billRef,
+    });
+  } catch (err: any) {
+    await BillPayment.updateOne({ _id: order._id }, { $set: { errorMessage: err?.message || "Funding transfer pending verification" } });
+    throw err;
+  }
 
   const formData = new URLSearchParams();
   formData.append("phone", normalizedPhone);
@@ -573,4 +585,3 @@ export async function purchaseData(params: {
     reference: refId,
   };
 }
-

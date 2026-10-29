@@ -130,16 +130,17 @@ export function ChatComposer({
       const body = new FormData();
       body.append("file", file);
 
-      const res = await fetch("/api/chat/attachments", {
+      const res = await fetch("/api/v1/chat/attachments", {
         method: "POST",
         body,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      const data = await res.json();
+      const resJson = await res.json();
+      const uploadedAttachment = resJson.data?.attachment || resJson.attachment;
       setPending((prev) =>
         prev.map((item) =>
-          item.key === key ? { ...item, uploaded: data.attachment } : item,
+          item.key === key ? { ...item, uploaded: uploadedAttachment } : item,
         ),
       );
     } catch (err) {
@@ -270,7 +271,7 @@ export function ChatComposer({
       const form = new FormData();
       form.append("file", file);
 
-      const uploadRes = await fetch("/api/chat/voice", {
+      const uploadRes = await fetch("/api/v1/chat/attachments?mode=voice", {
         method: "POST",
         body: form,
       });
@@ -279,20 +280,21 @@ export function ChatComposer({
         throw new Error(`HTTP ${uploadRes.status}`);
       }
 
-      const data = await uploadRes.json();
+      const resJson = await uploadRes.json();
+      const resData = resJson.data || resJson;
       setVoiceReview((prev) =>
         prev
           ? {
               ...prev,
-              uploaded: data.attachment,
+              uploaded: resData.attachment,
               isProcessing: false,
-              transcript: data.transcript || "",
+              transcript: resData.transcript || "",
             }
           : null,
       );
 
-      if (data.transcript && !value.trim()) {
-        onChange?.(data.transcript);
+      if (resData.transcript && !value.trim()) {
+        onChange?.(resData.transcript);
       }
     } catch (err) {
       console.error("[ChatComposer] Voice upload failed:", err);
@@ -346,7 +348,7 @@ export function ChatComposer({
           if (uploadedUrl) {
             try {
               await fetch(
-                `/api/chat/voice?url=${encodeURIComponent(uploadedUrl)}`,
+                `/api/v1/chat/attachments?url=${encodeURIComponent(uploadedUrl)}`,
                 { method: "DELETE" },
               );
             } catch (delErr) {

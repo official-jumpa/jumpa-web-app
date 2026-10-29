@@ -4,6 +4,7 @@ import { AuthHeading, AuthScreen } from "@/components/auth/auth-screen";
 import { VerifyCodeForm } from "@/components/auth/verify-code-form";
 import { pageMetadata } from "@/lib/seo";
 import { SIGN_UP_FLOW } from "@/lib/sign-up";
+import { guardAuthPage } from "@/lib/auth/auth-page-guard";
 
 export const metadata: Metadata = pageMetadata({
   title: "Enter verification code",
@@ -13,7 +14,9 @@ export const metadata: Metadata = pageMetadata({
   noIndex: true,
 });
 
-export default function VerifyCodePage() {
+export default async function VerifyCodePage() {
+  await guardAuthPage({ step: "verify-code" });
+
   return (
     <AuthScreen
       header={<AuthHeader backHref={SIGN_UP_FLOW.email} />}

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
-import { getUserById, getUserBeneficiaries } from "@/lib/functions/userFunctions";
+import { getUserById, getBeneficiariesAndRecents } from "@/lib/functions/userFunctions";
 import { BankTransferView } from "@/components/send/bank-transfer-view";
 import type { BankAccountItem } from "@/components/send/bank-transfer-form";
 
@@ -23,22 +23,25 @@ export default async function BankTransferPage(props: PageProps) {
 
   if (session?.user?.id) {
     try {
-      const [user, beneficiaries] = await Promise.all([
+      const [user, benData] = await Promise.all([
         getUserById(session.user.id),
-        getUserBeneficiaries(session.user.id, "bank"),
+        getBeneficiariesAndRecents(session.user.id, "bank", 5),
       ]);
 
       if (user?.country) {
         defaultCountry = user.country;
       }
 
-      if (Array.isArray(beneficiaries)) {
-        initialBeneficiaries = beneficiaries.map((b: any) => ({
+      const combined = [...benData.beneficiaries, ...benData.recents];
+      if (Array.isArray(combined)) {
+        initialBeneficiaries = combined.map((b: any) => ({
           id: String(b._id || b.id),
           name: b.name,
           bank: b.details?.bankName || "",
           number: b.details?.accountNumber || "",
           country: b.details?.country || "Nigeria",
+          isSaved: Boolean(b.isSaved),
+          isFavorite: Boolean(b.isFavorite),
         }));
       }
     } catch (e) {

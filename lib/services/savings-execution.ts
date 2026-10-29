@@ -33,10 +33,12 @@ import { DefindexClient } from "@/lib/chains/stellar/defindex-client";
 import { environment } from "@/lib/environment";
 import { getExplorerTxUrl, CONTRACT_ADDRESSES } from "@/lib/blockchain";
 import { apyForDays } from "@/lib/savings";
-import { generateCircleInviteCode } from "@/lib/schema-ids";
+import { generateCircleInviteCode, generateId } from "@/lib/schema-ids";
 import { formatPlanForUI } from "@/lib/savings-service";
 import { NgnAccount } from "@/models/NgnAccount";
 import { SavingsPlan } from "@/models/SavingsPlan";
+import { connectDB, mongoose } from "@/lib/db";
+import { Transaction } from "@/models/Transaction";
 import {
   assertDailyTransactionLimit,
   isLimitError,
@@ -202,79 +204,45 @@ export async function createSavingsPlanExecution(
       };
     }
 
-    if (numDeposit > 0) {
-      try {
-        await atomicDebitNgnBalance({
-          userId,
-          amount: numDeposit,
-          memo: `savings:deposit:initial:${name}`,
-        });
-      } catch (err: any) {
-        console.log("savings error", err)
-        return {
-          ok: false,
-          error:`Insufficient NGN balance for this deposit (₦${numDeposit.toLocaleString()}).`,
-          status: 400,
-        };
-      }
-    }
-
     // Compute and lock APY for this plan at creation time
     const lockedApy = apyForDays(kind, days);
-
-    // Save SavingsPlan in MongoDB
-    const plan = await createSavingsPlanRecord({
-      userId,
-      walletId: wallet._id,
-      walletAddress: stellarAddress,
-      kind,
-      name,
-      category,
-      targetAmount: Number(targetAmount) || 0,
-      initialDeposit: numDeposit,
-      currentAmount: numDeposit,
-      interestEarned: 0,
-      apy: lockedApy,
-      currency: "NGN",
-      chain: "none",
-      vaultAddress: "ngn_db_vault",
-      sharesOwned: "0",
-      circleConfig,
-      startDate,
-      endDate,
-      term: computedTerm,
-      frequency,
-      fundingSource: "ngn",
-      status: "Active",
-      penaltyFeePercent: 0,
-      txHashes: [],
-    });
-
-    if (numDeposit > 0) {
-      await createSavingsTransaction({
-        planId: plan._id,
-        userId,
-        currency: "NGN",
-        kind: "deposit",
-        amount: numDeposit,
-        at: startDate,
+    await connectDB();
+    const session = await mongoose.startSession();
+    let plan: any;
+    try {
+      await session.withTransaction(async () => {
+        if (numDeposit > 0) {
+          await atomicDebitNgnBalance({
+            userId,
+            amount: numDeposit,
+            memo: `savings:deposit:initial:${name}`,
+            session,
+          });
+        }
+        plan = await createSavingsPlanRecord({
+          userId, walletId: wallet._id, walletAddress: stellarAddress, kind, name,
+          category, targetAmount: Number(targetAmount) || 0, initialDeposit: numDeposit,
+          currentAmount: numDeposit, interestEarned: 0, apy: lockedApy, currency: "NGN",
+          chain: "none", vaultAddress: "ngn_db_vault", sharesOwned: "0", circleConfig,
+          startDate, endDate, term: computedTerm, frequency, fundingSource: "ngn",
+          status: "Active", penaltyFeePercent: 0, txHashes: [],
+        }, session);
+        if (numDeposit > 0) {
+          await createSavingsTransaction({
+            planId: plan._id, userId, currency: "NGN", kind: "deposit", amount: numDeposit, at: startDate,
+          }, session);
+          await Transaction.create([{
+            userId, walletId: wallet._id, type: "SAVINGS_DEPOSIT", status: "CONFIRMED",
+            chain: "fiat", network: "mainnet", fromAddress: "ngn_account", toAddress: "savings_plan",
+            amount: String(numDeposit), token: "NGN", memo: `savings:create:${plan._id}`,
+            savingsDetails: { planId: plan._id, vaultAddress: "ngn_db_vault" }, executedAt: new Date(),
+          }], { session });
+        }
       });
-
-      await createTransactionRecord({
-        userId,
-        walletId: wallet._id,
-        type: "SAVINGS_DEPOSIT",
-        status: "CONFIRMED",
-        chain: "fiat",
-        network: "mainnet",
-        fromAddress: "ngn_account",
-        toAddress: "savings_plan",
-        amount: String(numDeposit),
-        token: "NGN",
-        memo: `savings:create:${plan._id}`,
-        savingsDetails: { planId: plan._id, vaultAddress: "ngn_db_vault" },
-        executedAt: new Date(),
-      });
+    } catch (err: any) {
+      return { ok: false, error: err.message?.includes("Insufficient") ? `Insufficient NGN balance for this deposit (₦${numDeposit.toLocaleString()}).` : "Unable to create savings plan", status: 400 };
+    } finally {
+      await session.endSession();
     }
 
     setUserCreatedSavings(userId).catch(() => {});
@@ -577,55 +545,31 @@ export async function depositSavingsExecution(
       }
     }
 
+    await connectDB();
+    const session = await mongoose.startSession();
+    let updatedPlan: any;
     try {
-      await atomicDebitNgnBalance({
-        userId,
-        amount,
-        memo: `savings:deposit:topup:${plan._id}`,
+      await session.withTransaction(async () => {
+        await atomicDebitNgnBalance({ userId, amount, memo: `savings:deposit:topup:${plan._id}`, session });
+        updatedPlan = await SavingsPlan.findOneAndUpdate(
+          { _id: plan._id, status: "Active", currentAmount: { $gte: 0 } },
+          { $inc: { currentAmount: amount } },
+          { returnDocument: "after", session },
+        );
+        if (!updatedPlan) throw new Error("Savings plan is no longer active");
+        await createSavingsTransaction({ planId: plan._id, userId, currency: "NGN", kind: "top_up", amount, at: new Date() }, session);
+        await Transaction.create([{
+          userId, walletId: wallet._id, type: "SAVINGS_DEPOSIT", status: "CONFIRMED",
+          chain: "fiat", network: "mainnet", fromAddress: "ngn_account", toAddress: "savings_plan",
+          amount: String(amount), token: "NGN", memo: `savings:topup:${plan._id}`,
+          savingsDetails: { planId: plan._id, vaultAddress: "ngn_db_vault" }, executedAt: new Date(),
+        }], { session });
       });
     } catch (err: any) {
-      return {
-        ok: false,
-        error: err.message || `Insufficient NGN balance for this top-up (₦${amount.toLocaleString()}).`,
-        status: 400,
-      };
+      return { ok: false, error: err.message || `Insufficient NGN balance for this top-up (₦${amount.toLocaleString()}).`, status: 400 };
+    } finally {
+      await session.endSession();
     }
-
-    const updatedPlan = await SavingsPlan.findOneAndUpdate(
-      {
-        _id: plan._id,
-        status: "Active",
-      },
-      {
-        $inc: { currentAmount: amount },
-      },
-      { returnDocument: "after" },
-    );
-
-    await createSavingsTransaction({
-      planId: plan._id,
-      userId,
-      currency: "NGN",
-      kind: "top_up",
-      amount,
-      at: new Date(),
-    });
-
-    await createTransactionRecord({
-      userId,
-      walletId: wallet._id,
-      type: "SAVINGS_DEPOSIT",
-      status: "CONFIRMED",
-      chain: "fiat",
-      network: "mainnet",
-      fromAddress: "ngn_account",
-      toAddress: "savings_plan",
-      amount: String(amount),
-      token: "NGN",
-      memo: `savings:topup:${plan._id}`,
-      savingsDetails: { planId: plan._id, vaultAddress: "ngn_db_vault" },
-      executedAt: new Date(),
-    });
 
     return {
       ok: true,
@@ -728,6 +672,22 @@ export async function depositSavingsExecution(
   const targetVault = environment.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS;
   let txHash: string | undefined;
   let explorerUrl: string | undefined;
+  const topUpTransactionId = generateId("wdref");
+  await Transaction.create({
+    _id: topUpTransactionId,
+    userId,
+    walletId: wallet._id,
+    type: "SAVINGS_DEPOSIT",
+    status: "PENDING",
+    chain: "stellar",
+    network: "mainnet",
+    fromAddress: stellarAddress,
+    toAddress: targetVault,
+    amount: String(amount),
+    token: "USDC",
+    memo: `savings:topup:${plan._id}`,
+    savingsDetails: { planId: plan._id, vaultAddress: targetVault },
+  });
 
   try {
     const depositRes = await defindexClient.deposit(targetVault, {
@@ -754,10 +714,16 @@ export async function depositSavingsExecution(
     const sendRes = await defindexClient.send(tx.toXDR());
     txHash = sendRes.txHash;
     explorerUrl = getExplorerTxUrl("stellar", txHash, false);
+    await Transaction.findByIdAndUpdate(topUpTransactionId, {
+      status: "CONFIRMED", txHash, explorerUrl, executedAt: new Date(),
+    });
   } catch (onChainErr: any) {
     console.error(
       `Error: ${formatOneLineError(onChainErr?.rawDetail || onChainErr)}`,
     );
+    await Transaction.findByIdAndUpdate(topUpTransactionId, {
+      status: "PENDING", errorMessage: formatOneLineError(onChainErr?.rawDetail || onChainErr),
+    });
     return {
       ok: false,
       error: "Unable to complete on-chain savings top-up. Please verify your balance and try again.",
@@ -780,27 +746,6 @@ export async function depositSavingsExecution(
     amount,
     txHash,
     at: new Date(),
-  });
-
-  await createTransactionRecord({
-    userId,
-    walletId: wallet._id,
-    type: "SAVINGS_DEPOSIT",
-    status: "CONFIRMED",
-    chain: "stellar",
-    network: "mainnet",
-    fromAddress: stellarAddress,
-    toAddress: targetVault,
-    amount: String(amount),
-    token: "USDC",
-    memo: `savings:topup:${plan._id}`,
-    txHash,
-    explorerUrl,
-    savingsDetails: {
-      planId: plan._id,
-      vaultAddress: targetVault,
-    },
-    executedAt: new Date(),
   });
 
   return {
@@ -862,42 +807,77 @@ export async function withdrawSavingsExecution(
   // Interest handling: early lock forfeits all interest
   const accruedInterest = plan.interestEarned || 0;
   const forfeitInterest = Boolean(isEarlyLock);
-  const principalWithdraw = amount !== undefined ? amount : plan.currentAmount;
+  const isSaveTogetherCircle =
+    plan.kind === "circle" && plan.circleConfig?.type === "save_together";
+  const circleMember = isSaveTogetherCircle
+    ? plan.circleConfig?.members.find((member) => member.userId === userId)
+    : undefined;
+  const memberPrincipal = circleMember?.saved || 0;
+  const availablePrincipal = isSaveTogetherCircle
+    ? memberPrincipal
+    : plan.currentAmount;
+  const principalWithdraw =
+    amount !== undefined ? amount : availablePrincipal;
 
-  if (principalWithdraw > plan.currentAmount) {
+  if (principalWithdraw > availablePrincipal) {
     return {
       ok: false,
-      error: `Requested amount exceeds plan balance (${plan.currentAmount})`,
+      error: `Requested amount exceeds your available share (${availablePrincipal})`,
       status: 400,
     };
   }
 
   // Net payout = principal + (interest unless forfeited)
-  const interestPayout = forfeitInterest ? 0 : accruedInterest;
+  const interestShare = isSaveTogetherCircle && plan.currentAmount > 0
+    ? (accruedInterest * memberPrincipal) / plan.currentAmount
+    : accruedInterest;
+  const interestPayout =
+    forfeitInterest || (isSaveTogetherCircle && principalWithdraw < memberPrincipal)
+      ? 0
+      : interestShare;
   const netPayout = Number((principalWithdraw + interestPayout).toFixed(2));
 
   let txHash: string | undefined;
   let explorerUrl: string | undefined;
 
   const remainingBalance = Math.max(0, (plan.currentAmount || 0) - principalWithdraw);
-  const isFullWithdrawal = isLock || remainingBalance === 0;
+  const isFullWithdrawal =
+    isLock || (!isSaveTogetherCircle && remainingBalance === 0);
 
   // ── Currency: NGN (Database Ledger)
   if (plan.currency === "NGN") {
     // ATOMIC CLAIM: Deduct from SavingsPlan FIRST using atomic Compare-And-Swap (CAS)
     // WiredTiger engine locks this document during the write.
     // If concurrent requests hit, only 1 satisfies `currentAmount >= principalWithdraw`. The rest receive null.
-    const claimedPlan = await SavingsPlan.findOneAndUpdate(
+    await connectDB();
+    const session = await mongoose.startSession();
+    let claimedPlan: any;
+    try {
+      await session.withTransaction(async () => {
+    claimedPlan = await SavingsPlan.findOneAndUpdate(
       {
         _id: planId,
         $or: [{ userId }, { "circleConfig.members.userId": userId }],
         status: "Active",
         currentAmount: { $gte: principalWithdraw },
+        ...(isSaveTogetherCircle
+          ? {
+              "circleConfig.members": {
+                $elemMatch: {
+                  userId,
+                  saved: { $gte: principalWithdraw },
+                },
+              },
+            }
+          : {}),
       },
       {
         $inc: {
           currentAmount: -principalWithdraw,
           interestEarned: -interestPayout,
+          ...(isSaveTogetherCircle
+            ? { "circleConfig.members.$[member].saved": -principalWithdraw }
+            : {}),
         },
         ...(isFullWithdrawal
           ? {
@@ -908,15 +888,17 @@ export async function withdrawSavingsExecution(
             }
           : {}),
       },
-      { returnDocument: "after" },
+      {
+        returnDocument: "after",
+        session,
+        ...(isSaveTogetherCircle
+          ? { arrayFilters: [{ "member.userId": userId }] }
+          : {}),
+      },
     );
 
     if (!claimedPlan) {
-      return {
-        ok: false,
-        error: "Insufficient balance or plan is already closed.",
-        status: 400,
-      };
+      throw new Error("Insufficient balance or plan is already closed.");
     }
 
     // Atomically credit user's NgnAccount with the payout and invalidate balance cache
@@ -925,6 +907,7 @@ export async function withdrawSavingsExecution(
         userId,
         amount: netPayout,
         memo: `savings:withdraw:${plan._id}`,
+        session,
       });
     } catch (creditErr: any) {
       console.error(
@@ -941,9 +924,9 @@ export async function withdrawSavingsExecution(
       amount: netPayout,
       forfeited: forfeitInterest,
       at: new Date(),
-    });
+    }, session);
 
-    await createTransactionRecord({
+    await Transaction.create([{
       userId,
       walletId: wallet._id,
       type: "SAVINGS_WITHDRAW",
@@ -960,7 +943,14 @@ export async function withdrawSavingsExecution(
         vaultAddress: "ngn_db_vault",
       },
       executedAt: new Date(),
-    });
+    }], { session });
+      });
+    } catch (creditErr: any) {
+      console.error(`[Savings:Withdraw] NGN transaction rolled back: ${creditErr?.message || creditErr}`);
+      return { ok: false, error: creditErr.message || "Unable to complete withdrawal", status: 503 };
+    } finally {
+      await session.endSession();
+    }
 
     return {
       ok: true,
@@ -1016,6 +1006,96 @@ export async function withdrawSavingsExecution(
     }
   }
 
+  const withdrawalId = generateId("wdref");
+  await connectDB();
+  const withdrawalSession = await mongoose.startSession();
+  let claimedUsdcPlan = plan;
+  try {
+    await withdrawalSession.withTransaction(async () => {
+      const claimFilter: Record<string, unknown> = {
+        _id: planId,
+        status: "Active",
+        currentAmount: { $gte: principalWithdraw },
+      };
+      if (isSaveTogetherCircle) {
+        claimFilter["circleConfig.members"] = {
+          $elemMatch: { userId, saved: { $gte: principalWithdraw } },
+        };
+      } else {
+        claimFilter.$or = [{ userId }, { "circleConfig.members.userId": userId }];
+      }
+
+      const claimed = await SavingsPlan.findOneAndUpdate(
+        claimFilter,
+        {
+          $inc: {
+            currentAmount: -principalWithdraw,
+            interestEarned: -interestPayout,
+            ...(isSaveTogetherCircle
+              ? { "circleConfig.members.$[member].saved": -principalWithdraw }
+              : {}),
+          },
+        },
+        {
+          returnDocument: "after",
+          session: withdrawalSession,
+          ...(isSaveTogetherCircle
+            ? { arrayFilters: [{ "member.userId": userId }] }
+            : {}),
+        },
+      );
+      if (!claimed) {
+        throw new Error("Insufficient balance or withdrawal already claimed");
+      }
+
+      await Transaction.create(
+        [
+          {
+            _id: withdrawalId,
+            userId,
+            walletId: wallet._id,
+            type: "SAVINGS_WITHDRAW",
+            status: "PENDING",
+            chain: "stellar",
+            network: "mainnet",
+            fromAddress: targetVault,
+            toAddress: stellarAddress,
+            amount: String(netPayout),
+            token: "USDC",
+            memo: `savings:withdraw:${planId}`,
+            savingsDetails: {
+              planId,
+              vaultAddress: targetVault,
+              penaltyFee: forfeitInterest ? "interest forfeited" : undefined,
+            },
+          },
+        ],
+        { session: withdrawalSession },
+      );
+    });
+  } catch (claimErr: unknown) {
+    return {
+      ok: false,
+      error:
+        claimErr instanceof Error
+          ? claimErr.message
+          : "Unable to reserve savings withdrawal",
+      status: 409,
+    };
+  } finally {
+    await withdrawalSession.endSession();
+  }
+  const updatedUsdcPlan = await getRawSavingsPlanById(planId, userId);
+  if (!updatedUsdcPlan) {
+    return {
+      ok: false,
+      error: "Savings plan could not be loaded after reservation",
+      status: 500,
+    };
+  }
+  claimedUsdcPlan = updatedUsdcPlan;
+  let broadcastAttempted = false;
+
   try {
     const netPayoutStroops = Math.round(netPayout * 10_000_000);
     const withdrawRes = await defindexClient.withdraw(targetVault, {
@@ -1023,22 +1103,50 @@ export async function withdrawSavingsExecution(
       caller: stellarAddress,
     });
 
-    if (withdrawRes?.xdr) {
-      const tx = StellarSdk.TransactionBuilder.fromXDR(
-        withdrawRes.xdr,
-        StellarSdk.Networks.PUBLIC,
-      );
-      tx.sign(userKeypair);
-
-      const sendRes = await defindexClient.send(tx.toXDR());
-      txHash = sendRes.txHash;
-      explorerUrl = getExplorerTxUrl("stellar", txHash, false);
+    if (!withdrawRes?.xdr) {
+      throw new Error("Savings withdrawal did not return a transaction envelope");
     }
+    const tx = StellarSdk.TransactionBuilder.fromXDR(
+      withdrawRes.xdr,
+      StellarSdk.Networks.PUBLIC,
+    );
+    tx.sign(userKeypair);
+
+    broadcastAttempted = true;
+    const sendRes = await defindexClient.send(tx.toXDR());
+    if (!sendRes?.txHash) {
+      throw new Error("Savings withdrawal submission did not return a transaction hash");
+    }
+    txHash = sendRes.txHash;
+    explorerUrl = getExplorerTxUrl("stellar", txHash, false);
+    await Transaction.findByIdAndUpdate(withdrawalId, {
+      status: "SUBMITTED",
+      txHash,
+    });
   } catch (onChainErr: any) {
     console.error(
       `[withdrawSavingsExecution] Error: ${formatOneLineError(onChainErr?.rawDetail || onChainErr)}`,
     );
+    await Transaction.findByIdAndUpdate(withdrawalId, {
+      status: broadcastAttempted ? "PENDING" : "FAILED",
+      errorMessage: formatOneLineError(onChainErr?.rawDetail || onChainErr),
+      txHash: txHash || null,
+    });
+    return {
+      ok: false,
+      error: txHash
+        ? "Withdrawal is pending confirmation. Please try again later."
+        : "Unable to complete savings withdrawal.",
+      status: 503,
+    };
   }
+
+  await Transaction.findByIdAndUpdate(withdrawalId, {
+    status: "CONFIRMED",
+    txHash,
+    explorerUrl,
+    executedAt: new Date(),
+  });
 
   if (isFullWithdrawal) {
     await closeSavingsPlanRecord(planId, userId, {
@@ -1046,8 +1154,7 @@ export async function withdrawSavingsExecution(
       forfeited: forfeitInterest,
     });
   } else {
-    plan.currentAmount = remainingBalance;
-    plan.interestEarned = Math.max(0, plan.interestEarned - interestPayout);
+    const plan = claimedUsdcPlan!;
     if (txHash && !plan.txHashes.includes(txHash)) {
       plan.txHashes.push(txHash);
     }
@@ -1065,27 +1172,6 @@ export async function withdrawSavingsExecution(
     at: new Date(),
   });
 
-  await createTransactionRecord({
-    userId,
-    walletId: wallet._id,
-    type: "SAVINGS_WITHDRAW",
-    status: "CONFIRMED",
-    chain: "stellar",
-    network: "mainnet",
-    fromAddress: targetVault,
-    toAddress: stellarAddress,
-    amount: String(netPayout),
-    token: "USDC",
-    memo: `savings:withdraw:${plan._id}`,
-    txHash,
-    explorerUrl,
-    savingsDetails: {
-      planId: plan._id,
-      vaultAddress: targetVault,
-    },
-    executedAt: new Date(),
-  });
-
   return {
     ok: true,
     withdrawnAmount: principalWithdraw,
@@ -1093,7 +1179,7 @@ export async function withdrawSavingsExecution(
     forfeited: forfeitInterest,
     txHash,
     explorerUrl,
-    plan: formatPlanForUI(plan),
+    plan: formatPlanForUI(claimedUsdcPlan!),
   };
 }
 
@@ -1174,20 +1260,6 @@ export async function joinCircleExecution(
       };
     }
 
-    try {
-      await atomicDebitNgnBalance({
-        userId,
-        amount: numDeposit,
-        memo: `savings:deposit:join_circle:${plan._id}`,
-      });
-    } catch (err: any) {
-      console.log("savings error", err)
-      return {
-        ok: false,
-        error: `Insufficient NGN balance for this deposit (₦${numDeposit.toLocaleString()}).`,
-        status: 400,
-      };
-    }
   } else {
     // USDC on-chain
     // Enforce cumulative $1,000 USDC maximum savings cap per user
@@ -1228,11 +1300,51 @@ export async function joinCircleExecution(
       };
     }
 
+    // Atomically reserve a spot in the circle BEFORE executing the on-chain deposit
+    const reservedCircle = await SavingsPlan.findOneAndUpdate(
+      {
+        _id: plan._id,
+        kind: "circle",
+        status: "Active",
+        $expr: {
+          $lt: [
+            { $size: { $ifNull: ["$circleConfig.members", []] } },
+            "$circleConfig.capacity",
+          ],
+        },
+        "circleConfig.members.userId": { $ne: userId },
+      },
+      {
+        $push: {
+          "circleConfig.members": {
+            userId,
+            name: "Member",
+            role: "member",
+            saved: 0,
+            joinedAt: new Date(),
+          },
+        },
+      },
+      { returnDocument: "after" },
+    );
+
+    if (!reservedCircle) {
+      return {
+        ok: false,
+        error: "This circle is already at full capacity or you have already joined.",
+        status: 400,
+      };
+    }
+
     const vaultAddress = plan.vaultAddress || environment.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS;
     let secret: string;
     try {
       secret = decryptMnemonic(wallet.encryptedMnemonic, wallet.iv, wallet.salt, pin);
     } catch {
+      await SavingsPlan.updateOne(
+        { _id: plan._id },
+        { $pull: { "circleConfig.members": { userId } } },
+      ).catch(() => {});
       return { ok: false, error: "Invalid wallet PIN", status: 401 };
     }
 
@@ -1273,7 +1385,7 @@ export async function joinCircleExecution(
       });
 
       if (!depositRes?.xdr) {
-        return { ok: false, error: "DeFindex failed to generate deposit transaction", status: 500 };
+        throw new Error("DeFindex failed to generate deposit transaction");
       }
 
       const tx = StellarSdk.TransactionBuilder.fromXDR(depositRes.xdr, StellarSdk.Networks.PUBLIC);
@@ -1285,6 +1397,13 @@ export async function joinCircleExecution(
       console.error(
         `Error: ${formatOneLineError(onChainErr?.rawDetail || onChainErr)}`,
       );
+      // Release the reserved slot since on-chain deposit failed
+      await SavingsPlan.updateOne(
+        { _id: plan._id },
+        { $pull: { "circleConfig.members": { userId } } },
+      ).catch((releaseErr) => {
+        console.error("[CircleJoin] Failed to release reserved slot:", releaseErr);
+      });
       return {
         ok: false,
         error: "Unable to complete on-chain deposit for circle. Please verify your balance and try again.",
@@ -1293,66 +1412,96 @@ export async function joinCircleExecution(
     }
   }
 
-  // 2. Atomically reserve circle member slot and increment balance
-  const updatedCircle = await SavingsPlan.findOneAndUpdate(
-    {
-      _id: plan._id,
-      kind: "circle",
-      status: "Active",
-      $expr: {
-        $lt: [
-          { $size: { $ifNull: ["$circleConfig.members", []] } },
-          "$circleConfig.capacity",
-        ],
-      },
-      "circleConfig.members.userId": { $ne: userId },
-    },
-    {
-      $push: {
-        "circleConfig.members": {
-          userId,
-          name: "Member",
-          role: "member",
-          saved: numDeposit,
-          joinedAt: new Date(),
-        },
-        ...(txHash ? { txHashes: txHash } : {}),
-      },
-      $inc: { currentAmount: numDeposit },
-    },
-    { returnDocument: "after" },
-  );
-
-  if (!updatedCircle) {
-    if (plan.currency === "NGN") {
-      await atomicCreditNgnBalance({
+  // 2. Finalize circle member slot and increment balance
+  if (plan.currency === "NGN") {
+    const circleSession = await mongoose.startSession();
+    await circleSession.startTransaction();
+    try {
+      await atomicDebitNgnBalance({
         userId,
         amount: numDeposit,
-        memo: `savings:refund:circle_full:${plan._id}`,
-      }).catch((rErr) => console.error("[CircleJoin] Failed to refund over-subscribed user:", rErr));
-    }
-    return {
-      ok: false,
-      error: "This circle is already at full capacity or you have already joined.",
-      status: 400,
-    };
-  }
+        memo: `savings:deposit:join_circle:${plan._id}`,
+        session: circleSession,
+      });
 
-  await createSavingsTransaction({
-    planId: plan._id,
-    userId,
-    currency: plan.currency,
-    kind: "deposit",
-    amount: numDeposit,
-    txHash,
-    at: new Date(),
-  });
+      const updatedCircle = await SavingsPlan.findOneAndUpdate(
+        {
+          _id: plan._id,
+          kind: "circle",
+          status: "Active",
+          $expr: {
+            $lt: [
+              { $size: { $ifNull: ["$circleConfig.members", []] } },
+              "$circleConfig.capacity",
+            ],
+          },
+          "circleConfig.members.userId": { $ne: userId },
+        },
+        {
+          $push: {
+            "circleConfig.members": {
+              userId,
+              name: "Member",
+              role: "member",
+              saved: numDeposit,
+              joinedAt: new Date(),
+            },
+          },
+          $inc: { currentAmount: numDeposit },
+        },
+        { returnDocument: "after", session: circleSession },
+      );
+
+      if (!updatedCircle) {
+        throw new Error("This circle is already at full capacity or you have already joined.");
+      }
+
+      await createSavingsTransaction({
+        planId: plan._id,
+        userId,
+        currency: plan.currency,
+        kind: "deposit",
+        amount: numDeposit,
+        txHash,
+        at: new Date(),
+      }, circleSession);
+
+      await circleSession.commitTransaction();
+    } catch (joinErr: any) {
+      await circleSession.abortTransaction();
+      await circleSession.endSession();
+      return { ok: false, error: joinErr.message || "Unable to join circle", status: 400 };
+    }
+    await circleSession.endSession();
+  } else {
+    // USDC on-chain deposit succeeded: finalize the reserved slot
+    await SavingsPlan.updateOne(
+      { _id: plan._id, "circleConfig.members.userId": userId },
+      {
+        $inc: { currentAmount: numDeposit },
+        $set: { "circleConfig.members.$.saved": numDeposit },
+        ...(txHash ? { $push: { txHashes: txHash } } : {}),
+      },
+    );
+
+    await createSavingsTransaction({
+      planId: plan._id,
+      userId,
+      currency: "USDC",
+      kind: "deposit",
+      amount: numDeposit,
+      txHash,
+      at: new Date(),
+    });
+  }
 
   setUserCreatedSavings(userId).catch(() => {});
 
+  const refreshedPlan = await SavingsPlan.findById(plan._id);
+
   return {
     ok: true,
-    plan: formatPlanForUI(plan),
+    plan: formatPlanForUI(refreshedPlan || plan),
     txHash,
     explorerUrl,
   };

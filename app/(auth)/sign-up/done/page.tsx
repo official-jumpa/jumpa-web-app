@@ -3,6 +3,8 @@ import Image from "next/image";
 import { AuthHeader } from "@/components/auth/auth-header";
 import { AuthScreen } from "@/components/auth/auth-screen";
 import { Button } from "@/components/ui/button";
+import { guardAuthPage } from "@/lib/auth/auth-page-guard";
+import { AutoRedirectToHome } from "@/components/auth/auto-redirect-to-home";
 
 export const metadata: Metadata = {
   robots: {
@@ -11,7 +13,9 @@ export const metadata: Metadata = {
   },
 };
 
-export default function SignUpDonePage() {
+export default async function SignUpDonePage() {
+  await guardAuthPage({ step: "done" });
+
   return (
     <AuthScreen
       header={<AuthHeader backHref="/sign-up/pin/confirm" />}
@@ -28,6 +32,7 @@ export default function SignUpDonePage() {
         </Button>
       }
     >
+      <AutoRedirectToHome delayMs={5000} />
       <div className="flex flex-1 flex-col items-center">
         {/* The export carries 85px of transparent glow below the badge. */}
         <Image

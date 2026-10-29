@@ -56,10 +56,13 @@ const MAX_MATCHES = 6;
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** Accounts written before `status` existed have none; like the permission check, that reads as active. */
+const isActive = (user: IUser) => (user.status ?? "active") === "active";
+
 /** Wallet-backed, active accounts only, in the order the ids were given. */
 async function toRecipients(users: IUser[], callerId: string): Promise<JumpaRecipient[]> {
   const eligible = users.filter(
-    (user) => String(user._id) !== callerId && user.status === "active" && !user.deletedAt,
+    (user) => String(user._id) !== callerId && isActive(user) && !user.deletedAt,
   );
   if (eligible.length === 0) return [];
 
@@ -121,7 +124,7 @@ export async function findJumpaRecipients(query: string, callerId: string): Prom
     or.push({ name }, { nickname: name });
   }
 
-  const users = await User.find({ $or: or, status: "active", deletedAt: null })
+  const users = await User.find({ $or: or, status: { $in: ["active", null] }, deletedAt: null })
     .limit(MAX_MATCHES * 2)
     .lean<IUser[]>();
 

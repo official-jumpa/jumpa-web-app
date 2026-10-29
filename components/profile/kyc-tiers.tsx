@@ -170,7 +170,7 @@ function TierCard({ tier, status }: { tier: KycTier; status: KycTierStatus }) {
           <Stat
             label="Maximum transaction limit"
             value={
-              tier.maxTransaction ? `Up to ${tier.maxTransaction}` : "No balance cap"
+              tier.maxTransaction ? `Up to ${tier.maxTransaction}` : "Unlimited"
             }
             strong
           />
@@ -203,7 +203,12 @@ export function KycTiers({ kycVerified }: { kycVerified: boolean }) {
       {current < TOP_TIER ? (
         <div className="mt-auto pt-6">
           {/* TODO(backend): route to the next tier's own checks once they exist. */}
-          <Button variant="brandAccent" size="lg" href="/kyc">
+          <Button
+            variant="brandAccent"
+            size="lg"
+            disabled
+            className="disabled:opacity-50"
+          >
             Upgrade to Tier {current + 1}
           </Button>
         </div>

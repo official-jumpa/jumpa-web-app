@@ -45,12 +45,12 @@ const FORMATS: Row[] = [
     title: "PDF document",
     caption: "Print-ready, opens anywhere",
   },
-  {
-    id: "csv",
-    Icon: FileArrowDownAltIcon,
-    title: "Spreadsheet",
-    caption: "CSV for your records or accountant",
-  },
+  // {
+  //   id: "csv",
+  //   Icon: FileArrowDownAltIcon,
+  //   title: "Spreadsheet",
+  //   caption: "CSV for your records or accountant",
+  // },
 ];
 
 /**

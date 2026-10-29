@@ -475,13 +475,29 @@ export async function executeOfframpTransfer(options: {
 
         const destAtaInfo = await connection.getAccountInfo(destATA);
         if (!destAtaInfo) {
-          // Destination ATA does not exist yet. Check if sender has enough SOL for rent exemption (~0.00204 SOL)
-          const rentLamports = await connection.getMinimumBalanceForRentExemption(165);
-          const requiredLamports = BigInt(rentLamports) + BigInt(10000); // Rent + transaction fees
-          if (lamports < requiredLamports) {
+          // Destination ATA does not exist yet.
+          // Note: On Solana mainnet, the deployed Associated Token Account Program enforces
+          // a rent-exempt reserve of 2,039,280 lamports (~0.00203928 SOL) for a 165-byte account,
+          // even if RPC getMinimumBalanceForRentExemption reports a lower value due to recent SIMD updates.
+          // We must buffer for the full ATA rent (2,039,280 lamports) + base fee (5,000) + priority compute budget fees.
+          const SPL_ATA_RENT_LAMPORTS = BigInt(2039280);
+          let rpcRent = SPL_ATA_RENT_LAMPORTS;
+          try {
+            const fetched = await connection.getMinimumBalanceForRentExemption(165);
+            if (fetched) {
+              rpcRent = BigInt(fetched);
+            }
+          } catch {
+            // fallback to SPL_ATA_RENT_LAMPORTS
+          }
+          const actualRentLamports = rpcRent > SPL_ATA_RENT_LAMPORTS ? rpcRent : SPL_ATA_RENT_LAMPORTS;
+          const requiredLamports = actualRentLamports + BigInt(50000); // Rent + transaction & priority fees (~0.00209 SOL)
+          const userLamports = BigInt(lamports);
+
+          if (userLamports < requiredLamports) {
             if (await getSolanaSponsorKeypair()) {
               console.log(
-                `[OfframpTransfer] Insufficient SOL for destination ATA creation — routing through Solana sponsor engine...`,
+                `[OfframpTransfer] Insufficient SOL for destination ATA creation (${solBalance.toFixed(5)} SOL < ${(Number(requiredLamports) / 1e9).toFixed(5)} SOL) — routing through Solana sponsor engine...`,
               );
               try {
                 const rawToken = asset.split(":")[1]?.toUpperCase() || "USDC";
@@ -507,7 +523,7 @@ export async function executeOfframpTransfer(options: {
             }
             return {
               success: false,
-              error: `Insufficient SOL balance. You have ${solBalance.toFixed(5)} SOL, but at least ${(Number(requiredLamports) / 1e9).toFixed(5)} SOL is required`,
+              error: `Insufficient SOL balance. You have ${solBalance.toFixed(5)} SOL, but at least ${(Number(requiredLamports) / 1e9).toFixed(5)} SOL is required to create recipient token account on Solana.`,
             };
           }
 

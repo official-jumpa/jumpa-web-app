@@ -14,19 +14,19 @@ export const KYC_TIERS: readonly KycTier[] = [
   {
     level: 1,
     requirement: "Phone number and email",
-    dailyLimit: "₦50,000",
-    maxTransaction: "₦300,000",
+    dailyLimit: "$500",
+    maxTransaction: "$200",
   },
   {
     level: 2,
-    requirement: "BVN or NIN, plus a selfie",
-    dailyLimit: "₦200,000",
-    maxTransaction: "₦500,000",
+    requirement: "Government ID and selfie verification",
+    dailyLimit: "$2000",
+    maxTransaction: "$1000",
   },
   {
     level: 3,
     requirement: "Government ID and proof of address",
-    dailyLimit: "₦500,000",
+    dailyLimit: "$5000",
     maxTransaction: null,
   },
 ];

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useAuthContext } from "@/components/auth/AuthGuard";
 import { CountrySheet } from "@/components/profile/country-sheet";
+import { ProfilePhotoSheet } from "@/components/profile/profile-photo-sheet";
 import { SettingsGearLink } from "@/components/profile/settings-gear-link";
 import { useUserProfile } from "@/components/profile/user-profile-provider";
 import { SettingsHeader } from "@/components/settings/settings-header";
@@ -82,12 +83,16 @@ export function EditProfile({
   const router = useRouter();
   const auth = useAuthContext();
   const { updateProfile, refreshProfile } = useUserProfile();
-  const fileInput = useRef<HTMLInputElement>(null);
+  const galleryInput = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
 
   const [nickname, setNickname] = useState(savedNickname ?? "");
   const [country, setCountry] = useState(savedCountry);
   const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null);
   const [picking, setPicking] = useState(false);
+  const [photoSheet, setPhotoSheet] = useState(false);
+  // Removal waits for Save, like a new photo does.
+  const [removing, setRemoving] = useState(false);
   const [errors, setErrors] = useState<{
     nickname?: string;
     photo?: string;
@@ -118,7 +123,20 @@ export function EditProfile({
       save: undefined,
     }));
     if (problem) return;
+    setRemoving(false);
     setPhoto({ file, url: URL.createObjectURL(file) });
+  };
+
+  const choose = (input: React.RefObject<HTMLInputElement | null>) => {
+    setPhotoSheet(false);
+    input.current?.click();
+  };
+
+  const removePhoto = () => {
+    setPhotoSheet(false);
+    setPhoto(null);
+    setRemoving(Boolean(savedImage));
+    setErrors((prev) => ({ ...prev, photo: undefined, save: undefined }));
   };
 
   const onSave = async () => {
@@ -127,7 +145,7 @@ export function EditProfile({
       document.getElementById("nickname")?.focus();
       return;
     }
-    if (!photo && !nicknameChanged && !countryChanged) {
+    if (!photo && !removing && !nicknameChanged && !countryChanged) {
       router.replace(profileHref());
       return;
     }
@@ -146,6 +164,12 @@ export function EditProfile({
         if (!res.ok)
           throw new Error(json.error || "Could not save that photo.");
         auth?.updateUser?.({ image: json.image });
+      } else if (removing) {
+        const res = await fetch("/api/v1/user/avatar", { method: "DELETE" });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok)
+          throw new Error(json.error || "Could not remove your photo.");
+        auth?.updateUser?.({ image: null });
       }
 
       const updates: { nickname?: string; country?: string } = {};
@@ -165,7 +189,8 @@ export function EditProfile({
     }
   };
 
-  const openPicker = () => fileInput.current?.click();
+  const openPicker = () => setPhotoSheet(true);
+  const shownImage = removing ? null : savedImage;
 
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+21px)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
@@ -177,9 +202,19 @@ export function EditProfile({
       />
 
       <input
-        ref={fileInput}
+        ref={galleryInput}
         type="file"
         accept={AVATAR_ACCEPT}
+        onChange={onPhoto}
+        className="hidden"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+      <input
+        ref={cameraInput}
+        type="file"
+        accept="image/*"
+        capture="user"
         onChange={onPhoto}
         className="hidden"
         tabIndex={-1}
@@ -195,9 +230,9 @@ export function EditProfile({
               alt=""
               className="size-26 rounded-full object-cover"
             />
-          ) : savedImage ? (
+          ) : shownImage ? (
             <Image
-              src={savedImage}
+              src={shownImage}
               alt=""
               width={208}
               height={208}
@@ -317,6 +352,16 @@ export function EditProfile({
           {pending ? "Saving…" : "Save changes"}
         </Button>
       </div>
+
+      {photoSheet ? (
+        <ProfilePhotoSheet
+          canRemove={Boolean(photo || shownImage)}
+          onCamera={() => choose(cameraInput)}
+          onGallery={() => choose(galleryInput)}
+          onRemove={removePhoto}
+          onClose={() => setPhotoSheet(false)}
+        />
+      ) : null}
 
       {picking ? (
         <CountrySheet

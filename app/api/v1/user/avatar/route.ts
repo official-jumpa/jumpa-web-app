@@ -90,3 +90,54 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+/**
+ * DELETE /api/v1/user/avatar
+ * Clears the profile photo, so the account shows its initials again.
+ */
+export async function DELETE(req: NextRequest) {
+  const auth = await requireActiveUser({
+    requireWallet: false,
+    rateLimit: { tier: "medium", action: "user_avatar" },
+  });
+  if (!auth.ok) return auth.response;
+
+  try {
+    const previous = (await getUserById(auth.userId))?.image ?? null;
+    const user = await updateUserProfile(auth.userId, { image: null });
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    let headers: Headers | undefined;
+    try {
+      const res = await authInstance.api.updateUser({
+        body: { image: null },
+        headers: req.headers,
+        asResponse: true,
+      });
+      headers = res.headers;
+    } catch (err) {
+      console.warn(`[avatar] session sync: ${formatOneLineError(err)}`);
+    }
+
+    if (
+      previous &&
+      URL.canParse(previous) &&
+      new URL(previous).hostname === STORAGE_HOST
+    ) {
+      del(previous).catch(() => {});
+    }
+
+    return NextResponse.json(
+      { success: true, image: null },
+      headers ? { headers } : undefined,
+    );
+  } catch (err) {
+    console.error(`[avatar] remove failed: ${formatOneLineError(err)}`);
+    return NextResponse.json(
+      { error: "Could not remove your photo. Please try again." },
+      { status: 500 },
+    );
+  }
+}

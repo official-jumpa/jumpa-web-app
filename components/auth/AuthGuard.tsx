@@ -88,6 +88,8 @@ export function AuthGuard({
   const [profileOverrides, setProfileOverrides] = useState<{
     nickname?: string | null;
     jumpaTag?: string | null;
+    country?: string | null;
+    image?: string | null;
   }>({});
 
   const updateUser = useCallback((overrides: Partial<AuthUser>) => {
@@ -201,6 +203,12 @@ export function AuthGuard({
       : {}),
     ...(profileOverrides.jumpaTag !== undefined && profileOverrides.jumpaTag !== null
       ? { jumpaTag: profileOverrides.jumpaTag }
+      : {}),
+    ...(profileOverrides.country !== undefined
+      ? { country: profileOverrides.country }
+      : {}),
+    ...(profileOverrides.image !== undefined
+      ? { image: profileOverrides.image }
       : {}),
   };
 

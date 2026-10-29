@@ -8,6 +8,7 @@ import {
   SETTINGS_SECTIONS,
 } from "@/components/settings/sections";
 import { SecuritySettings } from "@/components/settings/security-settings";
+import { DeleteAccount } from "@/components/settings/delete-account";
 import { DevicesSettings } from "@/components/settings/devices-settings";
 import { ExportSecret } from "@/components/settings/export-secret";
 import { SettingsIndex } from "@/components/settings/settings-index";
@@ -19,6 +20,7 @@ import {
   statementHref,
   statementTitle,
 } from "@/lib/statements";
+import { getAccountClosureChecks } from "@/lib/functions/accountClosureFunctions";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import { getUserPreferences } from "@/lib/functions/userFunctions";
 
@@ -51,6 +53,18 @@ export default async function SettingsPage({
   if (section === "security") return <SecuritySettings />;
   if (section === "devices") return <DevicesSettings />;
   if (section === "signout") return <SignoutDevice />;
+  if (section === "delete") {
+    const session = await getCachedAuthSession();
+    if (!session?.user?.id) redirect("/onboarding");
+    const checks = await getAccountClosureChecks(session.user.id);
+    return (
+      <DeleteAccount
+        checks={checks}
+        name={session.user.name}
+        image={session.user.image}
+      />
+    );
+  }
   if (section === "notifications") {
     let initialPreferences;
     try {

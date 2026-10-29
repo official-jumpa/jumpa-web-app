@@ -35,6 +35,20 @@ CANONICAL_COUNTRIES.set("usa", "United States");
 CANONICAL_COUNTRIES.set("uk", "United Kingdom");
 CANONICAL_COUNTRIES.set("uae", "United Arab Emirates");
 
+// Region codes that are groupings, not places someone lives.
+const NOT_COUNTRIES = new Set(["EU", "EZ", "UN", "QO"]);
+
+/** Every country a person can pick, A to Z. */
+export const COUNTRY_NAMES: readonly string[] = Array.from(
+  new Set(
+    Array.from(CANONICAL_COUNTRIES)
+      .filter(
+        ([key]) => key.length === 2 && !NOT_COUNTRIES.has(key.toUpperCase()),
+      )
+      .map(([, name]) => name),
+  ),
+).sort((a, b) => a.localeCompare(b));
+
 /**
  * Returns the canonical English country name if valid, or null if invalid.
  * Accepts full country names (case-insensitive) or 2-letter ISO codes.

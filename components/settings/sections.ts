@@ -20,6 +20,7 @@ export const SETTINGS_SECTIONS = {
   signout: { title: "Signout from this device", parent: "devices" },
   "private-key": { title: "Export Private key", parent: "security" },
   "seed-phrase": { title: "Export Seed Phrase", parent: "security" },
+  delete: { title: "Delete account" },
 } as const satisfies Record<
   string,
   { title: string; parent?: string }

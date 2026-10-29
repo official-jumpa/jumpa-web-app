@@ -26,22 +26,29 @@ const VARIANTS = {
   brandAccent: "bg-jumpa-primary-600 text-jumpa-alt-400 font-semibold",
   /** Quiet second action under a CTA — purple label, no shape of its own. */
   plain: "text-jumpa-primary-525 font-medium",
+  /** Bordered second action — "Keep my account". */
+  outline:
+    "border border-jumpa-lavender-275 text-jumpa-primary-950 font-semibold",
+  /** Same border with the purple label — the delete confirmation's last step. */
+  outlineBrand:
+    "border border-jumpa-lavender-275 text-jumpa-primary-600 font-semibold",
   /** Irreversible action — deleting an account. */
   danger:
     "bg-jumpa-danger text-jumpa-white font-semibold disabled:bg-jumpa-danger/35",
 } as const;
 
 const SIZES = {
-  sm: "h-11", // referrals
-  md: "h-[52px]", // onboarding
-  lg: "h-14", // auth screens
+  sm: "h-11 text-base", // referrals
+  md: "h-[52px] text-base", // onboarding
+  lg: "h-14 text-base", // auth screens
+  cta: "h-13.5 text-sm tracking-jumpa-snug", // delete account
 } as const;
 
 export type ButtonVariant = keyof typeof VARIANTS;
 export type ButtonSize = keyof typeof SIZES;
 
 const BASE =
-  "flex w-full items-center justify-center rounded-pill px-2.5 text-base leading-4 " +
+  "flex w-full items-center justify-center rounded-pill px-2.5 leading-4 " +
   "tap active:scale-[0.98] " +
   "disabled:pointer-events-none " +
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-jumpa-alt-400";

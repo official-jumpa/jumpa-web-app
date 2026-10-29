@@ -44,8 +44,11 @@ async function findUser(query: string): Promise<IUser | null> {
     }).lean<IUser>();
   }
 
+  // Tags are stored as "<handle>@jumpa"; older rows carry the bare handle.
   const tag = normaliseTag(raw.replace(/@jumpa$/i, ""));
-  return tag ? User.findOne({ jumpaTag: tag }).lean<IUser>() : null;
+  return tag
+    ? User.findOne({ jumpaTag: { $in: [`${tag}@jumpa`, tag] } }).lean<IUser>()
+    : null;
 }
 
 /**
@@ -66,10 +69,11 @@ export async function findJumpaRecipient(
     .lean<IWallet>();
   if (!wallet) return null;
 
-  const name = user.nickname || user.name || user.jumpaTag || "Jumpa user";
+  const tag = user.jumpaTag ? user.jumpaTag.replace(/@jumpa$/i, "") : null;
+  const name = user.nickname || user.name || tag || "Jumpa user";
   return {
     name,
-    tag: user.jumpaTag ?? null,
+    tag,
     image: user.image ?? null,
     addresses: {
       stellar: wallet.addresses.xlm || undefined,

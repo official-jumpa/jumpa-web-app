@@ -300,6 +300,9 @@ export async function DELETE(req: NextRequest) {
     await logUserActivity({
       userId,
       action: "ACCOUNT_DELETED",
+      details: validation.data.reason
+        ? { reason: validation.data.reason }
+        : undefined,
       req,
     });
     await deleteUserAndAccountData(userId);

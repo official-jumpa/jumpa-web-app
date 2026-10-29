@@ -28,6 +28,11 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "assets.coingecko.com",
       },
+      // Profile photos uploaded through /api/v1/user/avatar.
+      {
+        protocol: "https",
+        hostname: "storage.vercy.fun",
+      },
       {
         protocol: "https",
         hostname: "coin-images.coingecko.com",

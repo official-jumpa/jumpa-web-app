@@ -89,9 +89,11 @@ export async function getUserActiveUsdcSavings(userId: string): Promise<number> 
  */
 export async function createSavingsPlanRecord(
   data: Partial<ISavingsPlan>,
+  session?: mongoose.ClientSession,
 ): Promise<ISavingsPlan> {
   await connectDB();
-  return SavingsPlan.create(data);
+  const [record] = await SavingsPlan.create([data], { session });
+  return record;
 }
 
 /**
@@ -125,9 +127,11 @@ import { SavingsTransaction, type ISavingsTransaction } from "@/models/SavingsTr
  */
 export async function createSavingsTransaction(
   data: Partial<ISavingsTransaction>,
+  session?: mongoose.ClientSession,
 ): Promise<ISavingsTransaction> {
   await connectDB();
-  return SavingsTransaction.create(data);
+  const [record] = await SavingsTransaction.create([data], { session });
+  return record;
 }
 
 /**
@@ -181,4 +185,3 @@ export async function closeSavingsPlanRecord(
     { returnDocument: "after" },
   );
 }
-

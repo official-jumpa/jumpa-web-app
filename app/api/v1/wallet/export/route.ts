@@ -6,6 +6,7 @@ import { HDKey } from "@scure/bip32";
 import { deriveStellarKeypairFromMnemonic } from "@/lib/chains/stellar";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { decryptMnemonic } from "@/lib/crypto";
+import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { exportKeySchema } from "@/lib/validations/wallet.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
@@ -39,6 +40,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { success: false, error: "Wallet not found" },
       { status: 404 },
+    );
+  }
+
+  const pinCheck = await verifyWalletPin(wallet, pin, { userId: session.user.id });
+  if (!pinCheck.ok) {
+    return NextResponse.json(
+      { success: false, error: pinCheck.error },
+      { status: pinCheck.status },
     );
   }
 

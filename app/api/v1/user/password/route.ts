@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { requireAuth } from "@/lib/functions/permissionFunctions";
 import {
+  getUserById,
   setUserLoginPassword,
   logUserActivity,
 } from "@/lib/functions/userFunctions";
@@ -37,6 +38,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(formatZodError(validation.error), {
         status: 400,
       });
+    }
+
+    const existingUser = await getUserById(session.user.id);
+    if (existingUser?.loginPasswordHash) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Login password is already set. Use the password reset flow to change your password.",
+        },
+        { status: 400 },
+      );
     }
 
     const { password } = validation.data;

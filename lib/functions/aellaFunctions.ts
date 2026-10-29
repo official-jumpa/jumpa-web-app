@@ -1,5 +1,6 @@
 import crypto from "crypto";
-import { connectDB } from "@/lib/db";
+import type { ClientSession } from "mongoose";
+import { connectDB, mongoose } from "@/lib/db";
 import { environment } from "@/lib/environment";
 import { NgnAccount, type INgnAccount } from "@/models/NgnAccount";
 import { Transaction } from "@/models/Transaction";
@@ -42,6 +43,7 @@ export async function atomicDebitNgnBalance(params: {
   userId: string;
   amount: number;
   memo?: string;
+  session?: ClientSession;
 }): Promise<{ success: boolean; newBalance: number }> {
   await connectDB();
 
@@ -55,7 +57,7 @@ export async function atomicDebitNgnBalance(params: {
     {
       $inc: { balance: -params.amount },
     },
-    { returnDocument: "after" },
+    { returnDocument: "after", session: params.session },
   );
 
   if (!updatedAccount) {
@@ -83,78 +85,114 @@ export async function atomicCreditNgnBalance(params: {
   senderName?: string;
   senderAccountNumber?: string;
   senderBank?: string;
+  session?: ClientSession;
 }): Promise<{ success: boolean; newBalance: number }> {
   await connectDB();
 
   const dedupKey = params.eventId || params.reference;
 
-  // Idempotency check: Guard against duplicate events
-  if (dedupKey) {
-    const existing = await Transaction.findOne({ txHash: dedupKey });
-    if (existing) {
-      console.log(`[Credit] Duplicate transaction ignored, hash: ${dedupKey}`);
-      const acc = await NgnAccount.findOne({
-        userId: params.userId,
-        provider: "aella",
-      }).lean<INgnAccount>();
-      return { success: true, newBalance: acc?.balance || 0 };
-    }
-  }
-
-  // Atomic Balance Increment (active Aella account)
-  let updatedAccount = await NgnAccount.findOneAndUpdate(
-    { userId: params.userId, provider: "aella", status: "active" },
-    {
-      $inc: { balance: params.amount },
-      $set: { status: "active" },
-    },
-    { returnDocument: "after" },
-  );
-
-  if (!updatedAccount) {
-    updatedAccount = await NgnAccount.findOneAndUpdate(
-      { userId: params.userId },
+  const credit = async (session?: ClientSession) => {
+    let updatedAccount = await NgnAccount.findOneAndUpdate(
+      { userId: params.userId, provider: "aella", status: "active" },
       {
         $inc: { balance: params.amount },
-        $set: { status: "active", provider: "aella" },
+        $set: { status: "active" },
       },
-      { returnDocument: "after", upsert: true },
+      { returnDocument: "after", session: params.session || session },
     );
+
+    if (!updatedAccount) {
+      updatedAccount = await NgnAccount.findOneAndUpdate(
+        { userId: params.userId },
+        {
+          $inc: { balance: params.amount },
+          $set: { status: "active", provider: "aella" },
+        },
+        { returnDocument: "after", upsert: true, session: params.session || session },
+      );
+    }
+
+    const newBalance = updatedAccount?.balance ?? params.amount;
+
+    if (params.reference) {
+      await Transaction.create(
+        [
+          {
+            userId: params.userId,
+            type: "DEPOSIT",
+            status: "CONFIRMED",
+            chain: "fiat",
+            network: "mainnet",
+            toAddress: updatedAccount.accountNumber || "Aella MFB",
+            fromAddress:
+              params.senderName ||
+              params.senderAccountNumber ||
+              "NGN_BANK_TRANSFER",
+            amount: params.amount.toString(),
+            feePaid:
+              params.feePaid !== undefined ? params.feePaid.toString() : "0",
+            token: "NGN",
+            bankDetails: {
+              bankName: updatedAccount.bankName || "Aella MFB",
+              accountNumber: updatedAccount.accountNumber,
+              accountName: updatedAccount.accountName,
+              reference: params.reference,
+              senderName: params.senderName,
+              senderAccountNumber: params.senderAccountNumber,
+              senderBank: params.senderBank,
+            },
+            memo:
+              params.memo ||
+              `Naira Deposit (₦${params.amount.toLocaleString()})`,
+            txHash: dedupKey,
+            executedAt: new Date(),
+          },
+        ],
+        { session: params.session || session },
+      );
+    }
+
+    return newBalance;
+  };
+
+  if (params.session) {
+    const newBalance = await credit(params.session);
+    invalidateBalanceCache(params.userId);
+    return { success: true, newBalance };
+  }
+  if (!dedupKey) {
+    const newBalance = await credit();
+    invalidateBalanceCache(params.userId);
+    return { success: true, newBalance };
   }
 
-  const newBalance = updatedAccount?.balance ?? params.amount;
-
-  // Create confirmed Transaction record
-  if (params.reference) {
-    await Transaction.create({
-      userId: params.userId,
-      type: "DEPOSIT",
-      status: "CONFIRMED",
-      chain: "fiat",
-      network: "mainnet",
-      toAddress: updatedAccount.accountNumber || "Aella MFB",
-      fromAddress: params.senderName || params.senderAccountNumber || "NGN_BANK_TRANSFER",
-      amount: params.amount.toString(),
-      feePaid: params.feePaid !== undefined ? params.feePaid.toString() : "0",
-      token: "NGN",
-      bankDetails: {
-        bankName: updatedAccount.bankName || "Aella MFB",
-        accountNumber: updatedAccount.accountNumber,
-        accountName: updatedAccount.accountName,
-        reference: params.reference,
-        senderName: params.senderName,
-        senderAccountNumber: params.senderAccountNumber,
-        senderBank: params.senderBank,
-      },
-      memo: params.memo || `Naira Deposit (₦${params.amount.toLocaleString()})`,
-      txHash: dedupKey,
-      executedAt: new Date(),
+  const session = await mongoose.startSession();
+  try {
+    let newBalance = 0;
+    await session.withTransaction(async () => {
+      newBalance = await credit(session);
     });
+    invalidateBalanceCache(params.userId);
+    return { success: true, newBalance };
+  } catch (error: unknown) {
+    if ((error as { code?: number })?.code !== 11000) {
+      throw error;
+    }
+
+    const existing = await Transaction.findOne({ txHash: dedupKey });
+    if (!existing) {
+      throw error;
+    }
+
+    console.log(`[Credit] Duplicate transaction ignored, hash: ${dedupKey}`);
+    const acc = await NgnAccount.findOne({
+      userId: params.userId,
+      provider: "aella",
+    }).lean<INgnAccount>();
+    return { success: true, newBalance: acc?.balance || 0 };
+  } finally {
+    await session.endSession();
   }
-
-  invalidateBalanceCache(params.userId);
-
-  return { success: true, newBalance };
 }
 
 export {
@@ -661,37 +699,44 @@ export async function withdrawAellaNgnFiat(params: WithdrawAellaNgnFiatParams): 
 
   const reference = generateTransactionReference();
 
-  // 4. Atomically debit user balance
-  await atomicDebitNgnBalance({
-    userId,
-    amount: totalDebited,
-    memo: `Withdrawal of ₦${amount} to ${accountNumber} (${resolvedBankName})`,
-  });
-
-  // 5. Create initial PENDING transaction record
-  const transaction: any = await Transaction.create({
-    userId,
-    type: "WITHDRAW",
-    status: "PENDING",
-    chain: "fiat",
-    network: "mainnet",
-    fromAddress: account.accountNumber,
-    toAddress: `${resolvedBankName} - ${accountNumber}`,
-    amount: amount.toString(),
-    amountInUsd: limitCheck.amountInUsd,
-    feePaid: fee.toString(),
-    token: "NGN",
-    bankDetails: {
-      bankName: resolvedBankName,
-      bankCode: resolvedBankCode,
-      accountNumber,
-      accountName,
-      reference,
-    },
-    memo: narration || `Jumpa payout to ${accountName}`,
-    txHash: reference,
-    executedAt: new Date(),
-  });
+  // Reserve the debit and create the reconciliation record atomically.
+  const withdrawalSession = await mongoose.startSession();
+  let transaction: any;
+  try {
+    await withdrawalSession.withTransaction(async () => {
+      await atomicDebitNgnBalance({
+        userId,
+        amount: totalDebited,
+        memo: `Withdrawal of ₦${amount} to ${accountNumber} (${resolvedBankName})`,
+        session: withdrawalSession,
+      });
+      [transaction] = await Transaction.create([{
+        userId,
+        type: "WITHDRAW",
+        status: "PENDING",
+        chain: "fiat",
+        network: "mainnet",
+        fromAddress: account.accountNumber,
+        toAddress: `${resolvedBankName} - ${accountNumber}`,
+        amount: amount.toString(),
+        amountInUsd: limitCheck.amountInUsd,
+        feePaid: fee.toString(),
+        token: "NGN",
+        bankDetails: {
+          bankName: resolvedBankName,
+          bankCode: resolvedBankCode,
+          accountNumber,
+          accountName,
+          reference,
+        },
+        memo: narration || `Jumpa payout to ${accountName}`,
+        txHash: reference,
+        executedAt: new Date(),
+      }], { session: withdrawalSession });
+    });
+  } finally {
+    await withdrawalSession.endSession();
+  }
 
   // 6. Dispatch transfer to Aella Payout API
   try {
@@ -864,4 +909,3 @@ export async function refundFromOfficialJumpaWallet(params: {
     return false;
   }
 }
-

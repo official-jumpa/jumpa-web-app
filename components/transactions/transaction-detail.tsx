@@ -3,44 +3,142 @@
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { CopyButton } from "@/components/auth/copy-button";
-import { TransactionHelpButton } from "@/components/support/transaction-help-button";
+import {
+  TransactionHelpCard,
+  useTransactionHelp,
+} from "@/components/support/transaction-help";
+import { ReceiptBand } from "@/components/transactions/receipt/receipt-band";
+import {
+  FailedHero,
+  PendingHero,
+  SuccessHero,
+} from "@/components/transactions/receipt/receipt-hero";
 import { ReceiptSheet } from "@/components/transactions/receipt-sheet";
-import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
-import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { ScreenHeader } from "@/components/ui/screen-header";
-import { getAssetLogo } from "@/lib/assets";
-import { getCarrierLogo } from "@/lib/bills";
-import { cn } from "@/lib/cn";
-import type { Receipt } from "@/lib/receipt";
-import { formatTxTimestamp, type Transaction } from "@/lib/wallet";
+import {
+  buildReceipt,
+  canShareFiles,
+  downloadBlob,
+  receiptFilename,
+  shareReceipt,
+} from "@/lib/receipt";
+import {
+  pillDate,
+  receiptLabel,
+  receiptMark,
+  receiptStatus,
+  toReceipt,
+} from "@/lib/transaction-receipt";
+import type { Transaction } from "@/lib/wallet";
 
-const STATUS_LABEL = {
-  completed: "Completed",
-  pending: "Pending",
-  failed: "Failed",
-} as const;
+const ACTION =
+  "flex h-10.75 items-center justify-center gap-2 rounded-panel border border-jumpa-primary-50 text-xs leading-3.5 tracking-jumpa tap active:scale-[0.98] disabled:opacity-60";
 
-/** The detail screen already holds everything the receipt prints. */
-function toReceipt(transaction: Transaction): Receipt {
-  const timestamp = transaction.createdAt
-    ? formatTxTimestamp(transaction.createdAt)
-    : transaction.timestamp || "";
-  return {
-    reference: transaction.displayId || transaction.id.replace(/^tx_/i, "").toUpperCase(),
-    title: transaction.heading || transaction.title,
-    amount: transaction.headline || transaction.amount,
-    status: STATUS_LABEL[transaction.status],
-    timestamp,
-    // `copy` holds the full hash or reference where the row shows a short one.
-    rows: (transaction.rows ?? []).map((row) => ({
-      label: row.label,
-      value: row.copy || row.value,
-    })),
-  };
+/** The list URL a direct load returns to, keeping its filters but not the open entry. */
+function listHref(search: string): string {
+  const raw = new URLSearchParams(
+    search.startsWith("?") ? search.slice(1) : search,
+  );
+  raw.delete("id");
+  const params = new URLSearchParams();
+  raw.forEach((val, key) => {
+    params.set(key.toLowerCase(), val.toLowerCase());
+  });
+  const query = params.toString();
+  return query ? `/transactions?${query}` : "/transactions";
 }
 
-/** One entry in full: asset, amount, outcome, then every detail we hold on it. */
+/** Download and Share for a settled receipt. */
+function ReceiptActions({ transaction }: { transaction: Transaction }) {
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const receipt = toReceipt(transaction);
+
+  const onDownload = async () => {
+    setBusy(true);
+    try {
+      downloadBlob(
+        await buildReceipt(receipt, "png"),
+        receiptFilename(receipt, "png"),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onShare = async () => {
+    try {
+      if (canShareFiles() && (await shareReceipt(receipt))) return;
+    } catch (err) {
+      // Dismissing the share sheet is not a failure.
+      if (err instanceof DOMException && err.name === "AbortError") return;
+    }
+    setSheetOpen(true);
+  };
+
+  return (
+    <>
+      <div className="mt-4.25 grid grid-cols-[177fr_168fr] gap-3">
+        <button
+          type="button"
+          onClick={onDownload}
+          disabled={busy}
+          className={`${ACTION} text-jumpa-black`}
+        >
+          <Image
+            src="/images/receipt/download.svg"
+            alt=""
+            width={19}
+            height={19}
+          />
+          Download Receipt
+        </button>
+        <button
+          type="button"
+          onClick={onShare}
+          className={`${ACTION} text-jumpa-black`}
+        >
+          Share
+        </button>
+      </div>
+      {sheetOpen ? (
+        <ReceiptSheet receipt={receipt} onClose={() => setSheetOpen(false)} />
+      ) : null}
+    </>
+  );
+}
+
+/** Try Again and Contact Support for a failed receipt. */
+function FailedActions({
+  transactionId,
+  onRetry,
+}: {
+  transactionId: string;
+  onRetry: () => void;
+}) {
+  const help = useTransactionHelp(transactionId);
+  return (
+    <div className="mt-4.25 grid grid-cols-[177fr_168fr] gap-3">
+      <button
+        type="button"
+        onClick={onRetry}
+        className={`${ACTION} bg-jumpa-primary-600 font-medium text-jumpa-white`}
+      >
+        Try Again
+      </button>
+      <button
+        type="button"
+        onClick={help.open}
+        disabled={help.opening}
+        className={`${ACTION} font-medium text-jumpa-black`}
+      >
+        Contact Support
+      </button>
+    </div>
+  );
+}
+
+/** One entry as a receipt: outcome, the ticket band of details, then actions and support. */
 export function TransactionDetail({
   id,
   initialTransaction,
@@ -52,7 +150,6 @@ export function TransactionDetail({
     initialTransaction ?? null,
   );
   const [missing, setMissing] = useState(false);
-  const [receiptOpen, setReceiptOpen] = useState(false);
 
   useEffect(() => {
     if (initialTransaction) return;
@@ -111,19 +208,13 @@ export function TransactionDetail({
     };
   }, [id, transaction?.status]);
 
-  const rows = transaction?.rows ?? [];
-  const mark = transaction?.token || transaction?.chain || "";
-  const isBill = transaction?.kind === "airtime" || transaction?.kind === "data";
-  const networkLogo = isBill
-    ? getCarrierLogo(transaction?.carrier || transaction?.title || transaction?.heading)
-    : null;
-
-  const displayTimestamp = transaction?.createdAt
-    ? formatTxTimestamp(transaction.createdAt)
-    : transaction?.timestamp || "";
-
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  const currentSearch = () =>
+    typeof window !== "undefined" && window.location.search
+      ? window.location.search
+      : searchParams?.toString() || "";
 
   const handleBack = () => {
     // If there's browser history, step back to preserve exact state
@@ -131,163 +222,65 @@ export function TransactionDetail({
       router.back();
       return;
     }
-
-    const searchString =
-      typeof window !== "undefined" && window.location.search
-        ? window.location.search
-        : searchParams?.toString() || "";
-    const rawParams = new URLSearchParams(
-      searchString.startsWith("?") ? searchString.slice(1) : searchString,
-    );
-    rawParams.delete("id");
-    const fallbackParams = new URLSearchParams();
-    rawParams.forEach((val, key) => {
-      fallbackParams.set(key.toLowerCase(), val.toLowerCase());
-    });
-    const queryStr = fallbackParams.toString();
-    router.replace(queryStr ? `/transactions?${queryStr}` : "/transactions");
+    router.replace(listHref(currentSearch()));
   };
 
-  const fallbackHref = (() => {
-    const searchString =
-      typeof window !== "undefined" && window.location.search
-        ? window.location.search
-        : searchParams?.toString() || "";
-    const rawParams = new URLSearchParams(
-      searchString.startsWith("?") ? searchString.slice(1) : searchString,
-    );
-    rawParams.delete("id");
-    const fallbackParams = new URLSearchParams();
-    rawParams.forEach((val, key) => {
-      fallbackParams.set(key.toLowerCase(), val.toLowerCase());
-    });
-    const queryStr = fallbackParams.toString();
-    return queryStr ? `/transactions?${queryStr}` : "/transactions";
-  })();
+  const failed = transaction?.status === "failed";
+  const amount = transaction ? transaction.headline || transaction.amount : "";
 
   return (
     <div className="flex flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-10">
       <ScreenHeader
-        back={fallbackHref}
+        back={listHref(currentSearch())}
         onBack={handleBack}
-        title="Transactions"
         round
+        action={
+          <Image
+            src="/logo/mark/purple.png"
+            alt="Jumpa"
+            width={803}
+            height={381}
+            className="w-10"
+          />
+        }
       />
 
-      <section className="mt-2 flex flex-col items-center gap-6 rounded-3xl bg-jumpa-neutral-50 py-6">
-        {transaction ? (
-          <>
-            <div className="flex flex-col items-center gap-4.5">
-              {networkLogo ? (
-                <Image
-                  src={networkLogo}
-                  alt=""
-                  width={100}
-                  height={100}
-                  className="size-12.5 rounded-full object-contain"
-                />
-              ) : (
-                <Image
-                  src={getAssetLogo(mark)}
-                  alt=""
-                  width={100}
-                  height={100}
-                  className="size-12.5 rounded-full"
-                />
-              )}
-              <p className="text-[32px] leading-10 font-medium text-jumpa-black">
-                {transaction.headline || transaction.amount}
-              </p>
-              <div className="flex flex-col items-center gap-1 text-center text-jumpa-black">
-                <p className="text-base leading-5 font-medium">
-                  {transaction.heading}
-                </p>
-                <p suppressHydrationWarning className="text-xs leading-4.5">
-                  {displayTimestamp}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex h-8 items-center justify-center">
-              <span
-                className={cn(
-                  "rounded-pill bg-jumpa-neutral-100 px-4 py-2 text-[10px] leading-4 font-medium",
-                  transaction.status === "failed"
-                    ? "text-jumpa-danger"
-                    : "text-jumpa-neutral-750",
-                )}
-              >
-                {STATUS_LABEL[transaction.status]}
-              </span>
-            </div>
-          </>
-        ) : (
-          <p className="py-16 text-xs font-medium text-jumpa-neutral-400">
-            {missing ? "This transaction is no longer available." : "Loading…"}
-          </p>
-        )}
-      </section>
-
-      {rows.length > 0 ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-base leading-5.5 text-jumpa-black">
-            Transaction details
-          </h2>
-          <dl className="flex flex-col gap-3 rounded-3xl bg-jumpa-neutral-50 p-3 text-xs leading-5 font-medium text-jumpa-black">
-            {rows.map((row) => (
-              <div
-                key={row.label}
-                className="flex items-center justify-between gap-4"
-              >
-                <dt className="shrink-0">{row.label}</dt>
-                <dd className="flex min-w-0 items-center gap-1.5">
-                  {row.link ? (
-                    <a
-                      href={row.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 truncate text-right text-jumpa-primary-600 underline decoration-jumpa-primary-300 hover:text-jumpa-primary-700 active:opacity-80"
-                    >
-                      <span className="truncate">{row.value}</span>
-                      <ArrowUpRightIcon className="size-3 shrink-0" />
-                    </a>
-                  ) : (
-                    <span className="truncate text-right">{row.value}</span>
-                  )}
-                  {/* The printed value is shortened; copy hands over the whole of it. */}
-                  {row.copy ? (
-                    <CopyButton
-                      value={row.copy}
-                      name={`Copy ${row.label.toLowerCase()}`}
-                      className="shrink-0 [&>svg]:size-4"
-                    />
-                  ) : null}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      ) : null}
-
       {transaction ? (
-        <button
-          type="button"
-          onClick={() => setReceiptOpen(true)}
-          className="tap mt-8 flex h-16 items-center justify-center gap-2 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-6 text-xs leading-3.5 text-jumpa-black active:scale-[0.98]"
-        >
-          <FileDownloadIcon className="size-6 text-jumpa-primary-600" />
-          Download Receipt
-        </button>
-      ) : null}
+        <>
+          {failed ? (
+            <FailedHero />
+          ) : transaction.status === "pending" ? (
+            <PendingHero amount={amount} />
+          ) : (
+            <SuccessHero amount={amount} status={receiptStatus(transaction)} />
+          )}
 
-      {transaction ? <TransactionHelpButton transactionId={transaction.id} /> : null}
+          <ReceiptBand
+            label={receiptLabel(transaction)}
+            mark={receiptMark(transaction)}
+            date={pillDate(transaction.createdAt)}
+            rows={transaction.rows ?? []}
+            className={failed ? "mt-2" : "mt-7.25"}
+          />
 
-      {transaction && receiptOpen ? (
-        <ReceiptSheet
-          receipt={toReceipt(transaction)}
-          onClose={() => setReceiptOpen(false)}
-        />
-      ) : null}
+          {failed ? (
+            <FailedActions
+              transactionId={transaction.id}
+              onRetry={handleBack}
+            />
+          ) : (
+            <ReceiptActions transaction={transaction} />
+          )}
+
+          <div className="mt-3.5">
+            <TransactionHelpCard transactionId={transaction.id} />
+          </div>
+        </>
+      ) : (
+        <p className="py-16 text-center text-xs font-medium text-jumpa-neutral-400">
+          {missing ? "This transaction is no longer available." : "Loading…"}
+        </p>
+      )}
     </div>
   );
 }

@@ -51,6 +51,11 @@ export interface RouteGuardOptions {
    */
   requireWallet?: boolean;
   /**
+   * Whether to permit users with "pending" onboarding status.
+   * Defaults to false in requireActiveUser, true in requireAuth.
+   */
+  allowPending?: boolean;
+  /**
    * Optional rate limiting configuration enforced by Redis.
    */
   rateLimit?: {
@@ -60,6 +65,10 @@ export interface RouteGuardOptions {
     windowSec?: number;
     customMessage?: string;
   };
+}
+
+export interface StatusCheckOptions {
+  allowPending?: boolean;
 }
 
 export interface StatusCheckResult {
@@ -113,10 +122,13 @@ export const getCachedAuthSession = cache(
  * Scenario: Use when you already hold a user object and need to evaluate permissions against account states
  * (active, banned, suspended, deleted, or pending) before permitting an operation.
  */
-export async function checkUserStatus(user: {
-  id: string;
-  status?: string | null;
-}): Promise<StatusCheckResult> {
+export async function checkUserStatus(
+  user: {
+    id: string;
+    status?: string | null;
+  },
+  options: StatusCheckOptions = {},
+): Promise<StatusCheckResult> {
   let status = (user.status || undefined) as UserStatus | undefined;
 
   // If status is missing from an older session cookie, query the database once
@@ -165,6 +177,12 @@ export async function checkUserStatus(user: {
   }
 
   if (status === "pending") {
+    if (options.allowPending) {
+      return {
+        allowed: true,
+        status: "pending",
+      };
+    }
     return {
       allowed: false,
       status: "pending",
@@ -352,7 +370,9 @@ export async function requireActiveUser(
     };
   }
 
-  const statusCheck = await checkUserStatus(session.user);
+  const statusCheck = await checkUserStatus(session.user, {
+    allowPending: options.allowPending ?? false,
+  });
   if (!statusCheck.allowed) {
     return {
       ok: false,
@@ -456,6 +476,26 @@ export async function requireAuth(
         { error: "You are currently not logged in", code: "UNAUTHORIZED" },
         {
           status: 401,
+          headers: { "X-Request-Id": requestId },
+        },
+      ),
+    };
+  }
+
+  const statusCheck = await checkUserStatus(session.user, {
+    allowPending: options.allowPending ?? true,
+  });
+  if (!statusCheck.allowed) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        {
+          error: statusCheck.error,
+          code: statusCheck.code,
+          status: statusCheck.status,
+        },
+        {
+          status: statusCheck.httpStatus || 403,
           headers: { "X-Request-Id": requestId },
         },
       ),

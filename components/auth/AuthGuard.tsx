@@ -116,8 +116,27 @@ export function AuthGuard({
     }
     try {
       const res = await fetch("/api/v1/user/onboarding");
-      if (!res.ok) throw new Error("Failed to load status");
       const json = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        if (
+          json.status &&
+          ["banned", "suspended", "deleted"].includes(json.status)
+        ) {
+          setStatus({
+            hasPassword: true,
+            hasTag: true,
+            hasPin: true,
+            isComplete: true,
+            userStatus: json.status,
+          });
+          setCheckingStatus(false);
+          hasVerifiedOnce.current = true;
+          return;
+        }
+        throw new Error(json.error || "Failed to load status");
+      }
+
       const data: OnboardingStatus = json.data ?? json;
 
       setStatus(data);

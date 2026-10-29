@@ -1,49 +1,41 @@
 /**
- * The four statements the design offers. `?section=statements&kind=` picks one;
- * with no `kind` the same list renders as its own screen.
+ * Supported account statement currencies and duration ranges.
  */
 export const STATEMENT_KINDS = {
-  cards: { label: "Cards", chip: "Cards" },
-  usd: { label: "USD", chip: "USD" },
-  ngn: { label: "NGN", chip: "NGN" },
-  // The whole history, so the chip reads "All" where the title reads "General".
-  general: { label: "General", chip: "All" },
+  all: { label: "All Transactions", chip: "All" },
+  crypto: { label: "Crypto", chip: "Crypto" },
+  fiat: { label: "Fiat (NGN)", chip: "Fiat" },
+  // Backward compatibility aliases
+  general: { label: "All Transactions", chip: "All" },
+  usd: { label: "Crypto", chip: "Crypto" },
+  ngn: { label: "Fiat (NGN)", chip: "Fiat" },
 } as const;
 
-export type StatementKind = keyof typeof STATEMENT_KINDS;
+export type StatementKind = "all" | "crypto" | "fiat" | "general" | "usd" | "ngn";
 
-export const STATEMENT_ORDER = Object.keys(STATEMENT_KINDS) as StatementKind[];
+export const STATEMENT_CHIPS: StatementKind[] = ["all", "crypto", "fiat"];
 
-/** Chip order on the statement screen, which leads with the whole history. */
-export const STATEMENT_CHIPS: StatementKind[] = [
-  "general",
-  "usd",
-  "ngn",
-  "cards",
-];
+export const MAX_STATEMENT_DAYS = 92; // 3 months max duration
 
 export function isStatementKind(value: string): value is StatementKind {
   return value in STATEMENT_KINDS;
 }
 
-export function statementTitle(kind: StatementKind): string {
-  return `${STATEMENT_KINDS[kind].label} Statement`;
+// export function statementTitle(kind: StatementKind): string {
+//   const norm = kind === "general" ? "all" : kind === "usd" ? "crypto" : kind === "ngn" ? "fiat" : kind;
+//   return `${STATEMENT_KINDS[norm]?.label || "Account"} Statement`;
+// }
+
+export function statementHref(kind: StatementKind = "all"): string {
+  const norm = kind === "general" ? "all" : kind === "usd" ? "crypto" : kind === "ngn" ? "fiat" : kind;
+  return `/profile/settings?section=statements&kind=${norm}`;
 }
 
-export function statementHref(kind: StatementKind): string {
-  return `/profile/settings?section=statements&kind=${kind}`;
-}
-
-/**
- * Ranges the request sheet offers. `custom` has no range of its own — it opens
- * the statement form, where a start and end date are picked. It goes straight
- * there at the client's ask; the chooser that used to sit between them is gone.
- */
 export const STATEMENT_DURATIONS = [
-  { id: "all", label: "Show All" },
-  { id: "week", label: "7 Days Ago" },
-  { id: "month", label: "1 Month Ago" },
-  { id: "custom", label: "Custom Duration" },
+  { id: "7d", label: "7 Days" },
+  { id: "30d", label: "30 Days" },
+  { id: "90d", label: "3 Months" },
+  { id: "custom", label: "Custom" },
 ] as const;
 
 export type StatementDuration = (typeof STATEMENT_DURATIONS)[number]["id"];

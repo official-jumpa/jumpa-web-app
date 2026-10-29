@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { StatementForm } from "@/components/settings/statement-form";
+import { StatementSheet } from "@/components/settings/statement-sheet";
 import { FilterSheet } from "@/components/transactions/filter-sheet";
 import { HistoryMenuSheet } from "@/components/transactions/history-menu-sheet";
 import { TransactionList } from "@/components/transactions/transaction-list";
@@ -521,8 +521,8 @@ export function TransactionsView({
   // The chip row on that screen picks the kind, so it opens on the whole history.
   if (onStatement) {
     return (
-      <StatementForm
-        kind="general"
+      <StatementSheet
+        kind="all"
         back="/transactions"
         onBack={() => router.back()}
         accountEmail={accountEmail}

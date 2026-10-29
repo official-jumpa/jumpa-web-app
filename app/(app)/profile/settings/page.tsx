@@ -13,12 +13,11 @@ import { DevicesSettings } from "@/components/settings/devices-settings";
 import { ExportSecret } from "@/components/settings/export-secret";
 import { SettingsIndex } from "@/components/settings/settings-index";
 import { SignoutDevice } from "@/components/settings/signout-device";
-import { StatementForm } from "@/components/settings/statement-form";
+import { StatementSheet } from "@/components/settings/statement-sheet";
 import { isPinFlow } from "@/lib/pin-flows";
 import {
   isStatementKind,
   statementHref,
-  statementTitle,
 } from "@/lib/statements";
 import { getAccountClosureChecks } from "@/lib/functions/accountClosureFunctions";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
@@ -34,7 +33,7 @@ export async function generateMetadata({
   const { section, kind } = await searchParams;
   if (!section || !isSettingsSection(section)) return { title: "Settings" };
   if (section === "statements" && kind && isStatementKind(kind)) {
-    return { title: statementTitle(kind) };
+    return { title: "Account Statement" };
   }
   return { title: SETTINGS_SECTIONS[section].title };
 }
@@ -94,7 +93,7 @@ export default async function SettingsPage({
     } catch (err) {
       console.warn("[SettingsPage SSR]:", err);
     }
-    return <StatementForm kind={kind} accountEmail={accountEmail} />;
+    return <StatementSheet kind={kind} accountEmail={accountEmail} />;
   }
 
   if (isPinFlow(section)) return <PinFlow name={section} />;

@@ -1049,7 +1049,7 @@ function detailRows(tx: any, status: string, descriptor: TxTypeDescriptor): Tran
     }));
 }
 
-function getBaseTransactionFields(tx: any) {
+export function getBaseTransactionFields(tx: any) {
   const rawId = String(tx._id || tx.id || "");
   const displayId = rawId.replace(/^tx_/i, "").toUpperCase();
 

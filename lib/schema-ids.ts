@@ -42,6 +42,7 @@ export const SCHEMA_IDS = {
   ngn: { prefix: "ngn", length: 16, description: "NGN fiat accounts" },
   bill: { prefix: "bill", length: 16, description: "Airtime and data bill purchases" },
   savtx: { prefix: "savtx", length: 16, description: "Savings transaction history" },
+  stmt: { prefix: "stmt", length: 16, description: "Account statement records" },
 
   // ── Utility Entities
   cardref: { prefix: "cardref", length: 12, description: "Card references" },
@@ -162,4 +163,14 @@ export const generateIdempotencyKey = (): string => {
 export const generateTransactionReference = (): string => {
   const year = new Date().getFullYear();
   return `tx${year}${nanoid6Digits()}${nanoid6Upper()}`;
+};
+
+/**
+ * Generates an official account statement reference ID
+ * Format: stmt{year}{6 random digits}{6 random uppercase letters}
+ * Example: stmt2026482910KQRTLP
+ */
+export const generateStatementId = (): string => {
+  const year = new Date().getFullYear();
+  return `stmt${year}${nanoid6Digits()}${nanoid6Upper()}`;
 };

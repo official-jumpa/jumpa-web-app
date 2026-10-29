@@ -427,6 +427,7 @@ export function BankTransferView({
     return (
       <TransferSuccess
         back="/home"
+        receiptRows={rows}
         title={isPending ? "Transfer Submitted" : "Payment Successful"}
         // Show the actual net payout amount credited to user's bank
         amount={

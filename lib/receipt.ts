@@ -532,21 +532,33 @@ export function canShareFiles(): boolean {
   );
 }
 
+/** The receipt as a file, ready for the share sheet. */
+export async function receiptFile(
+  receipt: Receipt,
+  format: ReceiptFormat,
+): Promise<File> {
+  const blob = await buildReceipt(receipt, format);
+  return new File([blob], receiptFilename(receipt, format), {
+    type: blob.type,
+  });
+}
+
+/**
+ * Opens the OS share sheet with a file built beforehand: iOS only allows it
+ * straight off a tap. Returns false where files cannot be shared.
+ */
+export async function shareFile(file: File): Promise<boolean> {
+  if (!canShareFiles() || !navigator.canShare({ files: [file] })) return false;
+  await navigator.share({ files: [file], title: `${BRAND} receipt` });
+  return true;
+}
+
 /** Hands the receipt to the OS share sheet. Returns false if it declined it. */
 export async function shareReceipt(
   receipt: Receipt,
   format: ReceiptFormat = "png",
 ): Promise<boolean> {
-  if (!canShareFiles()) return false;
-
-  const blob = await buildReceipt(receipt, format);
-  const file = new File([blob], receiptFilename(receipt, format), {
-    type: blob.type,
-  });
-  if (!navigator.canShare({ files: [file] })) return false;
-
-  await navigator.share({ files: [file], title: `${BRAND} receipt` });
-  return true;
+  return shareFile(await receiptFile(receipt, format));
 }
 
 /**

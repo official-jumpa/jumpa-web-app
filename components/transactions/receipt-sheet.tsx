@@ -14,22 +14,19 @@ import { CheckIcon } from "@/components/ui/icons/check";
 import { FileIcon } from "@/components/ui/icons/file";
 import { FileArrowDownAltIcon } from "@/components/ui/icons/file-arrow-down-alt";
 import { ImageIcon } from "@/components/ui/icons/image";
-import { ShareArrowIcon } from "@/components/ui/icons/share-arrow";
 import { SheetPortal } from "@/components/ui/sheet-portal";
 import {
   buildReceipt,
-  canShareFiles,
   downloadBlob,
   type Receipt,
   type ReceiptFormat,
+  receiptFile,
   receiptFilename,
-  shareReceipt,
+  shareFile,
 } from "@/lib/receipt";
 
-type Choice = ReceiptFormat | "share";
-
 type Row = {
-  id: Choice;
+  id: ReceiptFormat;
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
   title: string;
   caption: string;
@@ -56,37 +53,40 @@ const FORMATS: Row[] = [
   },
 ];
 
-const SHARE: Row = {
-  id: "share",
-  Icon: ShareArrowIcon,
-  title: "Share receipt",
-  caption: "Send the image straight to an app",
-};
-
 /**
- * Format chooser for a transaction receipt. Picking a row marks it, the CTA
- * acts on the choice, and the sheet closes once the file is saved. Everything
- * is built in the browser, so nothing leaves the device.
+ * Format chooser for a transaction receipt, to download or to share. Picking
+ * a row marks it, the CTA acts on the choice, and the sheet closes once done.
+ * Everything is built in the browser, so nothing leaves the device until the
+ * user shares it.
  */
 export function ReceiptSheet({
   receipt,
   onClose,
+  mode = "download",
 }: {
   receipt: Receipt;
   onClose: () => void;
+  mode?: "download" | "share";
 }) {
-  const [picked, setPicked] = useState<Choice>();
+  const sharing = mode === "share";
+  const [picked, setPicked] = useState<ReceiptFormat>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  // iOS opens the share sheet only straight off a tap, so the file is built on pick.
+  const [ready, setReady] = useState<{ format: ReceiptFormat; file: File }>();
 
-  // Read once: the share sheet only exists on browsers that expose it.
-  const [shareable] = useState(canShareFiles);
-  const rows = shareable ? [...FORMATS, SHARE] : FORMATS;
-
-  const save = async () => {
+  const pick = (format: ReceiptFormat) => {
+    setPicked(format);
+    setError(undefined);
+    if (!sharing) return;
+    receiptFile(receipt, format)
+      .then((file) => setReady({ format, file }))
+      .catch(() => setReady(undefined));
+  };
+  const act = async () => {
     if (busy) return;
     if (!picked) {
-      setError("Pick a format to download");
+      setError(`Pick a format to ${sharing ? "share" : "download"}`);
       return;
     }
 
@@ -94,12 +94,13 @@ export function ReceiptSheet({
     setError(undefined);
 
     try {
-      if (picked === "share") {
-        const shared = await shareReceipt(receipt);
-        if (!shared) {
-          setError("Your browser would not open the share sheet.");
-          return;
-        }
+      if (sharing) {
+        const file =
+          ready?.format === picked
+            ? ready.file
+            : await receiptFile(receipt, picked);
+        // Without a share sheet the file is saved instead.
+        if (!(await shareFile(file))) downloadBlob(file, file.name);
       } else {
         const blob = await buildReceipt(receipt, picked);
         downloadBlob(blob, receiptFilename(receipt, picked));
@@ -107,9 +108,15 @@ export function ReceiptSheet({
 
       onClose();
     } catch (cause) {
+      // Dismissing the share sheet is not a failure.
+      if (cause instanceof DOMException && cause.name === "AbortError") return;
       // The reason is for us; the user gets something they can act on.
       console.error("[ReceiptSheet] Could not build the receipt:", cause);
-      setError("That receipt could not be built. Try another format.");
+      setError(
+        sharing
+          ? "Could not open the share sheet. Try again or download it."
+          : "That receipt could not be built. Try another format.",
+      );
     } finally {
       setBusy(false);
     }
@@ -118,7 +125,7 @@ export function ReceiptSheet({
   return (
     <SheetPortal onClose={onClose} className="pb-7.5">
       <h2 className="text-center text-base leading-4.5 font-semibold text-jumpa-black">
-        Download Receipt
+        {sharing ? "Share Receipt" : "Download Receipt"}
       </h2>
 
       {/* A miniature of what gets exported, so the choice has a subject. */}
@@ -142,7 +149,7 @@ export function ReceiptSheet({
       </div>
 
       <ul className="mt-4 flex flex-col gap-2">
-        {rows.map(({ id, Icon, title, caption }) => {
+        {FORMATS.map(({ id, Icon, title, caption }) => {
           const selected = picked === id;
 
           return (
@@ -150,10 +157,7 @@ export function ReceiptSheet({
               <button
                 type="button"
                 aria-pressed={selected}
-                onClick={() => {
-                  setPicked(id);
-                  setError(undefined);
-                }}
+                onClick={() => pick(id)}
                 className={`${RECEIVE_ROW} ${
                   selected ? RECEIVE_ROW_PICKED : RECEIVE_ROW_RESTING
                 }`}
@@ -193,12 +197,8 @@ export function ReceiptSheet({
       <div className="mt-2 flex flex-col gap-4">
         <FieldError>{error}</FieldError>
 
-        <Button variant="gradientSheet" size="lg" onClick={save}>
-          {busy
-            ? "Preparing…"
-            : picked === "share"
-              ? "Share receipt"
-              : "Download receipt"}
+        <Button variant="gradientSheet" size="lg" onClick={act}>
+          {busy ? "Preparing…" : sharing ? "Share receipt" : "Download receipt"}
         </Button>
       </div>
     </SheetPortal>

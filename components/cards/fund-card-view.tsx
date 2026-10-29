@@ -34,6 +34,12 @@ export function FundCardView({
     return (
       <TransferSuccess
         back="/cards"
+        receiptRows={[
+          { label: "From", value: `${account.label} wallet` },
+          { label: "To", value: `Virtual card **** ${card.last4}` },
+          { label: "Amount", value: total },
+          { label: "Fee", value: "$0.00" },
+        ]}
         amount={total}
         title="Card Funded"
         ctaLabel="Go to Card"

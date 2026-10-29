@@ -4,16 +4,16 @@ import type { JumpaRecipient } from "@/lib/jumpa-send";
 export type LookupStatus = "idle" | "searching" | "found" | "none" | "error";
 
 const DEBOUNCE_MS = 400;
-/** Shorter than any tag, email, phone or address, so it cannot match. */
+/** Suggestions start from the third character. */
 const MIN_QUERY = 3;
 
-/** Resolves what is typed in the recipient field to a Jumpa user, debounced. */
+/** Resolves what is typed in the recipient field to matching Jumpa users, debounced. */
 export function useRecipientLookup(query: string) {
   const [state, setState] = useState<{
     status: LookupStatus;
-    recipient: JumpaRecipient | null;
+    recipients: JumpaRecipient[];
     for: string;
-  }>({ status: "idle", recipient: null, for: "" });
+  }>({ status: "idle", recipients: [], for: "" });
 
   const trimmed = query.trim();
 
@@ -27,18 +27,18 @@ export function useRecipientLookup(query: string) {
           { signal: controller.signal, cache: "no-store" },
         );
         const json = await res.json().catch(() => null);
-        if (res.ok && json?.data) {
-          setState({ status: "found", recipient: json.data, for: trimmed });
+        if (res.ok && Array.isArray(json?.data) && json.data.length > 0) {
+          setState({ status: "found", recipients: json.data, for: trimmed });
         } else {
           setState({
             status: res.status === 404 || res.status === 400 ? "none" : "error",
-            recipient: null,
+            recipients: [],
             for: trimmed,
           });
         }
       } catch {
         if (!controller.signal.aborted) {
-          setState({ status: "error", recipient: null, for: trimmed });
+          setState({ status: "error", recipients: [], for: trimmed });
         }
       }
     }, DEBOUNCE_MS);
@@ -49,7 +49,7 @@ export function useRecipientLookup(query: string) {
   }, [trimmed]);
 
   // Derived, so an answer for an older query never shows against a newer one.
-  if (trimmed.length < MIN_QUERY) return { status: "idle" as const, recipient: null };
-  if (state.for !== trimmed) return { status: "searching" as const, recipient: null };
-  return { status: state.status, recipient: state.recipient };
+  if (trimmed.length < MIN_QUERY) return { status: "idle" as const, recipients: [] };
+  if (state.for !== trimmed) return { status: "searching" as const, recipients: [] };
+  return { status: state.status, recipients: state.recipients };
 }

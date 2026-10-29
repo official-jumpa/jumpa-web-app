@@ -42,6 +42,7 @@ const SIZES = {
   md: "h-[52px] text-base", // onboarding
   lg: "h-14 text-base", // auth screens
   cta: "h-13.5 text-sm tracking-jumpa-snug", // delete account
+  sheet: "h-13.5 text-base tracking-jumpa-snug", // profile photo sheet
 } as const;
 
 export type ButtonVariant = keyof typeof VARIANTS;

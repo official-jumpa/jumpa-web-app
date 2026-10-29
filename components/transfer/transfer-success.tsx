@@ -4,11 +4,14 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { ReceiptSheet } from "@/components/transactions/receipt-sheet";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { Button } from "@/components/ui/button";
 import { ShareArrowIcon } from "@/components/ui/icons/share-arrow";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
 import { cn } from "@/lib/cn";
+import { newReference, type ReceiptRow } from "@/lib/receipt";
+import { formatTxTimestamp } from "@/lib/wallet";
 
 const ACTION =
   "tap flex h-13 flex-1 items-center justify-center gap-2 rounded-tile bg-jumpa-neutral-50 " +
@@ -33,6 +36,8 @@ export function TransferSuccess({
   actions: actionsOverride,
   compact,
   onShare,
+  receiptRows,
+  reference,
 }: {
   back: string;
   amount: string;
@@ -52,9 +57,22 @@ export function TransferSuccess({
   /** The savings receipts draw a 32px amount under a 16px title. */
   compact?: boolean;
   onShare?: () => void;
+  /** What Share puts on the receipt, under the amount and title. */
+  receiptRows?: ReceiptRow[];
+  /** Provider or transaction reference; a stamped one is made when absent. */
+  reference?: string;
 }) {
   const router = useRouter();
   const [showDetails, setShowDetails] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [receipt] = useState(() => ({
+    reference: reference || newReference("JMP"),
+    title,
+    amount,
+    status: title,
+    timestamp: formatTxTimestamp(Date.now()),
+    rows: receiptRows ?? [{ label: "Amount", value: amount }],
+  }));
 
   const heading = (
     <p
@@ -105,7 +123,11 @@ export function TransferSuccess({
             More details
           </button>
         )}
-        <button type="button" onClick={onShare} className={ACTION}>
+        <button
+          type="button"
+          onClick={onShare ?? (() => setSharing(true))}
+          className={ACTION}
+        >
           <ShareArrowIcon className="size-6 text-jumpa-primary-600" />
           Share
         </button>
@@ -183,6 +205,14 @@ export function TransferSuccess({
           {ctaLabel}
         </Button>
       </div>
+
+      {sharing ? (
+        <ReceiptSheet
+          receipt={receipt}
+          mode="share"
+          onClose={() => setSharing(false)}
+        />
+      ) : null}
     </div>
   );
 }

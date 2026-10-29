@@ -303,6 +303,14 @@ export function BridgeView({
     return (
       <TransferSuccess
         back="/home"
+        receiptRows={[
+          { label: "Amount sent", value: `${formatBalance(txResult.sentAmount)} USDC` },
+          { label: "Route", value: `${txResult.fromChain} → ${txResult.toChain}` },
+          { label: "Recipient", value: txResult.recipientAddress || "—" },
+          { label: "Fee", value: txResult.fee },
+          { label: "Arrives in", value: txResult.arrival },
+          ...(txResult.txHash ? [{ label: "Transaction hash", value: txResult.txHash, accent: true }] : []),
+        ]}
         title="Bridge initiated"
         amount={`+${formatBalance(txResult.receivedAmount)} USDC`}
         /* The route and the wait are the two things a pending bridge has to

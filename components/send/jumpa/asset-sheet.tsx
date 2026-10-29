@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { XmarkIcon } from "@/components/ui/icons/xmark";
 import { SheetPortal } from "@/components/ui/sheet-portal";
 import { ASSET_GROUPS, JUMPA_SEND_ASSETS, type SendAsset } from "@/lib/jumpa-send";
@@ -8,14 +8,8 @@ type Kind = SendAsset["kind"];
 
 const TABS: Kind[] = ASSET_GROUPS.map((g) => g.kind);
 
-/** Row gaps per section: the frame draws 11 under fiat and 10 under crypto. */
-const SECTION = {
-  fiat: { list: "mt-1.75 gap-2.75" },
-  crypto: { list: "mt-2.75 gap-2.5" },
-} as const;
-
-/** A programmatic scroll owns the tab bar until it lands. */
-const GLIDE_MS = 700;
+/** Row gaps per list: the frame draws 11 under fiat and 10 under crypto. */
+const GAP = { fiat: "gap-2.75", crypto: "gap-2.5" } as const;
 
 /** Pick what to send in: fiat settles as USDC, crypto moves as itself. */
 export function AssetSheet({
@@ -28,40 +22,10 @@ export function AssetSheet({
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<Kind>(selected.kind);
-  const headerRef = useRef<HTMLDivElement>(null);
-  const sections = useRef<Partial<Record<Kind, HTMLElement | null>>>({});
-  const pinned = useRef<number | undefined>(undefined);
-
-  // The tab follows the scroll: crypto once its heading reaches the bar, or the end.
-  useEffect(() => {
-    const panel = headerRef.current?.closest<HTMLElement>('[role="dialog"]');
-    if (!panel) return;
-    const sync = () => {
-      if (pinned.current) return;
-      const bar = headerRef.current?.getBoundingClientRect().bottom ?? 0;
-      const crypto = sections.current.crypto?.getBoundingClientRect().top ?? 0;
-      const atEnd = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 2;
-      setTab(atEnd || crypto <= bar + 24 ? "crypto" : "fiat");
-    };
-    panel.addEventListener("scroll", sync, { passive: true });
-    return () => {
-      panel.removeEventListener("scroll", sync);
-      window.clearTimeout(pinned.current);
-    };
-  }, []);
-
-  const go = (kind: Kind) => {
-    setTab(kind);
-    window.clearTimeout(pinned.current);
-    pinned.current = window.setTimeout(() => {
-      pinned.current = undefined;
-    }, GLIDE_MS);
-    sections.current[kind]?.scrollIntoView({ block: "start", behavior: "smooth" });
-  };
 
   return (
     <SheetPortal onClose={onClose}>
-      <div ref={headerRef} className="sticky top-8.5 z-10 -mx-4.5 bg-jumpa-white px-4.5 pb-1">
+      <div className="sticky top-8.5 z-10 -mx-4.5 bg-jumpa-white px-4.5 pb-1">
         <div className="flex h-7.5 items-center justify-between">
           <h2 className="text-lg leading-4.5 font-semibold text-jumpa-black">Select Asset</h2>
           <button
@@ -74,13 +38,15 @@ export function AssetSheet({
           </button>
         </div>
 
-        <div className="mt-4.5 grid grid-cols-2">
+        <div role="tablist" className="mt-4.5 grid grid-cols-2">
           {ASSET_GROUPS.map((group) => (
             <button
               key={group.kind}
               type="button"
-              onClick={() => go(group.kind)}
-              aria-pressed={tab === group.kind}
+              role="tab"
+              id={`asset-tab-${group.kind}`}
+              onClick={() => setTab(group.kind)}
+              aria-selected={tab === group.kind}
               className={`text-sm leading-4.5 font-semibold transition-colors ${
                 tab === group.kind ? "text-jumpa-primary-600" : "text-jumpa-grey-450"
               }`}
@@ -98,29 +64,21 @@ export function AssetSheet({
         </div>
       </div>
 
-      {ASSET_GROUPS.map((group) => (
-        <section
-          key={group.kind}
-          ref={(node) => {
-            sections.current[group.kind] = node;
-          }}
-          aria-label={group.label}
-          className="mt-6 scroll-mt-31"
-        >
-          <h3 className="text-sm leading-4.5 font-semibold text-jumpa-black">{group.label}</h3>
-          <ul className={`flex flex-col ${SECTION[group.kind].list}`}>
-            {JUMPA_SEND_ASSETS.filter((a) => a.kind === group.kind).map((asset) => (
-              <li key={asset.code}>
-                <AssetRow
-                  asset={asset}
-                  picked={asset.code === selected.code}
-                  onPick={() => onSelect(asset)}
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+      <ul
+        role="tabpanel"
+        aria-labelledby={`asset-tab-${tab}`}
+        className={`mt-4 flex flex-col ${GAP[tab]}`}
+      >
+        {JUMPA_SEND_ASSETS.filter((a) => a.kind === tab).map((asset) => (
+          <li key={asset.code}>
+            <AssetRow
+              asset={asset}
+              picked={asset.code === selected.code}
+              onPick={() => onSelect(asset)}
+            />
+          </li>
+        ))}
+      </ul>
     </SheetPortal>
   );
 }

@@ -16,13 +16,6 @@ import {
 import { ReceiptSheet } from "@/components/transactions/receipt-sheet";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import {
-  buildReceipt,
-  canShareFiles,
-  downloadBlob,
-  receiptFilename,
-  shareReceipt,
-} from "@/lib/receipt";
-import {
   pillDate,
   receiptLabel,
   receiptMark,
@@ -48,41 +41,16 @@ function listHref(search: string): string {
   return query ? `/transactions?${query}` : "/transactions";
 }
 
-/** Download and Share for a settled receipt. */
+/** Download and Share for a settled receipt; each asks for a format first. */
 function ReceiptActions({ transaction }: { transaction: Transaction }) {
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const receipt = toReceipt(transaction);
-
-  const onDownload = async () => {
-    setBusy(true);
-    try {
-      downloadBlob(
-        await buildReceipt(receipt, "png"),
-        receiptFilename(receipt, "png"),
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onShare = async () => {
-    try {
-      if (canShareFiles() && (await shareReceipt(receipt))) return;
-    } catch (err) {
-      // Dismissing the share sheet is not a failure.
-      if (err instanceof DOMException && err.name === "AbortError") return;
-    }
-    setSheetOpen(true);
-  };
+  const [sheet, setSheet] = useState<"download" | "share" | null>(null);
 
   return (
     <>
       <div className="mt-4.25 grid grid-cols-[177fr_168fr] gap-3">
         <button
           type="button"
-          onClick={onDownload}
-          disabled={busy}
+          onClick={() => setSheet("download")}
           className={`${ACTION} text-jumpa-black`}
         >
           <Image
@@ -95,14 +63,18 @@ function ReceiptActions({ transaction }: { transaction: Transaction }) {
         </button>
         <button
           type="button"
-          onClick={onShare}
+          onClick={() => setSheet("share")}
           className={`${ACTION} text-jumpa-black`}
         >
           Share
         </button>
       </div>
-      {sheetOpen ? (
-        <ReceiptSheet receipt={receipt} onClose={() => setSheetOpen(false)} />
+      {sheet ? (
+        <ReceiptSheet
+          receipt={toReceipt(transaction)}
+          mode={sheet}
+          onClose={() => setSheet(null)}
+        />
       ) : null}
     </>
   );

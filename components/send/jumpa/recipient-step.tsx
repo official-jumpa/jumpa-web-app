@@ -11,20 +11,22 @@ const HINT: Partial<Record<LookupStatus, string>> = {
   error: "Couldn't check that right now. Try again.",
 };
 
-/** Who the money goes to: one field, resolved live to a Jumpa user. */
+/** Who the money goes to: one field, with live suggestions from the third character. */
 export function RecipientStep({
   query,
   onQueryChange,
   status,
-  recipient,
+  recipients,
   error,
+  onPick,
   onContinue,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
   status: LookupStatus;
-  recipient: JumpaRecipient | null;
+  recipients: JumpaRecipient[];
   error?: string;
+  onPick: (recipient: JumpaRecipient) => void;
   onContinue: () => void;
 }) {
   const hint = error ? undefined : HINT[status];
@@ -68,18 +70,25 @@ export function RecipientStep({
         </label>
         <FieldError>{error}</FieldError>
 
-        {recipient ? (
-          <button
-            type="submit"
-            aria-label={`Send to ${recipient.name}`}
-            className="tap w-full rounded-tile active:scale-[0.99]"
-          >
-            <RecipientCard
-              recipient={recipient}
-              variant="match"
-              trailing={<ChevronRightIcon className="size-5 shrink-0 text-jumpa-slate-600" />}
-            />
-          </button>
+        {recipients.length > 0 ? (
+          <ul aria-label="Matching Jumpa users" className="flex flex-col gap-2">
+            {recipients.map((recipient) => (
+              <li key={recipient.tag ?? recipient.addresses.stellar ?? recipient.name}>
+                <button
+                  type="button"
+                  onClick={() => onPick(recipient)}
+                  aria-label={`Send to ${recipient.name}`}
+                  className="tap w-full rounded-tile active:scale-[0.99]"
+                >
+                  <RecipientCard
+                    recipient={recipient}
+                    variant="match"
+                    trailing={<ChevronRightIcon className="size-5 shrink-0 text-jumpa-slate-600" />}
+                  />
+                </button>
+              </li>
+            ))}
+          </ul>
         ) : hint ? (
           <p aria-live="polite" className="text-xs leading-4.5 text-jumpa-neutral-400">
             {hint}

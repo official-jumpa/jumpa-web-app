@@ -321,6 +321,13 @@ export function SwapView({
     return (
       <TransferSuccess
         back="/home"
+        receiptRows={[
+          { label: "You received", value: `${txResult.received} ${txResult.receivedToken}` },
+          { label: "Network fee", value: estimatedFee },
+          { label: "Service fee", value: platformFee },
+          { label: "Slippage", value: quoteSlippage },
+          ...(txResult.txHash ? [{ label: "Transaction hash", value: txResult.txHash, accent: true }] : []),
+        ]}
         title="Swap successful"
         amount={`+${txResult.received} ${txResult.receivedToken}`}
         titleFirst

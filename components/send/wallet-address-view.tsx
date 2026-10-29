@@ -224,6 +224,14 @@ export function WalletAddressView({
     return (
       <TransferSuccess
         back="/home"
+        receiptRows={[
+          { label: "To", value: form.address },
+          { label: "Amount", value: `${amount} ${form.asset}` },
+          { label: "Network", value: currentConfig.name },
+          { label: "Network fee", value: currentConfig.feeLabel },
+          ...(form.memo?.trim() ? [{ label: "Memo", value: form.memo.trim() }] : []),
+          ...(txResult?.txHash ? [{ label: "Transaction hash", value: txResult.txHash, accent: true }] : []),
+        ]}
         amount={`${amount} ${form.asset}`}
         subAmount={equivalent}
         note={

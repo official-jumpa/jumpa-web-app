@@ -84,16 +84,23 @@ export function JumpaSendView() {
   const note =
     asset.kind === "crypto" ? usdEquivalent(typed, holding?.priceUsd) : asset.code === "USD" ? undefined : settlesAs && `Arrives as ${settlesAs}`;
 
-  const continueFromRecipient = () => {
-    if (!lookup.recipient) {
-      setRecipientError(
-        query.trim() ? "Wait for a matching Jumpa user, or check what you typed." : "Enter who you are sending to.",
-      );
-      return;
-    }
+  const pickRecipient = (picked: JumpaRecipient) => {
     setRecipientError(undefined);
-    setRecipient(lookup.recipient);
+    setRecipient(picked);
     setStage("amount");
+  };
+
+  // Continue goes through on a single match; with several, the user picks one.
+  const continueFromRecipient = () => {
+    const [only, ...rest] = lookup.recipients;
+    if (only && rest.length === 0) return pickRecipient(only);
+    setRecipientError(
+      only
+        ? "Pick who you are sending to from the list."
+        : query.trim()
+          ? "Wait for a matching Jumpa user, or check what you typed."
+          : "Enter who you are sending to.",
+    );
   };
 
   const continueFromAmount = () => {
@@ -168,6 +175,15 @@ export function JumpaSendView() {
     return (
       <TransferSuccess
         back="/home"
+        receiptRows={[
+          { label: "To", value: recipient.name },
+          ...(recipient.tag ? [{ label: "Jumpa tag", value: `@${recipient.tag}` }] : []),
+          { label: "Amount", value: headline },
+          ...(settlesAs ? [{ label: "They receive", value: settlesAs }] : []),
+          { label: "Network", value: config?.name ?? asset.network },
+          { label: "Network fee", value: config?.feeLabel ?? "—" },
+          ...(narration.trim() ? [{ label: "Narration", value: narration.trim() }] : []),
+        ]}
         amount={headline}
         subAmount={note}
         note={
@@ -216,8 +232,9 @@ export function JumpaSendView() {
               setRecipientError(undefined);
             }}
             status={lookup.status}
-            recipient={lookup.recipient}
+            recipients={lookup.recipients}
             error={recipientError}
+            onPick={pickRecipient}
             onContinue={continueFromRecipient}
           />
         </>

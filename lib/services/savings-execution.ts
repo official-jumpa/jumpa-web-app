@@ -27,6 +27,7 @@ import {
   ensureSufficientStellarGas,
   getStellarFeeAmount,
   collectStellarGasFeeUsdc,
+  disburseStellarUsdcFromTreasury,
 } from "@/lib/chains/stellar";
 import { fetchStellarBalances } from "@/lib/chains/stellar/account";
 import { DefindexClient } from "@/lib/chains/stellar/defindex-client";
@@ -1095,38 +1096,106 @@ export async function withdrawSavingsExecution(
   }
   claimedUsdcPlan = updatedUsdcPlan;
   let broadcastAttempted = false;
+  let yieldTxHash: string | undefined;
 
   try {
-    const netPayoutStroops = Math.round(netPayout * 10_000_000);
-    const withdrawRes = await defindexClient.withdraw(targetVault, {
-      amounts: [netPayoutStroops],
-      caller: stellarAddress,
-    });
-
-    if (!withdrawRes?.xdr) {
-      throw new Error("Savings withdrawal did not return a transaction envelope");
+    // Split Settlement: Withdraw user's principal from the on-chain DeFindex vault
+    let liveUnderlyingStroops = 0;
+    try {
+      const balanceData = await defindexClient.getBalance(targetVault, stellarAddress);
+      liveUnderlyingStroops = Number(balanceData.underlyingBalance?.[0] || 0);
+    } catch (balErr) {
+      console.warn("[withdrawSavingsExecution] Could not fetch live vault balance:", balErr);
     }
-    const tx = StellarSdk.TransactionBuilder.fromXDR(
-      withdrawRes.xdr,
-      StellarSdk.Networks.PUBLIC,
-    );
-    tx.sign(userKeypair);
 
-    broadcastAttempted = true;
-    const sendRes = await defindexClient.send(tx.toXDR());
-    if (!sendRes?.txHash) {
-      throw new Error("Savings withdrawal submission did not return a transaction hash");
+    const requestedPrincipalStroops = Math.round(principalWithdraw * 10_000_000);
+    // If caller has a live on-chain position, clamp withdrawal amount to available shares/stroops
+    const onChainWithdrawStroops = liveUnderlyingStroops > 0
+      ? Math.min(requestedPrincipalStroops, liveUnderlyingStroops)
+      : requestedPrincipalStroops;
+
+    if (onChainWithdrawStroops > 0) {
+      const withdrawRes = await defindexClient.withdraw(targetVault, {
+        amounts: [onChainWithdrawStroops],
+        caller: stellarAddress,
+        slippageBps: 50, // 0.5% tolerance during strategy unwinding
+      });
+
+      if (!withdrawRes?.xdr) {
+        throw new Error("Savings withdrawal did not return a transaction envelope");
+      }
+      const tx = StellarSdk.TransactionBuilder.fromXDR(
+        withdrawRes.xdr,
+        StellarSdk.Networks.PUBLIC,
+      );
+      tx.sign(userKeypair);
+
+      broadcastAttempted = true;
+      const sendRes = await defindexClient.send(tx.toXDR());
+      if (!sendRes?.txHash) {
+        throw new Error("Savings withdrawal submission did not return a transaction hash");
+      }
+      txHash = sendRes.txHash;
+      explorerUrl = getExplorerTxUrl("stellar", txHash, false);
+      await Transaction.findByIdAndUpdate(withdrawalId, {
+        status: "SUBMITTED",
+        txHash,
+      });
     }
-    txHash = sendRes.txHash;
-    explorerUrl = getExplorerTxUrl("stellar", txHash, false);
-    await Transaction.findByIdAndUpdate(withdrawalId, {
-      status: "SUBMITTED",
-      txHash,
-    });
+
+    // Disburse off-chain accrued interest directly from Jumpa Treasury
+    if (interestPayout > 0) {
+      const yieldRes = await disburseStellarUsdcFromTreasury({
+        destination: stellarAddress,
+        amountUsdc: interestPayout,
+        memo: `yield:${planId}`,
+        network: "mainnet",
+      });
+      if (yieldRes.success) {
+        yieldTxHash = yieldRes.txHash;
+        console.log(
+          `[withdrawSavingsExecution] Successfully disbursed $${interestPayout} USDC yield (tx: ${yieldTxHash})`,
+        );
+      } else {
+        console.warn(
+          `[withdrawSavingsExecution] Notice: Yield disbursal notice: ${yieldRes.error}. Principal was successfully withdrawn.`,
+        );
+      }
+    }
   } catch (onChainErr: any) {
     console.error(
       `[withdrawSavingsExecution] Error: ${formatOneLineError(onChainErr?.rawDetail || onChainErr)}`,
     );
+
+    // Rollback: If transaction was not successfully broadcasted on-chain, restore user's savings in DB
+    if (!broadcastAttempted) {
+      try {
+        await SavingsPlan.findByIdAndUpdate(
+          planId,
+          {
+            $inc: {
+              currentAmount: principalWithdraw,
+              interestEarned: interestPayout,
+              ...(isSaveTogetherCircle
+                ? { "circleConfig.members.$[member].saved": principalWithdraw }
+                : {}),
+            },
+            $set: { status: "Active" },
+          },
+          {
+            ...(isSaveTogetherCircle
+              ? { arrayFilters: [{ "member.userId": userId }] }
+              : {}),
+          },
+        );
+      } catch (rollbackErr) {
+        console.error(
+          "[withdrawSavingsExecution] CRITICAL: Failed to rollback savings plan:",
+          rollbackErr,
+        );
+      }
+    }
+
     await Transaction.findByIdAndUpdate(withdrawalId, {
       status: broadcastAttempted ? "PENDING" : "FAILED",
       errorMessage: formatOneLineError(onChainErr?.rawDetail || onChainErr),
@@ -1146,6 +1215,7 @@ export async function withdrawSavingsExecution(
     txHash,
     explorerUrl,
     executedAt: new Date(),
+    ...(yieldTxHash ? { "savingsDetails.yieldTxHash": yieldTxHash } : {}),
   });
 
   if (isFullWithdrawal) {

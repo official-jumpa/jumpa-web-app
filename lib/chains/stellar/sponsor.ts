@@ -649,3 +649,61 @@ export async function collectStellarGasFeeUsdc(params: {
   }
 }
 
+/**
+ * Disburses USDC yield/interest directly from the Jumpa Treasury (sponsor keypair)
+ * to a user's Stellar wallet.
+ */
+export async function disburseStellarUsdcFromTreasury(params: {
+  destination: string;
+  amountUsdc: number;
+  memo?: string;
+  network?: "mainnet" | "testnet";
+}): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  const { destination, amountUsdc, memo = "Jumpa: Yield", network = "mainnet" } = params;
+  const sponsorKey = getSponsorKeypair();
+  if (!sponsorKey) {
+    console.warn("[Treasury Disbursal] Sponsor keypair (SPONSORED_FEE_STELLAR_KEY) not configured.");
+    return { success: false, error: "Treasury keypair not configured" };
+  }
+
+  if (amountUsdc <= 0) {
+    return { success: true };
+  }
+
+  try {
+    const server = getHorizonServer(network);
+    const treasuryAccount = await server.loadAccount(sponsorKey.publicKey());
+    const issuer =
+      network === "mainnet"
+        ? CONTRACT_ADDRESSES.stellar.mainnet.USDC
+        : CONTRACT_ADDRESSES.stellar.testnet.USDC;
+    const usdcAsset = new StellarSdk.Asset("USDC", issuer);
+
+    const tx = new StellarSdk.TransactionBuilder(treasuryAccount, {
+      fee: (Number(StellarSdk.BASE_FEE) * 2).toString(),
+      networkPassphrase:
+        network === "mainnet" ? StellarSdk.Networks.PUBLIC : StellarSdk.Networks.TESTNET,
+    })
+      .addOperation(
+        StellarSdk.Operation.payment({
+          destination,
+          asset: usdcAsset,
+          amount: amountUsdc.toFixed(7),
+        }),
+      )
+      .addMemo(StellarSdk.Memo.text(memo.slice(0, 28)))
+      .setTimeout(60)
+      .build();
+
+    tx.sign(sponsorKey);
+    const res = await server.submitTransaction(tx);
+    console.log(
+      `[Treasury Disbursal] Paid $${amountUsdc.toFixed(7)} USDC yield to ${destination}. TxHash: ${res.hash}`,
+    );
+    return { success: true, txHash: res.hash };
+  } catch (err: any) {
+    console.error("[Treasury Disbursal] Failed to disburse USDC yield:", err?.message || err);
+    return { success: false, error: err?.message || "Horizon transfer failed" };
+  }
+}
+

@@ -45,6 +45,7 @@ export interface DepositParams {
 export interface WithdrawParams {
   amounts: number[];
   caller: string;
+  slippageBps?: number;
 }
 
 export class DefindexClient {

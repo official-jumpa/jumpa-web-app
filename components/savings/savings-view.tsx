@@ -220,9 +220,18 @@ export function SavingsView() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Failed to create savings goal");
+        const isWrongPin =
+          res.status === 401 &&
+          String(data.error || "").toLowerCase().includes("pin");
+        if (isWrongPin && pinAction) {
+          setPinError(true);
+        } else {
+          setPinAction(null);
+        }
+        toast.error(data.error || "Failed to create savings goal");
+        return;
       }
 
       toast.success("Savings plan created successfully!");
@@ -236,8 +245,8 @@ export function SavingsView() {
         toHub();
       }
     } catch (err: any) {
+      setPinAction(null);
       toast.error(err.message || "Failed to create savings plan");
-      if (pinAction) setPinError(true);
     } finally {
       isSubmittingRef.current = false;
       setSubmitting(false);
@@ -245,13 +254,12 @@ export function SavingsView() {
     }
   };
 
-  // 2. Top-Up Goal (Requires PIN only for USDC on-chain)
+  // 2. Top-Up Goal (Requires PIN for all currencies: NGN & USDC)
   const handleTopUpGoal = async (planId: string, amount: number, pin?: string) => {
     if (isSubmittingRef.current || submitting) return;
 
-    const goal = goals.find((g) => g.id === planId);
-    // If USDC and no PIN yet, prompt for PIN
-    if (goal?.currency === "USDC" && !pin) {
+    // Prompt for PIN if not provided yet
+    if (!pin) {
       setPinAction({ type: "top_up", planId, amount });
       return;
     }
@@ -269,9 +277,18 @@ export function SavingsView() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Deposit failed");
+        const isWrongPin =
+          res.status === 401 &&
+          String(data.error || "").toLowerCase().includes("pin");
+        if (isWrongPin && pinAction) {
+          setPinError(true);
+        } else {
+          setPinAction(null);
+        }
+        toast.error(data.error || "Deposit failed");
+        return;
       }
 
       toast.success("Deposit added successfully!");
@@ -282,8 +299,8 @@ export function SavingsView() {
       );
       fetchPlans();
     } catch (err: any) {
+      setPinAction(null);
       toast.error(err.message || "Deposit failed");
-      if (pinAction) setPinError(true);
     } finally {
       isSubmittingRef.current = false;
       setSubmitting(false);
@@ -316,9 +333,18 @@ export function SavingsView() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Withdrawal failed");
+        const isWrongPin =
+          res.status === 401 &&
+          String(data.error || "").toLowerCase().includes("pin");
+        if (isWrongPin) {
+          setPinError(true);
+        } else {
+          setPinAction(null);
+        }
+        toast.error(data.error || "Withdrawal failed");
+        return;
       }
 
       toast.success(
@@ -336,8 +362,8 @@ export function SavingsView() {
       }
       window.scrollTo({ top: 0 });
     } catch (err: any) {
+      setPinAction(null);
       toast.error(err.message || "Action failed");
-      setPinError(true);
     } finally {
       isSubmittingRef.current = false;
       setSubmitting(false);
@@ -368,9 +394,18 @@ export function SavingsView() {
         body: JSON.stringify({ code, amount, pin }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Failed to join circle");
+        const isWrongPin =
+          res.status === 401 &&
+          String(data.error || "").toLowerCase().includes("pin");
+        if (isWrongPin && pinAction) {
+          setPinError(true);
+        } else {
+          setPinAction(null);
+        }
+        toast.error(data.error || "Failed to join circle");
+        return;
       }
 
       toast.success("Joined circle successfully!");
@@ -382,8 +417,8 @@ export function SavingsView() {
         toHub();
       }
     } catch (err: any) {
+      setPinAction(null);
       toast.error(err.message || "Failed to join circle");
-      if (pinAction) setPinError(true);
     } finally {
       isSubmittingRef.current = false;
       setSubmitting(false);

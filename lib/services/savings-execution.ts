@@ -504,6 +504,15 @@ export async function depositSavingsExecution(
     };
   }
 
+  // 1. PIN verification is required for all savings top-ups (both NGN and USDC)
+  if (!pin) {
+    return { ok: false, error: "Wallet PIN is required for savings top-up", status: 400 };
+  }
+  const pinCheck = await verifyWalletPin(wallet, pin, { userId });
+  if (!pinCheck.ok) {
+    return { ok: false, error: pinCheck.error, status: pinCheck.status };
+  }
+
   // Enforce security daily transaction limit on deposit
   if (amount > 0) {
     try {
@@ -578,16 +587,7 @@ export async function depositSavingsExecution(
     };
   }
 
-  // ── Currency: USDC (Stellar DeFindex - Requires PIN for on-chain key decryption) ─
-  if (!pin) {
-    return { ok: false, error: "Wallet PIN is required for on-chain deposit", status: 400 };
-  }
-  const pinCheck = await verifyWalletPin(wallet, pin, { userId });
-  if (!pinCheck.ok) {
-    return { ok: false, error: pinCheck.error, status: pinCheck.status };
-  }
-
-  // Currency: USDC (Stellar DeFindex)
+  // ── Currency: USDC (Stellar DeFindex)
   // 1. Enforce cumulative $1,000 USDC maximum savings cap per user
   const currentActiveUsdcSavings = await getUserActiveUsdcSavings(userId);
   if (currentActiveUsdcSavings + amount > 1000) {

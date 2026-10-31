@@ -157,7 +157,7 @@ export const topUpSavingsSchema = z.object({
     }),
   fundingSource: z.enum(["crypto", "usd", "ngn"]).default("crypto"),
   currency: z.enum(["NGN", "USDC"]).optional(),
-  pin: pinSchema.optional(),
+  pin: pinSchema,
 }).refine(
   (data) => {
     if (data.currency === "NGN" && data.amount > 1000000) {

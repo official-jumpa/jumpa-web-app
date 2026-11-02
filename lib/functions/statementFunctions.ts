@@ -15,6 +15,8 @@ export interface StatementTransactionRow {
   date: string;
   timestamp: number;
   description: string;
+  /** Second line under the description, as the history list prints it. */
+  subtitle: string;
   type: string;
   formattedType: string;
   direction: "inflow" | "outflow" | "neutral";
@@ -23,8 +25,21 @@ export interface StatementTransactionRow {
   amount: string;
   rawAmount: number;
   token: string;
+  /** Fee in the row's own token; 0 when none was charged. */
+  fee: number;
   status: string;
   reference: string;
+}
+
+/** One coin's naira buys and sells over the period. */
+export interface StatementAssetActivity {
+  token: string;
+  /** Time of the latest buy or sell. */
+  date: string;
+  bought: number;
+  sold: number;
+  /** Naira per unit on the latest trade; absent when no naira amount was recorded. */
+  rate?: number;
 }
 
 export interface CurrencySummary {
@@ -48,6 +63,8 @@ export interface StatementData {
     email: string;
     jumpaTag: string;
     homeAddress?: string;
+    country?: string;
+    primaryCurrency: string;
   };
   bankAccount?: {
     bankName?: string;
@@ -67,7 +84,14 @@ export interface StatementData {
     totalOutflow: number;
     netMovement: number;
     transactionCount: number;
+    creditCount: number;
+    debitCount: number;
+    /** Naira spent buying crypto (ONRAMP). */
+    cryptoPurchased: number;
+    /** Naira received selling crypto (OFFRAMP). */
+    cryptoSold: number;
   };
+  assetActivity: StatementAssetActivity[];
   transactions: StatementTransactionRow[];
 }
 
@@ -95,23 +119,31 @@ export function formatTransactionType(type: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function formatDateCompact(d: Date): string {
-  return d.toLocaleDateString("en-US", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+/** "31 Jul 2025" or "31 Jul 2025, 08:53:56"; en-US parts so September reads "Sep", not "Sept". */
+function formatStatementDate(d: Date, timeZone: string, withTime: boolean): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      ...(withTime && { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }),
+      timeZone,
+    })
+      .formatToParts(d)
+      .map((part) => [part.type, part.value]),
+  );
+  const day = `${parts.day} ${parts.month} ${parts.year}`;
+  return withTime ? `${day}, ${parts.hour}:${parts.minute}:${parts.second}` : day;
 }
 
+/** Transaction and generation times, on the Nigerian clock whatever the server's zone. */
+function formatDateCompact(d: Date): string {
+  return formatStatementDate(d, "Africa/Lagos", true);
+}
+
+/** Period bounds are UTC calendar days (see the query below). */
 function formatDayOnly(d: Date): string {
-  return d.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return formatStatementDate(d, "UTC", false);
 }
 
 function formatCurrencyAmount(num: number, currency: string): string {
@@ -202,6 +234,9 @@ export async function generateUserStatement(
 
   // Currency breakdown accumulator
   const currencyMap: Record<string, { inflow: number; outflow: number; count: number }> = {};
+  const assetMap: Record<string, StatementAssetActivity> = {};
+  let cryptoPurchased = 0;
+  let cryptoSold = 0;
 
   const rows: StatementTransactionRow[] = rawTransactions.map((tx: any) => {
     const base = getBaseTransactionFields(tx);
@@ -234,6 +269,23 @@ export async function generateUserStatement(
       debit = formatCurrencyAmount(numAmount, cleanToken);
     }
 
+    // Naira buys and sells; rows run oldest first, so the last trade sets the date and rate.
+    const rampType = (tx.type || "").toUpperCase();
+    if ((rampType === "ONRAMP" || rampType === "OFFRAMP") && cleanToken !== "NGN") {
+      const naira = Number(tx.rampDetails?.fiatAmount) || 0;
+      assetMap[cleanToken] ??= { token: cleanToken, date: "", bought: 0, sold: 0 };
+      const asset = assetMap[cleanToken];
+      if (rampType === "ONRAMP") {
+        asset.bought += numAmount;
+        cryptoPurchased += naira;
+      } else {
+        asset.sold += numAmount;
+        cryptoSold += naira;
+      }
+      asset.date = formatDateCompact(dateObj);
+      if (naira > 0 && numAmount > 0) asset.rate = naira / numAmount;
+    }
+
     // Database transaction ID with 'tx' prefix stripped for a uniform, unique reference
     const rawTxId = String(tx._id || tx.id || base.id || "");
     const cleanRef = rawTxId.replace(/^tx_?/i, "").toUpperCase();
@@ -245,6 +297,7 @@ export async function generateUserStatement(
       date: formatDateCompact(dateObj),
       timestamp: base.createdAt,
       description: base.title,
+      subtitle: base.subtitle || "",
       type: (tx.type || "TRANSFER").toUpperCase(),
       formattedType: formatTransactionType(tx.type || "TRANSFER"),
       direction,
@@ -253,6 +306,7 @@ export async function generateUserStatement(
       amount: base.amount,
       rawAmount: numAmount,
       token: cleanToken,
+      fee: Number(tx.feePaid) || 0,
       status: "CONFIRMED",
       reference: ref,
     };
@@ -319,6 +373,9 @@ export async function generateUserStatement(
       email: user.email || "",
       jumpaTag: cleanTag,
       homeAddress: input.homeAddress?.trim() || undefined,
+      country: user.country || undefined,
+      // Every account is naira-first; there is no per-user currency setting yet.
+      primaryCurrency: "NGN",
     },
     bankAccount: bankAccountData,
     wallets: walletsData,
@@ -328,7 +385,12 @@ export async function generateUserStatement(
       totalOutflow: primarySummary.totalOutflow,
       netMovement: primarySummary.netMovement,
       transactionCount: rows.length,
+      creditCount: rows.filter((row) => row.direction === "inflow").length,
+      debitCount: rows.filter((row) => row.direction === "outflow").length,
+      cryptoPurchased: Math.round(cryptoPurchased * 100) / 100,
+      cryptoSold: Math.round(cryptoSold * 100) / 100,
     },
+    assetActivity: Object.values(assetMap),
     transactions: rows,
   };
 

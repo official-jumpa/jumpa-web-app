@@ -255,6 +255,9 @@ export function TransactionsView({
     return !hasServerData;
   });
   const [loadingMore, setLoadingMore] = useState(false);
+  // The full-screen loader is for the first load only; refetches keep the current rows on screen.
+  const [loaded, setLoaded] = useState(() => hasMatchingCache || hasServerData);
+  const latestRequest = useRef(0);
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const prevFiltersRef = useRef<string>(
@@ -303,8 +306,9 @@ export function TransactionsView({
     const newPath = newQuery
       ? `${window.location.pathname}?${newQuery}`
       : window.location.pathname;
-    router.replace(newPath, { scroll: false });
-  }, [debouncedQuery, router, searchParams]);
+    // Native history skips the server re-render, so a late URL update can't reset the typed query.
+    window.history.replaceState(null, "", newPath);
+  }, [debouncedQuery, searchParams]);
 
   // Sync state if browser back / forward buttons change URL searchParams
   useEffect(() => {
@@ -388,6 +392,7 @@ export function TransactionsView({
   // Core fetcher for page 1 transactions (filters, tab or search change)
   const fetchPageOne = useCallback(
     async (filtersState: Record<string, string>, tabState: HistoryTab, searchParam: string) => {
+      const request = ++latestRequest.current;
       setLoading(true);
       setPage(1);
 
@@ -396,6 +401,8 @@ export function TransactionsView({
         const res = await fetch(`/api/v1/transactions?${queryStr}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
+        // A newer search or filter has been sent since; its answer wins.
+        if (request !== latestRequest.current) return;
 
         if (Array.isArray(data.transactions)) {
           setTransactions(data.transactions);
@@ -413,7 +420,10 @@ export function TransactionsView({
       } catch (err) {
         console.warn("[Transactions] Failed to fetch history:", err);
       } finally {
-        setLoading(false);
+        if (request === latestRequest.current) {
+          setLoading(false);
+          setLoaded(true);
+        }
       }
     },
     [],
@@ -636,7 +646,7 @@ export function TransactionsView({
         </div>
 
         <div className={tab.scope ? "mt-4.5" : "mt-6"}>
-          {loading && transactions.length === 0 ? (
+          {loading && !loaded ? (
             <div className="py-16 text-center text-xs font-medium text-jumpa-neutral-400 animate-pulse">
               Loading transactions...
             </div>

@@ -7,10 +7,13 @@ import { MoneyWithdrawalIcon } from "@/components/ui/icons/money-withdrawal";
 import { PhoneAltOutlineIcon } from "@/components/ui/icons/phone-alt-outline";
 import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
 import { WifiIcon } from "@/components/ui/icons/wifi";
+import { MinusBoldIcon } from "@/components/ui/icons/minus-bold";
+import { TransferLineIcon } from "@/components/ui/icons/transfer-line";
 import { LocalTime } from "@/components/ui/local-time";
 import { getAssetLogo } from "@/lib/assets";
 import { getCarrierLogo } from "@/lib/bills";
 import { cn } from "@/lib/cn";
+import { formatHistoryAmount, formatHistoryClock, formatHistoryDay } from "@/lib/history";
 import { formatTxDate, type Transaction, type TransactionKind } from "@/lib/wallet";
 import { useSearchParams } from "next/navigation";
 
@@ -35,7 +38,69 @@ const GLYPH: Record<
   invest: { Icon: MoneyWithdrawalIcon },
 };
 
-const ROW = "tap flex items-center gap-1.5 text-left active:scale-[0.98]";
+const LAYOUT = {
+  card: "flex items-center gap-1.5",
+  history: "flex h-10.5 items-center gap-3",
+} as const;
+
+const TAP = "tap text-left active:scale-[0.98]";
+
+/** History-screen disc and amount colours: money in, money out, or failed. */
+const TONE = {
+  in: { disc: "bg-jumpa-success-50 text-jumpa-success-500", amount: "text-jumpa-success-500" },
+  out: { disc: "bg-jumpa-primary-50 text-jumpa-primary-600", amount: "text-jumpa-ink" },
+  failed: { disc: "bg-jumpa-rose-50 text-jumpa-rose-500", amount: "text-jumpa-rose-500" },
+} as const;
+
+/** The history screen's row: tinted disc, title over "date, subtitle · time", signed amount. */
+function HistoryBody({ transaction }: { transaction: Transaction }) {
+  const { kind, title, subtitle, amount, status, createdAt } = transaction;
+  const tone = status === "failed" ? "failed" : amount.startsWith("+") ? "in" : "out";
+  const date = createdAt ? new Date(createdAt) : null;
+
+  let glyph = <ArrowUpIcon className={cn("size-3.5", tone === "in" && "-scale-y-100")} />;
+  if (tone === "failed") glyph = <MinusBoldIcon className="size-3" />;
+  else if (kind === "swap" || kind === "bridge") glyph = <TransferLineIcon className="size-3.5" />;
+
+  return (
+    <>
+      <span
+        className={cn(
+          "flex size-8 shrink-0 items-center justify-center rounded-full",
+          TONE[tone].disc,
+        )}
+      >
+        {glyph}
+      </span>
+
+      <span className="flex min-w-0 flex-1 flex-col gap-1.25 leading-none">
+        <span className="truncate text-xs font-medium tracking-jumpa-snug text-jumpa-ink">
+          {title}
+        </span>
+        <span className="truncate text-[10px] tracking-jumpa-snug text-jumpa-ink-muted">
+          {date ? (
+            <LocalTime at={date} fallback={formatHistoryDay(date)} format="historyDay" />
+          ) : null}
+          {subtitle ? `, ${subtitle}` : ""}
+          {date ? " · " : ""}
+          {date ? (
+            <LocalTime at={date} fallback={formatHistoryClock(date)} format="historyClock" />
+          ) : null}
+          {status === "pending" ? " · Pending" : ""}
+        </span>
+      </span>
+
+      <span
+        className={cn(
+          "shrink-0 text-xs leading-none font-medium tracking-jumpa-snug",
+          TONE[tone].amount,
+        )}
+      >
+        {formatHistoryAmount(amount)}
+      </span>
+    </>
+  );
+}
 
 /** Hairline between rows. `-mb-px` keeps it out of the flow — Figma draws it as a zero-height line. */
 export function TransactionRule() {
@@ -47,12 +112,15 @@ export function TransactionRow({
   transaction,
   badge = true,
   onSelect,
+  variant = "card",
 }: {
   transaction: Transaction;
   /** The chain mark on the tile. Off on a fiat-only screen, where no token is involved. */
   badge?: boolean;
   /** Turns the row into a picker choice instead of a link to its detail. */
   onSelect?: (transaction: Transaction) => void;
+  /** `history` is the transaction-history screen's layout; `card` is every other list. */
+  variant?: keyof typeof LAYOUT;
 }) {
   const { id, displayId, kind, chain, title, detail, amount, status, carrier, createdAt } =
     transaction;
@@ -66,7 +134,9 @@ export function TransactionRow({
     ? getCarrierLogo(carrier || title || displayDate)
     : null;
 
-  const body = (
+  const body = variant === "history" ? (
+    <HistoryBody transaction={transaction} />
+  ) : (
     <>
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="relative flex size-10 shrink-0 items-center justify-center rounded-full bg-jumpa-white">
@@ -130,7 +200,7 @@ export function TransactionRow({
     </>
   );
 
-  if (!id) return <div className="flex items-center gap-1.5">{body}</div>;
+  if (!id) return <div className={LAYOUT[variant]}>{body}</div>;
 
   const targetId = (id || displayId || "").replace(/^tx_/i, "").toLowerCase();
 
@@ -139,7 +209,7 @@ export function TransactionRow({
       <button
         type="button"
         onClick={() => onSelect(transaction)}
-        className={cn(ROW, "w-full")}
+        className={cn(TAP, LAYOUT[variant], "w-full")}
       >
         {body}
       </button>
@@ -164,7 +234,7 @@ export function TransactionRow({
     <Link
       prefetch={false}
       href={`/transactions?${currentParams.toString()}`}
-      className={ROW}
+      className={cn(TAP, LAYOUT[variant])}
     >
       {body}
     </Link>

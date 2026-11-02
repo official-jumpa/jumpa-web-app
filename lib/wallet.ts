@@ -144,6 +144,8 @@ export type Transaction = {
   chain?: string;
   /** Carrier / network logo for bills (e.g. mtn, airtel, glo, 9mobile) */
   carrier?: string;
+  /** Bank, masked phone or currency pair between a history row's date and time, e.g. "Opay". */
+  subtitle?: string;
 
   /** Asset whose mark heads the detail screen, e.g. "SOL". */
   token?: string;

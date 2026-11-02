@@ -32,13 +32,14 @@ export function normalizePhoneNumber(phone: string): string {
 }
 
 /**
- * Categorizes a plan into Daily, Weekly, or Monthly period tabs for the UI.
+ * Categorizes a plan into Daily, Weekly, Weekend, or Monthly period tabs for the UI.
  */
 export function parsePlanPeriod(
   validity: string,
   productName: string,
 ): DataPlanPeriod {
   const val = `${validity || ""} ${productName || ""}`.toLowerCase();
+  if (val.includes("weekend")) return "weekend";
   if (
     val.includes("1 day") ||
     val.includes("2 day") ||

@@ -1,25 +1,38 @@
 "use client";
 
 import { useState } from "react";
+import { BillChip } from "@/components/bills/bill-chip";
+import {
+  type BillField,
+  BillForm,
+  checkRecipient,
+} from "@/components/bills/bill-form";
 import { BillSummary } from "@/components/bills/bill-review";
-import { DataPlans } from "@/components/bills/data-plans";
-import { RechargeForm } from "@/components/bills/recharge-form";
+import { DataPlanList } from "@/components/bills/data-plan-list";
 import { ReceiptSheet } from "@/components/transactions/receipt-sheet";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
+import { FieldError } from "@/components/ui/field-error";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { useNgnAccount } from "@/hooks/use-ngn-account";
-import { type DataPlan, getNetwork, getPeriodLabel } from "@/lib/bills";
+import {
+  DATA_PERIODS,
+  type DataPlan,
+  type DataPlanPeriod,
+  getNetwork,
+  getPeriodLabel,
+} from "@/lib/bills";
 import { friendlyBillError, readBillResponse } from "@/lib/bills-errors";
 import type { Receipt } from "@/lib/receipt";
+import type { FormErrors } from "@/lib/validation";
 
-type Stage = "form" | "plans" | "done";
+type Stage = "form" | "done";
 type Sheet = "review" | "pin" | null;
 
-/** Data bundles: recipient, plan, review, PIN, receipt. */
+/** Data bundles: number, period and plan on one screen, then review, PIN, receipt. */
 export function MobileDataView() {
   const { hasNgnAccount } = useNgnAccount();
   const [stage, setStage] = useState<Stage>("form");
@@ -33,7 +46,9 @@ export function MobileDataView() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [phone, setPhone] = useState("");
   const [networkId, setNetworkId] = useState("");
+  const [period, setPeriod] = useState<DataPlanPeriod>("monthly");
   const [plan, setPlan] = useState<DataPlan | null>(null);
+  const [errors, setErrors] = useState<FormErrors<BillField>>({});
   const [receiptOpen, setReceiptOpen] = useState(false);
   // Stamped once the payment lands, so the receipt reads the same every time.
   const [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -182,101 +197,122 @@ export function MobileDataView() {
     );
   }
 
-  if (stage === "plans" && network) {
-    return (
-      <>
-        <DataPlans
-          network={network}
-          phone={phone}
-          selected={plan}
-          onSelect={setPlan}
-          onClose={() => setStage("form")}
-          onContinue={() => setSheet("review")}
-          onNetworkChange={setNetworkId}
-        />
-
-        {sheet === "review" && plan ? (
-          <ReviewSheet
-            summary={
-              <BillSummary
-                label="Data purchase"
-                phone={phone}
-                network={network}
-              />
-            }
-            headline={`${plan.price} (${plan.size}-${getPeriodLabel(plan.period)})`}
-            onConfirm={() => setSheet("pin")}
-            onClose={() => setSheet(null)}
-          >
-            <DetailList>
-              <DetailRow label="From" value="Jumpa wallet" />
-              <DetailRow label="Type" value="Data" />
-              <DetailRow label="Network" value={network.label} />
-              <DetailRow label="Phone number" value={phone} />
-              <DetailRow label="Plan" value={plan.validity} />
-              <DetailRow label="Amount" value={plan.price} rule={false} />
-            </DetailList>
-          </ReviewSheet>
-        ) : null}
-
-        {sheet === "pin" ? (
-          <TransferPinSheet
-            error={pinError}
-            pending={isProcessing}
-            pendingLabel="Processing data subscription..."
-            onRetry={() => {
-              setPinError(false);
-              setFailure(null);
-            }}
-            onClose={() => {
-              if (!isProcessing) {
-                setSheet("review");
-                setPinError(false);
-                setFailure(null);
-              }
-            }}
-            onComplete={handlePinComplete}
-          />
-        ) : null}
-
-        {failure ? (
-          <ResultSheet
-            title={failure.title}
-            message={failure.message}
-            onRetry={
-              failure.retry
-                ? () => {
-                    setFailure(null);
-                    setSheet("review");
-                  }
-                : undefined
-            }
-            onClose={() => setFailure(null)}
-          />
-        ) : null}
-      </>
-    );
-  }
+  const clear = (field: BillField) =>
+    setErrors((current) => ({ ...current, [field]: undefined }));
 
   return (
-    <RechargeForm
-      title="Data"
-      phone={phone}
-      network={networkId}
-      hasAccount={hasNgnAccount}
-      onPhoneChange={setPhone}
-      onNetworkChange={setNetworkId}
-      onContinue={() => {
-        if (!hasNgnAccount) {
-          fail(
-            "Please create a Naira account first",
-            "Naira Account Required",
-            false,
-          );
-          return;
-        }
-        setStage("plans");
-      }}
-    />
+    <>
+      <BillForm
+        title="Mobile Data"
+        phone={phone}
+        network={networkId}
+        errors={errors}
+        onPhoneChange={(next) => {
+          clear("phone");
+          setPhone(next);
+          setPlan(null);
+        }}
+        onNetworkChange={(next) => {
+          clear("network");
+          setNetworkId(next);
+        }}
+        onProceed={() => {
+          const found = {
+            ...checkRecipient(phone, networkId, hasNgnAccount),
+            plan: plan ? undefined : "Select a data plan to continue.",
+          };
+          setErrors(found);
+          if (Object.values(found).some(Boolean)) return false;
+          setSheet("review");
+          return true;
+        }}
+      >
+        <div className="mt-4.25 flex gap-2">
+          {DATA_PERIODS.map((entry) => (
+            <BillChip
+              key={entry.value}
+              active={entry.value === period}
+              onClick={() => setPeriod(entry.value)}
+            >
+              {entry.label}
+            </BillChip>
+          ))}
+        </div>
+
+        <div className="mt-6.25 flex flex-col gap-2">
+          <DataPlanList
+            phone={phone}
+            period={period}
+            selected={plan}
+            onSelect={(next) => {
+              clear("plan");
+              setPlan(next);
+            }}
+            onNetworkDetected={setNetworkId}
+          />
+          <FieldError>{errors.plan}</FieldError>
+        </div>
+      </BillForm>
+
+      {sheet === "review" && plan && network ? (
+        <ReviewSheet
+          summary={
+            <BillSummary
+              label="Data purchase"
+              phone={phone}
+              network={network}
+            />
+          }
+          headline={`${plan.price} (${plan.size}-${getPeriodLabel(plan.period)})`}
+          onConfirm={() => setSheet("pin")}
+          onClose={() => setSheet(null)}
+        >
+          <DetailList>
+            <DetailRow label="From" value="Jumpa wallet" />
+            <DetailRow label="Type" value="Data" />
+            <DetailRow label="Network" value={network.label} />
+            <DetailRow label="Phone number" value={phone} />
+            <DetailRow label="Plan" value={plan.validity} />
+            <DetailRow label="Amount" value={plan.price} rule={false} />
+          </DetailList>
+        </ReviewSheet>
+      ) : null}
+
+      {sheet === "pin" ? (
+        <TransferPinSheet
+          error={pinError}
+          pending={isProcessing}
+          pendingLabel="Processing data subscription..."
+          onRetry={() => {
+            setPinError(false);
+            setFailure(null);
+          }}
+          onClose={() => {
+            if (!isProcessing) {
+              setSheet("review");
+              setPinError(false);
+              setFailure(null);
+            }
+          }}
+          onComplete={handlePinComplete}
+        />
+      ) : null}
+
+      {failure ? (
+        <ResultSheet
+          title={failure.title}
+          message={failure.message}
+          onRetry={
+            failure.retry
+              ? () => {
+                  setFailure(null);
+                  setSheet("review");
+                }
+              : undefined
+          }
+          onClose={() => setFailure(null)}
+        />
+      ) : null}
+    </>
   );
 }

@@ -1,13 +1,11 @@
 "use client";
 
-import Image from "next/image";
-import { useRef, useState } from "react";
-import { NetworkSheet } from "@/components/bills/network-sheet";
+import { useRef } from "react";
+import { NetworkPicker } from "@/components/bills/network-picker";
 import { FieldError } from "@/components/ui/field-error";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
 import { ContactIcon } from "@/components/ui/icons/contact";
-import { TriangleDownIcon } from "@/components/ui/icons/triangle-down";
-import { detectCarrierFromPhone, getNetwork } from "@/lib/bills";
+import { detectCarrierFromPhone } from "@/lib/bills";
 import { normalizeNigerianPhone } from "@/lib/validations/bills.validation";
 
 /** The Contact Picker API; only some browsers ship it, so it is checked on tap. */
@@ -38,10 +36,8 @@ export function BillPhoneField({
   onPhoneChange: (next: string) => void;
   onNetworkChange: (next: string) => void;
 }) {
-  const [picking, setPicking] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const lastDetected = useRef<string | null>(detectCarrierFromPhone(phone));
-  const carrier = getNetwork(network);
 
   const changePhone = (next: string) => {
     onPhoneChange(next);
@@ -77,38 +73,7 @@ export function BillPhoneField({
       </span>
 
       <div className="flex items-center gap-1.75">
-        <button
-          type="button"
-          aria-label={
-            carrier
-              ? `Network: ${carrier.label}. Change network`
-              : "Choose network"
-          }
-          onClick={() => setPicking(true)}
-          className="tap flex shrink-0 items-center gap-1.75 active:scale-95"
-        >
-          <span
-            // Carrier brand disc; MTN and Glo carry their own in the art.
-            style={{ backgroundColor: carrier?.tint }}
-            className="flex size-11 items-center justify-center overflow-hidden rounded-full bg-jumpa-neutral-50"
-          >
-            {carrier ? (
-              <Image
-                src={carrier.logo}
-                alt=""
-                width={44}
-                height={44}
-                loading="eager"
-                className={
-                  carrier.tint
-                    ? "size-6 object-contain"
-                    : "size-full object-cover"
-                }
-              />
-            ) : null}
-          </span>
-          <TriangleDownIcon className="size-2.25 text-jumpa-neutral-270" />
-        </button>
+        <NetworkPicker network={network} onChange={onNetworkChange} />
 
         <span className="flex h-14 min-w-0 flex-1 items-center gap-3.25 rounded-panel bg-jumpa-neutral-50 pr-4.5 pl-4.25">
           <input
@@ -136,17 +101,6 @@ export function BillPhoneField({
       </div>
 
       <FieldError>{error}</FieldError>
-
-      {picking ? (
-        <NetworkSheet
-          selected={network}
-          onSelect={(next) => {
-            onNetworkChange(next);
-            setPicking(false);
-          }}
-          onClose={() => setPicking(false)}
-        />
-      ) : null}
     </div>
   );
 }

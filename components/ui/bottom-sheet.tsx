@@ -4,10 +4,23 @@ import type { ReactNode } from "react";
 import { useSheetDrag } from "@/hooks/use-sheet-drag";
 import { cn } from "@/lib/cn";
 
+/** Scrim and grab handle per design generation; `lavender` is the newer violet-tinted pair. */
+const TONE = {
+  neutral: {
+    scrim: "bg-jumpa-black/45",
+    handle: "h-1 w-25 bg-jumpa-neutral-75",
+  },
+  lavender: {
+    scrim: "bg-jumpa-ink/55",
+    handle: "mt-0.5 -mb-0.5 h-1.25 w-10 bg-jumpa-lavender-200",
+  },
+} as const;
+
 /** Dimmed overlay with a bottom panel. The scrim and a downward drag both close it. */
 export function BottomSheet({
   onClose,
   pb = "pb-6",
+  tone = "neutral",
   className,
   children,
 }: {
@@ -15,6 +28,7 @@ export function BottomSheet({
   /** Bottom padding, as its own slot — `cn` is a plain join, so a `pb-*` in
    *  `className` would not reliably beat the default. */
   pb?: string;
+  tone?: keyof typeof TONE;
   className?: string;
   children: ReactNode;
 }) {
@@ -27,7 +41,10 @@ export function BottomSheet({
         aria-label="Dismiss"
         onClick={onClose}
         ref={drag.scrimRef}
-        className="absolute inset-0 animate-fade cursor-default bg-jumpa-black/45"
+        className={cn(
+          "absolute inset-0 animate-fade cursor-default",
+          TONE[tone].scrim,
+        )}
       />
 
       <div
@@ -45,7 +62,7 @@ export function BottomSheet({
         >
           <span
             aria-hidden="true"
-            className="block h-1 w-25 rounded-full bg-jumpa-neutral-75"
+            className={cn("block rounded-full", TONE[tone].handle)}
           />
         </div>
         {children}

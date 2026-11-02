@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
+
 /*
  * Jumpa design tokens. Each declaration creates the variable and its utilities
  * (`--color-jumpa-primary-600` -> `bg-jumpa-primary-600`, `text-…`, `border-…`).

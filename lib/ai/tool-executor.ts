@@ -1239,8 +1239,10 @@ export async function executeTool(
           amount = Math.round(cleanFiat);
         } else if (cleanCrypto > 0) {
           if (isStellar) {
-            const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: cleanCrypto });
-            amount = Math.round(Number(quote.estimatedReceivableAmount) || 0);
+            const quote = await getCentiivQuote({ fromAsset: "NGN", toAsset: "USDC", amount: 50000 });
+            const rawRate = Number(quote.rate);
+            const onrampRatePerUsd = rawRate > 0 && rawRate < 1 ? 1 / rawRate : rawRate;
+            amount = Math.round(cleanCrypto * onrampRatePerUsd);
           } else {
             const rateRes = await SwitchService.getOnrampRate(asset);
             if (!rateRes.success || !rateRes.rate) {
@@ -2268,8 +2270,9 @@ export async function executeTool(
         if (direction === "onramp" || direction === "both") {
           if (isStellar) {
             try {
-              const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 });
-              onrampRate = Number(quote.rate);
+              const quote = await getCentiivQuote({ fromAsset: "NGN", toAsset: "USDC", amount: 50000 });
+              const rawRate = Number(quote.rate);
+              onrampRate = rawRate > 0 && rawRate < 1 ? Math.round((1 / rawRate) * 100) / 100 : rawRate;
             } catch (centiivErr: any) {
               console.warn(`[ToolExecutor] Stellar onramp rate lookup failed, using benchmark:`, centiivErr.message);
               stellarRateOffline = true;

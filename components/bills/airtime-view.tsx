@@ -1,15 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { BillChip } from "@/components/bills/bill-chip";
+import {
+  type BillField,
+  BillForm,
+  checkRecipient,
+} from "@/components/bills/bill-form";
 import { BillSummary } from "@/components/bills/bill-review";
-import { RechargeForm } from "@/components/bills/recharge-form";
-import { RecipientPill } from "@/components/bills/recipient-pill";
+import { PayingFromCard } from "@/components/bills/paying-from-card";
 import { ReceiptSheet } from "@/components/transactions/receipt-sheet";
-import { AmountScreen } from "@/components/transfer/amount-screen";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
+import { FieldError } from "@/components/ui/field-error";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { useNgnAccount } from "@/hooks/use-ngn-account";
@@ -20,14 +25,14 @@ import {
   getNetwork,
 } from "@/lib/bills";
 import { friendlyBillError, readBillResponse } from "@/lib/bills-errors";
-import { FLAGS } from "@/lib/flags";
 import type { Receipt } from "@/lib/receipt";
 import { formatAmount } from "@/lib/transfer";
+import { digitsOf, type FormErrors } from "@/lib/validation";
 
-type Stage = "form" | "amount" | "done";
+type Stage = "form" | "done";
 type Sheet = "review" | "pin" | null;
 
-/** Airtime top-up: recipient, amount, review, PIN, receipt. */
+/** Airtime top-up: number, amount and wallet on one screen, then review, PIN, receipt. */
 export function AirtimeView() {
   const { hasNgnAccount, ngnBalance } = useNgnAccount();
   const [stage, setStage] = useState<Stage>("form");
@@ -41,11 +46,15 @@ export function AirtimeView() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [phone, setPhone] = useState("");
   const [networkId, setNetworkId] = useState("");
-  const [amount, setAmount] = useState("");
+  // A chip and the typed field are two ways to say one amount; typing wins.
+  const [preset, setPreset] = useState<number | null>(null);
+  const [typed, setTyped] = useState("");
+  const [errors, setErrors] = useState<FormErrors<BillField>>({});
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
 
   const network = getNetwork(networkId);
+  const amount = typed || (preset ? String(preset) : "");
   const total = formatAmount(amount);
   /** Every printed amount in this flow is naira — one string so none can drift. */
   const naira = `₦${total}`;
@@ -194,107 +203,145 @@ export function AirtimeView() {
     );
   }
 
-  if (stage === "amount" && network) {
-    return (
-      <>
-        <AmountScreen
-          recipient={
-            <RecipientPill>{`${network.label} - ${phone}`}</RecipientPill>
-          }
-          onClose={() => setStage("form")}
-          amount={amount}
-          // Airtime is bought with naira from the NGN wallet, so the balance
-          // shown is that wallet's — not a token's.
-          symbol="Naira"
-          balance={ngnBalance ?? "₦0.00"}
-          logo={FLAGS.NG}
-          inputPrefix="₦"
-          chips={AIRTIME_AMOUNTS}
-          chipUnit=""
-          checkBalance={false}
-          min={AIRTIME_MIN}
-          max={AIRTIME_MAX}
-          limitUnit="₦"
-          caption="Always verify the number is correct. Recharges to wrong numbers cannot be reversed."
-          onAmountChange={setAmount}
-          onReview={() => setSheet("review")}
-        />
+  const clear = (field: BillField) =>
+    setErrors((current) => ({ ...current, [field]: undefined }));
 
-        {sheet === "review" ? (
-          <ReviewSheet
-            summary={
-              <BillSummary
-                label="Airtime recharge"
-                phone={phone}
-                network={network}
-              />
-            }
-            headline={naira}
-            onConfirm={() => setSheet("pin")}
-            onClose={() => setSheet(null)}
-          >
-            {details}
-          </ReviewSheet>
-        ) : null}
-
-        {sheet === "pin" ? (
-          <TransferPinSheet
-            error={pinError}
-            pending={isProcessing}
-            pendingLabel="Processing airtime recharge..."
-            onRetry={() => {
-              setPinError(false);
-              setFailure(null);
-            }}
-            onClose={() => {
-              if (!isProcessing) {
-                setSheet("review");
-                setPinError(false);
-                setFailure(null);
-              }
-            }}
-            onComplete={handlePinComplete}
-          />
-        ) : null}
-
-        {failure ? (
-          <ResultSheet
-            title={failure.title}
-            message={failure.message}
-            onRetry={
-              failure.retry
-                ? () => {
-                    setFailure(null);
-                    setSheet("review");
-                  }
-                : undefined
-            }
-            onClose={() => setFailure(null)}
-          />
-        ) : null}
-      </>
-    );
-  }
+  const checkAmount = (): string | undefined => {
+    const value = Number(amount);
+    if (!value) return "Choose or type an amount.";
+    if (value < AIRTIME_MIN)
+      return `The least you can buy is ₦${AIRTIME_MIN.toLocaleString("en-NG")}.`;
+    if (value > AIRTIME_MAX)
+      return `The most you can buy at once is ₦${AIRTIME_MAX.toLocaleString("en-NG")}.`;
+    return undefined;
+  };
 
   return (
-    <RechargeForm
-      title="Airtime"
-      phone={phone}
-      network={networkId}
-      hasAccount={hasNgnAccount}
-      onPhoneChange={setPhone}
-      onNetworkChange={setNetworkId}
-      onContinue={() => {
-        if (!hasNgnAccount) {
-          fail(
-            "Please create a Naira account first",
-            "Naira Account Required",
-            false,
-          );
-          return;
-        }
-        setStage("amount");
-      }}
-    />
+    <>
+      <BillForm
+        title="Buy Airtime"
+        phone={phone}
+        network={networkId}
+        errors={errors}
+        onPhoneChange={(next) => {
+          clear("phone");
+          setPhone(next);
+        }}
+        onNetworkChange={(next) => {
+          clear("network");
+          setNetworkId(next);
+        }}
+        onProceed={() => {
+          const found = {
+            ...checkRecipient(phone, networkId, hasNgnAccount),
+            amount: checkAmount(),
+          };
+          setErrors(found);
+          if (Object.values(found).some(Boolean)) return false;
+          setSheet("review");
+          return true;
+        }}
+      >
+        <section className="mt-5.25 flex flex-col gap-2.5">
+          <h2 className="text-[13px] leading-none font-medium text-jumpa-ink-muted">
+            Amount
+          </h2>
+          <div className="flex flex-wrap gap-2">
+            {AIRTIME_AMOUNTS.map((value) => (
+              <BillChip
+                key={value}
+                active={!typed && preset === value}
+                onClick={() => {
+                  clear("amount");
+                  setPreset(value);
+                  setTyped("");
+                }}
+              >
+                ₦{value.toLocaleString("en-NG")}
+              </BillChip>
+            ))}
+          </div>
+        </section>
+
+        <label className="mt-5.75 flex flex-col gap-2">
+          <span className="text-xs leading-none font-medium text-jumpa-ink-muted">
+            Or type an amount
+          </span>
+          <span className="flex h-14 items-center rounded-panel bg-jumpa-neutral-50 px-4 text-sm leading-none text-jumpa-ink">
+            ₦
+            <input
+              value={typed ? formatAmount(typed) : ""}
+              onChange={(event) => {
+                clear("amount");
+                setTyped(digitsOf(event.target.value));
+                setPreset(null);
+              }}
+              inputMode="numeric"
+              placeholder={`${AIRTIME_MIN}-${AIRTIME_MAX.toLocaleString("en-NG")}`}
+              aria-invalid={Boolean(errors.amount)}
+              className="min-w-0 flex-1 bg-transparent caret-jumpa-primary-600 outline-none placeholder:text-jumpa-ink-subtle"
+            />
+          </span>
+          <FieldError>{errors.amount}</FieldError>
+        </label>
+
+        <div className="mt-7.5">
+          <PayingFromCard balance={ngnBalance ?? "₦0.00"} />
+        </div>
+      </BillForm>
+
+      {sheet === "review" && network ? (
+        <ReviewSheet
+          summary={
+            <BillSummary
+              label="Airtime recharge"
+              phone={phone}
+              network={network}
+            />
+          }
+          headline={naira}
+          onConfirm={() => setSheet("pin")}
+          onClose={() => setSheet(null)}
+        >
+          {details}
+        </ReviewSheet>
+      ) : null}
+
+      {sheet === "pin" ? (
+        <TransferPinSheet
+          error={pinError}
+          pending={isProcessing}
+          pendingLabel="Processing airtime recharge..."
+          onRetry={() => {
+            setPinError(false);
+            setFailure(null);
+          }}
+          onClose={() => {
+            if (!isProcessing) {
+              setSheet("review");
+              setPinError(false);
+              setFailure(null);
+            }
+          }}
+          onComplete={handlePinComplete}
+        />
+      ) : null}
+
+      {failure ? (
+        <ResultSheet
+          title={failure.title}
+          message={failure.message}
+          onRetry={
+            failure.retry
+              ? () => {
+                  setFailure(null);
+                  setSheet("review");
+                }
+              : undefined
+          }
+          onClose={() => setFailure(null)}
+        />
+      ) : null}
+    </>
   );
 }

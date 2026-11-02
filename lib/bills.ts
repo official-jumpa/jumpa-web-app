@@ -118,23 +118,15 @@ export function detectCarrierFromProductType(productType?: string): string | nul
 }
 
 
-/** Offer art above the recharge forms. The banner cycles through these. */
-export const BILL_ADS = [
-  { id: "recharge", src: "/images/bills/ad-1.webp" },
-  { id: "stay-connected", src: "/images/bills/ad-2.webp" },
-  { id: "call-bae", src: "/images/bills/ad-3.webp" },
-  { id: "data-finish", src: "/images/bills/ad-4.webp" },
-] as const;
-
-/** Quick-fill amounts on the airtime keypad. */
-export const AIRTIME_AMOUNTS = [200, 300, 500, 1000, 5000] as const;
+/** Quick-fill amounts on the airtime screen. */
+export const AIRTIME_AMOUNTS = [100, 200, 500, 1000] as const;
 
 /** What the Nigerian networks accept in one recharge. Mirrored by
  *  `buyAirtimeSchema`, so the screen and the route cannot disagree. */
 export const AIRTIME_MIN = 50;
 export const AIRTIME_MAX = 50_000;
 
-export type DataPlanPeriod = "daily" | "weekly" | "monthly";
+export type DataPlanPeriod = "daily" | "weekly" | "weekend" | "monthly";
 
 export const DATA_PERIODS: readonly {
   value: DataPlanPeriod;
@@ -142,6 +134,7 @@ export const DATA_PERIODS: readonly {
 }[] = [
   { value: "daily", label: "Daily" },
   { value: "weekly", label: "Weekly" },
+  { value: "weekend", label: "Weekend" },
   { value: "monthly", label: "Monthly" },
 ];
 
@@ -248,6 +241,28 @@ export function formatPlanValidity(productName?: string, validity?: string): str
     return pName;
   }
   return `${pName} (${val})`;
+}
+
+/** "1.5GB" → "1.5 GB", as the plan cards print it. */
+export function formatPlanSize(size: string): string {
+  return size.replace(/^([\d.]+)(TB|GB|MB)$/, "$1 $2");
+}
+
+const VALIDITY = /(\d+)\s*(day|hour|hr|week|month)s?\b/i;
+const VALIDITY_UNIT: Record<string, string> = {
+  day: "day",
+  hour: "hour",
+  hr: "hour",
+  week: "week",
+  month: "month",
+};
+
+/** "MTN 1.5GB Monthly (30 days)" → "Valid for 30 days"; anything without a duration reads as given. */
+export function planValidityLabel(validity: string): string {
+  const match = validity.match(VALIDITY);
+  if (!match) return validity;
+  const count = Number(match[1]);
+  return `Valid for ${count} ${VALIDITY_UNIT[match[2].toLowerCase()]}${count === 1 ? "" : "s"}`;
 }
 
 /** A phone number is only worth acting on once it is this long. */

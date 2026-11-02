@@ -22,6 +22,7 @@ import {
   DATA_PERIODS,
   type DataPlan,
   type DataPlanPeriod,
+  DEFAULT_NETWORK,
   getNetwork,
   getPeriodLabel,
 } from "@/lib/bills";
@@ -45,7 +46,7 @@ export function MobileDataView() {
   } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [phone, setPhone] = useState("");
-  const [networkId, setNetworkId] = useState("");
+  const [networkId, setNetworkId] = useState(DEFAULT_NETWORK);
   const [period, setPeriod] = useState<DataPlanPeriod>("monthly");
   const [plan, setPlan] = useState<DataPlan | null>(null);
   const [errors, setErrors] = useState<FormErrors<BillField>>({});
@@ -207,6 +208,7 @@ export function MobileDataView() {
         phone={phone}
         network={networkId}
         errors={errors}
+        complete={Boolean(plan)}
         onPhoneChange={(next) => {
           clear("phone");
           setPhone(next);

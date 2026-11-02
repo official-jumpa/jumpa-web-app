@@ -46,6 +46,7 @@ export function BillForm({
   phone,
   network,
   errors,
+  complete,
   onPhoneChange,
   onNetworkChange,
   onProceed,
@@ -55,6 +56,8 @@ export function BillForm({
   phone: string;
   network: string;
   errors: FormErrors<BillField>;
+  /** The flow's own fields (amount or plan) are filled; with a valid number and carrier, Proceed turns solid. */
+  complete: boolean;
   onPhoneChange: (next: string) => void;
   onNetworkChange: (next: string) => void;
   /** True when the form is complete; false keeps the screen and reveals the first flagged field. */
@@ -100,7 +103,11 @@ export function BillForm({
 
       <div className="sticky bottom-0 bg-jumpa-white px-4 pt-2 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
         <Button
-          variant="softPrimary"
+          variant={
+            complete && network && isValidNigerianPhone(phone)
+              ? "brand"
+              : "softPrimary"
+          }
           size="lg"
           onClick={() => {
             if (!onProceed()) revealFirstError(fields.current);

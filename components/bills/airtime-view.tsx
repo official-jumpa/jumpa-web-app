@@ -22,6 +22,7 @@ import {
   AIRTIME_AMOUNTS,
   AIRTIME_MAX,
   AIRTIME_MIN,
+  DEFAULT_NETWORK,
   getNetwork,
 } from "@/lib/bills";
 import { friendlyBillError, readBillResponse } from "@/lib/bills-errors";
@@ -45,7 +46,7 @@ export function AirtimeView() {
   } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [phone, setPhone] = useState("");
-  const [networkId, setNetworkId] = useState("");
+  const [networkId, setNetworkId] = useState(DEFAULT_NETWORK);
   // A chip and the typed field are two ways to say one amount; typing wins.
   const [preset, setPreset] = useState<number | null>(null);
   const [typed, setTyped] = useState("");
@@ -223,6 +224,7 @@ export function AirtimeView() {
         phone={phone}
         network={networkId}
         errors={errors}
+        complete={!checkAmount()}
         onPhoneChange={(next) => {
           clear("phone");
           setPhone(next);

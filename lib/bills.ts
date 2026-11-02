@@ -33,6 +33,9 @@ export const MOBILE_NETWORKS: MobileNetwork[] = [
   },
 ];
 
+/** Preselected on the bill screens until the number's prefix names the carrier. */
+export const DEFAULT_NETWORK = MOBILE_NETWORKS[0].id;
+
 export function getNetwork(id: string): MobileNetwork | undefined {
   return MOBILE_NETWORKS.find((network) => network.id === id);
 }

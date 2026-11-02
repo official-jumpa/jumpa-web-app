@@ -20,6 +20,8 @@ const VARIANTS = {
   soft: "bg-jumpa-primary-50 text-jumpa-primary-400 font-semibold",
   /** Tinted secondary action that is available, e.g. "i'll do this later". */
   softStrong: "bg-jumpa-primary-50 text-jumpa-primary-950 font-bold",
+  /** Proceed on the airtime and data screens. */
+  softPrimary: "bg-jumpa-primary-50 text-jumpa-primary-500 font-semibold",
   /** Purple label on a deeper tint, before a form has what it needs. */
   softBrand: "bg-jumpa-primary-100 text-jumpa-primary-600 font-semibold",
   /** Solid purple with the lime label — Edit Profile, KYC tiers. */
@@ -32,6 +34,9 @@ const VARIANTS = {
   /** Same border with the purple label — the delete confirmation's last step. */
   outlineBrand:
     "border border-jumpa-lavender-275 text-jumpa-primary-600 font-semibold",
+  /** Lilac border with the purple label — Cancel in the transaction filter sheet. */
+  outlineLilac:
+    "border border-jumpa-secondary-400 bg-jumpa-white text-jumpa-primary-600 font-semibold",
   /** Irreversible action — deleting an account. */
   danger:
     "bg-jumpa-danger text-jumpa-white font-semibold disabled:bg-jumpa-danger/35",

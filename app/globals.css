@@ -68,6 +68,7 @@
   --color-jumpa-neutral-400: #818181; /* transaction date */
   --color-jumpa-neutral-425: #767676; /* notification read state */
   --color-jumpa-neutral-450: #646464; /* label on a "Coming Soon" row */
+  --color-jumpa-neutral-475: #5e5e5e; /* statement download in the history header */
   --color-jumpa-neutral-500: #4f4f4f; /* captions, "Or Sign Up With" */
   --color-jumpa-neutral-550: #555555; /* asset amount on a transfer card */
   --color-jumpa-neutral-600: #464646; /* social button label */
@@ -140,6 +141,28 @@
   --color-jumpa-tier-track: #5b2fa0; /* unfilled segment of the KYC tier meter */
   --color-jumpa-avatar: #f9b4c8; /* edit-profile avatar disc */
 
+  /* Transaction history and bills */
+  --color-jumpa-navy-900: #05153a; /* "Transactions" label, chip labels, filter glyph */
+  --color-jumpa-navy-850: #08183e; /* currency tab and filter chip labels */
+  --color-jumpa-neutral-55: #f9f9fb; /* currency tab and filter chip surface */
+  --color-jumpa-primary-75: #f4e8ff; /* selected chip in the filter sheet */
+  --color-jumpa-success-500: #0ab46d; /* money in: amount, arrow, trend */
+  --color-jumpa-rose-50: #fee9eb; /* debit-to-bank disc */
+  --color-jumpa-rose-500: #fb4f6e; /* debit-to-bank amount */
+  --color-jumpa-violet-50: #f9f5ff; /* foot of the naira balance card */
+  --color-jumpa-mint-25: #f5fafa; /* head of the USD balance card */
+  --color-jumpa-mint-50: #f3faf9; /* foot of the USD balance card */
+  --color-jumpa-lilac-25: #f5f4fe; /* head of the crypto balance card */
+  --color-jumpa-lilac-50: #f5f1fd; /* foot of the crypto balance card */
+  --color-jumpa-coin-glow: #ffab46; /* inner glow on the crypto card's BTC coin */
+
+  /* Airtime and data */
+  --color-jumpa-ink-subtle: #9791a1; /* amount placeholder */
+  --color-jumpa-violet-25: #faf7ff; /* selected data plan */
+  --color-jumpa-lilac-100: #efeafd; /* contact button disc */
+  --color-jumpa-lilac-150: #ebe5fd; /* "Paying from" wallet disc */
+  --color-jumpa-neutral-270: #bebebe; /* chevrons and carrier caret */
+
   /* Typography. Geist at every size — the face the Figma file specifies.
      `display` and `numeric` still stand in for Gotham Ultra and Neue Montreal,
      which are licensed and not ours to ship. See README.md. */
@@ -164,8 +187,10 @@
 
   /* Radius */
   --radius-pill: 100px; /* buttons, chat bubbles, pagination, inputs */
+  --radius-hairline: 5px; /* date and search pills on the history screen */
   --radius-chip: 8px; /* recovery-phrase words */
   --radius-tile: 10px; /* inner surface of an inset card */
+  --radius-tab: 15px; /* history currency tabs and filter chips */
   --radius-panel: 16px; /* PIN box, backup option rows */
   --radius-card: 18px;
   --radius-row: 20px; /* device cards */

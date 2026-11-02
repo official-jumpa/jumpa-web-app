@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { formatClock } from "@/lib/chat";
+import { formatHistoryClock, formatHistoryDay } from "@/lib/history";
 import { formatNotificationTime } from "@/lib/notifications";
 import { formatDeadline } from "@/lib/support-tickets";
 import { formatTxDate } from "@/lib/wallet";
@@ -10,6 +11,8 @@ const FORMAT = {
   clock: formatClock,
   notification: formatNotificationTime,
   history: formatTxDate,
+  historyDay: formatHistoryDay,
+  historyClock: formatHistoryClock,
   deadline: formatDeadline,
 } as const;
 

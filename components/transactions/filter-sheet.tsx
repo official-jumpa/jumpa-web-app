@@ -1,7 +1,23 @@
-import { useEffect, useState } from "react";
+import { Fragment, type SVGProps, useEffect, useState } from "react";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
+import { CalendarOutlineIcon } from "@/components/ui/icons/calendar-outline";
+import { ChainIcon } from "@/components/ui/icons/chain";
+import { CircleCheckIcon } from "@/components/ui/icons/circle-check";
+import { TransferLineIcon } from "@/components/ui/icons/transfer-line";
 import type { TransactionFilter } from "@/lib/cards";
+import { cn } from "@/lib/cn";
+
+/** Glyph in each section's heading disc, keyed by group label. */
+const SECTION_ICON: Record<
+  string,
+  (props: SVGProps<SVGSVGElement>) => React.ReactNode
+> = {
+  "Transaction Type": TransferLineIcon,
+  Status: CircleCheckIcon,
+  Duration: CalendarOutlineIcon,
+  Chain: ChainIcon,
+};
 
 /** Filter panel with direct string-value state mapping and reset support. */
 export function FilterSheet({
@@ -56,69 +72,79 @@ export function FilterSheet({
   );
 
   return (
-    <BottomSheet onClose={onClose}>
-      <div className="flex items-center justify-between">
-        <h2 className="text-base leading-4.5 font-semibold text-jumpa-black">
-          Filter Transactions
+    <BottomSheet onClose={onClose} tone="lavender">
+      <div className="flex h-9.25 items-start justify-between">
+        <h2 className="text-[22px] leading-[1.1] font-bold tracking-jumpa-snug text-jumpa-ink">
+          Filter transaction
         </h2>
         {hasAnyActiveFilter && (
           <button
             type="button"
             onClick={handleReset}
-            className="text-xs font-semibold text-jumpa-primary-600 hover:text-jumpa-primary-700 active:opacity-75 transition-colors"
+            className="tap pt-1 text-xs font-semibold text-jumpa-primary-600 active:opacity-75"
           >
             Reset
           </button>
         )}
       </div>
 
-      <div className="mt-5 flex flex-col gap-4">
-        {filters.map((filter) => {
+      <div className="mt-3 flex flex-col gap-5">
+        {filters.map((filter, index) => {
           const currentVal = selected[filter.label] || "Show All";
+          const Icon = SECTION_ICON[filter.label];
           return (
-            <div key={filter.label} className="flex flex-col gap-2">
-              <h3 className="text-xs leading-3.5 font-medium text-jumpa-black">
-                {filter.label}
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {filter.options.map((option) => {
-                  const isSelected = currentVal === option;
-                  return (
-                    <button
-                      key={option}
-                      type="button"
-                      aria-pressed={isSelected}
-                      onClick={() =>
-                        setSelected((current) => ({
-                          ...current,
-                          [filter.label]: option,
-                        }))
-                      }
-                      className={`h-7 rounded-pill px-2.25 text-[10px] leading-3 font-medium whitespace-nowrap transition-colors ${
-                        isSelected
-                          ? "bg-jumpa-primary-50 text-jumpa-primary-600 font-semibold"
-                          : "bg-jumpa-neutral-50 text-jumpa-black hover:bg-jumpa-neutral-100"
-                      }`}
-                    >
-                      {option}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <Fragment key={filter.label}>
+              {index > 0 ? (
+                <span className="-mb-px h-px w-full bg-jumpa-neutral-95" />
+              ) : null}
+              <section className="flex flex-col gap-2.5">
+                <h3 className="flex items-center gap-1.5 text-xs leading-[1.4] font-medium tracking-jumpa-snug text-jumpa-ink-muted">
+                  <span className="flex size-5 items-center justify-center rounded-full bg-jumpa-primary-50 text-jumpa-primary-600">
+                    {Icon ? <Icon className="size-2.5" /> : null}
+                  </span>
+                  {filter.label}
+                </h3>
+                <div className="flex flex-wrap gap-2.5">
+                  {filter.options.map((option) => {
+                    const isSelected = currentVal === option;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={() =>
+                          setSelected((current) => ({
+                            ...current,
+                            [filter.label]: option,
+                          }))
+                        }
+                        className={cn(
+                          "tap h-8.25 rounded-tab px-3 text-[10px] leading-4.5 font-medium tracking-jumpa-snug whitespace-nowrap active:scale-[0.98]",
+                          isSelected
+                            ? "bg-jumpa-primary-75 text-jumpa-primary-600"
+                            : "bg-jumpa-neutral-55 text-jumpa-navy-850",
+                        )}
+                      >
+                        {option}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            </Fragment>
           );
         })}
       </div>
 
-      <Button
-        variant="gradientSheet"
-        size="lg"
-        className="mt-6"
-        onClick={handleApply}
-      >
+      <Button variant="brand" size="cta" className="mt-2" onClick={handleApply}>
         Apply Filters
       </Button>
-      <Button size="lg" className="mt-2 font-semibold" onClick={onClose}>
+      <Button
+        variant="outlineLilac"
+        size="cta"
+        className="mt-2.75"
+        onClick={onClose}
+      >
         Cancel
       </Button>
     </BottomSheet>

@@ -1,0 +1,30 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="181.253" height="145.33" viewBox="0 0 181.253 145.33" fill="none" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="Group 1410105174">
+<g id="Ellipse 6858">
+<use xlink:href="#stroke0_0_92" fill="url(#paint0_linear_0_92)"/>
+<mask id="stroke1_0_92" fill="white">
+<use xlink:href="#stroke0_0_92"/>
+</mask>
+<path d="M171.068 58.7104C176.693 91.1353 145.238 123.669 100.811 131.375C56.3844 139.082 15.8096 119.044 10.1847 86.6195C4.55985 54.1946 36.015 21.6614 80.4417 13.9545C124.868 6.24764 165.443 26.2856 171.068 58.7104Z" stroke-width="2" stroke="#F4F0FE" mask="url(#stroke1_0_92)"/>
+</g>
+<g id="Ellipse 6857">
+<use xlink:href="#stroke2_0_92" fill="#ECE6FC"/>
+<mask id="stroke3_0_92" fill="white">
+<use xlink:href="#stroke2_0_92"/>
+</mask>
+<path d="M156.89 52.3404C160.947 75.7244 134.564 99.8281 97.9626 106.177C61.3612 112.527 28.4015 98.7175 24.345 75.3335C20.2885 51.9495 46.6713 27.8458 83.2727 21.4964C119.874 15.1471 152.834 28.9564 156.89 52.3404Z" stroke-width="2" stroke="url(#paint1_linear_0_92)" mask="url(#stroke3_0_92)"/>
+</g>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_92" x1="80.4417" y1="13.9545" x2="100.811" y2="131.375" gradientUnits="userSpaceOnUse">
+<stop stop-color="#EDE7FD"/>
+<stop offset="1" stop-color="#EAE2FD"/>
+</linearGradient>
+<linearGradient id="paint1_linear_0_92" x1="110" y1="65.9998" x2="96" y2="113" gradientUnits="userSpaceOnUse">
+<stop stop-color="#F4F0FE"/>
+<stop offset="1" stop-color="#E0D4FD"/>
+</linearGradient>
+<path id="stroke0_0_92" d="M171.068 58.7104C176.693 91.1353 145.238 123.669 100.811 131.375C56.3844 139.082 15.8096 119.044 10.1847 86.6195C4.55985 54.1946 36.015 21.6614 80.4417 13.9545C124.868 6.24764 165.443 26.2856 171.068 58.7104Z"/>
+<path id="stroke2_0_92" d="M156.89 52.3404C160.947 75.7244 134.564 99.8281 97.9626 106.177C61.3612 112.527 28.4015 98.7175 24.345 75.3335C20.2885 51.9495 46.6713 27.8458 83.2727 21.4964C119.874 15.1471 152.834 28.9564 156.89 52.3404Z"/>
+</defs>
+</svg>

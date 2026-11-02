@@ -9,6 +9,7 @@ import {
 import { TransactionDetail } from "@/components/transactions/transaction-detail";
 import { TransactionsView } from "@/components/transactions/transactions-view";
 import { TRANSACTION_FILTERS } from "@/lib/cards";
+import { isHistoryScope, toHistoryAsset } from "@/lib/history";
 import type { Transaction } from "@/lib/wallet";
 
 type TransactionsPageProps = {
@@ -20,6 +21,8 @@ type TransactionsPageProps = {
     duration?: string;
     search?: string;
     q?: string;
+    scope?: string;
+    token?: string;
   }>;
 };
 
@@ -61,6 +64,8 @@ export default async function TransactionsPage({
   const status = params.status?.toLowerCase();
   const duration = params.duration?.toLowerCase();
   const search = (params.search || params.q)?.trim().toLowerCase();
+  const scope = isHistoryScope(params.scope) ? params.scope : undefined;
+  const asset = scope === "crypto" ? toHistoryAsset(params.token) : undefined;
 
   let initialTransactions: Transaction[] = [];
   let initialTransactionDetail: Transaction | null = null;
@@ -82,6 +87,8 @@ export default async function TransactionsPage({
           type,
           status,
           duration,
+          scope,
+          token: asset,
           search: search && search.length >= 3 ? search : undefined,
           limit: 15,
           page: 1,

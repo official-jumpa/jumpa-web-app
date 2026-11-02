@@ -4,16 +4,26 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StatementSheet } from "@/components/settings/statement-sheet";
 import { FilterSheet } from "@/components/transactions/filter-sheet";
-import { HistoryMenuSheet } from "@/components/transactions/history-menu-sheet";
+import { HistoryBalanceCard } from "@/components/transactions/history-balance-card";
+import { HistoryTabs } from "@/components/transactions/history-tabs";
+import { HistoryToolbar } from "@/components/transactions/history-toolbar";
 import { TransactionList } from "@/components/transactions/transaction-list";
-import { FilterLinesIcon } from "@/components/ui/icons/filter-lines";
-import { SearchAltIcon } from "@/components/ui/icons/search-alt";
+import { DownloadLineIcon } from "@/components/ui/icons/download-line";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import type { TransactionFilter } from "@/lib/cards";
+import {
+  type HistoryScope,
+  historyRangeLabel,
+  isHistoryScope,
+  toHistoryAsset,
+} from "@/lib/history";
 import { useRefreshSignal } from "@/lib/refresh";
 import { formatTxDate, type Transaction } from "@/lib/wallet";
 
-type Sheet = "menu" | "filters" | null;
+type Sheet = "filters" | null;
+
+/** The currency tab and, on Crypto, the asset chip; synced to `scope` and `token` in the URL. */
+type HistoryTab = { scope?: HistoryScope; asset?: string };
 
 const PAGE_SIZE = 15;
 
@@ -21,6 +31,7 @@ type TransactionsCache = {
   cacheKey: string;
   transactions: Transaction[];
   selectedFilters: Record<string, string>;
+  tab: HistoryTab;
   searchQuery: string;
   page: number;
   hasMore: boolean;
@@ -30,6 +41,7 @@ let cachedState: TransactionsCache | null = null;
 
 function computeCacheKey(
   filters: Record<string, string>,
+  tab: HistoryTab,
   search?: string,
 ): string {
   const parts: string[] = [];
@@ -38,6 +50,8 @@ function computeCacheKey(
       parts.push(`${k}=${v}`);
     }
   }
+  if (tab.scope) parts.push(`scope=${tab.scope}`);
+  if (tab.asset) parts.push(`token=${tab.asset}`);
   parts.sort();
   if (search && search.trim().length >= 3) {
     parts.push(`q=${search.trim()}`);
@@ -45,14 +59,27 @@ function computeCacheKey(
   return parts.join("&");
 }
 
+/** "Last 30 Days" → "30d", the duration value the API and the URL share. */
+function toDurationParam(label?: string): string | undefined {
+  if (!label || label === "Show All") return undefined;
+  if (label.includes("7")) return "7d";
+  if (label.includes("30") || label.includes("1 Month")) return "30d";
+  if (label.includes("90") || label.includes("3 Months")) return "90d";
+  return undefined;
+}
+
 function buildFilterParams(
   selected: Record<string, string>,
+  tab: HistoryTab,
   page: number = 1,
   search?: string,
 ): string {
   const params = new URLSearchParams();
   params.set("limit", String(PAGE_SIZE));
   params.set("page", String(page));
+
+  if (tab.scope) params.set("scope", tab.scope);
+  if (tab.asset) params.set("token", tab.asset.toLowerCase());
 
   const type = selected["Transaction Type"];
   if (type && type !== "Show All") {
@@ -69,14 +96,8 @@ function buildFilterParams(
     params.set("status", status.toLowerCase());
   }
 
-  const duration = selected["Duration"];
-  if (duration && duration !== "Show All") {
-    if (duration.includes("7")) params.set("duration", "7d");
-    else if (duration.includes("30") || duration.includes("1 Month"))
-      params.set("duration", "30d");
-    else if (duration.includes("90") || duration.includes("3 Months"))
-      params.set("duration", "90d");
-  }
+  const duration = toDurationParam(selected["Duration"]);
+  if (duration) params.set("duration", duration);
 
   const chain = selected["Chain"];
   if (chain && chain !== "Show All") {
@@ -90,7 +111,10 @@ function buildFilterParams(
   return params.toString();
 }
 
-/** Transaction history. The funnel button opens the export/filter menu. */
+/**
+ * Transaction history. The Naira, USD and Crypto tabs narrow the list to one
+ * ledger and show its balance; back from a tab returns to the full history.
+ */
 export function TransactionsView({
   transactions: initialTransactions,
   filters,
@@ -182,13 +206,23 @@ export function TransactionsView({
   };
 
   const initialFilterMap = getInitialFiltersFromUrl();
-  const currentCacheKey = computeCacheKey(initialFilterMap, initialSearchVal);
+  const scopeParam = searchParams.get("scope");
+  const initialTab: HistoryTab = isHistoryScope(scopeParam)
+    ? {
+        scope: scopeParam,
+        asset: scopeParam === "crypto" ? toHistoryAsset(searchParams.get("token")) : undefined,
+      }
+    : {};
+  const currentCacheKey = computeCacheKey(initialFilterMap, initialTab, initialSearchVal);
   const hasMatchingCache =
     cachedState !== null && cachedState.cacheKey === currentCacheKey;
 
   const [selectedFilters, setSelectedFilters] = useState<
     Record<string, string>
   >(hasMatchingCache && cachedState ? cachedState.selectedFilters : initialFilterMap);
+  const [tab, setTab] = useState<HistoryTab>(
+    hasMatchingCache && cachedState ? cachedState.tab : initialTab,
+  );
 
   const [query, setQuery] = useState(
     hasMatchingCache && cachedState ? cachedState.searchQuery : initialSearchVal,
@@ -319,11 +353,9 @@ export function TransactionsView({
       }
 
       // 4. Duration
-      const durationVal = filtersToSync["Duration"];
-      if (durationVal && durationVal !== "Show All") {
-        if (durationVal.includes("7")) currentUrlParams.set("duration", "7d");
-        else if (durationVal.includes("30")) currentUrlParams.set("duration", "30d");
-        else if (durationVal.includes("90")) currentUrlParams.set("duration", "90d");
+      const durationVal = toDurationParam(filtersToSync["Duration"]);
+      if (durationVal) {
+        currentUrlParams.set("duration", durationVal);
       } else {
         currentUrlParams.delete("duration");
       }
@@ -337,14 +369,30 @@ export function TransactionsView({
     [router, debouncedQuery],
   );
 
-  // Core fetcher for page 1 transactions (filters or search change)
+  const changeTab = useCallback(
+    (next: HistoryTab) => {
+      setTab(next);
+      const currentUrlParams = new URLSearchParams(window.location.search);
+      if (next.scope) currentUrlParams.set("scope", next.scope);
+      else currentUrlParams.delete("scope");
+      if (next.asset) currentUrlParams.set("token", next.asset.toLowerCase());
+      else currentUrlParams.delete("token");
+      const newQuery = currentUrlParams.toString();
+      router.replace(newQuery ? `${window.location.pathname}?${newQuery}` : window.location.pathname, {
+        scroll: false,
+      });
+    },
+    [router],
+  );
+
+  // Core fetcher for page 1 transactions (filters, tab or search change)
   const fetchPageOne = useCallback(
-    async (filtersState: Record<string, string>, searchParam: string) => {
+    async (filtersState: Record<string, string>, tabState: HistoryTab, searchParam: string) => {
       setLoading(true);
       setPage(1);
 
       try {
-        const queryStr = buildFilterParams(filtersState, 1, searchParam);
+        const queryStr = buildFilterParams(filtersState, tabState, 1, searchParam);
         const res = await fetch(`/api/v1/transactions?${queryStr}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -353,9 +401,10 @@ export function TransactionsView({
           setTransactions(data.transactions);
           setHasMore(Boolean(data.pagination?.hasMore));
           cachedState = {
-            cacheKey: computeCacheKey(filtersState, searchParam),
+            cacheKey: computeCacheKey(filtersState, tabState, searchParam),
             transactions: data.transactions,
             selectedFilters: filtersState,
+            tab: tabState,
             searchQuery: searchParam,
             page: 1,
             hasMore: Boolean(data.pagination?.hasMore),
@@ -372,7 +421,7 @@ export function TransactionsView({
 
   // Listen for global pull-to-refresh signal
   useRefreshSignal(() => {
-    fetchPageOne(selectedFilters, debouncedQuery);
+    fetchPageOne(selectedFilters, tab, debouncedQuery);
   });
 
   // Re-fetch when filters or debounced search change
@@ -394,8 +443,8 @@ export function TransactionsView({
     }
 
     prevFiltersRef.current = currentFiltersStr;
-    fetchPageOne(selectedFilters, debouncedQuery);
-  }, [selectedFilters, debouncedQuery, hasServerData, hasMatchingCache, initialSearchVal, fetchPageOne]);
+    fetchPageOne(selectedFilters, tab, debouncedQuery);
+  }, [selectedFilters, tab, debouncedQuery, hasServerData, hasMatchingCache, initialSearchVal, fetchPageOne]);
 
   // Load next page (Infinite Scroll)
   const loadMore = useCallback(async () => {
@@ -406,6 +455,7 @@ export function TransactionsView({
     try {
       const queryStr = buildFilterParams(
         selectedFilters,
+        tab,
         nextPage,
         debouncedQuery,
       );
@@ -423,7 +473,7 @@ export function TransactionsView({
           if (
             cachedState &&
             cachedState.cacheKey ===
-              computeCacheKey(selectedFilters, debouncedQuery)
+              computeCacheKey(selectedFilters, tab, debouncedQuery)
           ) {
             cachedState.transactions = updated;
             cachedState.page = nextPage;
@@ -438,7 +488,7 @@ export function TransactionsView({
         if (
           cachedState &&
           cachedState.cacheKey ===
-            computeCacheKey(selectedFilters, debouncedQuery)
+            computeCacheKey(selectedFilters, tab, debouncedQuery)
         ) {
           cachedState.hasMore = false;
         }
@@ -454,6 +504,7 @@ export function TransactionsView({
     loading,
     page,
     selectedFilters,
+    tab,
     debouncedQuery,
   ]);
 
@@ -483,11 +534,11 @@ export function TransactionsView({
     if (!hasPending) return;
 
     const interval = setInterval(() => {
-      fetchPageOne(selectedFilters, debouncedQuery);
+      fetchPageOne(selectedFilters, tab, debouncedQuery);
     }, 12000);
 
     return () => clearInterval(interval);
-  }, [transactions, selectedFilters, debouncedQuery, fetchPageOne]);
+  }, [transactions, selectedFilters, tab, debouncedQuery, fetchPageOne]);
 
   const hasActiveFilters = Object.values(selectedFilters).some(
     (val) => val && val !== "Show All",
@@ -530,63 +581,76 @@ export function TransactionsView({
     );
   }
 
+  const typeFilter = selectedFilters["Transaction Type"];
+
   return (
     <>
-      <div className="flex flex-col gap-4 px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-6">
+      <div className="flex flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-6">
         <ScreenHeader
           back="/home"
-          title="Transaction History"
+          onBack={tab.scope ? () => changeTab({}) : undefined}
+          round
+          title="Transaction history"
+          titleWeight="medium"
+          titleStyle="lg"
           action={
             <button
               type="button"
-              aria-label="Filter and export"
-              onClick={() => setSheet("menu")}
-              className="relative flex size-11 items-center justify-center text-jumpa-primary-600"
+              aria-label="Download statement"
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.set("statement", "1");
+                router.push(`/transactions?${next}`);
+              }}
+              className="tap flex size-11 items-center justify-center text-jumpa-neutral-475 active:scale-95"
             >
-              <FilterLinesIcon className="size-6" />
-              {hasActiveFilters ? (
-                <span className="absolute top-2 right-2 size-2 rounded-full bg-jumpa-primary-600 ring-2 ring-jumpa-neutral-50" />
-              ) : null}
+              <DownloadLineIcon className="size-6" />
             </button>
           }
         />
 
-        <label className="flex h-14 items-center gap-2 rounded-card bg-jumpa-neutral-50 px-4 text-jumpa-primary-600">
-          <SearchAltIcon className="size-6" />
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search for transactions (min. 3 chars)"
-            className="min-w-0 flex-1 bg-transparent text-sm leading-4 text-jumpa-black outline-none placeholder:text-jumpa-primary-950"
+        <div className={tab.scope ? "mt-2" : "mt-5.5"}>
+          <HistoryTabs
+            scope={tab.scope}
+            asset={tab.asset}
+            onScope={(scope) => changeTab(scope === tab.scope ? {} : { scope })}
+            onAsset={(asset) => changeTab({ scope: "crypto", asset })}
+            onFilters={() => setSheet("filters")}
+            filtersActive={hasActiveFilters}
           />
-        </label>
+        </div>
 
-        {loading && transactions.length === 0 ? (
-          <div className="py-16 text-center text-xs font-medium text-jumpa-neutral-400 animate-pulse">
-            Loading transactions...
+        {tab.scope ? (
+          <div className="mt-4">
+            <HistoryBalanceCard scope={tab.scope} asset={tab.asset} />
           </div>
-        ) : (
-          <TransactionList
-            transactions={visible}
-            sentinelRef={sentinelRef}
-            loadingMore={loadingMore}
-          />
-        )}
-      </div>
+        ) : null}
 
-      {sheet === "menu" ? (
-        <HistoryMenuSheet
-          onFilters={() => setSheet("filters")}
-          onStatement={() => {
-            setSheet(null);
-            const next = new URLSearchParams(searchParams);
-            next.set("statement", "1");
-            router.push(`/transactions?${next}`);
-          }}
-          onClose={() => setSheet(null)}
-        />
-      ) : null}
+        <div className={tab.scope ? "mt-4.25" : "mt-5.5"}>
+          <HistoryToolbar
+            range={historyRangeLabel(toDurationParam(selectedFilters.Duration))}
+            onRange={() => setSheet("filters")}
+            query={query}
+            onQuery={setQuery}
+          />
+        </div>
+
+        <div className={tab.scope ? "mt-4.5" : "mt-6"}>
+          {loading && transactions.length === 0 ? (
+            <div className="py-16 text-center text-xs font-medium text-jumpa-neutral-400 animate-pulse">
+              Loading transactions...
+            </div>
+          ) : (
+            <TransactionList
+              transactions={visible}
+              typeLabel={typeFilter && typeFilter !== "Show All" ? typeFilter : "All"}
+              onType={() => setSheet("filters")}
+              sentinelRef={sentinelRef}
+              loadingMore={loadingMore}
+            />
+          )}
+        </div>
+      </div>
 
       {sheet === "filters" ? (
         <FilterSheet

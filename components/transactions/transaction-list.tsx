@@ -4,42 +4,56 @@ import {
   TransactionRow,
   TransactionRule,
 } from "@/components/transactions/transaction-row";
+import { ChevronDownMdIcon } from "@/components/ui/icons/chevron-down-md";
 import { JumpaLoader } from "@/components/ui/jumpa-loader";
 import type { Transaction } from "@/lib/wallet";
 
-/** Full history. Same row as the home card, without the card around it. */
+/** Full history under a "Transactions" heading whose type pill opens the filters. */
 export function TransactionList({
   transactions,
+  typeLabel,
+  onType,
   sentinelRef,
   loadingMore,
 }: {
   transactions: Transaction[];
+  /** The active Transaction Type filter, "All" when none. */
+  typeLabel?: string;
+  onType: () => void;
   sentinelRef?: RefObject<HTMLDivElement | null>;
   loadingMore?: boolean;
 }) {
-  if (transactions.length === 0) {
-    return <TransactionEmpty className="py-16" />;
-  }
-
   return (
-    <div className="flex flex-col gap-4">
-      <ul className="flex flex-col gap-4">
-        <li className="text-[10px] leading-3 text-jumpa-neutral-350">
-          All Transactions
-        </li>
-        {transactions.map((transaction, index) => (
-          <li
-            key={transaction.id || (transaction as any)._id || index}
-            className="flex flex-col gap-4"
-          >
-            {index > 0 ? <TransactionRule /> : null}
-            <TransactionRow transaction={transaction} />
-          </li>
-        ))}
-      </ul>
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xs leading-4.5 font-medium tracking-jumpa-snug text-jumpa-navy-900">
+          Transactions
+        </h2>
+        <button
+          type="button"
+          onClick={onType}
+          className="tap flex items-center text-xs leading-none tracking-jumpa-snug text-jumpa-grey-450 active:scale-95"
+        >
+          {typeLabel}
+          <ChevronDownMdIcon className="size-4.5" />
+        </button>
+      </div>
+
+      {transactions.length === 0 ? (
+        <TransactionEmpty variant="history" className="pt-17.75" />
+      ) : (
+        <ul className="flex flex-col gap-2.5">
+          {transactions.map((transaction, index) => (
+            <li key={transaction.id || index} className="flex flex-col gap-2.5">
+              {index > 0 ? <TransactionRule /> : null}
+              <TransactionRow transaction={transaction} variant="history" />
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/* Infinite scroll sentinel */}
-      {sentinelRef ? (
+      {sentinelRef && transactions.length > 0 ? (
         <div ref={sentinelRef} className="h-6 w-full" aria-hidden="true" />
       ) : null}
 
@@ -52,6 +66,6 @@ export function TransactionList({
           />
         </div>
       ) : null}
-    </div>
+    </section>
   );
 }

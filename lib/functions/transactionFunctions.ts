@@ -1049,6 +1049,26 @@ function detailRows(tx: any, status: string, descriptor: TxTypeDescriptor): Tran
     }));
 }
 
+/** Middle of a history row's caption: bank, masked phone or currency pair. */
+function getTransactionSubtitle(tx: any, isIncoming: boolean): string | undefined {
+  const type = (tx.type || "").toUpperCase();
+  if (type === "AIRTIME" || type === "DATA") {
+    const phone = String(tx.toAddress || "");
+    return phone.length >= 8 ? `${phone.slice(0, 3)}****${phone.slice(-5)}` : undefined;
+  }
+  if (type === "SWAP" && tx.swapDetails?.fromToken && tx.swapDetails?.toToken) {
+    return `${tx.swapDetails.fromToken} to ${tx.swapDetails.toToken}`;
+  }
+  if (type === "ONRAMP" && tx.rampDetails?.fiatCurrency) {
+    const fiat = tx.rampDetails.fiatCurrency.toUpperCase();
+    return `${fiat === "NGN" ? "Naira" : fiat} to ${tx.rampDetails.targetToken || tx.token}`;
+  }
+  if (tx.chain !== "fiat") return undefined;
+  return isIncoming
+    ? tx.bankDetails?.senderBank || "Bank transfer"
+    : tx.bankDetails?.bankName || undefined;
+}
+
 export function getBaseTransactionFields(tx: any) {
   const rawId = String(tx._id || tx.id || "");
   const displayId = rawId.replace(/^tx_/i, "").toUpperCase();
@@ -1119,6 +1139,7 @@ export function getBaseTransactionFields(tx: any) {
     status,
     chain: tx.chain,
     carrier,
+    subtitle: getTransactionSubtitle(tx, isIncoming),
     token: tx.swapDetails?.fromToken || tx.token,
     rawAmount,
     tokenPart,
@@ -1141,6 +1162,7 @@ export function formatTransactionSummary(tx: any) {
     status: base.status,
     chain: base.chain,
     carrier: base.carrier,
+    subtitle: base.subtitle,
   };
 }
 
@@ -1172,6 +1194,7 @@ export function formatTransactionDetail(tx: any) {
     status: base.status,
     chain: base.chain,
     carrier: base.carrier,
+    subtitle: base.subtitle,
     token: base.token,
     explorerUrl,
     headline: `${formatDecimal(tx.swapDetails?.fromAmount ?? base.rawAmount, 4)} ${tx.swapDetails?.fromToken || base.tokenPart
@@ -1202,6 +1225,14 @@ function parseDurationDays(duration?: string): number {
   if (duration.includes("90") || duration.includes("3 Months")) return 90;
   return 0;
 }
+
+// Naira-account rows (bank transfers, bills) are stored on the "fiat" chain.
+// TODO: confirm the USD account's token once it goes live — nothing is stored as USD yet.
+const SCOPE_FILTER_MAP: Record<"ngn" | "usd" | "crypto", Record<string, unknown>> = {
+  ngn: { chain: "fiat", token: { $ne: "USD" } },
+  usd: { chain: "fiat", token: "USD" },
+  crypto: { chain: { $nin: ["fiat", null] } },
+};
 
 const TYPE_FILTER_MAP: Record<string, any[]> = {
   UTILITY: [
@@ -1236,6 +1267,7 @@ export async function queryUserTransactions(params: {
   card?: string;
   token?: string;
   search?: string;
+  scope?: "ngn" | "usd" | "crypto";
 }): Promise<{ transactions: any[]; total: number }> {
   await connectDB();
 
@@ -1258,6 +1290,8 @@ export async function queryUserTransactions(params: {
       ],
     });
   }
+
+  if (params.scope) filterClauses.push(SCOPE_FILTER_MAP[params.scope]);
 
   if (params.type) {
     const t = params.type.toUpperCase();

@@ -1,8 +1,38 @@
 import Image from "next/image";
 import { cn } from "@/lib/cn";
 
-/** Shown wherever a history list has nothing in it yet. */
-export function TransactionEmpty({ className }: { className?: string }) {
+/** Shown wherever a history list has nothing in it yet. `history` is the transaction-history screen's art and copy. */
+export function TransactionEmpty({
+  className,
+  variant = "card",
+}: {
+  className?: string;
+  variant?: "card" | "history";
+}) {
+  if (variant === "history") {
+    return (
+      <div
+        className={cn(
+          "flex flex-col items-center text-center leading-none text-jumpa-ink-muted",
+          className,
+        )}
+      >
+        <Image
+          src="/images/transactions/empty.svg"
+          alt=""
+          width={131}
+          height={148}
+          unoptimized
+          className="h-37 w-32.75"
+        />
+        <p className="mt-6.5 text-xs tracking-jumpa-snug">No transaction found</p>
+        <p className="mt-2 text-[10px] tracking-jumpa-snug">
+          Your recent transactions will appear here
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(

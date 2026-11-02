@@ -17,6 +17,8 @@ export const transactionQuerySchema = z.object({
   card: z.string().trim().optional(),
   token: z.string().trim().optional(),
   search: z.string().trim().optional(),
+  /** History tab: naira account, USD account or on-chain assets. */
+  scope: z.enum(["ngn", "usd", "crypto"]).optional(),
 });
 
 export type TransactionQueryInput = z.infer<typeof transactionQuerySchema>;

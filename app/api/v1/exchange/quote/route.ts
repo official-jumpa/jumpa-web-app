@@ -48,9 +48,6 @@ export async function POST(req: NextRequest) {
       const { getCentiivQuote } = await import(
         "@/lib/functions/centiivFunctions"
       );
-      const { environment } = await import("@/lib/environment");
-      const effectiveFee = environment.SWITCH_JUMPA_FEE;
-      const feeMultiplier = 1 - effectiveFee / 100;
 
       try {
         if (direction === "offramp") {
@@ -67,13 +64,13 @@ export async function POST(req: NextRequest) {
           result = {
             success: true,
             data: {
-              rate: rawRate * feeMultiplier,
+              rate: rawRate,
               source: {
                 amount: parseFloat(centiivQuote.totalToPay),
                 currency: "USDC",
               },
               destination: {
-                amount: rawReceivable * feeMultiplier,
+                amount: rawReceivable,
                 currency: "NGN",
               },
             },
@@ -93,18 +90,13 @@ export async function POST(req: NextRequest) {
           result = {
             success: true,
             data: {
-              rate:
-                rawRate > 0
-                  ? rawRate < 1
-                    ? rawRate * feeMultiplier
-                    : rawRate / feeMultiplier
-                  : rawRate,
+              rate: rawRate,
               source: {
                 amount: parseFloat(centiivQuote.totalToPay),
                 currency: "NGN",
               },
               destination: {
-                amount: rawReceivable * feeMultiplier,
+                amount: rawReceivable,
                 currency: "USDC",
               },
             },

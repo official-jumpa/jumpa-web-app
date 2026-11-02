@@ -221,17 +221,14 @@ export async function POST(req: NextRequest) {
       bankMatch = { name: centiivBank.name, code: centiivBank.code };
 
       // Get temporary settlement wallet from Centiiv
+      // Note: Centiiv automatically applies the configured Aggregator Fee. We pass full cryptoAmount.
       const { createCentiivOfframp } = await import(
         "@/lib/functions/centiivFunctions"
       );
-      const effectiveFee = environment.SWITCH_JUMPA_FEE;
-      const feePct = effectiveFee / 100;
-      const feeAmount = parseFloat((cryptoAmount * feePct).toFixed(4));
-      const netCrypto = parseFloat((cryptoAmount - feeAmount).toFixed(4));
 
       try {
         const centiivOrder = await createCentiivOfframp({
-          amount: netCrypto,
+          amount: cryptoAmount,
           bankCode: centiivBank.code,
           accountNumber: accountNumber.trim(),
           accountName: holderName.trim(),
@@ -242,10 +239,9 @@ export async function POST(req: NextRequest) {
           provider: "centiiv",
           reference: centiivOrder.id,
           deposit: {
-            amount: netCrypto,
+            amount: cryptoAmount,
             totalAmount: cryptoAmount,
-            feeAmount,
-            feeRecipient: environment.FEE_WALLET_STELLAR,
+            feeAmount: 0,
             address: centiivOrder.temporaryWallet.publicAddress,
             asset: "USDC",
           },

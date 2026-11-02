@@ -1287,10 +1287,7 @@ export async function executeTool(
 
           if (cleanFiat > 0) {
             const quote = await getCentiivQuote({ fromAsset: "NGN", toAsset: "USDC", amount: cleanFiat });
-            const effectiveFee = environment.SWITCH_JUMPA_FEE;
-            const feePct = effectiveFee / 100;
-            const netAmount = Number(quote.estimatedReceivableAmount || "0") * (1 - feePct);
-            destinationAmount = netAmount.toFixed(4);
+            destinationAmount = Number(quote.estimatedReceivableAmount || "0").toFixed(4);
           } else {
             destinationAmount = String(cleanCrypto);
           }
@@ -1471,13 +1468,12 @@ export async function executeTool(
           if (isNaN(expectedUsdcAmount) || expectedUsdcAmount <= 0) {
             throw new Error("Unable to calculate USDC conversion from Centiiv");
           }
-          // Compute XLM receivable after fee = (USDC * (1 - feePct)) / xlmUsdPrice
-          const receivableXlm = (expectedUsdcAmount * (1 - feePct)) / xlmUsdPrice;
+          // Compute XLM receivable (quote already deducts the configured aggregator fee)
+          const receivableXlm = expectedUsdcAmount / xlmUsdPrice;
           finalCryptoAmount = receivableXlm.toFixed(4);
         } else if (rawCrypto > 0) {
           finalCryptoAmount = rawCrypto.toFixed(4);
-          // Compute required USDC (grossed up for fee) = (XLM * xlmUsdPrice) / (1 - feePct)
-          expectedUsdcAmount = feePct < 1 ? (rawCrypto * xlmUsdPrice) / (1 - feePct) : rawCrypto * xlmUsdPrice;
+          expectedUsdcAmount = rawCrypto * xlmUsdPrice;
           // Query Centiiv USDC -> NGN
           const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: expectedUsdcAmount });
           cleanFiat = Math.round(Number(quote.estimatedReceivableAmount || "0"));
@@ -1943,11 +1939,7 @@ export async function executeTool(
           if (isStellar) {
             const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 });
             appliedRate = Number(quote.rate);
-            const effectiveFee = environment.SWITCH_JUMPA_FEE;
-            const feePct = effectiveFee / 100;
-            // Gross up so that after feePct is deducted, net USDC * appliedRate equals cleanFiat
-            const netCryptoNeeded = cleanFiat / appliedRate;
-            amount = parseFloat((netCryptoNeeded / (1 - feePct)).toFixed(4));
+            amount = parseFloat((cleanFiat / appliedRate).toFixed(4));
           } else {
             const rateRes = await SwitchService.getOfframpRate(targetAsset);
             if (!rateRes.success || !rateRes.rate) {
@@ -2277,9 +2269,7 @@ export async function executeTool(
           if (isStellar) {
             try {
               const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 });
-              const baseRate = Number(quote.rate);
-              // In onramp, paying NGN gives slightly fewer USDC (or effective rate per USDC is slightly higher in NGN)
-              onrampRate = baseRate > 0 ? (baseRate < 1 ? baseRate * (1 - feePct) : baseRate / (1 - feePct)) : baseRate;
+              onrampRate = Number(quote.rate);
             } catch (centiivErr: any) {
               console.warn(`[ToolExecutor] Stellar onramp rate lookup failed, using benchmark:`, centiivErr.message);
               stellarRateOffline = true;
@@ -2300,9 +2290,7 @@ export async function executeTool(
           if (isStellar) {
             try {
               const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 });
-              const baseRate = Number(quote.rate);
-              // In offramp, selling USDC gives fee-adjusted NGN
-              offrampRate = baseRate * (1 - feePct);
+              offrampRate = Number(quote.rate);
             } catch (centiivErr: any) {
               console.warn(`[ToolExecutor] Stellar offramp rate lookup failed, using benchmark:`, centiivErr.message);
               stellarRateOffline = true;

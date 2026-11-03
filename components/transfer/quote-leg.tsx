@@ -35,7 +35,7 @@ const TONE = {
 
 /**
  * One side of a quote: what is typed, what it is denominated in, and that
- * asset's balance. Shared by the swap and the fiat deposit, so the two legs
+ * asset's balance. Shared by the swap and Deposit Naira, so the two legs
  * cannot drift.
  */
 export function QuoteLeg({
@@ -44,6 +44,7 @@ export function QuoteLeg({
   balance,
   options,
   tone = "white",
+  locked,
   onSymbolChange,
   onMax,
   children,
@@ -54,6 +55,8 @@ export function QuoteLeg({
   balance?: string;
   options: SelectOption[];
   tone?: keyof typeof TONE;
+  /** Shows the asset without its picker, once the quote is committed. */
+  locked?: boolean;
   onSymbolChange: (next: string) => void;
   /** Draws a MAX chip beside the balance; the caller decides what "max" leaves behind. */
   onMax?: () => void;
@@ -61,9 +64,7 @@ export function QuoteLeg({
   children: ReactNode;
 }) {
   return (
-    <div
-      className={`flex items-center gap-2.5 rounded-xl p-2.5 ${TONE[tone]}`}
-    >
+    <div className={`flex items-center gap-2.5 rounded-xl p-2.5 ${TONE[tone]}`}>
       <span className="flex min-w-0 flex-1 flex-col gap-1 px-2.5">
         <span className="text-[10px] leading-3 text-jumpa-black/50 uppercase">
           {label}
@@ -78,6 +79,7 @@ export function QuoteLeg({
           value={symbol}
           options={options}
           onValueChange={onSymbolChange}
+          disabled={locked}
         />
 
         {balance === undefined ? null : (

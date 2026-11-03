@@ -43,6 +43,7 @@ export function Select({
   icon,
   variant = "field",
   invalid,
+  disabled,
   className,
 }: {
   value: string;
@@ -56,6 +57,8 @@ export function Select({
   variant?: keyof typeof TRIGGER;
   /** Flags the trigger after a failed submit. */
   invalid?: boolean;
+  /** Shows the choice without letting it change; the caret goes. */
+  disabled?: boolean;
   className?: string;
 }) {
   const selected = options.find((option) => option.value === value);
@@ -63,7 +66,11 @@ export function Select({
   const boundary = usePopoverBoundary();
 
   return (
-    <Primitive.Root value={value} onValueChange={onValueChange}>
+    <Primitive.Root
+      value={value}
+      onValueChange={onValueChange}
+      disabled={disabled}
+    >
       <Primitive.Trigger
         aria-label={label}
         aria-invalid={invalid}
@@ -88,9 +95,11 @@ export function Select({
         )}
 
         <Primitive.Value placeholder={placeholder} />
-        <Primitive.Icon className="ml-auto flex shrink-0">
-          <CaretDownIcon aria-hidden="true" className="size-3" />
-        </Primitive.Icon>
+        {disabled ? null : (
+          <Primitive.Icon className="ml-auto flex shrink-0">
+            <CaretDownIcon aria-hidden="true" className="size-3" />
+          </Primitive.Icon>
+        )}
       </Primitive.Trigger>
 
       <Primitive.Portal>

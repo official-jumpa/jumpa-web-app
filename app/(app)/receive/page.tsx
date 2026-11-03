@@ -1,15 +1,20 @@
 import type { Metadata } from "next";
 import { AssetPicker } from "@/components/assets/asset-picker";
-import { FiatDepositView } from "@/components/receive/fiat-deposit-view";
+import { NairaDepositView } from "@/components/receive/naira-deposit-view";
 import { ReceiveOptionList } from "@/components/transfer/receive-options";
 import { TransferHeader } from "@/components/transfer/transfer-header";
-import { SUPPORTED_ASSETS } from "@/lib/wallet";
-
+import { getUserNgnAccount } from "@/lib/functions/ngnFunctions";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
-import { getUserNgnAccountDetails } from "@/lib/functions/ngnFunctions";
+import { findWalletForUser } from "@/lib/functions/walletFunctions";
+import {
+  isNairaToken,
+  NAIRA_TOKENS,
+  type NairaToken,
+} from "@/lib/naira-deposit";
+import { walletAssets } from "@/lib/wallet-assets";
 
 interface ReceivePageProps {
-  searchParams: Promise<{ rail?: string }>;
+  searchParams: Promise<{ rail?: string; token?: string }>;
 }
 
 export async function generateMetadata({
@@ -23,27 +28,47 @@ export async function generateMetadata({
 
 /** Fiat or crypto, then the rail's own screen — one route, not three. */
 export default async function ReceivePage({ searchParams }: ReceivePageProps) {
-  const { rail } = await searchParams;
+  const { rail, token } = await searchParams;
 
-  if (rail === "fiat") {
-    let initialAccount: any = null;
-    try {
-      const session = await getCachedAuthSession();
-      if (session?.user?.id) {
-        const accountData = await getUserNgnAccountDetails(
-          session.user.id,
-          session.user.name || "Jumpa User",
-        );
-        initialAccount = accountData.account;
-      }
-    } catch (e) {
-      console.error("[ReceivePage] Failed to prefetch NGN deposit account:", e);
+  if (rail === "fiat" || rail === "crypto") {
+    const session = await getCachedAuthSession();
+    const userId = session?.user?.id;
+    const assets = await walletAssets(userId);
+
+    if (rail === "crypto") {
+      return <AssetPicker assets={assets} mode="crypto" back="/receive" />;
     }
 
-    return <FiatDepositView initialAccount={initialAccount} />;
-  }
-  if (rail === "crypto") {
-    return <AssetPicker assets={SUPPORTED_ASSETS} receive back="/receive" />;
+    const tokens = assets.filter((asset) => isNairaToken(asset.symbol));
+    const symbol = token?.toUpperCase();
+    if (!isNairaToken(symbol)) {
+      return <AssetPicker assets={tokens} mode="naira" back="/receive" />;
+    }
+
+    const [wallet, ngnAccount] = userId
+      ? await Promise.all([
+          findWalletForUser(userId),
+          getUserNgnAccount(userId).catch(() => null),
+        ])
+      : [null, null];
+    // `change` carries the held amount ("1,234.50 USDC"); the leg wants a bare number.
+    const balances = Object.fromEntries(
+      NAIRA_TOKENS.map((symbol) => [
+        symbol,
+        tokens
+          .find((asset) => asset.symbol === symbol)
+          ?.change.replace(/[^\d.]/g, "") || "0",
+      ]),
+    ) as Record<NairaToken, string>;
+
+    return (
+      <NairaDepositView
+        initialToken={symbol}
+        addresses={wallet?.addresses ?? {}}
+        balances={balances}
+        nairaBalance={ngnAccount ? Number(ngnAccount.balance ?? 0) : undefined}
+      />
+    );
   }
 
   return (

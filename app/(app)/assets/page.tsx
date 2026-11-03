@@ -3,7 +3,6 @@ import { notFound, redirect } from "next/navigation";
 import { AssetPicker } from "@/components/assets/asset-picker";
 import { DepositInfo } from "@/components/assets/deposit-info";
 import { TokenDetailView } from "@/components/assets/token-detail-view";
-import { unifyTokens } from "@/lib/assets";
 import { chainsFor, resolveChainAddresses } from "@/lib/blockchain";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
@@ -15,7 +14,8 @@ import {
   getCachedWalletBalances,
   getAssetPriceUsd,
 } from "@/lib/wallet-balances";
-import { SUPPORTED_ASSETS, type Asset, type Transaction } from "@/lib/wallet";
+import { SUPPORTED_ASSETS, type Transaction } from "@/lib/wallet";
+import { walletAssets } from "@/lib/wallet-assets";
 
 interface AssetsPageProps {
   searchParams: Promise<{
@@ -44,35 +44,6 @@ export async function generateMetadata({
   }
 
   return { title: `${symbol} Wallet` };
-}
-
-/**
- * Every supported wallet, carrying the USD value of what the user actually
- * holds. The list never shrinks — an untouched wallet still shows its row.
- */
-async function walletAssets(userId?: string): Promise<Asset[]> {
-  if (!userId) return SUPPORTED_ASSETS;
-
-  const balances = await getCachedWalletBalances(userId).catch(
-    () => null,
-  );
-  if (!balances?.tokens?.length) return SUPPORTED_ASSETS;
-
-  // unifyTokens sums a symbol across chains, which is what one row stands for.
-  const held = new Map(
-    unifyTokens(balances.tokens).map((unified) => [unified.symbol.toUpperCase(), unified]),
-  );
-
-  return SUPPORTED_ASSETS.map((asset) => {
-    const unified = held.get(asset.symbol.toUpperCase());
-    return unified
-      ? {
-          ...asset,
-          balance: unified.balance,
-          change: unified.change,
-        }
-      : asset;
-  });
 }
 
 export default async function AssetsPage({ searchParams }: AssetsPageProps) {

@@ -11,7 +11,7 @@ export function AssetRow({
   onSelect,
 }: {
   asset: Asset;
-  /** USD worth of the holding. The deposit list draws none. */
+  /** USD worth of the holding. */
   value?: string;
   /** The row asks for a network rather than navigating, so it is a button. */
   onSelect: () => void;

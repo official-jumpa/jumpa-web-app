@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AssetRow, AssetRule } from "@/components/assets/asset-row";
 import { NetworkSheet } from "@/components/assets/network-sheet";
@@ -11,24 +12,31 @@ import {
   useAssetNetwork,
   walletHref,
 } from "@/hooks/use-asset-network";
-import { cn } from "@/lib/cn";
 import type { Asset } from "@/lib/wallet";
 
+const TITLE = {
+  wallets: "All Wallets",
+  crypto: "Deposit Crypto",
+  naira: "Deposit Naira",
+} as const;
+
 /**
- * Every wallet, searchable. Both modes ask which network first: Receive lands
- * on the deposit address, "See All" on that chain's wallet screen.
+ * Every wallet, searchable. Wallets and Deposit Crypto ask which network
+ * first, landing on the chain's wallet or its deposit address; Deposit Naira
+ * picks the network on its own form, so a row goes straight there.
  */
 export function AssetPicker({
   assets,
-  receive = false,
+  mode = "wallets",
   back = "/home",
 }: {
   assets: Asset[];
-  receive?: boolean;
+  mode?: keyof typeof TITLE;
   back?: string;
 }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
-  const network = useAssetNetwork(receive ? depositHref : walletHref);
+  const network = useAssetNetwork(mode === "crypto" ? depositHref : walletHref);
 
   const term = query.trim().toLowerCase();
   const matches = term
@@ -42,11 +50,7 @@ export function AssetPicker({
   return (
     // Neither mode carries the tab bar: both are a step inside a flow.
     <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-      <ScreenHeader
-        back={back}
-        title={receive ? "Deposit Crypto" : "All Wallets"}
-        round
-      />
+      <ScreenHeader back={back} title={TITLE[mode]} round />
 
       {/* h-14.5 — the design's stroke is inside, a CSS border is outside. */}
       <label className="mt-4 flex h-14.5 w-full items-center gap-2 rounded-pill border border-jumpa-neutral-60 bg-jumpa-neutral-50 pr-5.25 pl-4">
@@ -63,31 +67,27 @@ export function AssetPicker({
         />
       </label>
 
-      {/* Deposit is a crypto step, so only the wallet list carries the accounts. */}
-      {receive ? null : (
-        <div className="mt-3.5">
-          <FiatAccounts />
-        </div>
-      )}
+      <div className="mt-3.5">
+        <FiatAccounts />
+      </div>
 
       {matches.length === 0 ? (
         <p className="mt-10 text-center text-sm text-jumpa-neutral-400">
           No wallet matches &ldquo;{query}&rdquo;.
         </p>
       ) : (
-        <ul
-          className={cn(
-            receive ? "mt-3.5" : "mt-4",
-            "flex flex-col gap-4 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-6 py-5",
-          )}
-        >
+        <ul className="mt-4 flex flex-col gap-4 rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-6 py-5">
           {matches.map((asset, index) => (
             <li key={asset.symbol} className="flex flex-col gap-4">
               {index > 0 ? <AssetRule /> : null}
               <AssetRow
                 asset={asset}
-                value={receive ? undefined : asset.balance}
-                onSelect={() => network.start(asset.symbol)}
+                value={asset.balance}
+                onSelect={() =>
+                  mode === "naira"
+                    ? router.push(`/receive?rail=fiat&token=${asset.symbol}`)
+                    : network.start(asset.symbol)
+                }
               />
             </li>
           ))}
@@ -99,9 +99,9 @@ export function AssetPicker({
           symbol={network.asking}
           chains={network.chains}
           description={
-            receive
-              ? undefined
-              : `${network.asking} lives on more than one chain. Pick the one you want to see.`
+            mode === "wallets"
+              ? `${network.asking} lives on more than one chain. Pick the one you want to see.`
+              : undefined
           }
           onSelect={network.choose}
           onClose={network.cancel}

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { ComingSoon } from "@/components/ui/coming-soon";
+import { MoreView } from "@/components/more/more-view";
 
 export const metadata: Metadata = { title: "More" };
 
 export default function MorePage() {
-  return <ComingSoon feature="More" />;
+  return <MoreView />;
 }

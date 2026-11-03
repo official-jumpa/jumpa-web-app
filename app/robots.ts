@@ -17,6 +17,7 @@ const PRIVATE_ROUTES = [
   "/profile",
   "/invest",
   "/more",
+  "/accounts",
   "/airtime",
   "/data",
   "/kyc",

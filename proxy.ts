@@ -74,6 +74,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/invest") ||
     pathname.startsWith("/assets") ||
     pathname.startsWith("/more") ||
+    pathname.startsWith("/accounts") ||
     pathname.startsWith("/airtime") ||
     pathname.startsWith("/data") ||
     pathname.startsWith("/kyc") ||
@@ -134,6 +135,7 @@ export const config = {
     "/invest(.*)",
     "/assets(.*)",
     "/more(.*)",
+    "/accounts(.*)",
     "/airtime(.*)",
     "/data(.*)",
     "/kyc(.*)",

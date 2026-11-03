@@ -87,6 +87,9 @@ function shortenKey(value?: string): string {
 
 //  Provider Handlers
 
+/** Provider statuses meaning the order never received its deposit. */
+const AWAITING_DEPOSIT_STATUSES = ["AWAITING_DEPOSIT", "INITIATED", "PENDING"];
+
 const switchSyncHandler: RampProviderSyncHandler = {
   async checkStatus(reference: string): Promise<ProviderSyncResult> {
     const result = await SwitchService.getTransactionStatus(reference);
@@ -377,7 +380,10 @@ export async function checkSolanaOnChainStatus(
 ): Promise<{ found: boolean; successful: boolean; pending?: boolean }> {
   try {
     const connection = new Connection(getSolanaRpcUrl(), "confirmed");
-    const { value } = await connection.getSignatureStatuses([txHash]);
+    // Without history search the RPC only knows the last few minutes, so older successes read as "not found".
+    const { value } = await connection.getSignatureStatuses([txHash], {
+      searchTransactionHistory: true,
+    });
     const status = value?.[0];
     if (!status) {
       return { found: false, successful: false };
@@ -392,7 +398,8 @@ export async function checkSolanaOnChainStatus(
     return { found: true, pending: true, successful: false };
   } catch (err: any) {
     console.warn(`[OnChain Sync] Solana status check error for ${txHash}:`, err?.message || err);
-    return { found: false, successful: false };
+    // An unreachable RPC is not a dropped transaction; callers keep it pending.
+    throw err;
   }
 }
 
@@ -1567,7 +1574,11 @@ export async function resolveAllPendingTransactions(options?: {
             newStatus: "CONFIRMED",
             providerStatus: syncRes.rawStatus,
           });
-        } else if (syncRes.status === "FAILED" || isStale) {
+        } else if (
+          syncRes.status === "FAILED" ||
+          // Only an order still waiting for its deposit expires; an unreachable provider or a payout in flight stays pending.
+          (isStale && AWAITING_DEPOSIT_STATUSES.includes(syncRes.rawStatus))
+        ) {
           const reason =
             syncRes.status === "FAILED"
               ? syncRes.reason || `Provider failed: ${syncRes.rawStatus}`

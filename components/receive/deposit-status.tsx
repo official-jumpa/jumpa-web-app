@@ -1,23 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { CopyButton } from "@/components/auth/copy-button";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { Button } from "@/components/ui/button";
 import { JumpaLoader } from "@/components/ui/jumpa-loader";
 import { ScreenHeader } from "@/components/ui/screen-header";
-import { invalidateClientBalances } from "@/lib/client-events";
 import {
   type DepositState,
   formatNaira,
   formatStable,
   type OnrampOrder,
-  toDepositState,
 } from "@/lib/naira-deposit";
-
-/** How often the provider is asked whether the transfer landed. */
-const POLL_MS = 10_000;
 
 const COPY: Record<
   Exclude<DepositState, "completed">,
@@ -37,55 +31,21 @@ const COPY: Record<
   },
 };
 
-/** After "I've sent the money": polls the order until it settles, then shows the receipt. */
+/** Where the order is once the money is on its way, ending on the receipt. */
 export function DepositStatus({
   order,
   token,
+  state,
   onBack,
   onRetry,
 }: {
   order: OnrampOrder;
   token: string;
-  /** Back to the bank details, which stay valid while the order is open. */
-  onBack: () => void;
+  state: DepositState;
+  /** Back to the bank details while they are still the thing to act on. */
+  onBack?: () => void;
   onRetry: () => void;
 }) {
-  const [state, setState] = useState<DepositState>("awaiting");
-  const settled = state === "completed" || state === "failed";
-
-  useEffect(() => {
-    if (settled) return;
-    let alive = true;
-
-    const check = async () => {
-      try {
-        const res = await fetch(
-          `/api/v1/exchange/status?reference=${encodeURIComponent(order.reference)}`,
-          { cache: "no-store" },
-        );
-        const data = await res.json();
-        if (!alive || !data?.success) return;
-        const next = toDepositState(data);
-        if (next === "completed") invalidateClientBalances();
-        setState(next);
-      } catch {
-        // A dropped poll is retried on the next tick.
-      }
-    };
-
-    check();
-    const timer = window.setInterval(check, POLL_MS);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") check();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      alive = false;
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [order.reference, settled]);
-
   const received = `${formatStable(order.cryptoAmount)} ${token}`;
   const paid = formatNaira(order.fiatAmount);
 

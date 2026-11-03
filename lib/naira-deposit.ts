@@ -6,8 +6,9 @@
 export const NAIRA_TOKENS = ["USDC", "USDT"] as const;
 export type NairaToken = (typeof NAIRA_TOKENS)[number];
 
+/** Switch takes USDC on Tron for off-ramp only; it rejects it as an on-ramp asset. */
 export const ONRAMP_CHAINS: Record<NairaToken, string[]> = {
-  USDC: ["base", "solana", "ethereum", "tron"],
+  USDC: ["base", "solana", "ethereum"],
   USDT: ["solana", "ethereum", "tron"],
 };
 
@@ -26,6 +27,8 @@ export type OnrampOrder = {
   accountNumber: string;
   cryptoAmount: number | string;
   fiatAmount: number;
+  /** The provider's instructions for this transfer, e.g. how long the account stays open. */
+  notes?: string[];
 };
 
 export type DepositState = "awaiting" | "processing" | "completed" | "failed";

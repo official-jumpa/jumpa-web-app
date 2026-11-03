@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { RampNotes } from "@/components/chat/ramp-parts";
 import { BankTicket } from "@/components/receive/bank-ticket";
 import { DepositStatus } from "@/components/receive/deposit-status";
 import { assetOptions, QuoteLeg } from "@/components/transfer/quote-leg";
@@ -8,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { FieldError } from "@/components/ui/field-error";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import { Select, type SelectOption } from "@/components/ui/select";
+import { useDepositState } from "@/hooks/use-deposit-state";
 import { useOnrampQuote } from "@/hooks/use-onramp-quote";
 import { CHAINS } from "@/lib/blockchain";
 import { cn } from "@/lib/cn";
@@ -102,6 +104,8 @@ export function NairaDepositView({
   // Amount and asset are frozen once an order exists, so the quote holds without refetching.
   const quote = useOnrampQuote(naira, asset);
   const locked = stage !== "form";
+  // Asked from the moment the order exists, so a transfer that lands moves the screen on its own.
+  const deposit = useDepositState(order?.reference);
 
   const changeToken = (next: string) => {
     const picked = next as NairaToken;
@@ -126,7 +130,8 @@ export function NairaDepositView({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fiatAmount: naira,
+          // Whole naira, as the chat sends: the account expects that exact figure.
+          fiatAmount: Math.round(naira),
           cryptoToken: token,
           asset,
           walletAddress,
@@ -137,6 +142,8 @@ export function NairaDepositView({
         throw new Error(data.error || "Couldn't start the deposit. Try again.");
       }
       setOrder(data);
+      // The field now reads the exact figure to transfer.
+      setAmount(String(data.fiatAmount));
       setStage("pay");
     } catch (err) {
       setError(
@@ -154,12 +161,13 @@ export function NairaDepositView({
     setStage("form");
   };
 
-  if (stage === "status" && order) {
+  if (order && (stage === "status" || deposit !== "awaiting")) {
     return (
       <DepositStatus
         order={order}
         token={token}
-        onBack={() => setStage("pay")}
+        state={deposit}
+        onBack={deposit === "awaiting" ? () => setStage("pay") : undefined}
         onRetry={restart}
       />
     );
@@ -168,7 +176,10 @@ export function NairaDepositView({
   const received =
     locked && order ? Number(order.cryptoAmount) : quote.received;
   const canContinue =
-    naira > 0 && !quote.loading && !quote.error && quote.received !== undefined;
+    Math.round(naira) > 0 &&
+    !quote.loading &&
+    !quote.error &&
+    quote.received !== undefined;
 
   return (
     <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
@@ -265,8 +276,9 @@ export function NairaDepositView({
       ) : null}
 
       {locked && order ? (
-        <div className="mt-8.5 animate-rise">
+        <div className="mt-8.5 flex animate-rise flex-col gap-3">
           <BankTicket order={order} />
+          {order.notes?.length ? <RampNotes notes={order.notes} /> : null}
         </div>
       ) : null}
 

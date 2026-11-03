@@ -19,7 +19,7 @@ type SavingsType = {
   kind: SavingsKind;
   label: string;
   caption: string;
-  /** Name and one-line hint for the compact grid, where the full ones wrap. */
+  /** Name and one-line hint for the hub's compact tiles. */
   short: string;
   hint: string;
   Icon: KindIcon;
@@ -30,24 +30,24 @@ const TYPES: SavingsType[] = [
     kind: "individual",
     label: "Individual Savings",
     caption: "Save towards a personal goal at your own pace.",
-    short: "Individual",
-    hint: "Your own pace",
+    short: "Individual Savings",
+    hint: "Save towards something personal.",
     Icon: KIND_ICON.individual,
   },
   {
     kind: "lock",
     label: "Lock savings",
     caption: "Lock funds for a fixed term and earn a higher rate.",
-    short: "Lock",
-    hint: "Fixed term",
+    short: "Lock savings",
+    hint: "Lock funds for a fixed term.",
     Icon: KIND_ICON.lock,
   },
   {
     kind: "circle",
     label: "Circles (Group Savings)",
     caption: "Create or join a shared savings goal.",
-    short: "Circles",
-    hint: "With friends",
+    short: "Circles (Groups)",
+    hint: "Create or join a shared savings goal.",
     Icon: KIND_ICON.circle,
   },
 ];
@@ -92,7 +92,7 @@ function TypeText({
   );
 }
 
-/** Three equal tiles: glyph, short name, best rate, one-line hint. */
+/** Three equal tiles: glyph, short name and one-line hint, with the best rate tagged in the corner. */
 function TypeGrid({ onSelect }: { onSelect: (kind: SavingsKind) => void }) {
   return (
     <div className="grid grid-cols-3 gap-2">
@@ -101,20 +101,19 @@ function TypeGrid({ onSelect }: { onSelect: (kind: SavingsKind) => void }) {
           key={kind}
           type="button"
           onClick={() => onSelect(kind)}
-          className={`${CARD_BASE} relative min-w-0 flex-col gap-3 p-3`}
+          className="tap relative flex h-33.75 min-w-0 flex-col items-start gap-4 rounded-chip bg-jumpa-neutral-50 px-2.25 pt-5.25 text-left active:scale-[0.98]"
         >
-          {/* A notification-style badge; the white ring cuts it out of the page. */}
-          <span className="absolute -top-2 -right-1.5 rounded-pill bg-jumpa-primary-600 px-2 py-0.5 text-[10px] leading-3.5 font-semibold whitespace-nowrap text-jumpa-white ring-2 ring-jumpa-white">
+          <span className="absolute top-1 right-1.75 flex h-3 items-center rounded-hairline bg-jumpa-primary-600 px-1 text-[6px] leading-none font-medium tracking-jumpa-snug whitespace-nowrap text-jumpa-white">
             Up to {topRate(kind)}
           </span>
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-panel bg-jumpa-primary-950 text-jumpa-primary-50">
-            <Icon className="size-5" />
+          <span className="flex size-9.25 shrink-0 items-center justify-center rounded-full bg-jumpa-primary-600 text-jumpa-white">
+            <Icon className="size-5.5" />
           </span>
           <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="text-sm leading-4 font-semibold text-jumpa-black">
+            <span className="text-xs leading-3.5 font-semibold tracking-jumpa-snug text-jumpa-black">
               {short}
             </span>
-            <span className="text-[10px] leading-3.5 text-jumpa-neutral-500">
+            <span className="text-[8px] leading-2.5 text-jumpa-neutral-400">
               {hint}
             </span>
           </span>
@@ -137,8 +136,10 @@ export function SavingsTypes({
 
   if (layout === "grid") {
     return (
-      <section className="flex flex-col gap-3">
-        <h2 className="text-xs font-medium text-jumpa-black">Ways to save</h2>
+      <section className="flex flex-col gap-4.25">
+        <h2 className="text-sm leading-4.5 font-medium tracking-jumpa-snug text-jumpa-black">
+          Ways to save
+        </h2>
         <TypeGrid onSelect={onSelect} />
       </section>
     );

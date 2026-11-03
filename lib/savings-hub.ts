@@ -10,7 +10,8 @@ export const SAVINGS_CURRENCIES: readonly { value: SavingsCurrency; label: strin
     { value: "NGN", label: "Naira" },
     { value: "USDC", label: "USDC" },
   ];
-export const HUB_CURRENCIES = SAVINGS_CURRENCIES;
+/** The hub's toggle reads dollars first, as the design sets it. */
+export const HUB_CURRENCIES = [...SAVINGS_CURRENCIES].reverse();
 
 const SYMBOL: Record<SavingsCurrency, string> = { NGN: "₦", USDC: "$" };
 

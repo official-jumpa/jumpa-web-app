@@ -77,11 +77,42 @@ const TRACK: Variant = {
   offText: "text-jumpa-neutral-500",
 };
 
+/** Frosted switch on the purple savings card — a white thumb inside a hairline rim. */
+const GLASS: Variant = {
+  display: "inline-flex",
+  grid: "inline-grid",
+  frame:
+    "gap-0.5 rounded-pill bg-jumpa-white/5 p-0.5 inset-ring inset-ring-jumpa-white/35",
+  gap: 0.5,
+  pad: 0.5,
+  option:
+    "flex h-5 items-center justify-center rounded-pill px-2.5 text-[10px] leading-2.5 font-medium tracking-jumpa-snug",
+  thumb: "bg-jumpa-white",
+  onText: "text-jumpa-primary-600",
+  offText: "text-jumpa-white",
+};
+
+/** Purple thumb on a lilac track — the savings hub's Active / Completed switch. */
+const SOFT: Variant = {
+  display: "inline-flex",
+  grid: "inline-grid",
+  frame: "gap-1 rounded-row bg-jumpa-primary-50 p-1",
+  gap: 1,
+  pad: 1,
+  option:
+    "flex h-5.5 items-center justify-center rounded-row px-3 text-[10px] leading-3.5 font-semibold tracking-jumpa-snug",
+  thumb: "bg-jumpa-primary-600",
+  onText: "text-jumpa-white",
+  offText: "text-jumpa-primary-950",
+};
+
 const VARIANTS = {
   chip: CHIP,
   split: SPLIT,
   inverse: INVERSE,
   track: TRACK,
+  glass: GLASS,
+  soft: SOFT,
 } as const;
 
 /**

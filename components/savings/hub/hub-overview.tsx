@@ -1,9 +1,7 @@
-import { EmptyPlans } from "@/components/savings/empty-plans";
 import { SavingsTypes } from "@/components/savings/savings-types";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { PlusIcon } from "@/components/ui/icons/plus";
 import { SegmentedToggle } from "@/components/ui/segmented-toggle";
-import { cn } from "@/lib/cn";
 import type { SavingsKind } from "@/lib/savings";
 import {
   currencySymbol,
@@ -18,20 +16,27 @@ import {
 } from "@/lib/savings-hub";
 import type { Streak } from "@/lib/savings-moments";
 import { GoalCard } from "./goal-card";
-import { HeroAmount, HeroInterest, HubHero } from "./hub-hero";
+import { HubEmpty } from "./hub-empty";
 import { StreakButton } from "./moments/streak-button";
 import { slideIn } from "./slide-in";
+import { TotalCard } from "./total-card";
+
+/** What the empty card calls each currency. */
+const CURRENCY_NAME: Record<HubCurrency, string> = {
+  USDC: "Dollar",
+  NGN: "Naira",
+};
 
 const EMPTY: Record<
   PlanTab,
   (currency: HubCurrency) => { title: string; caption: string }
 > = {
   active: (currency) => ({
-    title: `No active ${currency} plans`,
-    caption: "Pick a way to save above to start one.",
+    title: `No active ${CURRENCY_NAME[currency]} plans`,
+    caption: "Pick a way to save to start",
   }),
   completed: (currency) => ({
-    title: `No completed ${currency} plans yet`,
+    title: `No completed ${CURRENCY_NAME[currency]} plans yet`,
     caption: "Plans you withdraw from move here, with what they paid out.",
   }),
 };
@@ -91,7 +96,7 @@ export function HubOverview({
   const amount = slideIn(heroDirection, 0);
 
   return (
-    <div className="flex min-h-dvh flex-col gap-6 px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+2rem)]">
+    <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+0.875rem)] pb-[calc(env(safe-area-inset-bottom)+2rem)]">
       <TransferHeader
         back="/home"
         title="Savings"
@@ -110,46 +115,45 @@ export function HubOverview({
         }
       />
 
-      <HubHero
-        badge="Total savings"
-        aside={
-          <SegmentedToggle
-            variant="inverse"
-            slide
-            options={HUB_CURRENCIES}
-            value={currency}
-            onChange={onCurrency}
-          />
-        }
-      >
-        <span
-          key={currency}
-          className={cn("flex flex-col items-center", amount.className)}
-          style={amount.style}
-        >
-          <HeroAmount
-            symbol={currencySymbol(currency)}
-            figure={formatFigure(saved)}
-          />
-          {/* The plan count is on the Active tab below, so the hero does not repeat it. */}
-          <HeroInterest
-            earned={formatMoney(interest, currency)}
-            caption="interest earned"
-          />
-        </span>
-      </HubHero>
+      <div className="mt-3.25">
+        <TotalCard
+          symbol={currencySymbol(currency)}
+          figure={formatFigure(saved)}
+          motion={{ key: currency, ...amount }}
+          interest={formatMoney(interest, currency)}
+          toggle={
+            <SegmentedToggle
+              variant="glass"
+              slide
+              options={HUB_CURRENCIES}
+              value={currency}
+              onChange={onCurrency}
+            />
+          }
+        />
+      </div>
 
-      <SavingsTypes layout="grid" onSelect={onPick} />
+      <div className="mt-8.75">
+        <SavingsTypes layout="grid" onSelect={onPick} />
+      </div>
 
-      <section className="flex flex-col gap-3">
+      <section className="mt-4 flex flex-col gap-2.75">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-xs font-medium text-jumpa-black">Your plans</h2>
-          <SegmentedToggle slide options={tabs} value={tab} onChange={onTab} />
+          <h2 className="text-sm leading-4.5 font-medium tracking-jumpa-snug text-jumpa-black">
+            Your plans
+          </h2>
+          <SegmentedToggle
+            variant="soft"
+            slide
+            options={tabs}
+            value={tab}
+            onChange={onTab}
+          />
         </div>
 
         {shown.length === 0 ? (
           <div key={listKey} {...slideIn(direction, 2)}>
-            <EmptyPlans title={empty.title} caption={empty.caption} />
+            <HubEmpty title={empty.title} caption={empty.caption} />
           </div>
         ) : (
           <ul key={listKey} className="flex flex-col gap-3">

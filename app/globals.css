@@ -165,6 +165,15 @@
   --color-jumpa-lilac-150: #ebe5fd; /* "Paying from" wallet disc */
   --color-jumpa-neutral-270: #bebebe; /* chevrons and carrier caret */
 
+  /* Home, savings and deposit redesign */
+  --color-jumpa-violet-950: #230159; /* labels on the home action pills */
+  --color-jumpa-violet-900: #331663; /* caption on an empty savings plan list */
+  --color-jumpa-violet-920: #2a1450; /* active bottom-nav label */
+  --color-jumpa-green-50: #f5fbf7; /* light end of the NGN account card */
+  --color-jumpa-green-100: #e5f6ed; /* deep end of the NGN account card */
+  --color-jumpa-blue-50: #f2f4fd; /* light end of the USD account card */
+  --color-jumpa-blue-100: #cedcfc; /* deep end of the USD account card */
+
   /* Typography. Geist at every size — the face the Figma file specifies.
      `display` and `numeric` still stand in for Gotham Ultra and Neue Montreal,
      which are licensed and not ours to ship. See README.md. */
@@ -214,6 +223,10 @@
      halo rather than a neon ring, so it reads as brand chrome and not an alert.
      Mixed from the status tokens, so a palette change carries to the halo. */
   --shadow-jumpa-vignette: inset 0 0 40px 12px rgb(0 0 0 / 0.28);
+  /* Figma's Glass effect on Home's transfer pills and "More accounts" tag, which
+     its CSS export drops: shaded in from the top-left over a white bottom rim. */
+  --shadow-jumpa-glass:
+    inset 2px 3px 9px rgb(0 0 0 / 0.045), inset -2px -2px 3px #fff;
   --shadow-jumpa-halo-idle: 0 0 0 5px
     color-mix(in srgb, var(--color-jumpa-primary-600) 7%, transparent);
   --shadow-jumpa-halo-active:
@@ -618,7 +631,7 @@
     color-mix(in srgb, var(--color-jumpa-white) 26%, transparent) 0%,
     transparent 64%
   );
-  /* Chat button at the centre of the bottom nav. */
+  /* Chat button beside the bottom nav. */
   --gradient-jumpa-nav-chat: linear-gradient(
     180deg,
     var(--color-jumpa-primary-500) 0%,
@@ -812,6 +825,17 @@
   box-shadow: inset 0 0 0 calc(0.75 * var(--spacing))
     color-mix(in srgb, var(--color-jumpa-white) 90%, transparent);
   backdrop-filter: blur(calc(4 * var(--spacing)));
+}
+/* Figma's Glass effect on a Home shortcut disc, which its CSS export drops:
+   shaded top-left to white, inside a hairline rim. Read off the frame's render. */
+@utility glass-jumpa-disc {
+  background-image: linear-gradient(
+    to bottom right,
+    color-mix(in srgb, var(--color-jumpa-black) 7.5%, var(--color-jumpa-white)),
+    var(--color-jumpa-white) 72%
+  );
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--color-jumpa-white) 70%, transparent);
 }
 @utility inset-shadow-landing-row {
   box-shadow: inset 0 0 calc(14.75 * var(--spacing))

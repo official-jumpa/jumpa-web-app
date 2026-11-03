@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { SupportSheet } from "@/components/support/support-sheet";
 import { BellIcon } from "@/components/ui/icons/bell";
-import { HeadsetIcon } from "@/components/ui/icons/headset";
+import { MessageCircleQuestionIcon } from "@/components/ui/icons/message-circle-question";
 import { VerifiedBadgeIcon } from "@/components/ui/icons/verified-badge";
 import { useEffect, useState } from "react";
 import { useAuthContext } from "@/components/auth/AuthGuard";
@@ -15,8 +15,8 @@ import { ACCOUNT } from "@/lib/wallet";
 // No colour here: a second `text-*` from a consumer would not reliably win,
 // since the joins in this file are plain concatenation.
 const CONTROL =
-  "relative flex size-9 items-center justify-center rounded-panel bg-jumpa-primary-500 " +
-  "text-jumpa-white shadow-[inset_0_0_8px_0_var(--color-jumpa-primary-400)] tap active:scale-95";
+  "relative flex size-10 items-center justify-center rounded-row bg-jumpa-neutral-50 " +
+  "text-jumpa-primary-600 tap active:scale-95";
 
 export function WalletHeader({
   initialHasUnread = false,
@@ -40,9 +40,12 @@ export function WalletHeader({
     // `true` and never asked again, so it stayed lit with nothing to read.
     const checkUnread = async () => {
       try {
-        const res = await fetch("/api/v1/notifications?limit=1&unreadOnly=true", {
-          cache: "no-store",
-        });
+        const res = await fetch(
+          "/api/v1/notifications?limit=1&unreadOnly=true",
+          {
+            cache: "no-store",
+          },
+        );
         if (!res.ok) return;
         const data = await res.json();
         const payload = data.data ?? data;
@@ -74,11 +77,11 @@ export function WalletHeader({
   if (profile?.nickname) {
     displayName = profile.nickname;
   } else if (profile?.name) {
-    displayName = profile.name.split(" ")[0];
+    displayName = profile.name;
   } else if (user?.nickname) {
     displayName = user.nickname;
   } else if (user?.name) {
-    displayName = user.name.split(" ")[0];
+    displayName = user.name;
   } else if (user?.email) {
     const rawName = user.email.split("@")[0];
     displayName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
@@ -91,7 +94,7 @@ export function WalletHeader({
         href="/profile"
         className="flex items-center gap-2 tap active:scale-95"
       >
-        <span className="relative justify-center items-center block size-10 shrink-0 bg-jumpa-primary-100 rounded-full p-1">
+        <span className="relative block size-10 shrink-0 rounded-full bg-jumpa-primary-100">
           <Image
             src={user?.image || ACCOUNT.avatar}
             alt=""
@@ -99,17 +102,17 @@ export function WalletHeader({
             height={40}
             priority
             unoptimized
-            className="size-8 rounded-full object-cover"
+            className="size-10 rounded-full object-cover"
           />
           {kycVerified ? (
-            <VerifiedBadgeIcon className="absolute top-0 left-7 size-4.5" />
+            <VerifiedBadgeIcon className="absolute -top-0.5 left-7 size-4.5" />
           ) : null}
         </span>
-        <p className="flex flex-col text-base leading-4 text-jumpa-white">
-          <span className="font-medium">
-            <span className="text-jumpa-white/68 font-semibold">Hello</span>,
+        <p className="flex flex-col text-sm leading-4 font-bold tracking-jumpa-snug text-jumpa-ink">
+          <span className="font-normal text-jumpa-neutral-475">
+            Hello<span aria-hidden="true">👋</span>
           </span>
-          <span className="font-bold lowercase">{displayName}</span>
+          <span className="max-w-32.5 truncate">{displayName}</span>
         </p>
       </Link>
 
@@ -122,10 +125,7 @@ export function WalletHeader({
           aria-label="Help and support"
           className={CONTROL}
         >
-          <HeadsetIcon className="mt-0.5 size-5" />
-          <span className="absolute -top-0.5 -right-1 rounded-full bg-jumpa-danger px-1 py-0.2 text-[7px] leading-tight font-semibold text-jumpa-white shadow-sm ring-1 ring-jumpa-primary-500">
-            HELP
-          </span>
+          <MessageCircleQuestionIcon className="size-6" />
         </button>
 
         <Link
@@ -134,9 +134,9 @@ export function WalletHeader({
           aria-label="Notifications"
           className={CONTROL}
         >
-          <BellIcon className="size-5.5" />
+          <BellIcon className="size-6" />
           {hasUnread ? (
-            <span className="absolute top-0.5 right-2 size-2 rounded-full bg-jumpa-danger ring-2 ring-jumpa-primary-500 animate-pulse" />
+            <span className="absolute top-0.5 right-2 size-2 rounded-full bg-jumpa-danger ring-2 ring-jumpa-neutral-50 animate-pulse" />
           ) : null}
         </Link>
       </div>

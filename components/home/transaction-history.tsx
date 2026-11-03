@@ -19,7 +19,7 @@ export function TransactionHistory({
   return (
     <HomeSection
       title="Transaction History"
-      className="mt-4 gap-4"
+      className="gap-4"
       action={
         <Link prefetch href="/transactions" className="tap active:scale-95">
           See All

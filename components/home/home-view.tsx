@@ -1,19 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AdBanner } from "@/components/home/ad-banner";
-import { AssetList } from "@/components/home/asset-list";
 import { BalancePanel } from "@/components/home/balance-panel";
 import { FiatAccounts } from "@/components/home/fiat-accounts";
-import { HeroBackdrop } from "@/components/home/hero-backdrop";
-import { KycCard } from "@/components/home/kyc-card";
+import { PromoBanner } from "@/components/home/promo-banner";
 import { QuickActions } from "@/components/home/quick-actions";
 import { TransactionHistory } from "@/components/home/transaction-history";
 import { WalletHeader } from "@/components/home/wallet-header";
 import { RiseIn } from "@/components/ui/rise-in";
 import { unifyTokens } from "@/lib/assets";
 import { onBalanceRefresh } from "@/lib/client-events";
-import { ACCOUNT, ASSETS, type Asset, type Transaction } from "@/lib/wallet";
+import { ACCOUNT, type Asset, type Transaction } from "@/lib/wallet";
 
 // In-memory cache for instant zero-flicker tab returns
 const homeMemoryCache: {
@@ -55,10 +52,8 @@ export function HomeView({
     () => initialSavingsBalance ?? homeMemoryCache.savingsBalance ?? "0.00",
   );
   const [savingsNgnBalance, setSavingsNgnBalance] = useState<string>(
-    () => initialSavingsNgnBalance ?? homeMemoryCache.savingsNgnBalance ?? "0.00",
-  );
-  const [assets, setAssets] = useState<Asset[]>(
-    () => initialAssets ?? homeMemoryCache.assets ?? ASSETS,
+    () =>
+      initialSavingsNgnBalance ?? homeMemoryCache.savingsNgnBalance ?? "0.00",
   );
   const [transactions, setTransactions] = useState<Transaction[]>(
     () => initialTransactions ?? homeMemoryCache.transactions ?? [],
@@ -99,8 +94,8 @@ export function HomeView({
       setTotalBalance(initialBalance);
       homeMemoryCache.balance = initialBalance;
     }
+    // Home no longer lists assets; the cache still warms the wallets screen.
     if (initialAssets) {
-      setAssets(initialAssets);
       homeMemoryCache.assets = initialAssets;
     }
     if (initialTransactions) {
@@ -120,7 +115,9 @@ export function HomeView({
 
     async function fetchTransactions() {
       try {
-        const res = await fetch("/api/v1/transactions?limit=5", { cache: "no-store" });
+        const res = await fetch("/api/v1/transactions?limit=5", {
+          cache: "no-store",
+        });
         if (res.ok && isMounted) {
           const data = await res.json();
           if (Array.isArray(data.transactions)) {
@@ -144,7 +141,7 @@ export function HomeView({
           forceRefresh
             ? "/api/v1/wallet?fields=balance&refresh=true"
             : "/api/v1/wallet?fields=balance",
-          { cache: "no-store" }
+          { cache: "no-store" },
         );
         if (res.ok && isMounted) {
           const json = await res.json();
@@ -162,10 +159,12 @@ export function HomeView({
             balanceData.tokens.length > 0
           ) {
             const unified = unifyTokens(balanceData.tokens);
-            setAssets(unified);
             homeMemoryCache.assets = unified;
             try {
-              localStorage.setItem("jumpa_last_assets", JSON.stringify(unified));
+              localStorage.setItem(
+                "jumpa_last_assets",
+                JSON.stringify(unified),
+              );
             } catch {}
           }
         }
@@ -180,7 +179,7 @@ export function HomeView({
         if (res.ok && isMounted) {
           const data = await res.json();
           const goals: any[] = data.goals || [];
-          
+
           // Total active savings across USDC goals
           const usdcActive = goals
             .filter((g) => g.currency === "USDC" && !g.closed)
@@ -283,16 +282,23 @@ export function HomeView({
       window.removeEventListener("focus", handleVisibility);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [initialBalance, initialSavingsBalance, initialSavingsNgnBalance, initialTransactions, initialAssets, initialKycComplete]);
+  }, [
+    initialBalance,
+    initialSavingsBalance,
+    initialSavingsNgnBalance,
+    initialTransactions,
+    initialAssets,
+    initialKycComplete,
+  ]);
 
   return (
-    <>
-      <div className="relative isolate flex flex-col gap-6 border-b border-jumpa-primary-950 bg-[image:var(--gradient-jumpa-hero)] px-4.5 pt-[calc(env(safe-area-inset-top)+1rem)] pb-6">
-        <HeroBackdrop />
-        <WalletHeader
-          initialHasUnread={initialHasUnread}
-          kycVerified={kycComplete}
-        />
+    <div className="flex flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1rem)] pb-6">
+      <WalletHeader
+        initialHasUnread={initialHasUnread}
+        kycVerified={kycComplete}
+      />
+
+      <div className="mt-3.75">
         <BalancePanel
           balance={totalBalance}
           savingsBalance={savingsBalance}
@@ -303,28 +309,27 @@ export function HomeView({
       </div>
 
       {/* Sections land one after another, top to bottom. */}
-      <div className="flex flex-col gap-4 px-4.5 pt-4 pb-6">
-        <RiseIn index={0}>
-          <AssetList assets={assets} visible={balanceVisible} />
-        </RiseIn>
-        <RiseIn index={1}>{kycComplete ? <AdBanner /> : <KycCard />}</RiseIn>
-        <RiseIn index={2}>
-          <QuickActions />
-        </RiseIn>
-        <RiseIn index={3}>
-          <FiatAccounts
-            initialHasNgnAccount={initialHasNgnAccount}
-            initialNgnBalance={initialNgnBalance}
-            initialKycComplete={kycComplete}
-          />
-        </RiseIn>
-        <RiseIn index={4}>
-          <TransactionHistory
-            transactions={transactions}
-            loading={loadingTransactions}
-          />
-        </RiseIn>
-      </div>
-    </>
+      <RiseIn index={0} className="mt-5.5">
+        <FiatAccounts
+          variant="home"
+          moreAccounts
+          initialHasNgnAccount={initialHasNgnAccount}
+          initialNgnBalance={initialNgnBalance}
+          initialKycComplete={kycComplete}
+        />
+      </RiseIn>
+      <RiseIn index={1} className="mt-1.25">
+        <PromoBanner />
+      </RiseIn>
+      <RiseIn index={2} className="mt-1.5">
+        <QuickActions />
+      </RiseIn>
+      <RiseIn index={3} className="mt-5.25">
+        <TransactionHistory
+          transactions={transactions}
+          loading={loadingTransactions}
+        />
+      </RiseIn>
+    </div>
   );
 }

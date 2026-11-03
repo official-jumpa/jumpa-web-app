@@ -1,70 +1,24 @@
-import Link from "next/link";
-import { ArrowSortIcon } from "@/components/ui/icons/arrow-sort";
-import { CirclePercentageIcon } from "@/components/ui/icons/circle-percentage";
-import { CoinFrontIcon } from "@/components/ui/icons/coin-front";
-import { PhoneAltIcon } from "@/components/ui/icons/phone-alt";
+import { ActionGrid } from "./action-grid";
+import type { AppActionId } from "./actions";
 import { HomeSection } from "./home-section";
 
-/** `soon` mutes a tile and takes it out of the tab order — drop it to go live. */
-const ACTIONS = [
-  { label: "Savings", href: "/savings", Icon: CoinFrontIcon },
-  { label: "Invest", href: "/invest", Icon: CirclePercentageIcon, soon: true },
-  { label: "Data", href: "/data", Icon: ArrowSortIcon },
-  { label: "Airtime", href: "/airtime", Icon: PhoneAltIcon },
+/** The eight shortcuts Home shows, in the design's order; More lists the rest. */
+const HOME_ACTIONS: AppActionId[] = [
+  "savings",
+  "invest",
+  "data",
+  "airtime",
+  "referral",
+  "bill",
+  "lending",
+  "more",
 ];
 
-const TILE = "flex w-11 flex-col items-center gap-1.5";
-const DISC =
-  "flex size-11 items-center justify-center rounded-full bg-jumpa-primary-600 text-jumpa-alt-400";
-const LABEL =
-  "w-12.25 text-center text-[10px] leading-2.5 font-medium text-jumpa-primary-950";
-/** Muted, not recoloured — the tile keeps its own purple so it still reads as Invest. */
-const SOON = "opacity-50 blur-[0.4px]";
-
-/** Shortcut tiles to the savings, invest and bill-payment areas. */
+/** Two rows of shortcut tiles under the banner. */
 export function QuickActions() {
   return (
-    <HomeSection title="Quick Actions">
-      <ul className="flex items-center justify-center gap-10 rounded-panel bg-jumpa-neutral-50 px-8.75 py-5">
-        {ACTIONS.map(({ label, href, Icon, soon }) =>
-          soon ? (
-            <li key={label} className="relative">
-              <span
-                aria-disabled="true"
-                className={`${TILE} ${SOON} cursor-not-allowed select-none`}
-              >
-                <span className={DISC}>
-                  <Icon className="size-6" />
-                </span>
-                <span className={LABEL}>{label}</span>
-                <span className="sr-only">Coming soon</span>
-              </span>
-
-              {/* Same corner badge as the home support control, so "not yet"
-                  reads the same wherever it appears. */}
-              <span
-                aria-hidden="true"
-                className="absolute -top-1 -right-1.5 rounded-pill bg-jumpa-neutral-95 px-1 py-px text-[6px] leading-2 font-semibold tracking-jumpa-wide text-jumpa-neutral-450 uppercase"
-              >
-                Soon
-              </span>
-            </li>
-          ) : (
-            <li key={label}>
-              <Link
-                prefetch
-                href={href}
-                className={`tap ${TILE} active:scale-95`}
-              >
-                <span className={DISC}>
-                  <Icon className="size-6" />
-                </span>
-                <span className={LABEL}>{label}</span>
-              </Link>
-            </li>
-          ),
-        )}
-      </ul>
+    <HomeSection title="Quick Actions" className="gap-2.5">
+      <ActionGrid actions={HOME_ACTIONS} />
     </HomeSection>
   );
 }

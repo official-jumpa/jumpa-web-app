@@ -1,23 +1,33 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { ReceiveOptionsSheet } from "@/components/transfer/receive-options-sheet";
 import { SendOptionsSheet } from "@/components/transfer/send-options-sheet";
-import { ArrowDownRightIcon } from "@/components/ui/icons/arrow-down-right";
-import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
 import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { EyeIcon } from "@/components/ui/icons/eye";
 import { EyeOffIcon } from "@/components/ui/icons/eye-off";
-import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
+import { RefreshCwIcon } from "@/components/ui/icons/refresh-cw";
+import { SOON, SoonTag } from "@/components/ui/soon-tag";
+import { invalidateClientBalances } from "@/lib/client-events";
+import { cn } from "@/lib/cn";
+import { APP_ACTIONS, type AppActionId } from "./actions";
 import { BalanceSheet } from "./balance-sheet";
 
 /** Stands in for the digits while the balance is hidden. */
 const MASK = "*".repeat(6);
 
-const TRANSFER =
-  "flex items-center gap-1.5 rounded-pill bg-jumpa-primary-500 py-1.5 pr-4 pl-1.5 text-base " +
-  "font-medium text-jumpa-white shadow-[inset_0_0_8px_0_var(--color-jumpa-primary-400)]";
+/** Frosted chip over the purple card. */
+const GLASS = "bg-jumpa-white/5 inset-ring inset-ring-jumpa-white/35";
+
+const PILL =
+  "flex h-11.5 items-center justify-center gap-0.5 rounded-pill bg-jumpa-neutral-95/20 text-sm shadow-jumpa-glass leading-none font-medium tracking-jumpa-snug text-jumpa-violet-950";
+
+type Sheet = "details" | "send" | "receive" | null;
+
+/** The pills under the card; widths follow the design's, so the row fills the card at any size. */
+const PILLS: AppActionId[] = ["send", "deposit", "swap", "qr"];
 
 interface BalancePanelProps {
   balance: string;
@@ -28,9 +38,9 @@ interface BalancePanelProps {
 }
 
 /**
- * Total balance and the transfer shortcuts. The eye masks the amount, the pill
- * opens the breakdown, and Send and Receive each raise their chooser rather
- * than navigating.
+ * Total balance on the purple card, then the transfer pills. The eye masks the
+ * amount, the pill opens the breakdown, and Send and Deposit raise their
+ * chooser rather than navigating.
  */
 export function BalancePanel({
   balance,
@@ -40,89 +50,131 @@ export function BalancePanel({
   onToggleVisible,
 }: BalancePanelProps) {
   const [internalVisible, setInternalVisible] = useState(false);
-  const isControlled = controlledVisible !== undefined;
-  const visible = isControlled ? controlledVisible : internalVisible;
-
-  const [sheet, setSheet] = useState<"details" | "send" | "receive" | null>(
-    null,
-  );
+  const visible = controlledVisible ?? internalVisible;
+  const [sheet, setSheet] = useState<Sheet>(null);
+  // Each tap adds a full turn, so the icon spins forward without snapping back.
+  const [turns, setTurns] = useState(0);
   const ToggleIcon = visible ? EyeOffIcon : EyeIcon;
 
-  const handleToggle = () => {
-    if (onToggleVisible) {
-      onToggleVisible();
-    } else {
-      setInternalVisible((on) => !on);
-    }
+  const toggle = () => {
+    if (onToggleVisible) onToggleVisible();
+    else setInternalVisible((on) => !on);
   };
 
   return (
-    <section className="flex flex-col items-center gap-6">
-      <div className="flex flex-col items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setSheet("details")}
-          aria-haspopup="dialog"
-          aria-expanded={sheet === "details"}
-          className="tap flex items-center rounded-pill bg-jumpa-primary-950 px-4.5 py-2 text-xs leading-2.5 font-medium text-jumpa-white active:scale-95"
-        >
-          Balance Details
-          <ChevronDownIcon className="size-4" />
-        </button>
+    <section className="flex flex-col gap-3.75">
+      <div className="relative isolate h-27.25 overflow-hidden rounded-row bg-jumpa-primary-600">
+        <BalanceCardArt />
 
-        <p className="flex items-center gap-2 text-jumpa-primary-50">
-          {/* The 32px digits set the design's 34px line; the strut and "$" must not extend it. */}
-          <span className="text-center leading-0 font-semibold">
-            {visible && (
-              <span className="text-xl leading-none">$</span>
-            )}
-            <span className="text-[32px] leading-8.5">
-              {visible ? balance : MASK}
-            </span>
-          </span>
+        <div className="flex flex-col items-start gap-2.5 pt-4.75 pl-5">
           <button
             type="button"
-            onClick={handleToggle}
-            aria-label={visible ? "Hide balance" : "Show balance"}
+            onClick={() => setSheet("details")}
+            aria-haspopup="dialog"
+            aria-expanded={sheet === "details"}
+            className={cn(
+              "tap flex h-7 w-32.25 items-center justify-center gap-1.25 rounded-pill text-xs leading-2.5 font-medium tracking-jumpa-snug text-jumpa-white active:scale-95",
+              GLASS,
+            )}
           >
-            <ToggleIcon className="size-6" />
+            Balance Details
+            <ChevronDownIcon className="size-4" />
           </button>
-        </p>
+
+          <p className="flex h-8.5 items-center gap-2 text-jumpa-white">
+            <span className="leading-0 font-semibold tracking-jumpa-snug">
+              {visible ? (
+                <span className="text-xl leading-8.5 text-jumpa-alt-400">
+                  $
+                </span>
+              ) : null}
+              <span className="text-[32px] leading-8.5">
+                {visible ? balance : MASK}
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={toggle}
+              aria-label={visible ? "Hide balance" : "Show balance"}
+              className="tap active:scale-90"
+            >
+              <ToggleIcon className="size-6" />
+            </button>
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setTurns((count) => count + 1);
+            invalidateClientBalances();
+          }}
+          aria-label="Refresh balance"
+          className={cn(
+            "tap absolute top-4 right-4.25 flex size-8.25 items-center justify-center rounded-pill text-jumpa-white active:scale-95",
+            GLASS,
+          )}
+        >
+          <RefreshCwIcon
+            style={{ transform: `rotate(${turns * 360}deg)` }}
+            className="size-4.75 transition-transform duration-700 ease-jumpa"
+          />
+        </button>
       </div>
 
-      <nav className="flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => setSheet("send")}
-          aria-haspopup="dialog"
-          aria-expanded={sheet === "send"}
-          className={`tap ${TRANSFER} active:scale-95`}
-        >
-          <span className="flex size-8 items-center justify-center rounded-panel bg-jumpa-primary-400 text-jumpa-alt-400">
-            <ArrowUpRightIcon className="size-6" />
-          </span>
-          Send
-        </button>
+      <nav className="grid grid-cols-[79fr_95fr_83fr_72fr] gap-2.25">
+        {PILLS.map((id) => {
+          const { label, Icon, to, soon, flip } = APP_ACTIONS[id];
+          const body = (
+            <>
+              <Icon
+                className={cn(
+                  "size-5.5 text-jumpa-primary-600",
+                  flip && "-scale-y-100",
+                )}
+              />
+              {label}
+            </>
+          );
 
-        <button
-          type="button"
-          onClick={() => setSheet("receive")}
-          aria-haspopup="dialog"
-          aria-expanded={sheet === "receive"}
-          className={`tap ${TRANSFER} active:scale-95`}
-        >
-          <span className="flex size-8 items-center justify-center rounded-panel bg-jumpa-primary-400 text-jumpa-alt-400">
-            <ArrowDownRightIcon className="size-6" />
-          </span>
-          Receive
-        </button>
+          if (soon) {
+            return (
+              <span key={id} className="relative">
+                <span aria-disabled="true" className={cn(PILL, SOON)}>
+                  {body}
+                  <span className="sr-only">(coming soon)</span>
+                </span>
+                <SoonTag className="-top-1 right-1" />
+              </span>
+            );
+          }
 
-        <Link prefetch href="/swap" className={TRANSFER}>
-          <span className="flex size-8 items-center justify-center rounded-panel bg-jumpa-primary-400 text-jumpa-alt-400">
-            <SwitchHorizontalIcon className="size-6" />
-          </span>
-          Swap
-        </Link>
+          if ("sheet" in to) {
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setSheet(to.sheet)}
+                aria-haspopup="dialog"
+                aria-expanded={sheet === to.sheet}
+                className={cn("tap active:scale-95", PILL)}
+              >
+                {body}
+              </button>
+            );
+          }
+
+          return (
+            <Link
+              key={id}
+              prefetch
+              href={to.href}
+              className={cn("tap active:scale-95", PILL)}
+            >
+              {body}
+            </Link>
+          );
+        })}
       </nav>
 
       {sheet === "details" ? (
@@ -142,5 +194,37 @@ export function BalancePanel({
         <ReceiveOptionsSheet onClose={() => setSheet(null)} />
       ) : null}
     </section>
+  );
+}
+
+/** Frosted swirls (pinned right) and the soft orb (pinned left) behind the balance. */
+function BalanceCardArt() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 -z-10"
+    >
+      <Image
+        src="/images/home/card-swirl.svg"
+        alt=""
+        width={225}
+        height={150}
+        className="absolute top-0 -right-12 max-w-none -rotate-[8.67deg]"
+      />
+      <Image
+        src="/images/home/card-swirl.svg"
+        alt=""
+        width={225}
+        height={150}
+        className="absolute top-6.25 -right-18 max-w-none rotate-[10.54deg]"
+      />
+      <Image
+        src="/images/home/card-orb.svg"
+        alt=""
+        width={139}
+        height={139}
+        className="absolute top-3.25 -left-4.5 max-w-none -rotate-[41.32deg]"
+      />
+    </div>
   );
 }

@@ -223,36 +223,6 @@ export function formatTxTimestamp(msVal?: number | Date | string): string {
 
 export const TRANSACTIONS: Transaction[] = [];
 
-export type Ad = {
-  id: string;
-  src: string;
-  /** What the art says, for anyone who cannot see it. */
-  alt: string;
-  href: string;
-};
-
-/** Offer art for the home banner, in rotation order. */
-export const ADS: Ad[] = [
-  {
-    id: "savings",
-    src: "/images/home/Ads1.png",
-    alt: "Don't just save. Grow. Earn while your money sits in savings.",
-    href: "/savings",
-  },
-  {
-    id: "referrals",
-    src: "/images/home/Ads2.png",
-    alt: "Your friends need Jumpa too. Invite them and earn rewards.",
-    href: "/referrals",
-  },
-  {
-    id: "invest",
-    src: "/images/home/Ads3.png",
-    alt: "Your money can do more. Put it to work and earn.",
-    href: "/invest",
-  },
-];
-
 export type Promotion = {
   id: string;
   tone: "lime" | "purple";

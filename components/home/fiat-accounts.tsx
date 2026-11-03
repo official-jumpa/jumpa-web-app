@@ -3,15 +3,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { ChevronRightIcon } from "@/components/ui/icons/chevron-right";
-import { UserAlt1Icon } from "@/components/ui/icons/user-alt-1";
-import { SheetPortal } from "@/components/ui/sheet-portal";
+import { EyeOffIcon } from "@/components/ui/icons/eye-off";
+import { SOON, SoonTag } from "@/components/ui/soon-tag";
 import { useKyc } from "@/hooks/use-kyc";
 import { onNgnRefresh, onBalanceRefresh } from "@/lib/client-events";
 import { cn } from "@/lib/cn";
 import { FIAT_ACCOUNTS, type FiatAccount } from "@/lib/wallet";
 import { FiatBalance } from "./fiat-balance";
+import { KycRequiredModal } from "./kyc-required-modal";
 
 /** Each currency has its own opening flow. */
 const CREATE: Record<FiatAccount["id"], string> = {
@@ -29,6 +29,9 @@ const DETAILS: Record<FiatAccount["id"], string> = {
 let ngnMemoryCache: { hasAccount?: boolean; balance?: string | null } = {};
 
 interface FiatAccountsProps {
+  variant?: FiatCardVariant;
+  /** Hangs the "More accounts" tag off the last card (Home only). */
+  moreAccounts?: boolean;
   initialHasNgnAccount?: boolean;
   initialNgnBalance?: string | null;
   initialKycComplete?: boolean;
@@ -36,6 +39,8 @@ interface FiatAccountsProps {
 
 /** The NGN and USD balances, side by side under the quick actions. */
 export function FiatAccounts({
+  variant = "plain",
+  moreAccounts = false,
   initialHasNgnAccount,
   initialNgnBalance,
   initialKycComplete,
@@ -174,13 +179,23 @@ export function FiatAccounts({
   return (
     <>
       <ul className="flex items-stretch gap-2">
-        {accounts.map((account) => (
-          <li key={account.id} className="flex flex-1">
+        {accounts.map((account, index) => (
+          <li key={account.id} className="relative flex flex-1">
             <AccountCard
               account={account}
+              variant={variant}
               isKycComplete={isKycComplete}
               onOpenKycModal={() => setShowKycModal(true)}
             />
+            {moreAccounts && index === accounts.length - 1 ? (
+              <Link
+                prefetch
+                href="/accounts"
+                className="tap absolute -top-2.75 -right-0.75 z-10 flex h-4.25 w-17.25 items-center justify-center rounded-pill bg-jumpa-neutral-50/70 text-[8px] leading-none font-medium tracking-jumpa-snug text-jumpa-black shadow-jumpa-glass active:scale-95"
+              >
+                More accounts
+              </Link>
+            ) : null}
           </li>
         ))}
       </ul>
@@ -198,19 +213,93 @@ export function FiatAccounts({
  */
 const NOT_LIVE: FiatAccount["id"][] = ["usd"];
 
-/** Muted, not recoloured — the same treatment as the Invest quick action. */
-const SOON = "opacity-50 blur-[0.4px]";
+/** Home tints each card by currency; the deposit lists keep them plain. */
+const CARD = {
+  home: {
+    shell: "h-19.5 pt-2.25",
+    gap: "gap-2.25",
+    chevron: "top-7.75 text-jumpa-neutral-425",
+  },
+  plain: {
+    shell: "py-2.5",
+    gap: "gap-4",
+    chevron: "top-1/2 -translate-y-1/2 text-jumpa-black",
+  },
+} as const;
+
+const AVAILABLE = "text-[8px] leading-2.5 font-medium text-jumpa-neutral-425";
+
+const CREATE_PILL =
+  "tap flex h-8.25 items-center justify-center rounded-pill bg-jumpa-white text-[10px] font-medium text-jumpa-primary-600 active:scale-95";
+
+const TINT: Record<FiatAccount["id"], string> = {
+  ngn: "bg-linear-279 from-jumpa-green-100 from-7% to-jumpa-green-50 to-78%",
+  usd: "bg-linear-281 from-jumpa-blue-100 from-2% to-jumpa-blue-50 to-83%",
+};
+
+export type FiatCardVariant = keyof typeof CARD;
 
 function AccountCard({
   account,
+  variant,
   isKycComplete,
   onOpenKycModal,
 }: {
   account: FiatAccount;
+  variant: FiatCardVariant;
   isKycComplete: boolean;
   onOpenKycModal: () => void;
 }) {
-  const soon = NOT_LIVE.includes(account.id);
+  const shell = cn(
+    "relative flex flex-1 flex-col rounded-panel px-4",
+    CARD[variant].shell,
+    CARD[variant].gap,
+    variant === "home" ? TINT[account.id] : "bg-jumpa-neutral-50",
+  );
+  const heading = (
+    <span className="flex items-center gap-1">
+      <Image
+        src={account.flag}
+        alt=""
+        width={64}
+        height={64}
+        className="size-4 rounded-full object-contain"
+      />
+      <span className="text-[10px] leading-4 font-medium tracking-jumpa-snug text-jumpa-black">
+        {account.label}
+      </span>
+    </span>
+  );
+
+  const chevron = (
+    <ChevronRightIcon
+      className={cn("absolute right-2.5 size-5", CARD[variant].chevron)}
+    />
+  );
+
+  if (NOT_LIVE.includes(account.id)) {
+    // Laid out like a live card, then muted; the tag sits outside the blur.
+    return (
+      <>
+        <div aria-disabled="true" className={cn(shell, SOON)}>
+          {heading}
+          <span className="flex flex-col">
+            <span className={AVAILABLE}>Available</span>
+            <span className="flex items-center gap-2 text-jumpa-black">
+              {/* Placeholder figure: there is no USD balance until the account goes live. */}
+              <span className="text-base leading-5.25 font-semibold">
+                $0.00
+              </span>
+              <EyeOffIcon className="size-4" />
+            </span>
+          </span>
+          {chevron}
+          <span className="sr-only">(coming soon)</span>
+        </div>
+        <SoonTag className="top-2 right-2.5" />
+      </>
+    );
+  }
 
   if (account.balance !== null) {
     return (
@@ -218,117 +307,30 @@ function AccountCard({
         prefetch
         href={DETAILS[account.id]}
         aria-label={`Open your ${account.label}`}
-        className="relative flex flex-1 flex-col gap-4 rounded-panel bg-jumpa-neutral-50 px-4 py-2.5 transition-colors hover:bg-jumpa-neutral-100/70 active:scale-[0.99]"
+        className={cn(shell, "transition-transform active:scale-[0.99]")}
       >
-        <span className="flex items-center gap-1">
-          <Image
-            src={account.flag}
-            alt=""
-            width={64}
-            height={64}
-            className="size-4 rounded-full object-contain"
-          />
-          <span className="text-[10px] font-medium text-jumpa-black">
-            {account.label}
-          </span>
-        </span>
-
+        {heading}
         <span className="flex flex-col">
-          <span className="text-[8px] leading-2.5 font-medium text-jumpa-neutral-425">
-            Available
-          </span>
+          <span className={AVAILABLE}>Available</span>
           <FiatBalance amount={account.balance} label={account.label} />
         </span>
-
-        <span className="absolute inset-y-0 right-0 flex w-9 items-center justify-end pr-2.375 text-jumpa-black">
-          <ChevronRightIcon className="size-5" />
-        </span>
+        {chevron}
       </Link>
     );
   }
 
   return (
-    <div className="relative flex flex-1 flex-col gap-4 rounded-panel bg-jumpa-neutral-50 px-4 py-2.5">
-      {/* Muted on the contents, not the card — the panel has its own fill, and
-          fading that washes it out against the white page. */}
-      <span className={cn("flex items-center gap-1", soon && SOON)}>
-        <Image
-          src={account.flag}
-          alt=""
-          width={64}
-          height={64}
-          className="size-4 rounded-full object-contain"
-        />
-        <span className="text-[10px] font-medium text-jumpa-black">
-          {account.label}
-        </span>
-      </span>
-
-      {soon ? (
-        <span
-          className={cn(
-            "flex h-8.25 cursor-not-allowed items-center justify-center rounded-pill bg-jumpa-white text-[10px] font-medium text-jumpa-primary-600 select-none",
-            SOON,
-          )}
-        >
-          Coming soon
-        </span>
-      ) : account.id === "ngn" && !isKycComplete ? (
-        <button
-          type="button"
-          onClick={onOpenKycModal}
-          className="tap flex h-8.25 items-center justify-center rounded-pill bg-jumpa-white text-[10px] font-medium text-jumpa-primary-600 active:scale-95"
-        >
+    <div className={shell}>
+      {heading}
+      {account.id === "ngn" && !isKycComplete ? (
+        <button type="button" onClick={onOpenKycModal} className={CREATE_PILL}>
           Create Account
         </button>
       ) : (
-        <Link
-          prefetch
-          href={CREATE[account.id]}
-          className="tap flex h-8.25 items-center justify-center rounded-pill bg-jumpa-white text-[10px] font-medium text-jumpa-primary-600 active:scale-95"
-        >
+        <Link prefetch href={CREATE[account.id]} className={CREATE_PILL}>
           Create Account
         </Link>
       )}
     </div>
-  );
-}
-
-function KycRequiredModal({ onClose }: { onClose: () => void }) {
-  return (
-    // On `SheetPortal`, not `BottomSheet`: this is raised from inside the home
-    // column, where `RiseIn` is the containing block for anything `fixed`.
-    <SheetPortal onClose={onClose} className="px-6 pb-7.5">
-      <div className="flex flex-col items-center text-center">
-        <span className="flex size-16 items-center justify-center rounded-full bg-jumpa-primary-50 text-jumpa-primary-600">
-          <UserAlt1Icon className="size-8" />
-        </span>
-
-        <h2 className="mt-4 text-xl leading-6 font-bold text-jumpa-black">
-          Identity Verification Required
-        </h2>
-
-        <p className="mt-2 text-sm leading-5 text-jumpa-neutral-700">
-          To comply with banking regulations and issue your dedicated Naira virtual account, please complete your identity verification (KYC) first.
-        </p>
-
-        <Button
-          variant="gradientSheet"
-          size="lg"
-          className="mt-6 font-semibold"
-          href="/kyc"
-        >
-          Complete KYC
-        </Button>
-
-        <Button
-          size="lg"
-          className="mt-2.5 font-semibold text-jumpa-neutral-700"
-          onClick={onClose}
-        >
-          Maybe Later
-        </Button>
-      </div>
-    </SheetPortal>
   );
 }

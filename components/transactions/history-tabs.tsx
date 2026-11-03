@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { FilterAltIcon } from "@/components/ui/icons/filter-alt";
+import { SOON, SoonTag } from "@/components/ui/soon-tag";
 import { getAssetLogo } from "@/lib/assets";
 import { cn } from "@/lib/cn";
 import { HISTORY_ASSETS, HISTORY_TABS, type HistoryScope } from "@/lib/history";
@@ -24,14 +25,44 @@ function Chip({
   mark,
   label,
   active,
+  soon,
   onClick,
 }: {
   id: string;
   mark: string;
   label: string;
   active: boolean;
+  soon?: boolean;
   onClick: () => void;
 }) {
+  const body = (
+    <>
+      <Image
+        src={mark}
+        alt=""
+        width={26}
+        height={26}
+        className="size-3.25 rounded-full object-cover"
+      />
+      {label}
+    </>
+  );
+
+  if (soon) {
+    return (
+      <span className="relative">
+        <span
+          aria-disabled="true"
+          className={cn(CHIP, CHIP_WIDTH[id], "bg-jumpa-neutral-55", SOON)}
+        >
+          {body}
+          <span className="sr-only">(coming soon)</span>
+        </span>
+        <SoonTag className="-top-1 -right-1" />
+      </span>
+    );
+  }
+
   return (
     <button
       type="button"
@@ -43,14 +74,7 @@ function Chip({
         active ? "bg-jumpa-primary-50" : "bg-jumpa-neutral-55",
       )}
     >
-      <Image
-        src={mark}
-        alt=""
-        width={26}
-        height={26}
-        className="size-3.25 rounded-full object-cover"
-      />
-      {label}
+      {body}
     </button>
   );
 }
@@ -119,6 +143,7 @@ export function HistoryTabs({
           mark={tab.mark}
           label={tab.label}
           active={scope === tab.scope}
+          soon={tab.soon}
           onClick={() => onScope(tab.scope)}
         />
       ))}

@@ -8,9 +8,11 @@ export const HISTORY_TABS: {
   scope: HistoryScope;
   label: string;
   mark: string;
+  /** Muted and tagged until the account goes live (see NOT_LIVE in fiat-accounts.tsx). */
+  soon?: boolean;
 }[] = [
   { scope: "ngn", label: "Naira (NGN)", mark: FLAGS.NG },
-  { scope: "usd", label: "USD", mark: FLAGS.US },
+  { scope: "usd", label: "USD", mark: FLAGS.US, soon: true },
   { scope: "crypto", label: "Crypto", mark: getAssetLogo("BTC") },
 ];
 

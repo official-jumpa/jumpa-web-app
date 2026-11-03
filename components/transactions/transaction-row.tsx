@@ -23,6 +23,13 @@ const STATUS_LABEL = {
   failed: "Failed",
 } as const;
 
+/** Card-row amount colour by outcome. */
+const AMOUNT_TONE = {
+  completed: "text-jumpa-success-500",
+  pending: "text-jumpa-warning",
+  failed: "text-jumpa-danger",
+} as const;
+
 /** One glyph per kind; `spin` carries the rotation the design draws it at. */
 const GLYPH: Record<
   TransactionKind,
@@ -150,7 +157,7 @@ export function TransactionRow({
             />
           ) : (
             <Icon
-              className={cn("size-6 text-jumpa-primary-600", spin)}
+              className={cn("size-6 text-jumpa-black", spin)}
             />
           )}
           {badge && chain && chain !== "fiat" ? (
@@ -183,12 +190,17 @@ export function TransactionRow({
       </div>
 
       <span className="flex shrink-0 flex-col items-end gap-0.5 text-right">
-        <span className="text-sm leading-4 font-semibold text-jumpa-black">
+        <span
+          className={cn(
+            "text-sm leading-4 font-semibold",
+            AMOUNT_TONE[status] ?? "text-jumpa-black",
+          )}
+        >
           {amount}
         </span>
         <span
           className={cn(
-            "text-xs leading-3.5 font-medium lowercase",
+            "text-xs leading-3.5 font-medium",
             status === "failed"
               ? "text-jumpa-danger"
               : "text-jumpa-neutral-775",

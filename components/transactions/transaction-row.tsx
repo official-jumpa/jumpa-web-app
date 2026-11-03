@@ -23,13 +23,6 @@ const STATUS_LABEL = {
   failed: "Failed",
 } as const;
 
-/** Card-row amount colour by outcome. */
-const AMOUNT_TONE = {
-  completed: "text-jumpa-success-500",
-  pending: "text-jumpa-warning",
-  failed: "text-jumpa-danger",
-} as const;
-
 /** One glyph per kind; `spin` carries the rotation the design draws it at. */
 const GLYPH: Record<
   TransactionKind,
@@ -52,20 +45,31 @@ const LAYOUT = {
 
 const TAP = "tap text-left active:scale-[0.98]";
 
-/** History-screen disc and amount colours: money in, money out, or failed. */
+/** Row colours on every list: green money in, red money out, black bridged, amber pending. Failed keeps rose and a minus disc. */
 const TONE = {
   in: { disc: "bg-jumpa-success-50 text-jumpa-success-500", amount: "text-jumpa-success-500" },
-  out: { disc: "bg-jumpa-primary-50 text-jumpa-primary-600", amount: "text-jumpa-ink" },
+  out: { disc: "bg-jumpa-rose-50 text-jumpa-rose-500", amount: "text-jumpa-rose-500" },
+  pending: { disc: "bg-jumpa-warning-50 text-jumpa-warning", amount: "text-jumpa-warning" },
   failed: { disc: "bg-jumpa-rose-50 text-jumpa-rose-500", amount: "text-jumpa-rose-500" },
+  bridge: { disc: "bg-jumpa-primary-50 text-jumpa-primary-600", amount: "text-jumpa-black" },
 } as const;
+
+/** The server signs every amount, so the sign is the direction. */
+function toneOf({ status, kind, amount }: Transaction): keyof typeof TONE {
+  if (status === "failed" || status === "pending") return status;
+  // Moving funds between your own chains is neither in nor out.
+  if (kind === "bridge") return "bridge";
+  return amount.startsWith("+") ? "in" : "out";
+}
 
 /** The history screen's row: tinted disc, title over "date, subtitle · time", signed amount. */
 function HistoryBody({ transaction }: { transaction: Transaction }) {
   const { kind, title, subtitle, amount, status, createdAt } = transaction;
-  const tone = status === "failed" ? "failed" : amount.startsWith("+") ? "in" : "out";
+  const incoming = amount.startsWith("+");
+  const tone = toneOf(transaction);
   const date = createdAt ? new Date(createdAt) : null;
 
-  let glyph = <ArrowUpIcon className={cn("size-3.5", tone === "in" && "-scale-y-100")} />;
+  let glyph = <ArrowUpIcon className={cn("size-3.5", incoming && "-scale-y-100")} />;
   if (tone === "failed") glyph = <MinusBoldIcon className="size-3" />;
   else if (kind === "swap" || kind === "bridge") glyph = <TransferLineIcon className="size-3.5" />;
 
@@ -94,6 +98,7 @@ function HistoryBody({ transaction }: { transaction: Transaction }) {
             <LocalTime at={date} fallback={formatHistoryClock(date)} format="historyClock" />
           ) : null}
           {status === "pending" ? " · Pending" : ""}
+          {status === "failed" ? " · Failed" : ""}
         </span>
       </span>
 
@@ -193,7 +198,7 @@ export function TransactionRow({
         <span
           className={cn(
             "text-sm leading-4 font-semibold",
-            AMOUNT_TONE[status] ?? "text-jumpa-black",
+            TONE[toneOf(transaction)].amount,
           )}
         >
           {amount}

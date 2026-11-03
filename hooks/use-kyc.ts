@@ -25,7 +25,10 @@ export interface UseKycResult {
 export function useKyc(initialKycComplete?: boolean): UseKycResult {
   const [isKycComplete, setIsKycComplete] = useState<boolean>(() => {
     if (initialKycComplete !== undefined) {
-      kycMemoryCache = { isCompleted: initialKycComplete };
+      // The module outlives a request on the server, so only the browser may seed it.
+      if (typeof window !== "undefined") {
+        kycMemoryCache = { isCompleted: initialKycComplete };
+      }
       return initialKycComplete;
     }
     if (typeof kycMemoryCache.isCompleted === "boolean") {

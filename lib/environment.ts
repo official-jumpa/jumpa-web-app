@@ -185,8 +185,9 @@ export const environment = {
 
   // OpenRouter (Vision & LLM)
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
+  // Images and voice notes; the account enforces zero data retention, so the model needs a ZDR endpoint.
   OPENROUTER_VISION_MODEL:
-    process.env.OPENROUTER_VISION_MODEL || "google/gemini-2.5-flash",
+    process.env.OPENROUTER_VISION_MODEL || "google/gemini-3.5-flash-lite",
   OPENROUTER_CHAT_MODEL:
     process.env.OPENROUTER_CHAT_MODEL || "deepseek/deepseek-chat",
 

@@ -32,7 +32,7 @@ export interface VisionAnalysisResult {
 }
 
 /**
- * Analyzes an image URL using Google Gemini 2.5 Flash via OpenRouter.
+ * Analyzes an image URL with the OpenRouter vision model.
  */
 export async function analyzeImageWithGemini(
   imageUrl: string,
@@ -48,7 +48,7 @@ export async function analyzeImageWithGemini(
     };
   }
 
-  const model = environment.OPENROUTER_VISION_MODEL || "google/gemini-2.5-flash";
+  const model = environment.OPENROUTER_VISION_MODEL;
 
   const promptText = userPrompt?.trim()
     ? `${SYSTEM_VISION_PROMPT}\n\nUser Context/Instruction: "${userPrompt.trim()}"`

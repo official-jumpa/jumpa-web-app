@@ -24,7 +24,7 @@ SPECIAL DOMAIN RULES:
    - If the audio contains only background noise or is completely inaudible, return an empty string.`;
 
 /**
- * Transcribes audio buffer using Google Gemini 2.5 Flash via OpenRouter.
+ * Transcribes audio buffer with the OpenRouter vision model.
  */
 export async function transcribeAudioWithGemini(
   audioBuffer: Buffer,
@@ -40,7 +40,7 @@ export async function transcribeAudioWithGemini(
     };
   }
 
-  const model = environment.OPENROUTER_VISION_MODEL || "google/gemini-2.5-flash";
+  const model = environment.OPENROUTER_VISION_MODEL;
 
   // Normalize audio format extension for OpenRouter input_audio
   const lowerMime = (mimeType || "").toLowerCase();
@@ -61,7 +61,7 @@ export async function transcribeAudioWithGemini(
 
   try {
     console.log(
-      `[Audio] Sending ${audioBuffer.length} bytes (${format}) to Gemini 2.5 Flash (${model}) for transcription...`,
+      `[Audio] Sending ${audioBuffer.length} bytes (${format}) to ${model} for transcription...`,
     );
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {

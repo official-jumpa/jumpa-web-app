@@ -321,7 +321,7 @@ export const FOOTER = {
   socials: [
     { label: "X", href: "https://x.com/jumpahq" },
     { label: "Instagram", href: "https://www.instagram.com/usejumpa" },
-    { label: "Facebook", href: "https://web.facebook.com/profile.php?id=61595372551204" },
+    { label: "Facebook", href: "https://web.facebook.com/profile.php?id=61595029511802" },
     { label: "Tiktok", href: "https://www.tiktok.com/@usejumpa" },
     // TODO(content): placeholder — this is LinkedIn's homepage, not Jumpa's page.
     // Replace with the real profile URL.

@@ -15,8 +15,17 @@ import { setLoginPasswordSchema } from "@/lib/validations/user.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { environment } from "@/lib/environment";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
+import type { IUser } from "@/models/User";
 
 export const dynamic = "force-dynamic";
+
+/** Where onboarding continues for this user. */
+async function nextOnboardingRoute(user: IUser | null, userId: string) {
+  const wallet = user?.activeWalletId
+    ? await findWalletById(user.activeWalletId)
+    : await findWalletForUser(userId);
+  return resolveNextOnboardingRoute(user, wallet);
+}
 
 /**
  * POST /api/v1/user/password
@@ -41,13 +50,17 @@ export async function POST(req: NextRequest) {
     }
 
     const existingUser = await getUserById(session.user.id);
+    // Usually set from another tab; nextRoute lets that stale page move on.
     if (existingUser?.loginPasswordHash) {
       return NextResponse.json(
         {
           success: false,
           error: "Login password is already set. Use the password reset flow to change your password.",
+          data: {
+            nextRoute: await nextOnboardingRoute(existingUser, session.user.id),
+          },
         },
-        { status: 400 },
+        { status: 409 },
       );
     }
 
@@ -58,11 +71,7 @@ export async function POST(req: NextRequest) {
       loginPasswordHash,
     );
 
-    const wallet = updatedUser?.activeWalletId
-      ? await findWalletById(updatedUser.activeWalletId)
-      : await findWalletForUser(session.user.id);
-
-    const nextRoute = resolveNextOnboardingRoute(updatedUser, wallet);
+    const nextRoute = await nextOnboardingRoute(updatedUser, session.user.id);
 
     logUserActivity({
       userId: session.user.id,

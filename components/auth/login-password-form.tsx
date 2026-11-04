@@ -55,7 +55,8 @@ export function LoginPasswordForm({
           body: JSON.stringify({ password: value }),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
+        // 409: already set (e.g. from another tab), so this step is done.
+        if (!res.ok && res.status !== 409) {
           setError(data.error || "Failed to set password. Please try again.");
           password.clear();
           setSubmitting(false);

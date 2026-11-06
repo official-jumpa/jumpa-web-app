@@ -47,15 +47,13 @@ export function AirtimeView() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [phone, setPhone] = useState("");
   const [networkId, setNetworkId] = useState(DEFAULT_NETWORK);
-  // A chip and the typed field are two ways to say one amount; typing wins.
-  const [preset, setPreset] = useState<number | null>(null);
-  const [typed, setTyped] = useState("");
+  // The field holds the amount; a chip fills it and lights up while it matches.
+  const [amount, setAmount] = useState("");
   const [errors, setErrors] = useState<FormErrors<BillField>>({});
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
 
   const network = getNetwork(networkId);
-  const amount = typed || (preset ? String(preset) : "");
   const total = formatAmount(amount);
   /** Every printed amount in this flow is naira — one string so none can drift. */
   const naira = `₦${total}`;
@@ -252,11 +250,10 @@ export function AirtimeView() {
             {AIRTIME_AMOUNTS.map((value) => (
               <BillChip
                 key={value}
-                active={!typed && preset === value}
+                active={amount === String(value)}
                 onClick={() => {
                   clear("amount");
-                  setPreset(value);
-                  setTyped("");
+                  setAmount(String(value));
                 }}
               >
                 ₦{value.toLocaleString("en-NG")}
@@ -272,11 +269,10 @@ export function AirtimeView() {
           <span className="flex h-14 items-center rounded-panel bg-jumpa-neutral-50 px-4 text-sm leading-none text-jumpa-ink">
             ₦
             <input
-              value={typed ? formatAmount(typed) : ""}
+              value={amount ? formatAmount(amount) : ""}
               onChange={(event) => {
                 clear("amount");
-                setTyped(digitsOf(event.target.value));
-                setPreset(null);
+                setAmount(digitsOf(event.target.value));
               }}
               inputMode="numeric"
               placeholder={`${AIRTIME_MIN}-${AIRTIME_MAX.toLocaleString("en-NG")}`}

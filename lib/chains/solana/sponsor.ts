@@ -124,6 +124,9 @@ export interface SolanaFeeCalculation {
   isSponsored: boolean;
 }
 
+/** Added to the sponsor fee when Jumpa pays the recipient's token-account rent (~0.00204 SOL). */
+export const ATA_RENT_SURCHARGE_USD = 0.3;
+
 /**
  * Computes the required fee for an SPL token transfer.
  * If the destination ATA does not exist on-chain, accounts for rent-exemption surcharge (~0.30 USD)
@@ -166,8 +169,7 @@ export async function calculateSolanaSponsoredFee(params: {
   // Base platform fee
   const baseFeeUsd = environment.FEE_USD_AMOUNT_SOLANA;
 
-  // ATA rent creation surcharge (~0.30 USD to reimburse 0.00204 SOL rent paid by Jumpa)
-  const ataRentSurchargeUsd = ataNeedsCreation ? 0.3 : 0.0;
+  const ataRentSurchargeUsd = ataNeedsCreation ? ATA_RENT_SURCHARGE_USD : 0.0;
   const totalFeeAmount = baseFeeUsd + ataRentSurchargeUsd;
 
   const feeRaw = BigInt(
@@ -265,10 +267,16 @@ export async function executeSponsoredSplTransfer(params: {
   }
 
   const tokenBalanceRes = await connection.getTokenAccountBalance(sourceATA);
-  const tokenBalance = tokenBalanceRes.value.uiAmount ?? 0;
   const totalRequired = numAmount + feeCalc.feeAmount;
+  const rawTransferAmount = BigInt(
+    Math.round(numAmount * Math.pow(10, tokenInfo.decimals)),
+  );
 
-  if (tokenBalance < totalRequired) {
+  // Compared in raw units: float sums can overshoot an exact balance by one ulp.
+  if (
+    BigInt(tokenBalanceRes.value.amount) <
+    rawTransferAmount + feeCalc.feeRaw
+  ) {
     throw new Error(
       `Insufficient ${upperAsset} balance to complete the transaction. You need at least ${totalRequired.toFixed(4)} ${upperAsset}.`,
     );
@@ -315,9 +323,6 @@ export async function executeSponsoredSplTransfer(params: {
   }
 
   // 3c. Instruction 1: User -> Destination
-  const rawTransferAmount = BigInt(
-    Math.round(numAmount * Math.pow(10, tokenInfo.decimals)),
-  );
   transaction.add(
     createTransferInstruction(
       sourceATA,

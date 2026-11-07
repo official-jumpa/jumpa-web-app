@@ -33,6 +33,7 @@ export function AmountStep({
   decimals,
   checkBalance = true,
   maxAmount,
+  lowBalanceError,
   min,
   max,
   limitUnit = "",
@@ -71,6 +72,8 @@ export function AmountStep({
   checkBalance?: boolean;
   /** Optional override for the numeric max value when typing in alternate currency. */
   maxAmount?: string | number;
+  /** Replaces the default low-balance message, e.g. when a fee is held back from the balance. */
+  lowBalanceError?: string;
   /** What the rail itself accepts, where it has bounds (airtime is 50–50,000). */
   min?: number;
   max?: number;
@@ -130,7 +133,10 @@ export function AmountStep({
     if (under) return setError(`The smallest amount is ${minLabel}`);
     if (over) return setError(`The largest amount is ${maxLabel}`);
     if (low)
-      return setError(`Insufficient balance. You have ${balance} available`);
+      return setError(
+        lowBalanceError ??
+          `Insufficient balance. You have ${balance} available`,
+      );
     onReview();
   };
 

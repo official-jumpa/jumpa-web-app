@@ -17,7 +17,13 @@ import { createNotification } from "@/lib/functions/notificationFunctions";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { decryptMnemonic } from "@/lib/crypto";
-import { executeOfframpTransfer } from "@/lib/chains/offramp-transfer";
+import {
+  describeOfframpShortfall,
+  executeOfframpTransfer,
+  getOfframpAllowance,
+  type OfframpAllowance,
+  offrampSenderAddress,
+} from "@/lib/chains/offramp-transfer";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { environment } from "@/lib/environment";
 import {
@@ -85,6 +91,8 @@ export async function POST(req: NextRequest) {
     // If PIN is provided, verify it before initiating the transaction
     let phrase: string | undefined;
     let wallet: any;
+    // Balance and fee (one RPC round trip), started early to overlap the checks below.
+    let allowanceRead: Promise<OfframpAllowance | null> = Promise.resolve(null);
     if (pin) {
       wallet = await findWalletForUser(userId);
 
@@ -94,6 +102,17 @@ export async function POST(req: NextRequest) {
           { status: 404 },
         );
       }
+
+      allowanceRead = getOfframpAllowance(
+        asset,
+        offrampSenderAddress(asset, wallet),
+      ).catch((allowanceErr) => {
+        // The transfer re-checks balances, so a failed read here is not fatal.
+        console.warn(
+          `[Offramp] Allowance check skipped: ${formatOneLineError(allowanceErr)}`,
+        );
+        return null;
+      });
 
       const pinCheck = await verifyWalletPin(wallet, pin, { userId });
       if (!pinCheck.ok) {
@@ -138,6 +157,15 @@ export async function POST(req: NextRequest) {
         );
       }
       throw limitErr;
+    }
+
+    // Refuse before an order and a pending record exist; the transfer itself would fail.
+    const allowance = await allowanceRead;
+    if (allowance && cryptoAmount > allowance.max) {
+      return NextResponse.json(
+        { success: false, error: describeOfframpShortfall(allowance) },
+        { status: 400 },
+      );
     }
 
     if (isStellar) {

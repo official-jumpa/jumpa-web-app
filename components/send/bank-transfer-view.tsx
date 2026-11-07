@@ -75,6 +75,12 @@ export function BankTransferView({
   const [offrampRate, setOfframpRate] = useState<number>(1450);
   const [cryptoBalance, setCryptoBalance] = useState<number>(0);
   const [ngnBalance, setNgnBalance] = useState<number>(0);
+  // On-chain balance less the gas sponsor's fee; null until loaded or where no fee applies.
+  const [allowance, setAllowance] = useState<{
+    balance: number;
+    fee: number;
+    max: number;
+  } | null>(null);
 
   const isFiatWithdrawal =
     form.network === "Nigeria Bank" || form.asset === "NGN";
@@ -162,6 +168,27 @@ export function BankTransferView({
     };
   }, [selectedAsset, selectedChain, isFiatWithdrawal]);
 
+  // Fetch how much can be cashed out once the sponsor fee is held back
+  useEffect(() => {
+    setAllowance(null);
+    if (isFiatWithdrawal) return;
+    let isMounted = true;
+    const assetKey = `${selectedChain}:${selectedAsset.toLowerCase()}`;
+    fetch(
+      `/api/v1/exchange/offramp/allowance?asset=${encodeURIComponent(assetKey)}`,
+    )
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (isMounted && json?.data) setAllowance(json.data);
+      })
+      .catch(() => {
+        // the server re-checks on submit
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedAsset, selectedChain, isFiatWithdrawal]);
+
   // Fetch live Switch offramp rate for selected asset & chain
   useEffect(() => {
     if (isFiatWithdrawal) return;
@@ -217,12 +244,20 @@ export function BankTransferView({
     return Math.max(0, balance - actualFee);
   };
 
+  const tokenBalance = allowance?.balance ?? cryptoBalance;
+  const networkFee = allowance?.fee ?? 0;
+  const spendableCrypto = allowance?.max ?? cryptoBalance;
+
   // Bidirectional conversions for crypto offramp
   const numCryptoAmount =
     currencyMode === "crypto"
       ? rawTypedNumber
       : offrampRate > 0
-        ? Number((rawTypedNumber / offrampRate).toFixed(2))
+        ? // Capped so rounding a naira MAX up never asks for more than can be sent.
+          Math.min(
+            Number((rawTypedNumber / offrampRate).toFixed(2)),
+            spendableCrypto,
+          )
         : 0;
 
   const targetFiatAmount =
@@ -233,11 +268,24 @@ export function BankTransferView({
       // balance and asset
   const displayBalance = isFiatWithdrawal
     ? `₦${ngnBalance.toLocaleString()}`
-    : `${cryptoBalance.toFixed(2)} ${selectedAsset}`;
+    : `${tokenBalance.toFixed(2)} ${selectedAsset}`;
 
   const maxFiatSpendable = isFiatWithdrawal
     ? calculateMaxSpendableNgn(ngnBalance, isInternal)
-    : Math.floor(cryptoBalance * offrampRate);
+    : Math.floor(spendableCrypto * offrampRate);
+
+  const lowBalanceError =
+    networkFee > 0
+      ? `Insufficient balance. A ${networkFee} ${selectedAsset} network fee is added to this cash-out, so you can send up to ${
+          currencyMode === "crypto"
+            ? `${spendableCrypto} ${selectedAsset}`
+            : `₦${maxFiatSpendable.toLocaleString()}`
+        }.`
+      : undefined;
+  const feeRows =
+    networkFee > 0
+      ? [{ label: "Network fee", value: `${networkFee} ${selectedAsset}` }]
+      : [];
 
   // Smooth mode toggle with live conversion
   const handleCurrencyModeChange = (newMode: "crypto" | "fiat") => {
@@ -289,6 +337,7 @@ export function BankTransferView({
                 ? `₦${targetFiatAmount.toLocaleString()} ${fiatCurrency}`
                 : `${numCryptoAmount} ${selectedAsset}`,
           },
+          ...feeRows,
         ]
       : [
           { label: "Recipient", value: form.name || "—" },
@@ -301,6 +350,7 @@ export function BankTransferView({
             label: "Rate",
             value: `1 ${selectedAsset} ≈ ₦${offrampRate.toLocaleString()}`,
           },
+          ...feeRows,
           ...(form.routing ? [{ label: "Routing", value: form.routing }] : []),
           ...(form.note ? [{ label: "Narration", value: form.note }] : []),
         ];
@@ -508,9 +558,10 @@ export function BankTransferView({
             isFiatWithdrawal
               ? maxFiatSpendable
               : currencyMode === "crypto"
-                ? cryptoBalance
+                ? spendableCrypto
                 : maxFiatSpendable
           }
+          lowBalanceError={isFiatWithdrawal ? undefined : lowBalanceError}
           inputPrefix={
             isFiatWithdrawal || currencyMode === "fiat" ? "₦" : undefined
           }

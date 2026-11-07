@@ -28,11 +28,14 @@ import { environment } from "@/lib/environment";
 import { submitCentiivStellarPayment } from "@/lib/functions/centiivFunctions";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import {
+  ATA_RENT_SURCHARGE_USD,
   getSolanaSponsorKeypair,
   executeSponsoredSplTransfer,
   parseSolanaKeypair,
 } from "./solana/sponsor";
 import {
+  getBaseFeeAmount,
+  getEthereumFeeAmount,
   getEvmSponsorAccount,
   executeSponsoredBaseUsdcTransfer,
   executeSponsoredEvmUsdcTransfer,
@@ -60,6 +63,16 @@ const ERC20_ABI = [
 import { CONTRACT_ADDRESSES, getExplorerTxUrl, getRpcUrl, getSolanaRpcUrl } from "@/lib/blockchain";
 
 import { executeTronTokenTransfer } from "@/lib/chains/tron/transfer";
+
+// Routing thresholds, shared with getOfframpAllowance so its fee matches the transfer.
+/** Below this a Solana cash-out goes through the gas sponsor. */
+const SOLANA_MIN_GAS_SOL = 0.002;
+/** Rent the ATA program enforces for a 165-byte token account on mainnet. */
+const SPL_ATA_RENT_LAMPORTS = BigInt(2039280);
+/** Base and priority fees on top of that rent. */
+const SOLANA_TX_FEE_BUFFER_LAMPORTS = BigInt(50000);
+/** Below this an EVM cash-out goes through the gas sponsor. */
+const EVM_MIN_GAS_ETH = { ethereum: 0.001, base: 0.0003 } as const;
 
 export interface OfframpAssetConfig {
   chain: "base" | "solana" | "stellar" | "ethereum" | "tron";
@@ -282,7 +295,7 @@ export async function executeOfframpTransfer(options: {
       });
       const ethBalance = Number(ethBalanceWei) / 1e18;
       
-      const minimumGas = isEthereum ? 0.001 : 0.0003;
+      const minimumGas = EVM_MIN_GAS_ETH[config.chain];
       if (ethBalance < minimumGas) {
         if ((isUsdc || isUsdt) && getEvmSponsorAccount()) {
           console.log(
@@ -394,7 +407,7 @@ export async function executeOfframpTransfer(options: {
       const lamports = await connection.getBalance(solKeypair.publicKey);
       const solBalance = Number(lamports) / 1e9;
       console.log(`[OfframpTransfer] balance: ${solBalance} SOL`);
-      if (solBalance < 0.002) {
+      if (solBalance < SOLANA_MIN_GAS_SOL) {
         if (await getSolanaSponsorKeypair()) {
           console.log(
             `[OfframpTransfer] balance (${solBalance} SOL) < 0.002 SOL — routing through Solana sponsor engine...`,
@@ -480,7 +493,6 @@ export async function executeOfframpTransfer(options: {
           // a rent-exempt reserve of 2,039,280 lamports (~0.00203928 SOL) for a 165-byte account,
           // even if RPC getMinimumBalanceForRentExemption reports a lower value due to recent SIMD updates.
           // We must buffer for the full ATA rent (2,039,280 lamports) + base fee (5,000) + priority compute budget fees.
-          const SPL_ATA_RENT_LAMPORTS = BigInt(2039280);
           let rpcRent = SPL_ATA_RENT_LAMPORTS;
           try {
             const fetched = await connection.getMinimumBalanceForRentExemption(165);
@@ -491,7 +503,8 @@ export async function executeOfframpTransfer(options: {
             // fallback to SPL_ATA_RENT_LAMPORTS
           }
           const actualRentLamports = rpcRent > SPL_ATA_RENT_LAMPORTS ? rpcRent : SPL_ATA_RENT_LAMPORTS;
-          const requiredLamports = actualRentLamports + BigInt(50000); // Rent + transaction & priority fees (~0.00209 SOL)
+          const requiredLamports =
+            actualRentLamports + SOLANA_TX_FEE_BUFFER_LAMPORTS; // ~0.00209 SOL
           const userLamports = BigInt(lamports);
 
           if (userLamports < requiredLamports) {
@@ -599,4 +612,127 @@ export async function executeOfframpTransfer(options: {
       error: err?.message || "Blockchain transfer failed.",
     };
   }
+}
+
+export interface OfframpAllowance {
+  token: string;
+  /** On-chain balance of the token being cashed out. */
+  balance: number;
+  /** What the gas sponsor takes in the token on top of the amount; 0 when the user pays their own gas. */
+  fee: number;
+  /** The most that can be cashed out: balance less fee. */
+  max: number;
+}
+
+/** The wallet address that sends a cash-out of `asset`. */
+export function offrampSenderAddress(
+  asset: string,
+  wallet: {
+    address?: string;
+    addresses?: { sol?: string; eth?: string; base?: string };
+  },
+): string {
+  const chain = asset.toLowerCase().split(":")[0];
+  if (chain === "solana") return wallet.addresses?.sol || "";
+  return (
+    wallet.addresses?.eth || wallet.addresses?.base || wallet.address || ""
+  );
+}
+
+/**
+ * Balance, sponsor fee and max for a cash-out, routed like executeOfframpTransfer.
+ * Null where the token carries no fee (Stellar, Tron). Throws when a balance can't
+ * be read, so an RPC outage is never mistaken for an empty wallet.
+ */
+export async function getOfframpAllowance(
+  asset: string,
+  owner: string,
+): Promise<OfframpAllowance | null> {
+  const key = asset.toLowerCase().trim();
+  const config = OFFRAMP_ASSETS[key];
+  if (!config || !owner) return null;
+
+  const token = (key.split(":")[1] || "").toUpperCase();
+  let balanceRaw: bigint;
+  let fee = 0;
+
+  if (config.chain === "solana") {
+    if (!config.mint) return null;
+    const connection = new Connection(getSolanaRpcUrl(), "confirmed");
+    const ownerKey = new PublicKey(owner);
+    const ata = await getAssociatedTokenAddress(
+      new PublicKey(config.mint),
+      ownerKey,
+      true,
+    );
+    const [lamports, ataInfo, sponsor] = await Promise.all([
+      connection.getBalance(ownerKey),
+      connection.getAccountInfo(ata),
+      getSolanaSponsorKeypair(),
+    ]);
+    // SPL token account layout: the amount is a little-endian u64 at byte 64.
+    balanceRaw = ataInfo
+      ? new DataView(
+          ataInfo.data.buffer,
+          ataInfo.data.byteOffset,
+          ataInfo.data.byteLength,
+        ).getBigUint64(64, true)
+      : BigInt(0);
+    // Switch deposit addresses are single-use, so their token account always needs creating.
+    const selfPaid =
+      Number(lamports) >= SOLANA_MIN_GAS_SOL * 1e9 &&
+      BigInt(lamports) >= SPL_ATA_RENT_LAMPORTS + SOLANA_TX_FEE_BUFFER_LAMPORTS;
+    if (!selfPaid && sponsor) {
+      fee = environment.FEE_USD_AMOUNT_SOLANA + ATA_RENT_SURCHARGE_USD;
+    }
+  } else if (config.chain === "base" || config.chain === "ethereum") {
+    const isEthereum = config.chain === "ethereum";
+    const client = createPublicClient({
+      chain: isEthereum ? mainnet : base,
+      transport: http(getRpcUrl(config.chain)),
+    });
+    const address = owner as `0x${string}`;
+    const [wei, raw] = await Promise.all([
+      client.getBalance({ address }),
+      client.readContract({
+        address: config.address as `0x${string}`,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [address],
+      }),
+    ]);
+    // ERC20_ABI carries no stateMutability, so viem types the result as unknown.
+    balanceRaw = raw as bigint;
+    const sponsored =
+      Number(wei) / 1e18 < EVM_MIN_GAS_ETH[config.chain] &&
+      Boolean(getEvmSponsorAccount());
+    // Sponsored USDT goes out without fee collection; USDC pays the flat sponsor fee.
+    if (sponsored && token === "USDC") {
+      fee = isEthereum ? getEthereumFeeAmount() : getBaseFeeAmount();
+    }
+  } else {
+    return null;
+  }
+
+  // Raw units, as the transfer and the sponsor's balance check count them.
+  const unit = 10 ** config.decimals;
+  const maxRaw = balanceRaw - BigInt(Math.round(fee * unit));
+  return {
+    token,
+    balance: Number(balanceRaw) / unit,
+    fee,
+    max: maxRaw > BigInt(0) ? Number(maxRaw) / unit : 0,
+  };
+}
+
+/** The message for a cash-out larger than `max`. */
+export function describeOfframpShortfall({
+  token,
+  balance,
+  fee,
+  max,
+}: OfframpAllowance): string {
+  return fee > 0
+    ? `Insufficient ${token} balance. A ${fee} ${token} network fee is added to this cash-out, so you can send up to ${max} ${token}.`
+    : `Insufficient ${token} balance. You have ${balance} ${token}.`;
 }

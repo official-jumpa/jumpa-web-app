@@ -296,8 +296,11 @@ export async function executeSponsoredEvmUsdcTransfer(params: {
 
   const userUsdcBalance =
     Number(userBalanceRaw) / Math.pow(10, usdcDecimals);
+  const rawTransferValue = parseUnits(String(numAmount), usdcDecimals);
+  const rawFeeValue = parseUnits(String(feeAmount), usdcDecimals);
 
-  if (userUsdcBalance < totalRequired) {
+  // Compared in raw units: float sums can overshoot an exact balance by one ulp.
+  if (userBalanceRaw < rawTransferValue + rawFeeValue) {
     throw new Error(
       `Insufficient USDC balance on ${chainLabel} to complete the transaction. Available: ${userUsdcBalance.toFixed(2)} USDC, Required: ${totalRequired.toFixed(2)} USDC (transfer: ${numAmount.toFixed(2)}, network fee: ${feeAmount.toFixed(2)}).`,
     );
@@ -307,15 +310,6 @@ export async function executeSponsoredEvmUsdcTransfer(params: {
   const now = Math.floor(Date.now() / 1000);
   const validAfter = BigInt(0);
   const validBefore = BigInt(now + 3600); // 1 hour validity
-
-  const rawTransferValue = parseUnits(
-    String(numAmount),
-    usdcDecimals,
-  );
-  const rawFeeValue = parseUnits(
-    String(feeAmount),
-    usdcDecimals,
-  );
 
   const transferNonce = generateEip3009Nonce();
   const feeNonce = generateEip3009Nonce();

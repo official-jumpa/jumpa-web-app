@@ -526,11 +526,12 @@ export function DetailPanel({
       )}
     >
       {safeLines.map((line) => (
-        <div key={line.label} className="flex items-start gap-1">
-          <span className="min-w-0 flex-1 text-[11px] leading-4 text-jumpa-black">
+        <div key={line.label} className="flex items-start gap-3">
+          <span className="shrink-0 text-[11px] leading-4 text-jumpa-black">
             {line.label}
           </span>
-          <span className="shrink-0 text-xs leading-4 font-medium text-jumpa-black">
+          {/* Long values (business account names) wrap on the right instead of covering the label. */}
+          <span className="min-w-0 flex-1 text-right text-xs leading-4 font-medium wrap-anywhere text-jumpa-black">
             {line.value}
           </span>
         </div>

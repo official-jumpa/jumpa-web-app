@@ -23,9 +23,12 @@ export default async function NimiqPage() {
 
   return (
     <AppColumn>
-      <Suspense fallback={<JumpaLoaderScreen />}>
-        <NimiqMiniApp limits={{ dailyUsd, maxTxUsd, minUsd }} />
-      </Suspense>
+      {/* Soon items blur less here, so their labels stay readable. */}
+      <div className="soon-blur-light contents">
+        <Suspense fallback={<JumpaLoaderScreen />}>
+          <NimiqMiniApp limits={{ dailyUsd, maxTxUsd, minUsd }} />
+        </Suspense>
+      </div>
     </AppColumn>
   );
 }

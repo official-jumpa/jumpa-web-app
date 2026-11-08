@@ -1,7 +1,7 @@
 import { cn } from "@/lib/cn";
 
 /** Muted, not recoloured — anything not live yet keeps its own colours so it still reads as itself. */
-export const SOON = "opacity-50 blur-[0.4px] cursor-not-allowed select-none";
+export const SOON = "opacity-50 blur-soon cursor-not-allowed select-none";
 
 /** Corner tag on anything not live yet. `className` only places it. */
 export function SoonTag({ className }: { className?: string }) {

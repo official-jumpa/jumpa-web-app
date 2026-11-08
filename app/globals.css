@@ -760,6 +760,15 @@
   filter: blur(calc(--value(number) * var(--spacing)));
 }
 
+/* The softening on anything marked Soon (`blur-soon`). */
+@theme static {
+  --blur-soon: 0.4px;
+}
+/* A lighter Soon blur for a whole subtree, so muted labels stay readable. */
+@utility soon-blur-light {
+  --blur-soon: 0.2px;
+}
+
 /* Shadows in frame units. The glossy orbs all cast `0 N 2N`; the panels cast
    `0 N N`. The modifier is the alpha in percent: `shadow-u-73.25/30`. */
 @utility shadow-u-* {

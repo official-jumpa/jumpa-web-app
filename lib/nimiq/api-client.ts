@@ -1,3 +1,4 @@
+import type { ChatAnswer, ChatTurn } from "./chat-agent";
 import type { PublicOrder, RampDirection } from "./order-status";
 import type {
   AccountSummary,
@@ -71,6 +72,9 @@ export const nimiqApi = {
       `/cash-out/${orderId}/submit`,
       post({ signature }),
     ),
+
+  chat: (address: string, messages: ChatTurn[]) =>
+    call<ChatAnswer>("/chat", post({ address, messages })),
 
   createBill: (input: BillInput) =>
     call<{ order: PublicOrder; typedData: string }>("/bills", post(input)),

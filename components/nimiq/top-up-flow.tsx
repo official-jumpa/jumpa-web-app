@@ -19,6 +19,7 @@ import type { PublicOrder } from "@/lib/nimiq/order-status";
 import type { AccountSummary } from "@/lib/nimiq/orders";
 import { shortenAddress } from "@/lib/transfer";
 import { TopUpRecipientSheet } from "./top-up-recipient-sheet";
+import { useChatPrefill } from "./use-chat-prefill";
 import { primeOrder } from "./use-nimiq-order";
 import { useNimiqQuote } from "./use-nimiq-quote";
 
@@ -46,7 +47,8 @@ export function TopUpFlow({
   /** The deposit account is ready; show the order. `recipient` is set for another wallet. */
   onCreated: (order: PublicOrder, recipient?: Address) => void;
 }) {
-  const [amount, setAmount] = useState("");
+  const prefill = useChatPrefill("top-up");
+  const [amount, setAmount] = useState(String(prefill?.amountNgn ?? ""));
   /** Undefined pays the connected wallet. */
   const [recipient, setRecipient] = useState<Address>();
   const [choosing, setChoosing] = useState(false);

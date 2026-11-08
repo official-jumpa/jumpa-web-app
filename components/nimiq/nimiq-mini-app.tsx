@@ -7,12 +7,19 @@ import type { NimiqLimits } from "@/lib/nimiq/config";
 import { visibleHistory } from "@/lib/nimiq/history";
 import { isInFlight, type NimiqDirection } from "@/lib/nimiq/order-status";
 import type { Eip1193 } from "@/lib/nimiq/provider";
-import { type FlowName, MINI_APP_TAB_HREF, tabHrefOf } from "@/lib/nimiq/views";
+import {
+  type FlowName,
+  MINI_APP_CHAT_HREF,
+  MINI_APP_PATH,
+  MINI_APP_TAB_HREF,
+  tabHrefOf,
+} from "@/lib/nimiq/views";
 import { BillFlow } from "./bill-flow";
 import { CashOutFlow } from "./cash-out-flow";
 import { ConnectWallet } from "./connect-wallet";
 import { InProgressOrders } from "./in-progress-orders";
 import { MiniAppTabBar } from "./mini-app-tab-bar";
+import { NimiqChat } from "./nimiq-chat";
 import { NimiqHistory } from "./nimiq-history";
 import { NimiqHome } from "./nimiq-home";
 import { NimiqMe } from "./nimiq-me";
@@ -21,6 +28,7 @@ import { OpenInNimiq } from "./open-in-nimiq";
 import { RecentActivity } from "./recent-activity";
 import { TopUpFlow } from "./top-up-flow";
 import { useBalanceMoves } from "./use-balance-moves";
+import { holdChatPrefill } from "./use-chat-prefill";
 import { useMiniAppNav } from "./use-mini-app-nav";
 import { useNimiqAccount } from "./use-nimiq-account";
 import { useNimiqWallet } from "./use-nimiq-wallet";
@@ -102,6 +110,21 @@ function ConnectedApp({
     nav.openOrder(orderId, { fromHistory: true });
 
   switch (view.name) {
+    case "chat":
+      return (
+        <NimiqChat
+          address={address}
+          onClose={nav.back}
+          onHandoff={(handoff) => {
+            holdChatPrefill(handoff);
+            nav.go(
+              handoff.flow === "history"
+                ? MINI_APP_TAB_HREF.history
+                : `${MINI_APP_PATH}?view=${handoff.flow}`,
+            );
+          }}
+        />
+      );
     case "cash-out":
       return (
         <CashOutFlow
@@ -169,7 +192,10 @@ function ConnectedApp({
           {renderTab(view.name)}
           <MiniAppTabBar
             current={tabHref ?? MINI_APP_TAB_HREF.home}
-            onNavigate={nav.tab}
+            // Chat opens above the tabs, so Back returns to the tab it came from.
+            onNavigate={(href) =>
+              href === MINI_APP_CHAT_HREF ? nav.go(href) : nav.tab(href)
+            }
           />
         </>
       );

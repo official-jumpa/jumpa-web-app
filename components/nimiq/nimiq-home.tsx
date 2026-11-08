@@ -16,14 +16,14 @@ import { RiseIn } from "@/components/ui/rise-in";
 import { cn } from "@/lib/cn";
 import { formatStable } from "@/lib/naira-deposit";
 import type { AccountSummary } from "@/lib/nimiq/orders";
+import { MINI_APP_CHAT_HREF } from "@/lib/nimiq/views";
 import { MINI_APP_ACTIONS, MINI_APP_PILLS } from "./mini-app-actions";
 import { NimiqHeader } from "./nimiq-header";
 
-/** The main app's ads; their screens need a Jumpa account, so they only show for now. */
-// TODO: link the chat slide once chat runs in the mini app.
+/** The main app's ads: chat opens the mini app's chat; savings needs a Jumpa account, so it only shows. */
 const SLIDES: PromoSlide[] = [
   { ...PROMO_SLIDES.savings, href: undefined },
-  { ...PROMO_SLIDES.chat, href: undefined },
+  { ...PROMO_SLIDES.chat, href: MINI_APP_CHAT_HREF },
 ];
 
 /** Survives a trip into a flow and back; a fresh open shows the balance. */
@@ -81,7 +81,7 @@ export function NimiqHome({
       </RiseIn>
 
       <RiseIn index={1} className="mt-1.25">
-        <PromoBanner slides={SLIDES} />
+        <PromoBanner slides={SLIDES} onNavigate={onNavigate} />
       </RiseIn>
 
       <RiseIn index={2} className="mt-1.5">

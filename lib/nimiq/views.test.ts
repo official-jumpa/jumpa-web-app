@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { MINI_APP_TAB_HREF, readView, tabHrefOf } from "./views";
+import {
+  MINI_APP_CHAT_HREF,
+  MINI_APP_TAB_HREF,
+  readView,
+  tabHrefOf,
+} from "./views";
 
 const view = (query: string) => readView(new URLSearchParams(query));
 
@@ -21,6 +26,9 @@ describe("mini app views", () => {
     assert.deepEqual(view("view=airtime"), { name: "airtime" });
     assert.deepEqual(view("view=data"), { name: "data" });
     assert.equal(tabHrefOf(view("view=data")), null);
+    assert.deepEqual(view("view=chat"), { name: "chat" });
+    assert.equal(tabHrefOf(view("view=chat")), null);
+    assert.equal(MINI_APP_CHAT_HREF, "/nimiq?view=chat");
     const order = view("order=nimq_00000000000000000001&from=history");
     assert.deepEqual(order, {
       name: "order",

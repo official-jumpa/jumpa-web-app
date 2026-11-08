@@ -24,6 +24,7 @@ import {
   CashOutBankForm,
   EMPTY_BANK_DETAILS,
 } from "./cash-out-bank-form";
+import { useChatPrefill } from "./use-chat-prefill";
 import { MINI_APP_PATH } from "./use-mini-app-nav";
 import { primeOrder } from "./use-nimiq-order";
 import { useNimiqQuote } from "./use-nimiq-quote";
@@ -73,8 +74,12 @@ export function CashOutFlow({
   onOrderCreated: (orderId: string) => void;
 }) {
   const [stage, setStage] = useState<Stage>("bank");
-  const [bank, setBank] = useState<BankDetails>(EMPTY_BANK_DETAILS);
-  const [amount, setAmount] = useState("");
+  const prefill = useChatPrefill("cash-out");
+  const [bank, setBank] = useState<BankDetails>({
+    ...EMPTY_BANK_DETAILS,
+    accountNumber: prefill?.accountNumber ?? "",
+  });
+  const [amount, setAmount] = useState(prefill?.amountUsdt ?? "");
   const [reviewing, setReviewing] = useState(false);
   const [draft, setDraft] = useState<Draft>();
 

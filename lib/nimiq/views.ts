@@ -9,6 +9,7 @@ export type TabName = "home" | "history" | "me";
 export type MiniAppView =
   | { name: TabName }
   | { name: FlowName }
+  | { name: "chat" }
   /** `fromHistory`: Back returns to the history list rather than home. */
   | { name: "order"; orderId: string; fromHistory: boolean };
 
@@ -19,7 +20,11 @@ export const MINI_APP_TAB_HREF: Record<TabName, string> = {
   me: `${MINI_APP_PATH}?view=me`,
 };
 
+/** The chat sits above the tabs, like a flow. */
+export const MINI_APP_CHAT_HREF = `${MINI_APP_PATH}?view=chat`;
+
 const NAMED_VIEWS = [
+  "chat",
   "cash-out",
   "top-up",
   "airtime",

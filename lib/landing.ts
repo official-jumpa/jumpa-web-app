@@ -1,6 +1,7 @@
 /** Copy and structured content for the public landing page (`app/page.tsx`). */
 
 import { legalHref } from "@/lib/legal";
+import { ONBOARDING_HREF } from "@/lib/onboarding-href";
 import { supportMailto } from "@/lib/support";
 
 const IMG = "/images/landing";
@@ -15,7 +16,7 @@ export const NAV_LINKS = [
 /** The design gives no destination for either CTA; both enter the app's own flow. */
 export const CTA = {
   join: { label: "Join Beta", href: "/sign-up" },
-  start: { label: "Use Jumpa now", href: "/onboarding" },
+  start: { label: "Use Jumpa now", href: ONBOARDING_HREF },
 } as const;
 
 export const HERO = {

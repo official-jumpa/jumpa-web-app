@@ -1,4 +1,5 @@
 import { authClient } from "@/lib/auth-client";
+import { ONBOARDING_HREF } from "@/lib/onboarding-href";
 
 export type PinCheck = { ok: true } | { ok: false; error: string };
 
@@ -41,6 +42,6 @@ export async function endSession(
   }
   // A full load drops Next's router cache, so no signed-in screen survives;
   // `replace` keeps the back button from landing on one.
-  window.location.replace("/onboarding");
+  window.location.replace(ONBOARDING_HREF);
   return null;
 }

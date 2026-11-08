@@ -16,6 +16,7 @@ import {
 } from "@/lib/wallet-balances";
 import { SUPPORTED_ASSETS, type Transaction } from "@/lib/wallet";
 import { walletAssets } from "@/lib/wallet-assets";
+import { ONBOARDING_HREF } from "@/lib/onboarding-href";
 
 interface AssetsPageProps {
   searchParams: Promise<{
@@ -63,9 +64,9 @@ export default async function AssetsPage({ searchParams }: AssetsPageProps) {
 
   // 2. Deposit View: Render receive / deposit information
   if (deposit === "1" || deposit === "true") {
-    if (!userId) redirect("/onboarding");
+    if (!userId) redirect(ONBOARDING_HREF);
     const wallet = await findWalletForUser(userId);
-    if (!wallet?.addresses && !wallet?.address) redirect("/onboarding");
+    if (!wallet?.addresses && !wallet?.address) redirect(ONBOARDING_HREF);
 
     const walletAddresses = wallet.addresses || {
       eth: wallet.address,

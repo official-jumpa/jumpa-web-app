@@ -7,6 +7,7 @@ import { EmailAuthForm } from "@/components/auth/email-auth-form";
 import { SocialSignUp } from "@/components/auth/social-sign-up";
 import { pageMetadata } from "@/lib/seo";
 import { guardAuthPage } from "@/lib/auth/auth-page-guard";
+import { ONBOARDING_HREF } from "@/lib/onboarding-href";
 
 export const metadata: Metadata = pageMetadata({
   title: "Create account",
@@ -20,7 +21,7 @@ export default async function SignUpPage() {
 
   return (
     <AuthScreen
-      header={<AuthHeader backHref="/onboarding" />}
+      header={<AuthHeader backHref={ONBOARDING_HREF} />}
       className="[--auth-pb:52px]"
     >
       <div className="flex flex-col items-center gap-8">

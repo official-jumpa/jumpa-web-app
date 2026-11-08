@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ONBOARDING_HREF } from "@/lib/onboarding-href";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -89,7 +90,7 @@ export async function proxy(request: NextRequest) {
       `[Proxy] [${requestId}] Redirecting unauthenticated user from ${pathname} to /onboarding (IP: ${clientIp})`,
     );
     return withSecurityHeaders(
-      NextResponse.redirect(new URL("/onboarding", request.url)),
+      NextResponse.redirect(new URL(ONBOARDING_HREF, request.url)),
     );
   }
 

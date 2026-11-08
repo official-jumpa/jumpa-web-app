@@ -22,6 +22,7 @@ import {
 import { getAccountClosureChecks } from "@/lib/functions/accountClosureFunctions";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import { getUserPreferences } from "@/lib/functions/userFunctions";
+import { ONBOARDING_HREF } from "@/lib/onboarding-href";
 
 interface SettingsPageProps {
   searchParams: Promise<{ section?: string; kind?: string }>;
@@ -54,7 +55,7 @@ export default async function SettingsPage({
   if (section === "signout") return <SignoutDevice />;
   if (section === "delete") {
     const session = await getCachedAuthSession();
-    if (!session?.user?.id) redirect("/onboarding");
+    if (!session?.user?.id) redirect(ONBOARDING_HREF);
     const checks = await getAccountClosureChecks(session.user.id);
     return (
       <DeleteAccount

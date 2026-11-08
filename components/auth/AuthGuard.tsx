@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { usePathname, useRouter } from "next/navigation";
 import { JumpaLoaderScreen } from "@/components/ui/jumpa-loader";
 import { useSession } from "@/lib/auth-client";
+import { ONBOARDING_HREF } from "@/lib/onboarding-href";
 
 export interface AuthUser {
   id: string;
@@ -106,7 +107,7 @@ export function AuthGuard({
   // 1. Handle unauthenticated users
   useEffect(() => {
     if (!isPending && !isAuthenticated) {
-      router.replace("/onboarding");
+      router.replace(ONBOARDING_HREF);
     }
   }, [isPending, isAuthenticated, router]);
 

@@ -4,6 +4,7 @@ import { getUserById } from "@/lib/functions/userFunctions";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { resolveNextOnboardingRoute } from "@/app/api/v1/user/onboarding/route";
 import { environment } from "@/lib/environment";
+import { ONBOARDING_HREF } from "@/lib/onboarding-href";
 
 /**
  * GET /api/auth/callback
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     const session = await getCachedAuthSession();
 
     if (!session) {
-      return NextResponse.redirect(`${origin}/onboarding`);
+      return NextResponse.redirect(`${origin}${ONBOARDING_HREF}`);
     }
 
     const [user, wallet] = await Promise.all([
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${origin}${destination}`);
   } catch (err) {
     console.error("[Auth Callback] Error handling callback:", err);
-    return NextResponse.redirect(`${origin}/onboarding`);
+    return NextResponse.redirect(`${origin}${ONBOARDING_HREF}`);
   }
 }
 

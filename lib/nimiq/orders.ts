@@ -1,0 +1,776 @@
+import {
+  type Address,
+  getAddress,
+  type Hex,
+  isAddress,
+  parseUnits,
+} from "viem";
+import { connectDB } from "@/lib/db";
+import {
+  normalizeSwitchAsset,
+  type OffRampResponse,
+  type OnRampResponse,
+  type QuoteResponse,
+  SwitchService,
+} from "@/lib/switch";
+import { type INimiqOrder, NimiqOrder } from "@/models/NimiqOrder";
+import { fromUnits, toUnits } from "./amounts";
+import {
+  BankLookupError,
+  type ResolvedAccount,
+  resolveNigerianAccount,
+} from "./bank";
+import { type NimiqConfig, nimiqConfig } from "./config";
+import {
+  MAX_LISTED_ORDERS,
+  PERMIT_TTL_SECONDS,
+  POLYGON_EXPLORER_TX,
+  POLYGON_USDT,
+  SIGN_MARGIN_SECONDS,
+  SWITCH_ASSET,
+  TOP_UP_WINDOW_SECONDS,
+} from "./constants";
+import { checkAmountLimits } from "./limits";
+import {
+  COUNTED_STATUSES,
+  FINAL_STATUSES,
+  fromSwitchStatus,
+  type NimiqDirection,
+  type PublicOrder,
+} from "./order-status";
+import {
+  buildPermitTypedData,
+  isSignable,
+  type PermitMessage,
+  serializeTypedData,
+  verifyPermitSignature,
+} from "./permit";
+import {
+  readPermitNonce,
+  readReceiptStatus,
+  readRelayerGas,
+  readRelayerNonce,
+  readUsdtBalance,
+  relayerAccount,
+} from "./polygon";
+import { walletAddressError } from "./recipients";
+import {
+  MIN_RELAYER_GAS,
+  RELAYER_PAUSED,
+  RelayError,
+  RelayerUnavailableError,
+  type RelayInput,
+  type RelayResult,
+  relayPermitTransfer,
+} from "./relayer";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Status polls inside this window reuse the stored state instead of asking Switch again. */
+const CHECK_INTERVAL_MS = 4_000;
+/** A relay that never recorded a transfer by now died before sending anything. */
+const RELAY_ABANDONED_MS = 10 * 60 * 1000;
+
+const COPY = {
+  notFound: "We couldn't find this order.",
+  expired: "This cash-out expired. Start again.",
+  submitted: "This cash-out was already submitted.",
+  badSignature: "That signature doesn't match this cash-out.",
+  lowBalance:
+    "Your USDT balance is lower than this cash-out. No money has moved.",
+  amountChanged: "The amount changed while we set this up. Please try again.",
+  partnerError:
+    "Our payout partner sent back something unexpected. Please try again.",
+  nothingMoved: "The transfer was never sent. No money has moved.",
+  reverted: "The transfer failed on Polygon. No money has moved.",
+  cashOutFailed:
+    "The bank payout didn't go through. Your USDT is being returned to your wallet; contact support if it hasn't arrived within an hour.",
+  topUpFailed:
+    "This top-up didn't go through. If you sent Naira, contact support with the reference.",
+} as const;
+
+/** A refusal with the HTTP status the route should answer; the message is fit to show. */
+export class OrderError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "OrderError";
+    this.status = status;
+  }
+}
+
+export type SwitchApi = {
+  offrampQuote(usdt: number): Promise<QuoteResponse>;
+  onrampQuote(ngn: number): Promise<QuoteResponse>;
+  initiateOfframp(
+    usdt: number,
+    beneficiary: {
+      holder_name: string;
+      account_number: string;
+      bank_code: string;
+    },
+    refundAddress: string,
+  ): Promise<OffRampResponse>;
+  initiateOnramp(ngn: number, walletAddress: string): Promise<OnRampResponse>;
+  status(
+    reference: string,
+  ): Promise<{ success?: boolean; data?: { status?: string } } | null>;
+  confirm(reference: string, hash: string): Promise<unknown>;
+};
+
+export type ChainReads = {
+  relayerAddress(): Address | null;
+  readRelayerGas(): Promise<bigint>;
+  readUsdtBalance(owner: Address): Promise<bigint>;
+  readPermitNonce(owner: Address): Promise<bigint>;
+  readReceiptStatus(
+    hash: Hex,
+  ): Promise<"success" | "reverted" | "missing" | null>;
+  /** Mined transaction count of the relayer, or null when unknown. */
+  readRelayerNonce(): Promise<number | null>;
+};
+
+/** Everything the service touches outside its own collection; tests pass stubs. */
+export type OrderDeps = {
+  now(): number;
+  connect(): Promise<unknown>;
+  config(): NimiqConfig;
+  resolveAccount(accountNumber: string, bank: string): Promise<ResolvedAccount>;
+  switchApi: SwitchApi;
+  chain: ChainReads;
+  relay(input: RelayInput): Promise<RelayResult>;
+};
+
+const MINI_APP = { allowMiniAppAssets: true } as const;
+
+export const defaultDeps: OrderDeps = {
+  now: Date.now,
+  connect: connectDB,
+  config: nimiqConfig,
+  resolveAccount: resolveNigerianAccount,
+  switchApi: {
+    offrampQuote: (usdt) =>
+      SwitchService.getOfframpQuote(usdt, SWITCH_ASSET, MINI_APP),
+    onrampQuote: (ngn) => SwitchService.getQuote(ngn, SWITCH_ASSET, MINI_APP),
+    initiateOfframp: (usdt, beneficiary, refundAddress) =>
+      SwitchService.initiateOfframp(usdt, SWITCH_ASSET, beneficiary, {
+        ...MINI_APP,
+        refundAddress,
+      }),
+    initiateOnramp: (ngn, walletAddress) =>
+      SwitchService.initiateOnRamp(ngn, SWITCH_ASSET, walletAddress, MINI_APP),
+    status: (reference) => SwitchService.getTransactionStatus(reference),
+    confirm: (reference, hash) => SwitchService.confirmPayment(reference, hash),
+  },
+  chain: {
+    relayerAddress: () => relayerAccount()?.address ?? null,
+    readRelayerGas,
+    readUsdtBalance,
+    readPermitNonce,
+    readReceiptStatus,
+    readRelayerNonce,
+  },
+  relay: relayPermitTransfer,
+};
+
+type Money = { amount: number; currency: string };
+export type Quote = { rate: number; send: Money; receive: Money };
+
+export type AccountSummary = {
+  usdtBalance: string;
+  spentTodayUsd: number;
+  remainingTodayUsd: number;
+  limits: { minUsd: number; maxTxUsd: number; dailyUsd: number };
+};
+
+export type CashOutInput = {
+  address: Address;
+  amount: string;
+  bank: string;
+  accountNumber: string;
+};
+
+export type TopUpInput = {
+  address: Address;
+  amountNgn: number;
+  /** Where the USDT goes; the connected wallet when omitted. */
+  recipient?: Address;
+};
+
+/**
+ * USD counted toward a wallet's rolling 24-hour limit when checking `action`.
+ * Unpaid top-ups only hold against other top-ups: anyone can open one for any
+ * address, so they must never block that wallet's cash-out.
+ */
+export async function spentTodayUsd(
+  address: string,
+  nowMs: number,
+  action: NimiqDirection,
+): Promise<number> {
+  const openTopUpSince = new Date(nowMs - TOP_UP_WINDOW_SECONDS * 1000);
+  const counted: Record<string, unknown>[] = [
+    { direction: "cash_out", status: { $in: COUNTED_STATUSES.cash_out } },
+    {
+      direction: "top_up",
+      status: {
+        $in: COUNTED_STATUSES.top_up.filter((s) => s !== "awaiting_deposit"),
+      },
+    },
+  ];
+  if (action === "top_up") {
+    // Held only while the bank details are open.
+    counted.push({
+      direction: "top_up",
+      status: "awaiting_deposit",
+      createdAt: { $gte: openTopUpSince },
+    });
+  }
+  const [row] = await NimiqOrder.aggregate<{ total: number }>([
+    {
+      $match: {
+        walletAddress: address.toLowerCase(),
+        createdAt: { $gte: new Date(nowMs - DAY_MS) },
+        $or: counted,
+      },
+    },
+    { $group: { _id: null, total: { $sum: "$amountUsd" } } },
+  ]);
+  return row?.total ?? 0;
+}
+
+export function toPublicOrder(order: INimiqOrder): PublicOrder {
+  const settled = order.status === "processing" || order.status === "completed";
+  const hash = settled ? order.transferTxHash : undefined;
+  return {
+    id: order._id,
+    direction: order.direction,
+    status: order.status,
+    cryptoAmount: order.cryptoAmount,
+    fiatAmount: order.fiatAmount,
+    rate: order.rate,
+    reference: order.switchReference,
+    createdAt: order.createdAt.toISOString(),
+    expiresAt: order.expiresAt?.toISOString(),
+    recipientAddress: order.recipientAddress,
+    bank: order.bank && {
+      name: order.bank.name,
+      accountName: order.bank.accountName,
+      accountNumberMasked: `••••${order.bank.accountNumber.slice(-4)}`,
+    },
+    depositBank: order.depositBank && {
+      bankName: order.depositBank.bankName,
+      accountName: order.depositBank.accountName,
+      accountNumber: order.depositBank.accountNumber,
+      notes: [...(order.depositBank.notes ?? [])],
+    },
+    transferTxHash: hash,
+    explorerUrl: hash ? `${POLYGON_EXPLORER_TX}${hash}` : undefined,
+    failureReason: order.failureReason,
+  };
+}
+
+export async function getQuote(
+  direction: NimiqDirection,
+  amount: number,
+  deps: OrderDeps = defaultDeps,
+): Promise<Quote> {
+  const result =
+    direction === "cash_out"
+      ? await deps.switchApi.offrampQuote(amount)
+      : await deps.switchApi.onrampQuote(amount);
+  if (!result.success || !result.data) {
+    throw new OrderError(
+      result.message ?? "We couldn't get a rate. Please try again.",
+      400,
+    );
+  }
+  const cashOut = direction === "cash_out";
+  return {
+    rate: result.data.rate,
+    send: { amount, currency: cashOut ? "USDT" : "NGN" },
+    receive: {
+      amount: result.data.destination.amount,
+      currency: cashOut ? "NGN" : "USDT",
+    },
+  };
+}
+
+export async function getAccountSummary(
+  address: Address,
+  deps: OrderDeps = defaultDeps,
+): Promise<AccountSummary> {
+  await deps.connect();
+  const { minUsd, maxTxUsd, dailyUsd } = deps.config();
+  const [balance, spent] = await Promise.all([
+    deps.chain.readUsdtBalance(getAddress(address)),
+    // The summary is the cash-out view; a new top-up is checked again on create.
+    spentTodayUsd(address, deps.now(), "cash_out"),
+  ]);
+  return {
+    usdtBalance: fromUnits(balance),
+    spentTodayUsd: spent,
+    remainingTodayUsd: Math.max(0, dailyUsd - spent),
+    limits: { minUsd, maxTxUsd, dailyUsd },
+  };
+}
+
+export async function createCashOutOrder(
+  input: CashOutInput,
+  deps: OrderDeps = defaultDeps,
+): Promise<{ order: PublicOrder; typedData: string }> {
+  const owner = getAddress(input.address);
+  const units = parseUsdt(input.amount);
+  await deps.connect();
+
+  const relayer = await readyRelayer(deps);
+  await assertWithinLimits(owner, unitsToUsd(units), "cash_out", deps);
+  if ((await deps.chain.readUsdtBalance(owner)) < units) {
+    throw new OrderError(
+      "Your USDT balance is too low for this cash-out.",
+      400,
+    );
+  }
+  const account = await lookUpAccount(input, deps);
+
+  const result = await deps.switchApi.initiateOfframp(
+    Number(fromUnits(units)),
+    {
+      holder_name: account.accountName,
+      account_number: input.accountNumber,
+      bank_code: account.switchCode,
+    },
+    owner,
+  );
+  if (!result.success || !result.data) throw switchFailure(result);
+  const { deposit, reference, rate, destination } = result.data;
+  const depositAddress = checkDeposit(deposit, units, reference);
+
+  const now = deps.now();
+  const deadline = Math.floor(now / 1000) + PERMIT_TTL_SECONDS;
+  const nonce = await deps.chain.readPermitNonce(owner);
+  const order = await NimiqOrder.create({
+    direction: "cash_out",
+    walletAddress: owner,
+    status: "awaiting_signature",
+    amountUsd: unitsToUsd(units),
+    cryptoUnits: units.toString(),
+    cryptoAmount: fromUnits(units),
+    fiatAmount: destination.amount,
+    rate,
+    switchReference: reference,
+    depositAddress,
+    bank: {
+      name: account.bankName,
+      code: account.switchCode,
+      accountNumber: input.accountNumber,
+      accountName: account.accountName,
+    },
+    permit: { spender: relayer, nonce: nonce.toString(), deadline },
+    expiresAt: new Date((deadline - SIGN_MARGIN_SECONDS) * 1000),
+    createdAt: new Date(now),
+  });
+
+  const typedData = serializeTypedData(
+    buildPermitTypedData(permitMessage(order)),
+  );
+  return { order: toPublicOrder(order), typedData };
+}
+
+export async function submitCashOutSignature(
+  orderId: string,
+  signature: Hex,
+  deps: OrderDeps = defaultDeps,
+): Promise<PublicOrder> {
+  await deps.connect();
+  const order = await NimiqOrder.findById(orderId).lean();
+  if (
+    order?.direction !== "cash_out" ||
+    !order.permit ||
+    !order.depositAddress
+  ) {
+    throw new OrderError(COPY.notFound, 404);
+  }
+  if (order.status !== "awaiting_signature")
+    throw new OrderError(COPY.submitted, 409);
+
+  const relayer = deps.chain.relayerAddress();
+  const signable = isSignable(
+    { deadline: order.permit.deadline, createdAt: order.createdAt },
+    deps.now(),
+  );
+  // A rotated relayer key can never use a permit naming the old spender.
+  if (!signable || (relayer && getAddress(order.permit.spender) !== relayer)) {
+    await NimiqOrder.updateOne(
+      { _id: order._id, status: "awaiting_signature" },
+      { $set: { status: "expired" } },
+    );
+    throw new OrderError(COPY.expired, 410);
+  }
+
+  const message = permitMessage(order);
+  if (!(await verifyPermitSignature(message, signature))) {
+    throw new OrderError(COPY.badSignature, 400);
+  }
+  await readyRelayer(deps);
+  await assertWithinLimits(message.owner, order.amountUsd, "cash_out", deps);
+  if ((await deps.chain.readUsdtBalance(message.owner)) < message.value) {
+    throw new OrderError(COPY.lowBalance, 400);
+  }
+
+  const claimed = await NimiqOrder.findOneAndUpdate(
+    { _id: order._id, status: "awaiting_signature" },
+    { $set: { status: "relaying", relayStartedAt: new Date(deps.now()) } },
+  );
+  if (!claimed) throw new OrderError(COPY.submitted, 409);
+
+  try {
+    const result = await deps.relay({
+      owner: message.owner,
+      to: getAddress(order.depositAddress),
+      value: message.value,
+      deadline: message.deadline,
+      signature,
+      onTransferSent: async (hash, nonce) => {
+        await NimiqOrder.updateOne(
+          { _id: order._id },
+          { $set: { transferTxHash: hash, transferNonce: nonce } },
+        );
+      },
+    });
+    await NimiqOrder.updateOne(
+      { _id: order._id },
+      {
+        $set: {
+          transferTxHash: result.transferTxHash,
+          ...(result.permitTxHash ? { permitTxHash: result.permitTxHash } : {}),
+          ...(result.confirmed ? { status: "processing" } : {}),
+        },
+      },
+    );
+    if (result.confirmed) {
+      await notifySwitch(order.switchReference, result.transferTxHash, deps);
+    }
+  } catch (error) {
+    if (error instanceof RelayError) {
+      await NimiqOrder.updateOne(
+        { _id: order._id },
+        { $set: { status: "failed", failureReason: error.message } },
+      );
+      return toPublicOrder(await mustFind(order._id));
+    }
+    // No transfer hash yet means nothing was broadcast: hand the order back for the same signature.
+    const handedBack = await NimiqOrder.updateOne(
+      {
+        _id: order._id,
+        status: "relaying",
+        transferTxHash: { $exists: false },
+      },
+      { $set: { status: "awaiting_signature" } },
+    );
+    if (handedBack.modifiedCount === 1) {
+      if (!(error instanceof RelayerUnavailableError)) {
+        console.error(`[nimiq] relay for ${order._id} stopped early:`, error);
+      }
+      throw new OrderError(
+        error instanceof RelayerUnavailableError
+          ? error.message
+          : RELAYER_PAUSED,
+        503,
+      );
+    }
+    // Outcome unknown: the order stays "relaying" and refreshOrder settles it.
+    console.error(`[nimiq] relay for ${order._id} threw:`, error);
+  }
+  return toPublicOrder(await mustFind(order._id));
+}
+
+export async function createTopUpOrder(
+  input: TopUpInput,
+  deps: OrderDeps = defaultDeps,
+): Promise<PublicOrder> {
+  const owner = getAddress(input.address);
+  const payee = topUpPayee(owner, input.recipient);
+  await deps.connect();
+  const quote = await getQuote("top_up", input.amountNgn, deps);
+  // The limit belongs to the wallet opening the top-up, wherever the USDT goes.
+  await assertWithinLimits(owner, quote.receive.amount, "top_up", deps);
+
+  const result = await deps.switchApi.initiateOnramp(input.amountNgn, payee);
+  if (!result.success || !result.data) throw switchFailure(result);
+  const { reference, deposit, destination } = result.data;
+  // Switch documents these on the bank deposit; the shared response type predates them.
+  const extra = deposit as typeof deposit & {
+    amount?: number;
+    expires_at?: string;
+  };
+  const units = parseUnits(
+    Number(destination.amount).toFixed(POLYGON_USDT.decimals),
+    POLYGON_USDT.decimals,
+  );
+  const now = deps.now();
+  const switchExpiry = extra.expires_at ? new Date(extra.expires_at) : null;
+
+  const order = await NimiqOrder.create({
+    direction: "top_up",
+    walletAddress: owner,
+    recipientAddress: payee === owner ? undefined : payee,
+    status: "awaiting_deposit",
+    amountUsd: unitsToUsd(units),
+    cryptoUnits: units.toString(),
+    cryptoAmount: fromUnits(units),
+    fiatAmount: Number(extra.amount) || input.amountNgn,
+    rate: quote.rate,
+    switchReference: reference,
+    depositBank: {
+      bankName: deposit.bank_name,
+      accountName: deposit.account_name,
+      accountNumber: deposit.account_number,
+      notes: deposit.note ?? [],
+    },
+    expiresAt:
+      switchExpiry && !Number.isNaN(switchExpiry.getTime())
+        ? switchExpiry
+        : new Date(now + TOP_UP_WINDOW_SECONDS * 1000),
+    createdAt: new Date(now),
+  });
+  return toPublicOrder(order);
+}
+
+/** The order's current state, settling it from the chain or Switch when it is not final. */
+export async function refreshOrder(
+  orderId: string,
+  deps: OrderDeps = defaultDeps,
+): Promise<PublicOrder> {
+  await deps.connect();
+  return settle(await mustFind(orderId), deps);
+}
+
+/**
+ * The orders a device remembers, newest first; ids the server doesn't know are left out.
+ * Orders still moving are settled first; one that can't be is listed as last stored.
+ */
+export async function listOrders(
+  orderIds: string[],
+  deps: OrderDeps = defaultDeps,
+): Promise<PublicOrder[]> {
+  await deps.connect();
+  const orders = await NimiqOrder.find({
+    _id: { $in: orderIds.slice(0, MAX_LISTED_ORDERS) },
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+  return Promise.all(
+    orders.map((order) =>
+      settle(order, deps).catch((error) => {
+        console.error(`[nimiq] refresh of ${order._id} failed:`, error);
+        return toPublicOrder(order);
+      }),
+    ),
+  );
+}
+
+async function settle(
+  order: INimiqOrder,
+  deps: OrderDeps,
+): Promise<PublicOrder> {
+  const now = deps.now();
+  if (
+    FINAL_STATUSES.includes(order.status) ||
+    (order.checkedAt && now - order.checkedAt.getTime() < CHECK_INTERVAL_MS)
+  ) {
+    return toPublicOrder(order);
+  }
+
+  const next = await nextState(order, now, deps);
+  const updated = await NimiqOrder.findOneAndUpdate(
+    { _id: order._id, status: order.status },
+    { $set: { ...next, checkedAt: new Date(now) } },
+    { new: true },
+  ).lean();
+  if (
+    updated &&
+    order.status === "relaying" &&
+    next.status === "processing" &&
+    order.transferTxHash
+  ) {
+    await notifySwitch(order.switchReference, order.transferTxHash, deps);
+  }
+  return toPublicOrder(updated ?? (await mustFind(order._id)));
+}
+
+async function nextState(
+  order: INimiqOrder,
+  now: number,
+  deps: OrderDeps,
+): Promise<Partial<INimiqOrder>> {
+  switch (order.status) {
+    case "awaiting_signature": {
+      const live =
+        order.permit &&
+        isSignable(
+          { deadline: order.permit.deadline, createdAt: order.createdAt },
+          now,
+        );
+      return live ? {} : { status: "expired" };
+    }
+    case "relaying": {
+      const startedAt = (order.relayStartedAt ?? order.updatedAt).getTime();
+      const old = now - startedAt > RELAY_ABANDONED_MS;
+      if (!order.transferTxHash) {
+        return old
+          ? { status: "failed", failureReason: COPY.nothingMoved }
+          : {};
+      }
+      const receipt = await deps.chain.readReceiptStatus(
+        order.transferTxHash as Hex,
+      );
+      if (receipt === "success") return { status: "processing" };
+      if (receipt === "reverted")
+        return { status: "failed", failureReason: COPY.reverted };
+      // Another transaction took this nonce, so the transfer can never mine.
+      if (receipt === "missing" && old && order.transferNonce !== undefined) {
+        const mined = await deps.chain.readRelayerNonce();
+        if (mined !== null && mined > order.transferNonce) {
+          return { status: "failed", failureReason: COPY.nothingMoved };
+        }
+      }
+      return {};
+    }
+    case "awaiting_deposit":
+    case "processing": {
+      const raw = (await deps.switchApi.status(order.switchReference))?.data
+        ?.status;
+      const mapped = typeof raw === "string" ? fromSwitchStatus(raw) : null;
+      if (!mapped || mapped === order.status || mapped === "awaiting_deposit")
+        return {};
+      if (mapped !== "failed") return { status: mapped };
+      if (
+        order.direction === "top_up" &&
+        order.status === "awaiting_deposit" &&
+        raw?.trim().toUpperCase() === "EXPIRED"
+      ) {
+        return { status: "expired" };
+      }
+      return {
+        status: "failed",
+        failureReason:
+          order.direction === "cash_out"
+            ? COPY.cashOutFailed
+            : COPY.topUpFailed,
+      };
+    }
+    default:
+      return {};
+  }
+}
+
+function parseUsdt(amount: string): bigint {
+  try {
+    return toUnits(amount);
+  } catch (error) {
+    throw new OrderError((error as Error).message, 400);
+  }
+}
+
+const unitsToUsd = (units: bigint) => Number(fromUnits(units));
+
+async function readyRelayer(deps: OrderDeps): Promise<Address> {
+  const relayer = deps.chain.relayerAddress();
+  if (!relayer || (await deps.chain.readRelayerGas()) < MIN_RELAYER_GAS) {
+    throw new OrderError(RELAYER_PAUSED, 503);
+  }
+  return relayer;
+}
+
+async function assertWithinLimits(
+  owner: Address,
+  usd: number,
+  action: NimiqDirection,
+  deps: OrderDeps,
+) {
+  const { minUsd, maxTxUsd, dailyUsd } = deps.config();
+  const reason = checkAmountLimits({
+    usd,
+    spentTodayUsd: await spentTodayUsd(owner, deps.now(), action),
+    minUsd,
+    maxTxUsd,
+    dailyUsd,
+  });
+  if (reason) throw new OrderError(reason, 400);
+}
+
+/** The wallet a top-up pays; refuses addresses that would burn the USDT. */
+function topUpPayee(owner: Address, recipient?: Address): Address {
+  if (!recipient) return owner;
+  const problem = walletAddressError(recipient);
+  if (problem) throw new OrderError(problem, 400);
+  return getAddress(recipient);
+}
+
+async function lookUpAccount(input: CashOutInput, deps: OrderDeps) {
+  try {
+    return await deps.resolveAccount(input.accountNumber, input.bank);
+  } catch (error) {
+    if (error instanceof BankLookupError)
+      throw new OrderError(error.message, 400);
+    throw error;
+  }
+}
+
+function switchFailure(result: { status?: number; message?: string }) {
+  const status = result.status && result.status < 500 ? 400 : 502;
+  return new OrderError(result.message || COPY.partnerError, status);
+}
+
+/** The deposit Switch asked for must be exactly what the user agreed to send. */
+function checkDeposit(
+  deposit: { amount: number; address: string; asset: string },
+  units: bigint,
+  reference: string,
+): Address {
+  const assetOk =
+    !deposit.asset || normalizeSwitchAsset(deposit.asset) === SWITCH_ASSET;
+  if (!assetOk || !isAddress(deposit.address)) {
+    console.error(
+      `[nimiq] unexpected Switch deposit for ${reference}:`,
+      deposit,
+    );
+    throw new OrderError(COPY.partnerError, 502);
+  }
+  const depositUnits = parseUnits(
+    Number(deposit.amount).toFixed(POLYGON_USDT.decimals),
+    POLYGON_USDT.decimals,
+  );
+  if (depositUnits !== units) {
+    console.error(
+      `[nimiq] Switch asked ${deposit.amount} for ${fromUnits(units)} (${reference})`,
+    );
+    throw new OrderError(COPY.amountChanged, 502);
+  }
+  return getAddress(deposit.address);
+}
+
+function permitMessage(order: INimiqOrder): PermitMessage {
+  if (!order.permit) throw new Error(`order ${order._id} has no permit`);
+  return {
+    owner: getAddress(order.walletAddress),
+    spender: getAddress(order.permit.spender),
+    value: BigInt(order.cryptoUnits),
+    nonce: BigInt(order.permit.nonce),
+    deadline: BigInt(order.permit.deadline),
+  };
+}
+
+async function notifySwitch(reference: string, hash: string, deps: OrderDeps) {
+  try {
+    await deps.switchApi.confirm(reference, hash);
+  } catch (error) {
+    console.warn(`[nimiq] Switch confirm for ${reference} failed:`, error);
+  }
+}
+
+async function mustFind(orderId: string): Promise<INimiqOrder> {
+  const order = await NimiqOrder.findById(orderId).lean();
+  if (!order) throw new OrderError(COPY.notFound, 404);
+  return order;
+}

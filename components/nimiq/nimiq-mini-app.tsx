@@ -10,7 +10,6 @@ import type { Eip1193 } from "@/lib/nimiq/provider";
 import {
   type FlowName,
   MINI_APP_CHAT_HREF,
-  MINI_APP_PATH,
   MINI_APP_TAB_HREF,
   tabHrefOf,
 } from "@/lib/nimiq/views";
@@ -28,7 +27,6 @@ import { OpenInNimiq } from "./open-in-nimiq";
 import { RecentActivity } from "./recent-activity";
 import { TopUpFlow } from "./top-up-flow";
 import { useBalanceMoves } from "./use-balance-moves";
-import { holdChatPrefill } from "./use-chat-prefill";
 import { useMiniAppNav } from "./use-mini-app-nav";
 import { useNimiqAccount } from "./use-nimiq-account";
 import { useNimiqWallet } from "./use-nimiq-wallet";
@@ -90,7 +88,7 @@ function ConnectedApp({
   // Re-read on every return to home or history, so statuses are current.
   const history = useOrderHistory(
     recent.ids,
-    view.name === "home" || view.name === "history",
+    view.name === "home" || view.name === "history" || view.name === "chat",
     recent.forget,
   );
   const listed = history.orders && visibleHistory(history.orders);
@@ -114,15 +112,15 @@ function ConnectedApp({
       return (
         <NimiqChat
           address={address}
+          provider={provider}
+          orders={listed}
+          historyError={history.error}
+          onRetryHistory={history.reload}
+          onOpenOrder={nav.openOrder}
           onClose={nav.back}
-          onHandoff={(handoff) => {
-            holdChatPrefill(handoff);
-            nav.go(
-              handoff.flow === "history"
-                ? MINI_APP_TAB_HREF.history
-                : `${MINI_APP_PATH}?view=${handoff.flow}`,
-            );
-          }}
+          onOrderCreated={recent.remember}
+          onPlaced={(order) => balanceMoves.note(order, true)}
+          onUpdate={balanceMoves.note}
         />
       );
     case "cash-out":

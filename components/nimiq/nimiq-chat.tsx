@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Address } from "viem";
 import { ChatBackdrop } from "@/components/chat/chat-backdrop";
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { ChatDock } from "@/components/chat/chat-dock";
@@ -8,6 +9,7 @@ import { ChatErrorBoundary } from "@/components/chat/chat-error-boundary";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { ChatIntro } from "@/components/chat/chat-intro";
 import { ChatTopFade } from "@/components/chat/chat-top-fade";
+import { OptionsCard } from "@/components/chat/options-card";
 import {
   type Suggestion,
   SuggestionCard,
@@ -21,26 +23,21 @@ import { PhoneIcon } from "@/components/ui/icons/phone";
 import { WalletPlusIcon } from "@/components/ui/icons/wallet-plus";
 import type { ChatEntry, ChatItem } from "@/lib/chat";
 import { nimiqApi } from "@/lib/nimiq/api-client";
-import { type ChatHandoff, HANDOFF_LABEL } from "@/lib/nimiq/chat-handoff";
+import { type ChatCard, usdtFor } from "@/lib/nimiq/chat-cards";
+import type { PublicOrder } from "@/lib/nimiq/order-status";
+import type { Eip1193 } from "@/lib/nimiq/provider";
+import { ChatPaymentCard } from "./chat-payment-card";
+import { OrderHistoryList } from "./order-history-list";
+import { type ChatLine, newChatId, useChatSessions } from "./use-chat-sessions";
 
-type ChatLine = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  /** The screen this reply offers to open. */
-  handoff?: ChatHandoff;
-  /** A reply that never came; shown, but not sent back as context. */
-  failed?: boolean;
-};
-
-/** Lines kept on the device. */
-const KEPT_LINES = 40;
 /** Lines sent with each question; the route accepts up to 12. */
 const SENT_LINES = 12;
 /** The route's limit per message. */
 const MAX_CHARS = 1000;
+/** Orders the history card lists. */
+const HISTORY_ROWS = 5;
 
-const INTRO = "Ask me to cash out, top up, or buy airtime and data.";
+const INTRO = "Cash out, top up, or buy airtime and data, right here.";
 
 const SUGGESTIONS: Suggestion[] = [
   { label: "Check Balance", Icon: MoneyBillIcon, prompt: "What's my balance?" },
@@ -62,44 +59,8 @@ const SUGGESTIONS: Suggestion[] = [
   },
 ];
 
-const storageKey = (address: string) =>
-  `jumpa.nimiq.chat.${address.toLowerCase()}`;
-
-function load(address: string): ChatLine[] {
-  try {
-    const stored = JSON.parse(
-      localStorage.getItem(storageKey(address)) ?? "[]",
-    );
-    return Array.isArray(stored)
-      ? stored.filter(
-          (line): line is ChatLine =>
-            typeof line?.id === "string" &&
-            (line.role === "user" || line.role === "assistant") &&
-            typeof line.content === "string",
-        )
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-function save(address: string, lines: ChatLine[]) {
-  try {
-    localStorage.setItem(
-      storageKey(address),
-      JSON.stringify(lines.slice(-KEPT_LINES)),
-    );
-  } catch {
-    // Private mode or a full store: the chat still works, it just isn't kept.
-  }
-}
-
-let lineCount = 0;
-const newId = () => `line_${Date.now()}_${++lineCount}`;
-
-/** Consecutive lines from one side share a group; only the newest reply keeps its button. */
+/** Consecutive lines from one side share a group; a card sits under its line's text. */
 function toEntries(lines: ChatLine[], revealId?: string): ChatEntry[] {
-  const latest = lines.at(-1);
   const entries: ChatEntry[] = [];
   for (const line of lines) {
     const role = line.role === "assistant" ? "agent" : "user";
@@ -110,14 +71,8 @@ function toEntries(lines: ChatLine[], revealId?: string): ChatEntry[] {
         paragraph: line.content.length > 50 || line.content.includes("\n"),
         reveal: line.id === revealId,
       },
+      ...(line.card ? [{ kind: "slot" as const, id: line.id }] : []),
     ];
-    if (line.handoff && line === latest) {
-      items.push({
-        kind: "actions",
-        confirmLabel: HANDOFF_LABEL[line.handoff.flow],
-        cancelLabel: false,
-      });
-    }
     const last = entries.at(-1);
     if (last?.kind === "group" && last.role === role) last.items.push(...items);
     else entries.push({ id: line.id, kind: "group", role, items });
@@ -125,73 +80,203 @@ function toEntries(lines: ChatLine[], revealId?: string): ChatEntry[] {
   return entries;
 }
 
-/** The main app's chat for a Nimiq Pay wallet: answers, and opens the screen that does the rest. */
+/** The main app's chat for a Nimiq Pay wallet: it answers, and pays, without leaving the chat. */
 export function NimiqChat({
   address,
+  provider,
+  orders,
+  historyError,
+  onRetryHistory,
+  onOpenOrder,
   onClose,
-  onHandoff,
+  onOrderCreated,
+  onPlaced,
+  onUpdate,
 }: {
-  address: string;
+  address: Address;
+  provider: Eip1193;
+  /** The device's orders, newest first, for the history card. */
+  orders?: PublicOrder[];
+  historyError?: string;
+  onRetryHistory: () => void;
+  onOpenOrder: (orderId: string) => void;
   onClose: () => void;
-  onHandoff: (handoff: ChatHandoff) => void;
+  onOrderCreated: (orderId: string) => void;
+  /** A payment from the chat went through to the server. */
+  onPlaced: (order: PublicOrder) => void;
+  /** Every state a chat payment is seen in. Must be stable. */
+  onUpdate: (order: PublicOrder) => void;
 }) {
-  // Client-only: the mini app renders after the wallet is detected.
-  const [lines, setLines] = useState(() => load(address));
+  const chats = useChatSessions(address);
+  const { activeId, lines } = chats;
   const [input, setInput] = useState("");
-  const [responding, setResponding] = useState(false);
+  /** The conversation waiting on a reply, if any. */
+  const [waitingOn, setWaitingOn] = useState<string | null>(null);
   const [revealId, setRevealId] = useState<string>();
   const end = useRef<HTMLDivElement>(null);
+  const responding = waitingOn !== null;
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: a new line or the typing dots are the trigger
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new line, the typing dots or another chat are the trigger
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: "smooth" });
-  }, [lines.length, responding]);
+  }, [lines.length, waitingOn, activeId]);
 
-  const update = (next: ChatLine[]) => {
-    setLines(next);
-    save(address, next);
-  };
-
-  const send = async (text?: string) => {
-    const content = (text ?? input).trim();
-    if (!content || responding) return;
-    const asked: ChatLine[] = [
-      ...lines,
-      { id: newId(), role: "user", content },
-    ];
-    update(asked);
-    setInput("");
-    setResponding(true);
+  const ask = async (sessionId: string, history: ChatLine[]) => {
+    setWaitingOn(sessionId);
     let reply: ChatLine;
     try {
-      const turns = asked
+      const turns = history
         .filter((line) => !line.failed)
         .slice(-SENT_LINES)
-        .map(({ role, content: said }) => ({
+        .map(({ role, content }) => ({
           role,
-          content: said.slice(0, MAX_CHARS),
+          content: content.slice(0, MAX_CHARS),
         }));
       const answer = await nimiqApi.chat(address, turns);
       reply = {
-        id: newId(),
+        id: newChatId("line"),
         role: "assistant",
         content: answer.reply,
-        ...(answer.handoff ? { handoff: answer.handoff } : {}),
+        ...(answer.card ? { card: answer.card } : {}),
       };
     } catch (error) {
       reply = {
-        id: newId(),
+        id: newChatId("line"),
         role: "assistant",
         content: (error as Error).message,
         failed: true,
       };
     }
-    update([...asked, reply]);
+    chats.edit(sessionId, (current) => [...current, reply]);
     setRevealId(reply.id);
-    setResponding(false);
+    setWaitingOn(null);
   };
 
-  const latest = lines.at(-1);
+  const send = (text?: string) => {
+    const content = (text ?? input).trim();
+    if (!content || responding) return;
+    const asked: ChatLine[] = [
+      ...lines,
+      { id: newChatId("line"), role: "user", content },
+    ];
+    chats.edit(activeId, () => asked);
+    setInput("");
+    void ask(activeId, asked);
+  };
+
+  /** Changes one line of the open conversation. */
+  const patch = (lineId: string, change: Partial<ChatLine>) => {
+    const sessionId = activeId;
+    chats.edit(sessionId, (current) =>
+      current.map((line) =>
+        line.id === lineId ? { ...line, ...change } : line,
+      ),
+    );
+  };
+
+  const pickChoice = (line: ChatLine, reply: string) => {
+    if (line.answer || responding) return;
+    patch(line.id, { answer: reply });
+    send(reply);
+  };
+
+  /** A picked plan becomes a card to confirm straight away, with no round trip. */
+  const pickPlan = (
+    line: ChatLine,
+    card: Extract<ChatCard, { type: "plans" }>,
+    productName: string,
+  ) => {
+    const plan = card.plans.find((item) => item.productName === productName);
+    if (line.answer || responding || !plan) return;
+    const reply: ChatLine = {
+      id: newChatId("line"),
+      role: "assistant",
+      content:
+        "Here's your data plan. Check it, tap Confirm and approve in Nimiq Pay.",
+      card: {
+        type: "confirm",
+        proposal: {
+          kind: "data",
+          phone: card.phone,
+          network: card.network,
+          productName,
+          plan: `${plan.size} · ${plan.validity}`,
+          amountNgn: plan.amountNgn,
+          usdt: usdtFor(plan.amountNgn, card.perUsdt),
+        },
+      },
+    };
+    chats.edit(activeId, (current) => [
+      ...current.map((item) =>
+        item.id === line.id ? { ...item, answer: productName } : item,
+      ),
+      {
+        id: newChatId("line"),
+        role: "user",
+        content: `${plan.size} (${plan.validity}) for ${plan.price}`,
+      },
+      reply,
+    ]);
+    setRevealId(reply.id);
+  };
+
+  const renderCard = (lineId: string) => {
+    const line = lines.find((item) => item.id === lineId);
+    const card = line?.card;
+    if (!line || !card) return null;
+    switch (card.type) {
+      case "confirm":
+        return (
+          <ChatPaymentCard
+            proposal={card.proposal}
+            orderId={line.orderId}
+            declined={line.declined}
+            provider={provider}
+            address={address}
+            onOrderCreated={onOrderCreated}
+            onPlaced={(order) => {
+              patch(line.id, { orderId: order.id });
+              onPlaced(order);
+            }}
+            onDecline={() => patch(line.id, { declined: true })}
+            onUpdate={onUpdate}
+          />
+        );
+      case "plans":
+        return (
+          <OptionsCard
+            card={{
+              options: card.plans.map((plan) => ({
+                label: plan.size,
+                description: plan.validity,
+                amount: plan.price,
+                reply: plan.productName,
+              })),
+            }}
+            answer={line.answer}
+            onReply={(productName) => pickPlan(line, card, productName)}
+          />
+        );
+      case "choices":
+        return (
+          <OptionsCard
+            card={{ options: card.options }}
+            answer={line.answer}
+            onReply={(reply) => pickChoice(line, reply)}
+          />
+        );
+      case "history":
+        return (
+          <OrderHistoryList
+            orders={orders?.slice(0, HISTORY_ROWS)}
+            error={historyError}
+            onRetry={onRetryHistory}
+            onOpen={onOpenOrder}
+          />
+        );
+    }
+  };
+
   const started = lines.length > 0;
 
   return (
@@ -200,9 +285,12 @@ export function NimiqChat({
 
       <ChatHeader
         onClose={onClose}
-        recent={false}
+        sessions={chats.summaries}
+        activeSessionId={activeId}
+        onSelectSession={chats.select}
+        onDeleteSession={chats.remove}
         onNew={() => {
-          update([]);
+          chats.startNew();
           setInput("");
         }}
       />
@@ -214,15 +302,14 @@ export function NimiqChat({
             <ChatErrorBoundary fallbackTitle="Chat could not be displayed">
               <Transcript
                 entries={toEntries(lines, revealId)}
-                onConfirm={() => {
-                  if (latest?.handoff) onHandoff(latest.handoff);
-                }}
+                onConfirm={() => {}}
                 onCancel={() => {}}
-                onReply={(reply) => void send(reply)}
+                onReply={(reply) => send(reply)}
+                renderSlot={renderCard}
               />
             </ChatErrorBoundary>
 
-            {responding ? (
+            {waitingOn === activeId ? (
               <div className="mt-5">
                 <TypingIndicator />
               </div>
@@ -239,13 +326,13 @@ export function NimiqChat({
         {started ? null : (
           <SuggestionCard
             suggestions={SUGGESTIONS}
-            onSelect={(prompt) => void send(prompt)}
+            onSelect={(prompt) => send(prompt)}
           />
         )}
         <ChatComposer
           value={input}
           onChange={setInput}
-          onSend={(_, typed) => void send(typed)}
+          onSend={(_, typed) => send(typed)}
           disabled={responding}
           media={false}
         />

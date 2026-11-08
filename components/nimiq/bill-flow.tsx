@@ -32,7 +32,6 @@ import type { BillDirection, PublicOrder } from "@/lib/nimiq/order-status";
 import type { AccountSummary } from "@/lib/nimiq/orders";
 import type { Eip1193 } from "@/lib/nimiq/provider";
 import type { FormErrors } from "@/lib/validation";
-import { useChatPrefill } from "./use-chat-prefill";
 import { MINI_APP_PATH } from "./use-mini-app-nav";
 import { primeOrder } from "./use-nimiq-order";
 import { useNimiqQuote } from "./use-nimiq-quote";
@@ -84,14 +83,9 @@ export function BillFlow({
   onOrderCreated: (orderId: string) => void;
 }) {
   const copy = COPY[kind];
-  const prefill = useChatPrefill(kind);
-  const [phone, setPhone] = useState(prefill?.phone ?? "");
-  const [networkId, setNetworkId] = useState(
-    prefill?.network ?? DEFAULT_NETWORK,
-  );
-  const [amount, setAmount] = useState(
-    String((prefill && "amountNgn" in prefill && prefill.amountNgn) || ""),
-  );
+  const [phone, setPhone] = useState("");
+  const [networkId, setNetworkId] = useState(DEFAULT_NETWORK);
+  const [amount, setAmount] = useState("");
   const [plan, setPlan] = useState<DataPlan | null>(null);
   const [errors, setErrors] = useState<FormErrors<BillField>>({});
   const [reviewing, setReviewing] = useState(false);

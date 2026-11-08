@@ -176,7 +176,12 @@ export function TabBar({
             href={chatHref}
             prefetch={true}
             aria-label="Chat"
-            onClick={() => triggerHaptic("light")}
+            onClick={(event) => {
+              triggerHaptic("light");
+              if (!onNavigate || event.metaKey || event.ctrlKey) return;
+              event.preventDefault();
+              onNavigate(chatHref);
+            }}
             className={cn("tap active:scale-90", CHAT)}
           >
             <MessageCircleDotsIcon className="size-9" />

@@ -51,6 +51,10 @@ interface ChatHeaderProps {
   activeSessionId?: string | null;
   onSelectSession?: (sessionId: string) => void;
   onDeleteSession?: (sessionId: string) => void;
+  /** Replaces the link home, for a host that owns its own navigation. */
+  onClose?: () => void;
+  /** Off where conversations aren't kept as a list. */
+  recent?: boolean;
 }
 
 /** Close, recent-chats panel and new-thread controls, on one 40px line. */
@@ -60,6 +64,8 @@ export function ChatHeader({
   activeSessionId = null,
   onSelectSession,
   onDeleteSession,
+  onClose,
+  recent = true,
 }: ChatHeaderProps) {
   const [open, setOpen] = useState(false);
 
@@ -78,34 +84,47 @@ export function ChatHeader({
       <header
         className={`sticky top-0 z-50 flex items-center justify-between gap-3 px-4 pt-[calc(env(safe-area-inset-top)+13px)] pb-2 ${HEADER_BLUR}`}
       >
-        <Link
-          prefetch
-          href="/home"
-          aria-label="Close chat"
-          className={`${CONTROL} size-10`}
-        >
-          <CloseIcon className="size-4.5" />
-        </Link>
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close chat"
+            className={`${CONTROL} size-10`}
+          >
+            <CloseIcon className="size-4.5" />
+          </button>
+        ) : (
+          <Link
+            prefetch
+            href="/home"
+            aria-label="Close chat"
+            className={`${CONTROL} size-10`}
+          >
+            <CloseIcon className="size-4.5" />
+          </Link>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setOpen((prev) => !prev)}
-          aria-expanded={open}
-          aria-label="Recent chats"
-          className={`${CONTROL} h-10 gap-2 px-4 text-sm leading-4 font-medium text-jumpa-primary-950`}
-        >
-          Recent
-          {sessions.length > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-pill bg-jumpa-primary-100 px-1.5 text-xs leading-4 font-semibold text-jumpa-primary-600">
-              {sessions.length}
-            </span>
-          )}
-          <ChevronDownIcon
-            className={`size-4 text-jumpa-primary-600 transition-transform duration-300 ${
-              open ? "rotate-180" : ""
-            }`}
-          />
-        </button>
+        {recent ? (
+          <button
+            type="button"
+            onClick={() => setOpen((prev) => !prev)}
+            aria-expanded={open}
+            aria-label="Recent chats"
+            className={`${CONTROL} h-10 gap-2 px-4 text-sm leading-4 font-medium text-jumpa-primary-950`}
+          >
+            Recent
+            {sessions.length > 0 && (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-pill bg-jumpa-primary-100 px-1.5 text-xs leading-4 font-semibold text-jumpa-primary-600">
+                {sessions.length}
+              </span>
+            )}
+            <ChevronDownIcon
+              className={`size-4 text-jumpa-primary-600 transition-transform duration-300 ${
+                open ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+        ) : null}
 
         <button
           type="button"

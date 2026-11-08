@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { BadgePercentIcon } from "@/components/ui/icons/badge-percent";
 import { EuroCircleIcon } from "@/components/ui/icons/euro-circle";
 import { MoneyBillIcon } from "@/components/ui/icons/money-bill";
@@ -7,7 +8,13 @@ import { SwitchHorizontalIcon } from "@/components/ui/icons/switch-horizontal";
 import { WalletPlusIcon } from "@/components/ui/icons/wallet-plus";
 
 /** `prompt` is what gets sent when the label is not a request on its own. */
-const SUGGESTIONS = [
+export type Suggestion = {
+  label: string;
+  Icon: (props: { className?: string }) => ReactNode;
+  prompt?: string;
+};
+
+const SUGGESTIONS: Suggestion[] = [
   { label: "Add funds", Icon: WalletPlusIcon },
   { label: "Cash In", Icon: EuroCircleIcon },
   { label: "Check Balance", Icon: MoneyBillIcon },
@@ -32,12 +39,14 @@ const SUGGESTIONS = [
  */
 export function SuggestionCard({
   onSelect,
+  suggestions = SUGGESTIONS,
 }: {
   onSelect?: (prompt: string) => void;
+  suggestions?: Suggestion[];
 }) {
   return (
     <div className="flex flex-wrap gap-x-1 gap-y-2 rounded-surface bg-jumpa-white px-2 py-2.5">
-      {SUGGESTIONS.map(({ label, Icon, prompt }) => (
+      {suggestions.map(({ label, Icon, prompt }) => (
         <button
           key={label}
           type="button"

@@ -59,6 +59,8 @@ interface ChatComposerProps {
   staged?: boolean;
   /** Rows the + menu offers under the file sources. */
   menuExtras?: AttachmentExtra[];
+  /** Off where uploads aren't available: no + menu and no mic, so the button only sends. */
+  media?: boolean;
 }
 
 /** Message entry with MediaRecorder audio capture, Vercy Storage, and Gemini 2.5 transcription. */
@@ -72,6 +74,7 @@ export function ChatComposer({
   autoFocus = true,
   staged = false,
   menuExtras,
+  media = true,
 }: ChatComposerProps) {
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
@@ -219,7 +222,7 @@ export function ChatComposer({
     .filter((item) => item !== undefined) as ChatAttachment[];
   const storing = pending.length !== ready.length;
   // Anything held turns the mic into a send button, even before it is stored.
-  const sendMode = hasText || pending.length > 0 || staged;
+  const sendMode = !media || hasText || pending.length > 0 || staged;
   const canSend = !disabled && !storing && (hasText || ready.length > 0 || staged);
 
   const send = () => {
@@ -385,15 +388,17 @@ export function ChatComposer({
         <div
           className={`flex min-h-13 flex-1 items-end gap-2.5 rounded-surface p-1 ${TONES[tone]}`}
         >
-          <button
-            type="button"
-            onClick={() => setMenuOpen((open) => !open)}
-            aria-label="Add an attachment"
-            aria-expanded={menuOpen}
-            className="flex h-11 w-11.5 shrink-0 items-center justify-center rounded-pill bg-jumpa-neutral-250 text-jumpa-grey-600 tap hover:bg-jumpa-neutral-300 active:scale-95 cursor-pointer"
-          >
-            <CirclePlusIcon className="size-6" />
-          </button>
+          {media ? (
+            <button
+              type="button"
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label="Add an attachment"
+              aria-expanded={menuOpen}
+              className="flex h-11 w-11.5 shrink-0 items-center justify-center rounded-pill bg-jumpa-neutral-250 text-jumpa-grey-600 tap hover:bg-jumpa-neutral-300 active:scale-95 cursor-pointer"
+            >
+              <CirclePlusIcon className="size-6" />
+            </button>
+          ) : null}
           {/* maintain minimum of 16px font on input fields to prevent iphones from zooming in the page */}
           <textarea
             ref={fieldRef}

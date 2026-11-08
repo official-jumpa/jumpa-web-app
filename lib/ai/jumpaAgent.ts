@@ -6,7 +6,7 @@
  * Includes DSML parser fallback and sanitizer to guarantee raw model markup never leaks to the user.
  */
 
-import { JUMPA_TOOLS, type ToolCall } from "./tools";
+import { type DeepSeekTool, JUMPA_TOOLS, type ToolCall } from "./tools";
 import { environment } from "@/lib/environment";
 
 export interface ChatHistoryMessage {
@@ -396,12 +396,15 @@ export async function runAgentStep(options: {
   toolChoice?: "auto" | "required" | "none";
   temperature?: number;
   maxTokens?: number;
+  /** The tools the model may call; the main app's set by default. */
+  tools?: DeepSeekTool[];
 }): Promise<AIStepResponse> {
   const {
     messages,
     toolChoice = "auto",
     temperature = 0.3,
     maxTokens = 1024,
+    tools = JUMPA_TOOLS,
   } = options;
 
   const deepseekApiKey = process.env.DEEPSEEK_API;
@@ -429,7 +432,7 @@ export async function runAgentStep(options: {
         max_tokens: maxTokens,
       };
       if (toolChoice !== "none") {
-        body.tools = JUMPA_TOOLS;
+        body.tools = tools;
         body.tool_choice = toolChoice;
       }
 
@@ -472,7 +475,7 @@ export async function runAgentStep(options: {
         max_tokens: maxTokens,
       };
       if (toolChoice !== "none") {
-        body.tools = JUMPA_TOOLS;
+        body.tools = tools;
         body.tool_choice = toolChoice;
       }
 

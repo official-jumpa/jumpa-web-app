@@ -56,8 +56,11 @@ const HOME_SLIDES = [SAVINGS, VERIFY, CHAT];
  */
 export function PromoBanner({
   slides = HOME_SLIDES,
+  onNavigate,
 }: {
   slides?: PromoSlide[];
+  /** Hands a slide's route to a host that owns its navigation. */
+  onNavigate?: (href: string) => void;
 } = {}) {
   const [index, setIndex] = useState(0);
   const drag = useRef<{ x: number; y: number; axis: "x" | "y" | null } | null>(
@@ -144,6 +147,11 @@ export function PromoBanner({
               aria-label={label}
               aria-hidden={step !== 0}
               tabIndex={step === 0 ? undefined : -1}
+              onClick={(event) => {
+                if (!onNavigate || event.metaKey || event.ctrlKey) return;
+                event.preventDefault();
+                onNavigate(href);
+              }}
               className={className}
             >
               <Art />

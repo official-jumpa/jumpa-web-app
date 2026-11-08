@@ -20,6 +20,7 @@ export const USDT0_ABI = parseAbi([
   "function nonces(address owner) view returns (uint256)",
   "function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)",
   "function transferFrom(address from, address to, uint256 value) returns (bool)",
+  "function transfer(address to, uint256 value) returns (bool)",
 ]);
 
 let client: PublicClient | undefined;

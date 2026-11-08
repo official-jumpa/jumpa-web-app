@@ -18,6 +18,9 @@ describe("mini app views", () => {
   test("flows and orders are not tabs", () => {
     assert.deepEqual(view("view=cash-out"), { name: "cash-out" });
     assert.equal(tabHrefOf(view("view=cash-out")), null);
+    assert.deepEqual(view("view=airtime"), { name: "airtime" });
+    assert.deepEqual(view("view=data"), { name: "data" });
+    assert.equal(tabHrefOf(view("view=data")), null);
     const order = view("order=nimq_00000000000000000001&from=history");
     assert.deepEqual(order, {
       name: "order",

@@ -2,7 +2,7 @@ import { ORDER_ID_PATTERN } from "./constants";
 
 export const MINI_APP_PATH = "/nimiq";
 
-export type FlowName = "cash-out" | "top-up";
+export type FlowName = "cash-out" | "top-up" | "airtime" | "data";
 
 export type TabName = "home" | "history" | "me";
 
@@ -19,7 +19,14 @@ export const MINI_APP_TAB_HREF: Record<TabName, string> = {
   me: `${MINI_APP_PATH}?view=me`,
 };
 
-const NAMED_VIEWS = ["cash-out", "top-up", "history", "me"] as const;
+const NAMED_VIEWS = [
+  "cash-out",
+  "top-up",
+  "airtime",
+  "data",
+  "history",
+  "me",
+] as const;
 
 /** The screen a query string asks for; anything unknown is home. */
 export function readView(params: URLSearchParams): MiniAppView {

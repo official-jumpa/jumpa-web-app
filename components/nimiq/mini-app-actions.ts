@@ -21,20 +21,17 @@ export const MINI_APP_PILLS: AppAction[] = [
   APP_ACTIONS.qr,
 ];
 
-/** Home's Quick Actions grid, in the main app's order. */
+/** Home's Quick Actions grid, in the main app's order; History takes More's place. */
 export const MINI_APP_ACTIONS: AppAction[] = [
   { ...APP_ACTIONS.savings, soon: true },
   { ...APP_ACTIONS.invest, soon: true },
-  { ...APP_ACTIONS.data, soon: true },
-  { ...APP_ACTIONS.airtime, soon: true },
-  { ...APP_ACTIONS.history, to: { href: MINI_APP_TAB_HREF.history } },
+  { ...APP_ACTIONS.data, to: { href: `${MINI_APP_PATH}?view=data` } },
+  { ...APP_ACTIONS.airtime, to: { href: `${MINI_APP_PATH}?view=airtime` } },
+  // Referrals need a Jumpa account.
+  { ...APP_ACTIONS.referral, soon: true },
   { ...APP_ACTIONS.bill, soon: true },
   { ...APP_ACTIONS.lending, soon: true },
-  {
-    ...APP_ACTIONS.wallets,
-    label: "Wallet",
-    to: { href: MINI_APP_TAB_HREF.me },
-  },
+  { ...APP_ACTIONS.history, to: { href: MINI_APP_TAB_HREF.history } },
 ];
 
 /** The main app's tabs; Cards stays Soon. */

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { nairaPerUsdt } from "@/lib/nimiq/amounts";
 import { nimiqApi } from "@/lib/nimiq/api-client";
-import type { NimiqDirection } from "@/lib/nimiq/order-status";
+import type { RampDirection } from "@/lib/nimiq/order-status";
 import type { Quote } from "@/lib/nimiq/orders";
 
 const DEBOUNCE_MS = 400;
@@ -13,7 +13,7 @@ const DEBOUNCE_MS = 400;
  * quoted instead so the screen can still show a rate.
  */
 export function useNimiqQuote(
-  direction: NimiqDirection,
+  direction: RampDirection,
   amount: number,
   rateAmount: number,
 ) {

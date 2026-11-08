@@ -5,8 +5,10 @@ import { TransferHeader } from "@/components/transfer/transfer-header";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { Button } from "@/components/ui/button";
 import { JumpaLoader } from "@/components/ui/jumpa-loader";
+import { getNetwork } from "@/lib/bills";
 import { formatNaira, formatStable } from "@/lib/naira-deposit";
 import {
+  isBillDirection,
   isInFlight,
   type NimiqDirection,
   type PublicOrder,
@@ -21,9 +23,65 @@ type Copy = { title: string; body: string };
 const FALLBACK_FAILURE =
   "Something went wrong with this order. Contact support with the reference.";
 
+/** Each direction's screen title, failure title and retry button. */
+const NAMES: Record<
+  NimiqDirection,
+  { screen: string; expired: string; failed: string; again: string }
+> = {
+  cash_out: {
+    screen: "Cash out",
+    expired: "Cash-out expired",
+    failed: "Cash-out failed",
+    again: "Start a new cash-out",
+  },
+  top_up: {
+    screen: "Top up",
+    expired: "Top-up expired",
+    failed: "Top-up failed",
+    again: "Start a new top-up",
+  },
+  airtime: {
+    screen: "Airtime",
+    expired: "Airtime expired",
+    failed: "Airtime failed",
+    again: "Buy airtime again",
+  },
+  data: {
+    screen: "Mobile Data",
+    expired: "Data expired",
+    failed: "Data failed",
+    again: "Buy data again",
+  },
+};
+
+/** "airtime for 08031234567 on MTN", as the bill screens word it. */
+function billLine(order: PublicOrder) {
+  const what = order.direction === "airtime" ? "airtime" : "data";
+  const phone = order.bill?.phone ?? "your number";
+  const network = order.bill && getNetwork(order.bill.network)?.label;
+  return `${what} for ${phone}${network ? ` on ${network}` : ""}`;
+}
+
 function progressCopy(order: PublicOrder): Copy {
   const usdt = `${formatStable(order.cryptoAmount)} USDT`;
   const naira = formatNaira(order.fiatAmount);
+  if (isBillDirection(order.direction)) {
+    if (order.status === "refunding") {
+      return {
+        title: "Returning your USDT",
+        body: order.failureReason ?? FALLBACK_FAILURE,
+      };
+    }
+    return order.status === "processing"
+      ? {
+          title: "Topping up",
+          body: `Buying ${naira} of ${billLine(order)}. This page updates by itself.`,
+        }
+      : {
+          title: "Sending your USDT",
+          body: `Moving ${usdt} from your wallet. Jumpa pays the network fee.`,
+        };
+  }
   if (order.direction === "top_up") {
     return order.status === "processing"
       ? {
@@ -51,13 +109,19 @@ function problemCopy(order: PublicOrder): Copy {
   if (order.status === "awaiting_signature") {
     return {
       title: "Not signed yet",
-      body: "This cash-out was never signed, so nothing moved. It expires on its own.",
+      body: `This ${cashOut ? "cash-out" : "purchase"} was never signed, so nothing moved. It expires on its own.`,
+    };
+  }
+  if (order.status === "refunded") {
+    return {
+      title: "USDT returned",
+      body: order.failureReason ?? FALLBACK_FAILURE,
     };
   }
   if (order.status === "expired") {
-    return cashOut
+    return order.direction !== "top_up"
       ? {
-          title: "Cash-out expired",
+          title: NAMES[order.direction].expired,
           body: "It wasn't signed in time, so no money moved.",
         }
       : {
@@ -66,7 +130,7 @@ function problemCopy(order: PublicOrder): Copy {
         };
   }
   return {
-    title: cashOut ? "Cash-out failed" : "Top-up failed",
+    title: NAMES[order.direction].failed,
     body: order.failureReason ?? FALLBACK_FAILURE,
   };
 }
@@ -85,6 +149,25 @@ export function NimiqOrderStatus({
   onRetry: (direction: NimiqDirection) => void;
 }) {
   const cashOut = order.direction === "cash_out";
+  const names = NAMES[order.direction];
+
+  if (order.status === "completed" && isBillDirection(order.direction)) {
+    return (
+      <TransferSuccess
+        back={MINI_APP_PATH}
+        onBack={onHome}
+        ctaHref={MINI_APP_PATH}
+        ctaLabel="Done"
+        amount={formatNaira(order.fiatAmount)}
+        subAmount={`${formatStable(order.cryptoAmount)} USDT`}
+        title={order.direction === "airtime" ? "Airtime sent" : "Data sent"}
+        note={`Your ${billLine(order)} is done.`}
+        details={<OrderDetails order={order} />}
+        receiptRows={orderRows(order)}
+        reference={order.reference}
+      />
+    );
+  }
 
   if (order.status === "completed") {
     const usdt = `${formatStable(order.cryptoAmount)} USDT`;
@@ -121,13 +204,14 @@ export function NimiqOrderStatus({
       <TransferHeader
         back={MINI_APP_PATH}
         onBack={onHome}
-        title={cashOut ? "Cash out" : "Top up"}
+        title={names.screen}
       />
 
       <div className="flex flex-1 flex-col items-center justify-center gap-6 py-8 text-center">
         {moving ? (
           <JumpaLoader label={copy.title} />
-        ) : order.status === "awaiting_signature" ? (
+        ) : order.status === "awaiting_signature" ||
+          order.status === "refunded" ? (
           <Medallion tone="calm">
             <Image
               src="/logo/mark/purple.png"
@@ -169,7 +253,7 @@ export function NimiqOrderStatus({
               size="lg"
               onClick={() => onRetry(order.direction)}
             >
-              {cashOut ? "Start a new cash-out" : "Start a new top-up"}
+              {names.again}
             </Button>
             <a
               href={support}

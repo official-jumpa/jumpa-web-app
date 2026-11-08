@@ -1,4 +1,15 @@
-export type NimiqDirection = "cash_out" | "top_up";
+/** Switch's two ramps; quotes and the top-up limit hold only apply to these. */
+export type RampDirection = "cash_out" | "top_up";
+
+/** Airtime and data are bought with USDT the user moves to Jumpa. */
+export type BillDirection = "airtime" | "data";
+
+export type NimiqDirection = RampDirection | BillDirection;
+
+export const isBillDirection = (
+  direction: NimiqDirection,
+): direction is BillDirection =>
+  direction === "airtime" || direction === "data";
 
 export type NimiqOrderStatus =
   | "awaiting_signature"
@@ -7,7 +18,10 @@ export type NimiqOrderStatus =
   | "processing"
   | "completed"
   | "failed"
-  | "expired";
+  | "expired"
+  /** Bill only: the network refused it and the USDT is going back. */
+  | "refunding"
+  | "refunded";
 
 type SwitchDerivedStatus = Extract<
   NimiqOrderStatus,
@@ -35,8 +49,12 @@ export type PublicOrder = {
     accountNumber: string;
     notes: string[];
   };
+  /** Airtime and data only: who was topped up and with what. */
+  bill?: { phone: string; network: string; size?: string; validity?: string };
   transferTxHash?: string;
   explorerUrl?: string;
+  /** Bill only: the transaction that returned the USDT. */
+  refundUrl?: string;
   failureReason?: string;
 };
 
@@ -44,12 +62,14 @@ export const FINAL_STATUSES: readonly NimiqOrderStatus[] = [
   "completed",
   "failed",
   "expired",
+  "refunded",
 ];
 
 const IN_FLIGHT_STATUSES: readonly NimiqOrderStatus[] = [
   "relaying",
   "awaiting_deposit",
   "processing",
+  "refunding",
 ];
 
 /** Money is moving (or awaited) and the order hasn't settled yet. */
@@ -60,6 +80,8 @@ export const isInFlight = (order: Pick<PublicOrder, "status">) =>
 export const COUNTED_STATUSES: Record<NimiqDirection, NimiqOrderStatus[]> = {
   cash_out: ["relaying", "processing", "completed"],
   top_up: ["awaiting_deposit", "processing", "completed"],
+  airtime: ["relaying", "processing", "completed"],
+  data: ["relaying", "processing", "completed"],
 };
 
 const SWITCH_STATUS_MAP: Record<string, SwitchDerivedStatus> = {

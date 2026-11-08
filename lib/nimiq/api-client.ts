@@ -1,5 +1,11 @@
-import type { NimiqDirection, PublicOrder } from "./order-status";
-import type { AccountSummary, CashOutInput, Quote, TopUpInput } from "./orders";
+import type { PublicOrder, RampDirection } from "./order-status";
+import type {
+  AccountSummary,
+  BillInput,
+  CashOutInput,
+  Quote,
+  TopUpInput,
+} from "./orders";
 
 const BASE = "/api/v1/nimiq";
 const OFFLINE = "You're offline. Check your connection and try again.";
@@ -48,11 +54,8 @@ export const nimiqApi = {
       signal,
     }),
 
-  quote: (
-    direction: NimiqDirection,
-    amount: number,
-    { signal }: Options = {},
-  ) => call<Quote>("/quote", { ...post({ direction, amount }), signal }),
+  quote: (direction: RampDirection, amount: number, { signal }: Options = {}) =>
+    call<Quote>("/quote", { ...post({ direction, amount }), signal }),
 
   lookUpBank: (accountNumber: string, bank: string, { signal }: Options = {}) =>
     call<{ accountName: string; bankName: string }>(
@@ -66,6 +69,15 @@ export const nimiqApi = {
   submitCashOut: (orderId: string, signature: string) =>
     call<{ order: PublicOrder }>(
       `/cash-out/${orderId}/submit`,
+      post({ signature }),
+    ),
+
+  createBill: (input: BillInput) =>
+    call<{ order: PublicOrder; typedData: string }>("/bills", post(input)),
+
+  submitBill: (orderId: string, signature: string) =>
+    call<{ order: PublicOrder }>(
+      `/bills/${orderId}/submit`,
       post({ signature }),
     ),
 

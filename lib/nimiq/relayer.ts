@@ -26,11 +26,11 @@ const LOCK_COLLECTION = "nimiq_locks";
 const LEASE_MS = 120_000;
 const POLL_MS = 250;
 const RECEIPT_TIMEOUT_MS = 60_000;
-/** Below this the relayer refuses new cash-outs instead of failing half-way. */
+/** Below this the relayer refuses new payments instead of failing half-way. */
 export const MIN_RELAYER_GAS = parseEther("0.05");
 
 export const RELAYER_PAUSED =
-  "Cash-out is paused for a moment. Please try again shortly.";
+  "Payments are paused for a moment. Please try again shortly.";
 const NOT_SENT = "The transfer could not be sent. No money has moved.";
 
 /** Nothing was sent, so the same signature can be retried. */
@@ -41,10 +41,10 @@ export class RelayerUnavailableError extends Error {
   }
 }
 
-/** Another cash-out holds the relayer longer than this request will wait. */
+/** Another payment holds the relayer longer than this request will wait. */
 export class RelayerBusyError extends RelayerUnavailableError {
   constructor() {
-    super("Cash-out is busy right now. Please try again in a minute.");
+    super("Payments are busy right now. Please try again in a minute.");
     this.name = "RelayerBusyError";
   }
 }
@@ -231,7 +231,7 @@ export async function broadcastSigned(
 
 export type RelayInput = {
   owner: Address;
-  /** The Switch deposit address stored on the order; never client input. */
+  /** The deposit address stored on the order (Switch's, or the relayer for a bill); never client input. */
   to: Address;
   value: bigint;
   deadline: bigint;
@@ -353,6 +353,78 @@ export async function relayPermitTransfer(
       );
     }
     return { permitTxHash, transferTxHash, confirmed: receipt !== null };
+  } finally {
+    await release();
+  }
+}
+
+export type RefundInput = {
+  to: Address;
+  value: bigint;
+  /** Persists the refund hash and nonce before it is broadcast. */
+  onSent: (hash: Hex, nonce: number) => Promise<void>;
+};
+
+export type RefundResult = {
+  txHash: Hex;
+  /** False when the receipt did not arrive in time; the order settles later from the hash. */
+  confirmed: boolean;
+};
+
+/**
+ * Returns a refused bill's USDT from the relayer to the wallet that paid it.
+ * Throws before sending anything when the relayer can't cover it.
+ */
+export async function relayRefund(input: RefundInput): Promise<RefundResult> {
+  const account = relayerAccount();
+  if (
+    !account ||
+    (await readRelayerGas()) < MIN_RELAYER_GAS ||
+    (await readUsdtBalance(account.address)) < input.value
+  ) {
+    throw new RelayerUnavailableError();
+  }
+
+  const client = polygonClient();
+  const wallet = createWalletClient({
+    account,
+    chain: polygon,
+    transport: polygonTransport(),
+  });
+  const release = await acquireRelayerLock(input.to);
+
+  try {
+    const nonce = await client.getTransactionCount({
+      address: account.address,
+      blockTag: "pending",
+    });
+    const request = await wallet.prepareTransactionRequest({
+      to: POLYGON_USDT.address,
+      data: encodeFunctionData({
+        abi: USDT0_ABI,
+        functionName: "transfer",
+        args: [input.to, input.value],
+      }),
+      nonce,
+      gas: TRANSFER_GAS_LIMIT,
+    });
+    const signed = await wallet.signTransaction(request);
+    const txHash = keccak256(signed);
+    await input.onSent(txHash, nonce);
+
+    const accepted = await broadcastSigned(
+      () => client.sendRawTransaction({ serializedTransaction: signed }),
+      () =>
+        client
+          .getTransaction({ hash: txHash })
+          .then(() => true)
+          .catch(() => false),
+    );
+    if (!accepted) return { txHash, confirmed: false };
+    const receipt = await client
+      .waitForTransactionReceipt({ hash: txHash, timeout: RECEIPT_TIMEOUT_MS })
+      .catch(() => null);
+    return { txHash, confirmed: receipt?.status === "success" };
   } finally {
     await release();
   }

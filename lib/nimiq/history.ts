@@ -14,6 +14,9 @@ const STATUS: Record<NimiqOrderStatus, Transaction["status"]> = {
   completed: "completed",
   failed: "failed",
   expired: "failed",
+  refunding: "pending",
+  // The purchase failed; the row's amount says what came back.
+  refunded: "failed",
 };
 
 /** The orders worth listing in history, newest first. */
@@ -32,6 +35,16 @@ export function historyEntry(order: PublicOrder): Transaction {
     status: STATUS[order.status],
     chain: "polygon",
   };
+  if (order.direction === "airtime" || order.direction === "data") {
+    const what = order.direction === "airtime" ? "Airtime" : "Data";
+    return {
+      ...base,
+      kind: order.direction,
+      carrier: order.bill?.network,
+      title: `${what} for ${order.bill?.phone ?? "a phone"}`,
+      amount: `-${usdt}`,
+    };
+  }
   if (order.direction === "cash_out") {
     return {
       ...base,

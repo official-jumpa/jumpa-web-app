@@ -5,7 +5,14 @@ import {
   isAddress,
   parseUnits,
 } from "viem";
+import {
+  AIRTIME_MAX,
+  AIRTIME_MIN,
+  type DataPlan,
+  getNetwork,
+} from "@/lib/bills";
 import { connectDB } from "@/lib/db";
+import { generateId } from "@/lib/schema-ids";
 import {
   normalizeSwitchAsset,
   type OffRampResponse,
@@ -13,15 +20,28 @@ import {
   type QuoteResponse,
   SwitchService,
 } from "@/lib/switch";
+import {
+  isValidNigerianPhone,
+  normalizeNigerianPhone,
+} from "@/lib/validations/bills.validation";
 import { type INimiqOrder, NimiqOrder } from "@/models/NimiqOrder";
-import { fromUnits, toUnits } from "./amounts";
+import { fromUnits, nairaPerUsdt, toUnits } from "./amounts";
 import {
   BankLookupError,
   type ResolvedAccount,
   resolveNigerianAccount,
 } from "./bank";
+import {
+  type BillOutcome,
+  type BillPurchase,
+  billProviderReady,
+  buyFromProvider,
+  listDataPlans,
+} from "./bill-provider";
 import { type NimiqConfig, nimiqConfig } from "./config";
 import {
+  BILL_MIN_USD,
+  BILL_RATE_PROBE_USDT,
   MAX_LISTED_ORDERS,
   PERMIT_TTL_SECONDS,
   POLYGON_EXPLORER_TX,
@@ -32,11 +52,14 @@ import {
 } from "./constants";
 import { checkAmountLimits } from "./limits";
 import {
+  type BillDirection,
   COUNTED_STATUSES,
   FINAL_STATUSES,
   fromSwitchStatus,
+  isBillDirection,
   type NimiqDirection,
   type PublicOrder,
+  type RampDirection,
 } from "./order-status";
 import {
   buildPermitTypedData,
@@ -57,11 +80,14 @@ import { walletAddressError } from "./recipients";
 import {
   MIN_RELAYER_GAS,
   RELAYER_PAUSED,
+  type RefundInput,
+  type RefundResult,
   RelayError,
   RelayerUnavailableError,
   type RelayInput,
   type RelayResult,
   relayPermitTransfer,
+  relayRefund,
 } from "./relayer";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -72,11 +98,11 @@ const RELAY_ABANDONED_MS = 10 * 60 * 1000;
 
 const COPY = {
   notFound: "We couldn't find this order.",
-  expired: "This cash-out expired. Start again.",
-  submitted: "This cash-out was already submitted.",
-  badSignature: "That signature doesn't match this cash-out.",
-  lowBalance:
-    "Your USDT balance is lower than this cash-out. No money has moved.",
+  expired: (what: string) => `This ${what} expired. Start again.`,
+  submitted: (what: string) => `This ${what} was already submitted.`,
+  badSignature: (what: string) => `That signature doesn't match this ${what}.`,
+  lowBalance: (what: string) =>
+    `Your USDT balance is lower than this ${what}. No money has moved.`,
   amountChanged: "The amount changed while we set this up. Please try again.",
   partnerError:
     "Our payout partner sent back something unexpected. Please try again.",
@@ -86,7 +112,22 @@ const COPY = {
     "The bank payout didn't go through. Your USDT is being returned to your wallet; contact support if it hasn't arrived within an hour.",
   topUpFailed:
     "This top-up didn't go through. If you sent Naira, contact support with the reference.",
+  billsUnavailable:
+    "Airtime and data are unavailable right now. Please try again later.",
+  badPhone: "Enter a valid Nigerian phone number (e.g. 08031234567).",
+  badNetwork: "Choose the network for this number.",
+  airtimeRange: `Airtime must be a whole amount from ₦${AIRTIME_MIN} to ₦${AIRTIME_MAX.toLocaleString("en-NG")}.`,
+  planGone: "That bundle isn't available any more. Pick another one.",
+  noRate: "We couldn't get a rate. Please try again.",
+  billRefunding:
+    "The network didn't accept this purchase. Your USDT is on its way back to your wallet.",
+  billRefunded:
+    "The network didn't accept this purchase, so your USDT was sent back to your wallet.",
 } as const;
+
+/** How copy names an order the user is paying with a permit. */
+const permitNoun = (direction: NimiqDirection) =>
+  direction === "cash_out" ? "cash-out" : "purchase";
 
 /** A refusal with the HTTP status the route should answer; the message is fit to show. */
 export class OrderError extends Error {
@@ -139,6 +180,15 @@ export type OrderDeps = {
   switchApi: SwitchApi;
   chain: ChainReads;
   relay(input: RelayInput): Promise<RelayResult>;
+  bills: BillsApi;
+  /** Sends USDT from the relayer back to a wallet. */
+  refund(input: RefundInput): Promise<RefundResult>;
+};
+
+export type BillsApi = {
+  ready(): boolean;
+  plans(phone: string): Promise<DataPlan[]>;
+  buy(purchase: BillPurchase): Promise<BillOutcome>;
 };
 
 const MINI_APP = { allowMiniAppAssets: true } as const;
@@ -171,6 +221,12 @@ export const defaultDeps: OrderDeps = {
     readRelayerNonce,
   },
   relay: relayPermitTransfer,
+  bills: {
+    ready: billProviderReady,
+    plans: async (phone) => (await listDataPlans(phone)).plans,
+    buy: buyFromProvider,
+  },
+  refund: relayRefund,
 };
 
 type Money = { amount: number; currency: string };
@@ -189,6 +245,12 @@ export type CashOutInput = {
   bank: string;
   accountNumber: string;
 };
+
+/** Airtime takes a Naira amount; data takes a bundle, priced from SmartSMS's list. */
+export type BillInput = { address: Address; phone: string; network: string } & (
+  | { kind: "airtime"; amountNgn: number }
+  | { kind: "data"; productName: string }
+);
 
 export type TopUpInput = {
   address: Address;
@@ -210,6 +272,8 @@ export async function spentTodayUsd(
   const openTopUpSince = new Date(nowMs - TOP_UP_WINDOW_SECONDS * 1000);
   const counted: Record<string, unknown>[] = [
     { direction: "cash_out", status: { $in: COUNTED_STATUSES.cash_out } },
+    { direction: "airtime", status: { $in: COUNTED_STATUSES.airtime } },
+    { direction: "data", status: { $in: COUNTED_STATUSES.data } },
     {
       direction: "top_up",
       status: {
@@ -238,9 +302,14 @@ export async function spentTodayUsd(
   return row?.total ?? 0;
 }
 
+/** Statuses where the user's USDT transfer has mined. */
+const TRANSFERRED = ["processing", "completed", "refunding", "refunded"];
+
 export function toPublicOrder(order: INimiqOrder): PublicOrder {
-  const settled = order.status === "processing" || order.status === "completed";
-  const hash = settled ? order.transferTxHash : undefined;
+  const hash = TRANSFERRED.includes(order.status)
+    ? order.transferTxHash
+    : undefined;
+  const refunded = order.status === "refunded" ? order.refundTxHash : undefined;
   return {
     id: order._id,
     direction: order.direction,
@@ -263,14 +332,21 @@ export function toPublicOrder(order: INimiqOrder): PublicOrder {
       accountNumber: order.depositBank.accountNumber,
       notes: [...(order.depositBank.notes ?? [])],
     },
+    bill: order.bill && {
+      phone: order.bill.phone,
+      network: order.bill.network,
+      ...(order.bill.size ? { size: order.bill.size } : {}),
+      ...(order.bill.validity ? { validity: order.bill.validity } : {}),
+    },
     transferTxHash: hash,
     explorerUrl: hash ? `${POLYGON_EXPLORER_TX}${hash}` : undefined,
+    refundUrl: refunded ? `${POLYGON_EXPLORER_TX}${refunded}` : undefined,
     failureReason: order.failureReason,
   };
 }
 
 export async function getQuote(
-  direction: NimiqDirection,
+  direction: RampDirection,
   amount: number,
   deps: OrderDeps = defaultDeps,
 ): Promise<Quote> {
@@ -376,22 +452,128 @@ export async function createCashOutOrder(
   return { order: toPublicOrder(order), typedData };
 }
 
-export async function submitCashOutSignature(
+/** Opens an airtime or data purchase and returns the permit for Nimiq Pay to sign. */
+export async function createBillOrder(
+  input: BillInput,
+  deps: OrderDeps = defaultDeps,
+): Promise<{ order: PublicOrder; typedData: string }> {
+  const owner = getAddress(input.address);
+  if (!isValidNigerianPhone(input.phone))
+    throw new OrderError(COPY.badPhone, 400);
+  if (!getNetwork(input.network)) throw new OrderError(COPY.badNetwork, 400);
+  const phone = normalizeNigerianPhone(input.phone);
+  if (!deps.bills.ready()) throw new OrderError(COPY.billsUnavailable, 503);
+  await deps.connect();
+
+  let amountNgn: number;
+  let plan: DataPlan | undefined;
+  if (input.kind === "airtime") {
+    amountNgn = input.amountNgn;
+    if (
+      !Number.isInteger(amountNgn) ||
+      amountNgn < AIRTIME_MIN ||
+      amountNgn > AIRTIME_MAX
+    ) {
+      throw new OrderError(COPY.airtimeRange, 400);
+    }
+  } else {
+    // The price comes from SmartSMS's own list, never from the client.
+    plan = (await deps.bills.plans(phone)).find(
+      (entry) => entry.productName === input.productName,
+    );
+    if (!plan?.numericPrice) throw new OrderError(COPY.planGone, 400);
+    amountNgn = plan.numericPrice;
+  }
+
+  const relayer = await readyRelayer(deps);
+  const rate = nairaPerUsdt(
+    await getQuote("cash_out", BILL_RATE_PROBE_USDT, deps),
+  );
+  if (!rate) throw new OrderError(COPY.noRate, 502);
+  // Rounded up to the next base unit so Jumpa is never short.
+  const units = BigInt(
+    Math.ceil((amountNgn / rate) * 10 ** POLYGON_USDT.decimals - 1e-9),
+  );
+  await assertWithinLimits(owner, unitsToUsd(units), input.kind, deps);
+  if ((await deps.chain.readUsdtBalance(owner)) < units) {
+    throw new OrderError("Your USDT balance is too low for this.", 400);
+  }
+
+  const now = deps.now();
+  const deadline = Math.floor(now / 1000) + PERMIT_TTL_SECONDS;
+  const nonce = await deps.chain.readPermitNonce(owner);
+  const id = generateId("nimq");
+  const order = await NimiqOrder.create({
+    _id: id,
+    direction: input.kind,
+    walletAddress: owner,
+    status: "awaiting_signature",
+    amountUsd: unitsToUsd(units),
+    cryptoUnits: units.toString(),
+    cryptoAmount: fromUnits(units),
+    fiatAmount: amountNgn,
+    rate,
+    // Sent to SmartSMS as ref_id.
+    switchReference: id,
+    depositAddress: relayer,
+    bill: {
+      phone,
+      network: input.network,
+      ...(plan
+        ? {
+            productName: plan.productName,
+            size: plan.size,
+            validity: plan.validity,
+          }
+        : {}),
+    },
+    permit: { spender: relayer, nonce: nonce.toString(), deadline },
+    expiresAt: new Date((deadline - SIGN_MARGIN_SECONDS) * 1000),
+    createdAt: new Date(now),
+  });
+
+  const typedData = serializeTypedData(
+    buildPermitTypedData(permitMessage(order)),
+  );
+  return { order: toPublicOrder(order), typedData };
+}
+
+export function submitCashOutSignature(
   orderId: string,
   signature: Hex,
   deps: OrderDeps = defaultDeps,
 ): Promise<PublicOrder> {
+  return submitPermit(orderId, signature, ["cash_out"], deps);
+}
+
+/** Relays the bill's permit, then buys it once the USDT has arrived. */
+export function submitBillSignature(
+  orderId: string,
+  signature: Hex,
+  deps: OrderDeps = defaultDeps,
+): Promise<PublicOrder> {
+  return submitPermit(orderId, signature, ["airtime", "data"], deps);
+}
+
+async function submitPermit(
+  orderId: string,
+  signature: Hex,
+  directions: NimiqDirection[],
+  deps: OrderDeps,
+): Promise<PublicOrder> {
   await deps.connect();
   const order = await NimiqOrder.findById(orderId).lean();
   if (
-    order?.direction !== "cash_out" ||
+    !order ||
+    !directions.includes(order.direction) ||
     !order.permit ||
     !order.depositAddress
   ) {
     throw new OrderError(COPY.notFound, 404);
   }
+  const what = permitNoun(order.direction);
   if (order.status !== "awaiting_signature")
-    throw new OrderError(COPY.submitted, 409);
+    throw new OrderError(COPY.submitted(what), 409);
 
   const relayer = deps.chain.relayerAddress();
   const signable = isSignable(
@@ -404,24 +586,29 @@ export async function submitCashOutSignature(
       { _id: order._id, status: "awaiting_signature" },
       { $set: { status: "expired" } },
     );
-    throw new OrderError(COPY.expired, 410);
+    throw new OrderError(COPY.expired(what), 410);
   }
 
   const message = permitMessage(order);
   if (!(await verifyPermitSignature(message, signature))) {
-    throw new OrderError(COPY.badSignature, 400);
+    throw new OrderError(COPY.badSignature(what), 400);
   }
   await readyRelayer(deps);
-  await assertWithinLimits(message.owner, order.amountUsd, "cash_out", deps);
+  await assertWithinLimits(
+    message.owner,
+    order.amountUsd,
+    order.direction,
+    deps,
+  );
   if ((await deps.chain.readUsdtBalance(message.owner)) < message.value) {
-    throw new OrderError(COPY.lowBalance, 400);
+    throw new OrderError(COPY.lowBalance(what), 400);
   }
 
   const claimed = await NimiqOrder.findOneAndUpdate(
     { _id: order._id, status: "awaiting_signature" },
     { $set: { status: "relaying", relayStartedAt: new Date(deps.now()) } },
   );
-  if (!claimed) throw new OrderError(COPY.submitted, 409);
+  if (!claimed) throw new OrderError(COPY.submitted(what), 409);
 
   try {
     const result = await deps.relay({
@@ -448,6 +635,9 @@ export async function submitCashOutSignature(
       },
     );
     if (result.confirmed) {
+      if (isBillDirection(order.direction)) {
+        return advanceBill(await mustFind(order._id), deps);
+      }
       await notifySwitch(order.switchReference, result.transferTxHash, deps);
     }
   } catch (error) {
@@ -587,6 +777,8 @@ async function settle(
     { $set: { ...next, checkedAt: new Date(now) } },
     { returnDocument: "after" },
   ).lean();
+  const current = updated ?? (await mustFind(order._id));
+  if (isBillDirection(order.direction)) return advanceBill(current, deps);
   if (
     updated &&
     order.status === "relaying" &&
@@ -595,7 +787,155 @@ async function settle(
   ) {
     await notifySwitch(order.switchReference, order.transferTxHash, deps);
   }
-  return toPublicOrder(updated ?? (await mustFind(order._id)));
+  return toPublicOrder(current);
+}
+
+/** Buys a paid bill, or carries on returning the USDT for a refused one. */
+async function advanceBill(
+  order: INimiqOrder,
+  deps: OrderDeps,
+): Promise<PublicOrder> {
+  if (order.status === "processing" && !order.buyStartedAt) {
+    return deliverBill(order, deps);
+  }
+  if (order.status === "refunding") return refundBill(order, deps);
+  return toPublicOrder(order);
+}
+
+async function deliverBill(
+  order: INimiqOrder,
+  deps: OrderDeps,
+): Promise<PublicOrder> {
+  const id = order._id;
+  // Claimed before SmartSMS is called, so no poll can buy it a second time.
+  const claimed = await NimiqOrder.findOneAndUpdate(
+    { _id: id, status: "processing", buyStartedAt: { $exists: false } },
+    { $set: { buyStartedAt: new Date(deps.now()) } },
+    { returnDocument: "after" },
+  ).lean();
+  if (!claimed?.bill) return toPublicOrder(await mustFind(id));
+
+  const outcome = await deps.bills.buy({
+    kind: claimed.direction as BillDirection,
+    phone: claimed.bill.phone,
+    amountNgn: claimed.fiatAmount,
+    productName: claimed.bill.productName,
+    reference: claimed.switchReference,
+  });
+  if (outcome.status === "delivered") {
+    await NimiqOrder.updateOne(
+      { _id: id, status: "processing" },
+      {
+        $set: {
+          status: "completed",
+          ...(outcome.reference
+            ? { providerReference: outcome.reference }
+            : {}),
+        },
+      },
+    );
+  } else if (outcome.status === "rejected") {
+    console.error(`[nimiq] bill ${id} refused: ${outcome.reason}`);
+    await NimiqOrder.updateOne(
+      { _id: id, status: "processing" },
+      { $set: { status: "refunding", failureReason: COPY.billRefunding } },
+    );
+    return refundBill(await mustFind(id), deps);
+  } else {
+    // Might have been delivered: support checks SmartSMS before any refund.
+    console.error(
+      `[nimiq] bill ${id} outcome unknown, needs a manual check: ${outcome.reason}`,
+    );
+  }
+  return toPublicOrder(await mustFind(id));
+}
+
+async function refundBill(
+  order: INimiqOrder,
+  deps: OrderDeps,
+): Promise<PublicOrder> {
+  const id = order._id;
+  const now = deps.now();
+  const markRefunded = (hash: string) =>
+    NimiqOrder.updateOne(
+      { _id: id, status: "refunding" },
+      {
+        $set: {
+          status: "refunded",
+          refundTxHash: hash,
+          failureReason: COPY.billRefunded,
+        },
+      },
+    );
+
+  if (order.refundTxHash) {
+    const receipt = await deps.chain.readReceiptStatus(
+      order.refundTxHash as Hex,
+    );
+    const old =
+      now - (order.refundStartedAt?.getTime() ?? 0) > RELAY_ABANDONED_MS;
+    if (receipt === "success") {
+      await markRefunded(order.refundTxHash);
+    } else if (
+      receipt === "reverted" ||
+      (receipt === "missing" &&
+        old &&
+        (await nonceTaken(order.refundNonce, deps)))
+    ) {
+      // It never moved anything, so the next poll may send it again.
+      console.error(`[nimiq] refund ${order.refundTxHash} for ${id} dropped`);
+      await NimiqOrder.updateOne(
+        { _id: id, refundTxHash: order.refundTxHash },
+        { $unset: { refundTxHash: 1, refundNonce: 1, refundStartedAt: 1 } },
+      );
+    }
+    return toPublicOrder(await mustFind(id));
+  }
+
+  // Claimed before sending, so two polls never refund twice.
+  const claimed = await NimiqOrder.findOneAndUpdate(
+    {
+      _id: id,
+      status: "refunding",
+      refundTxHash: { $exists: false },
+      $or: [
+        { refundStartedAt: { $exists: false } },
+        { refundStartedAt: { $lt: new Date(now - RELAY_ABANDONED_MS) } },
+      ],
+    },
+    { $set: { refundStartedAt: new Date(now) } },
+    { returnDocument: "after" },
+  ).lean();
+  if (!claimed) return toPublicOrder(await mustFind(id));
+
+  try {
+    const result = await deps.refund({
+      to: getAddress(claimed.walletAddress),
+      value: BigInt(claimed.cryptoUnits),
+      onSent: async (hash, nonce) => {
+        await NimiqOrder.updateOne(
+          { _id: id },
+          { $set: { refundTxHash: hash, refundNonce: nonce } },
+        );
+      },
+    });
+    if (result.confirmed) await markRefunded(result.txHash);
+  } catch (error) {
+    console.error(`[nimiq] refund for ${id} stopped:`, error);
+    // Nothing was sent: release the claim so the next poll tries again.
+    await NimiqOrder.updateOne(
+      { _id: id, refundTxHash: { $exists: false } },
+      { $unset: { refundStartedAt: 1 } },
+    );
+  }
+  return toPublicOrder(await mustFind(id));
+}
+
+/** Another relayer transaction used this nonce, so one signed with it can never mine. */
+async function nonceTaken(nonce: number | undefined, deps: OrderDeps) {
+  if (nonce === undefined) return false;
+  const mined = await deps.chain.readRelayerNonce();
+  return mined !== null && mined > nonce;
 }
 
 async function nextState(
@@ -638,6 +978,8 @@ async function nextState(
     }
     case "awaiting_deposit":
     case "processing": {
+      // A bill is bought by advanceBill, not tracked by Switch.
+      if (isBillDirection(order.direction)) return {};
       const raw = (await deps.switchApi.status(order.switchReference))?.data
         ?.status;
       const mapped = typeof raw === "string" ? fromSwitchStatus(raw) : null;
@@ -692,7 +1034,8 @@ async function assertWithinLimits(
   const reason = checkAmountLimits({
     usd,
     spentTodayUsd: await spentTodayUsd(owner, deps.now(), action),
-    minUsd,
+    // Airtime starts at ₦50, far under the cash-out minimum.
+    minUsd: isBillDirection(action) ? BILL_MIN_USD : minUsd,
     maxTxUsd,
     dailyUsd,
   });

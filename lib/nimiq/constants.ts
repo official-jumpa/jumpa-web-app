@@ -74,4 +74,10 @@ export const SIGNATURE_PATTERN = /^0x([0-9a-fA-F]{128}|[0-9a-fA-F]{130})$/;
 export const MAX_LISTED_ORDERS = 50;
 
 /** Shape of a mini-app order id (`generateId("nimq")`). */
+/** USDT quoted to price a bill at the cash-out rate. */
+export const BILL_RATE_PROBE_USDT = 10;
+
+/** The daily-limit floor for bills, whose own minimum is in Naira. */
+export const BILL_MIN_USD = 0.01;
+
 export const ORDER_ID_PATTERN = /^nimq_[0-9a-z]{20}$/;

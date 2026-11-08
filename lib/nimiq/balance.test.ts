@@ -63,6 +63,27 @@ describe("movesOwnBalance", () => {
     }
   });
 
+  test("a bill moves the balance once its USDT has left, refunded or not", () => {
+    for (const direction of ["airtime", "data"] as const) {
+      assert.equal(
+        movesOwnBalance(order({ direction, status: "relaying" })),
+        false,
+      );
+      for (const status of [
+        "processing",
+        "completed",
+        "refunding",
+        "refunded",
+      ] as const) {
+        assert.equal(
+          movesOwnBalance(order({ direction, status })),
+          true,
+          status,
+        );
+      }
+    }
+  });
+
   test("a top-up still waiting for Naira moves nothing", () => {
     assert.equal(movesOwnBalance(order({ status: "awaiting_deposit" })), false);
     assert.equal(movesOwnBalance(order({ status: "processing" })), false);

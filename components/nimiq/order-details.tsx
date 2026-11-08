@@ -1,4 +1,5 @@
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
+import { getNetwork } from "@/lib/bills";
 import { formatNaira, formatStable } from "@/lib/naira-deposit";
 import type { PublicOrder } from "@/lib/nimiq/order-status";
 import type { ReceiptRow } from "@/lib/receipt";
@@ -12,9 +13,41 @@ export function topUpPayee(order: Pick<PublicOrder, "recipientAddress">) {
 }
 
 /** Label/value pairs for an order, shared by the detail box and the shared receipt. */
+/** A bill's rows: what was bought, for whom, and what it cost. */
+function billRows(
+  order: PublicOrder,
+  usdt: string,
+  naira: string,
+): ReceiptRow[] {
+  const bill = order.bill;
+  return [
+    { label: "You paid", value: usdt },
+    {
+      label: order.direction === "airtime" ? "Airtime" : "Data",
+      value: bill?.size ? `${bill.size} · ${naira}` : naira,
+    },
+    ...(bill
+      ? [
+          { label: "Phone number", value: bill.phone },
+          {
+            label: "Network",
+            value: getNetwork(bill.network)?.label ?? bill.network,
+          },
+        ]
+      : []),
+    { label: "Network fee", value: "Paid by Jumpa" },
+  ];
+}
+
 export function orderRows(order: PublicOrder): ReceiptRow[] {
   const usdt = `${formatStable(order.cryptoAmount)} USDT`;
   const naira = formatNaira(order.fiatAmount);
+  if (order.direction === "airtime" || order.direction === "data") {
+    return [
+      ...billRows(order, usdt, naira),
+      { label: "Reference", value: order.reference },
+    ];
+  }
   const rows: ReceiptRow[] =
     order.direction === "cash_out"
       ? [
@@ -56,16 +89,35 @@ export function OrderDetails({ order }: { order: PublicOrder }) {
           key={row.label}
           label={row.label}
           value={row.value}
-          rule={index < rows.length - 1 || Boolean(order.explorerUrl)}
+          rule={
+            index < rows.length - 1 ||
+            Boolean(order.explorerUrl || order.refundUrl)
+          }
         />
       ))}
       {order.explorerUrl ? (
         <DetailRow
           label="Transaction"
-          rule={false}
+          rule={Boolean(order.refundUrl)}
           value={
             <a
               href={order.explorerUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-jumpa-primary-600 underline"
+            >
+              View on Polygonscan
+            </a>
+          }
+        />
+      ) : null}
+      {order.refundUrl ? (
+        <DetailRow
+          label="Refund"
+          rule={false}
+          value={
+            <a
+              href={order.refundUrl}
               target="_blank"
               rel="noreferrer"
               className="text-jumpa-primary-600 underline"

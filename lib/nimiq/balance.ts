@@ -1,7 +1,13 @@
-import type { PublicOrder } from "./order-status";
+import { isBillDirection, type PublicOrder } from "./order-status";
 
 /** Whether this order changes the connected wallet's own USDT balance by now. */
 export function movesOwnBalance(order: PublicOrder): boolean {
+  if (isBillDirection(order.direction)) {
+    // Paid, then delivered or sent back: each step changes the balance.
+    return ["processing", "completed", "refunding", "refunded"].includes(
+      order.status,
+    );
+  }
   if (order.direction === "cash_out") {
     return order.status === "processing" || order.status === "completed";
   }

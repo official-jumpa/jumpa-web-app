@@ -4,8 +4,10 @@ import { type Address, type Hex, parseEther } from "viem";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import type { OffRampResponse, OnRampResponse } from "@/lib/switch";
 import { type INimiqOrder, NimiqOrder } from "@/models/NimiqOrder";
+import type { BillOutcome, BillPurchase } from "./bill-provider";
 import { POLYGON_USDT } from "./constants";
 import {
+  createBillOrder,
   createCashOutOrder,
   createTopUpOrder,
   listOrders,
@@ -13,10 +15,11 @@ import {
   OrderError,
   refreshOrder,
   spentTodayUsd,
+  submitBillSignature,
   submitCashOutSignature,
 } from "./orders";
 import { buildPermitTypedData } from "./permit";
-import { RelayError } from "./relayer";
+import { RelayError, RelayerUnavailableError } from "./relayer";
 import { connectTestDb, dropTestDb, skipWithoutDb } from "./test-db";
 
 const owner = privateKeyToAccount(generatePrivateKey());
@@ -25,6 +28,7 @@ const DEPOSIT: Address = "0x2222222222222222222222222222222222222222";
 const FRIEND: Address = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
 const TRANSFER_HASH: Hex = `0x${"ab".repeat(32)}`;
 const TRANSFER_NONCE = 7;
+const REFUND_HASH: Hex = `0x${"cd".repeat(32)}`;
 const START = Date.parse("2026-11-07T12:00:00Z");
 const MINUTE = 60_000;
 
@@ -44,7 +48,25 @@ function harness() {
     relayerNonce: null as number | null,
     switchStatus: "PROCESSING",
     relayCalls: 0,
+    relayTo: [] as Address[],
+    relayConfirmed: true,
     relayError: undefined as Error | undefined,
+    billsReady: true,
+    plans: [
+      {
+        id: "smart_0_1GB",
+        size: "1GB",
+        period: "monthly" as const,
+        validity: "30 days",
+        price: "₦3,000",
+        productName: "MTN 1GB 30 days",
+        numericPrice: 3000,
+      },
+    ],
+    purchases: [] as BillPurchase[],
+    billOutcome: { status: "delivered", reference: "sms_1" } as BillOutcome,
+    refunds: [] as { to: Address; value: bigint }[],
+    refundError: undefined as Error | undefined,
     offramps: [] as { amount: number; holder: string; refund: string }[],
     onramps: [] as { ngn: number; wallet: string }[],
     confirms: [] as string[],
@@ -131,9 +153,24 @@ function harness() {
     },
     relay: async (input) => {
       state.relayCalls += 1;
+      state.relayTo.push(input.to);
       if (state.relayError) throw state.relayError;
       await input.onTransferSent(TRANSFER_HASH, TRANSFER_NONCE);
-      return { transferTxHash: TRANSFER_HASH, confirmed: true };
+      return { transferTxHash: TRANSFER_HASH, confirmed: state.relayConfirmed };
+    },
+    bills: {
+      ready: () => state.billsReady,
+      plans: async () => state.plans,
+      buy: async (purchase) => {
+        state.purchases.push(purchase);
+        return state.billOutcome;
+      },
+    },
+    refund: async (input) => {
+      state.refunds.push({ to: input.to, value: input.value });
+      if (state.refundError) throw state.refundError;
+      await input.onSent(REFUND_HASH, 9);
+      return { txHash: REFUND_HASH, confirmed: true };
     },
   };
   return { deps, state };
@@ -609,6 +646,156 @@ describe("nimiq orders", () => {
       await spentTodayUsd(owner.address, START + 1801 * 1000, "top_up"),
       0,
     );
+  });
+  const airtime = {
+    kind: "airtime" as const,
+    address: owner.address,
+    phone: "+234 803 123 4567",
+    network: "mtn",
+    amountNgn: 1000,
+  };
+
+  async function paidBill(deps: OrderDeps) {
+    const { order } = await createBillOrder(airtime, deps);
+    return submitBillSignature(order.id, await signFor(order.id), deps);
+  }
+
+  test("airtime is priced at the cash-out rate, rounded up, with the relayer taking the USDT", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps } = harness();
+
+    // ₦1,000 at ₦1,500 a USDT is under the $1 cash-out minimum; bills have their own floor.
+    const { order, typedData } = await createBillOrder(airtime, deps);
+
+    const stored = await NimiqOrder.findById(order.id).lean();
+    assert.equal(stored?.direction, "airtime");
+    assert.equal(stored?.status, "awaiting_signature");
+    assert.equal(stored?.cryptoUnits, "666667");
+    assert.equal(stored?.fiatAmount, 1000);
+    assert.equal(stored?.depositAddress, RELAYER);
+    assert.equal(stored?.permit?.spender, RELAYER);
+    assert.deepEqual(order.bill, { phone: "08031234567", network: "mtn" });
+    assert.equal(JSON.parse(typedData).message.value, "666667");
+  });
+
+  test("data is charged at the bundle's listed price, never one the client sends", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps } = harness();
+    const data = {
+      kind: "data" as const,
+      address: owner.address,
+      phone: "08031234567",
+      network: "mtn",
+      productName: "MTN 1GB 30 days",
+    };
+
+    const { order } = await createBillOrder(data, deps);
+
+    assert.equal(order.fiatAmount, 3000);
+    assert.equal(order.cryptoAmount, "2");
+    assert.equal(order.bill?.size, "1GB");
+    await rejectsWith(
+      createBillOrder({ ...data, productName: "MTN 100GB free" }, deps),
+      400,
+    );
+  });
+
+  test("bills are refused before any signature when SmartSMS isn't set up", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps, state } = harness();
+    state.billsReady = false;
+
+    await rejectsWith(createBillOrder(airtime, deps), 503);
+  });
+
+  test("a paid bill is bought once, after the USDT reaches the relayer", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps, state } = harness();
+    const { order } = await createBillOrder(airtime, deps);
+    const signature = await signFor(order.id);
+
+    await rejectsWith(submitCashOutSignature(order.id, signature, deps), 404);
+    const done = await submitBillSignature(order.id, signature, deps);
+
+    assert.equal(done.status, "completed");
+    assert.deepEqual(state.relayTo, [RELAYER]);
+    assert.deepEqual(state.purchases, [
+      {
+        kind: "airtime",
+        phone: "08031234567",
+        amountNgn: 1000,
+        productName: undefined,
+        reference: order.reference,
+      },
+    ]);
+    assert.equal(state.confirms.length, 0);
+    const stored = await NimiqOrder.findById(order.id).lean();
+    assert.equal(stored?.providerReference, "sms_1");
+    assert.equal(
+      await spentTodayUsd(owner.address, START, "airtime"),
+      0.666667,
+    );
+  });
+
+  test("a bill the network refuses sends the USDT back to the wallet", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps, state } = harness();
+    state.billOutcome = { status: "rejected", reason: "Invalid number" };
+
+    const done = await paidBill(deps);
+
+    assert.equal(done.status, "refunded");
+    assert.deepEqual(state.refunds, [
+      { to: owner.address, value: BigInt(666667) },
+    ]);
+    assert.ok(done.refundUrl?.endsWith(REFUND_HASH));
+    assert.ok(done.failureReason);
+    assert.equal(await spentTodayUsd(owner.address, START, "airtime"), 0);
+  });
+
+  test("an unanswered purchase stays processing: never bought again, never refunded", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps, state } = harness();
+    state.billOutcome = { status: "unknown", reason: "timeout" };
+
+    const first = await paidBill(deps);
+    state.now += MINUTE;
+    const later = await refreshOrder(first.id, deps);
+
+    assert.equal(later.status, "processing");
+    assert.equal(state.purchases.length, 1);
+    assert.equal(state.refunds.length, 0);
+  });
+
+  test("a transfer confirmed after the request ends is bought on the next poll", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps, state } = harness();
+    state.relayConfirmed = false;
+
+    const pending = await paidBill(deps);
+    assert.equal(pending.status, "relaying");
+    assert.equal(state.purchases.length, 0);
+
+    state.now += MINUTE;
+    const done = await refreshOrder(pending.id, deps);
+    assert.equal(done.status, "completed");
+    assert.equal(state.purchases.length, 1);
+  });
+
+  test("a refund that couldn't be sent is tried again on the next poll", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps, state } = harness();
+    state.billOutcome = { status: "rejected", reason: "Low float" };
+    state.refundError = new RelayerUnavailableError();
+
+    const stuck = await paidBill(deps);
+    assert.equal(stuck.status, "refunding");
+
+    state.refundError = undefined;
+    state.now += MINUTE;
+    const done = await refreshOrder(stuck.id, deps);
+    assert.equal(done.status, "refunded");
+    assert.equal(state.refunds.length, 2);
   });
 });
 

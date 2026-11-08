@@ -19,6 +19,16 @@ export type NimiqDepositBank = {
   notes: string[];
 };
 
+export type NimiqOrderBill = {
+  /** Normalised to 11 digits. */
+  phone: string;
+  network: string;
+  /** Data only: SmartSMS's product name, which is what it sells by. */
+  productName?: string;
+  size?: string;
+  validity?: string;
+};
+
 export type NimiqOrderPermit = {
   spender: string;
   nonce: string;
@@ -26,7 +36,7 @@ export type NimiqOrderPermit = {
   deadline: number;
 };
 
-/** A Nimiq Pay mini-app cash-out or top-up; the wallet address is the only identity. */
+/** A Nimiq Pay mini-app cash-out, top-up or bill; the wallet address is the only identity. */
 export interface INimiqOrder {
   _id: string;
   direction: NimiqDirection;
@@ -40,11 +50,22 @@ export interface INimiqOrder {
   cryptoAmount: string;
   fiatAmount: number;
   rate: number;
+  /** Switch's reference; for a bill, the `ref_id` sent to SmartSMS. */
   switchReference: string;
+  /** Where the permit moves the USDT: Switch's deposit, or the relayer for a bill. */
   depositAddress?: string;
   bank?: NimiqOrderBank;
   depositBank?: NimiqDepositBank;
   permit?: NimiqOrderPermit;
+  bill?: NimiqOrderBill;
+  /** SmartSMS's id for a delivered bill. */
+  providerReference?: string;
+  /** Set once, before SmartSMS is called; a bill is never bought twice. */
+  buyStartedAt?: Date;
+  refundTxHash?: string;
+  refundNonce?: number;
+  /** Claimed before a refund is sent, so two polls never refund twice. */
+  refundStartedAt?: Date;
   permitTxHash?: string;
   transferTxHash?: string;
   /** The relayer nonce the transfer was signed with; settles a transfer that never mines. */
@@ -63,7 +84,11 @@ export interface INimiqOrder {
 const NimiqOrderSchema = new Schema<INimiqOrder>(
   {
     _id: { type: String, default: () => generateId("nimq") },
-    direction: { type: String, enum: ["cash_out", "top_up"], required: true },
+    direction: {
+      type: String,
+      enum: ["cash_out", "top_up", "airtime", "data"],
+      required: true,
+    },
     walletAddress: {
       type: String,
       required: true,
@@ -81,6 +106,8 @@ const NimiqOrderSchema = new Schema<INimiqOrder>(
         "completed",
         "failed",
         "expired",
+        "refunding",
+        "refunded",
       ],
       required: true,
     },
@@ -122,6 +149,24 @@ const NimiqOrderSchema = new Schema<INimiqOrder>(
       ),
       default: undefined,
     },
+    bill: {
+      type: new Schema<NimiqOrderBill>(
+        {
+          phone: String,
+          network: String,
+          productName: String,
+          size: String,
+          validity: String,
+        },
+        { _id: false },
+      ),
+      default: undefined,
+    },
+    providerReference: String,
+    buyStartedAt: Date,
+    refundTxHash: String,
+    refundNonce: Number,
+    refundStartedAt: Date,
     permitTxHash: String,
     transferTxHash: String,
     transferNonce: Number,

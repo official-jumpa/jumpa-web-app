@@ -6,6 +6,11 @@ import { ActionGrid } from "@/components/home/action-grid";
 import { BalancePanel, GLASS } from "@/components/home/balance-panel";
 import { SoonFiatAccounts } from "@/components/home/fiat-accounts";
 import { HomeSection } from "@/components/home/home-section";
+import {
+  PROMO_SLIDES,
+  PromoBanner,
+  type PromoSlide,
+} from "@/components/home/promo-banner";
 import { FieldError } from "@/components/ui/field-error";
 import { RiseIn } from "@/components/ui/rise-in";
 import { cn } from "@/lib/cn";
@@ -13,6 +18,13 @@ import { formatStable } from "@/lib/naira-deposit";
 import type { AccountSummary } from "@/lib/nimiq/orders";
 import { MINI_APP_ACTIONS, MINI_APP_PILLS } from "./mini-app-actions";
 import { NimiqHeader } from "./nimiq-header";
+
+/** The main app's ads; their screens need a Jumpa account, so they only show for now. */
+// TODO: link the chat slide once chat runs in the mini app.
+const SLIDES: PromoSlide[] = [
+  { ...PROMO_SLIDES.savings, href: undefined },
+  { ...PROMO_SLIDES.chat, href: undefined },
+];
 
 /** Survives a trip into a flow and back; a fresh open shows the balance. */
 let balanceHidden = false;
@@ -68,13 +80,17 @@ export function NimiqHome({
         <SoonFiatAccounts />
       </RiseIn>
 
-      <RiseIn index={1} className="mt-5.5">
+      <RiseIn index={1} className="mt-1.25">
+        <PromoBanner slides={SLIDES} />
+      </RiseIn>
+
+      <RiseIn index={2} className="mt-1.5">
         <HomeSection title="Quick Actions" className="gap-2.5">
           <ActionGrid actions={MINI_APP_ACTIONS} onNavigate={onNavigate} />
         </HomeSection>
       </RiseIn>
 
-      <RiseIn index={2} className="mt-5.25 flex flex-col gap-5.25">
+      <RiseIn index={3} className="mt-5.25 flex flex-col gap-5.25">
         {activity}
       </RiseIn>
     </div>

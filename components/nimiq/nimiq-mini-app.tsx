@@ -5,9 +5,10 @@ import type { Address } from "viem";
 import { JumpaLoaderScreen } from "@/components/ui/jumpa-loader";
 import type { NimiqLimits } from "@/lib/nimiq/config";
 import { visibleHistory } from "@/lib/nimiq/history";
-import { isInFlight } from "@/lib/nimiq/order-status";
+import { isInFlight, type NimiqDirection } from "@/lib/nimiq/order-status";
 import type { Eip1193 } from "@/lib/nimiq/provider";
-import { MINI_APP_TAB_HREF, tabHrefOf } from "@/lib/nimiq/views";
+import { type FlowName, MINI_APP_TAB_HREF, tabHrefOf } from "@/lib/nimiq/views";
+import { BillFlow } from "./bill-flow";
 import { CashOutFlow } from "./cash-out-flow";
 import { ConnectWallet } from "./connect-wallet";
 import { InProgressOrders } from "./in-progress-orders";
@@ -26,6 +27,14 @@ import { useNimiqWallet } from "./use-nimiq-wallet";
 import { useOrderHistory } from "./use-order-history";
 import { useRecentOrders } from "./use-recent-orders";
 import { useSavedRecipients } from "./use-saved-recipients";
+
+/** The screen that starts a fresh order of each kind. */
+const FLOW_OF: Record<NimiqDirection, FlowName> = {
+  cash_out: "cash-out",
+  top_up: "top-up",
+  airtime: "airtime",
+  data: "data",
+};
 
 /** Settled orders previewed on home; the rest are a tap on See All away. */
 const HOME_HISTORY_ROWS = 3;
@@ -109,6 +118,23 @@ function ConnectedApp({
           }}
         />
       );
+    case "airtime":
+    case "data":
+      return (
+        <BillFlow
+          key={view.name}
+          kind={view.name}
+          provider={provider}
+          address={address}
+          account={account.account}
+          onLeave={nav.back}
+          onOrderCreated={recent.remember}
+          onSubmitted={(order) => {
+            balanceMoves.note(order, true);
+            nav.showOrder(order.id);
+          }}
+        />
+      );
     case "top-up":
       return (
         <TopUpFlow
@@ -130,9 +156,7 @@ function ConnectedApp({
           orderId={view.orderId}
           onHome={nav.back}
           backLabel={view.fromHistory ? "Back to history" : "Back to home"}
-          onRetry={(direction) =>
-            nav.restart(direction === "cash_out" ? "cash-out" : "top-up")
-          }
+          onRetry={(direction) => nav.restart(FLOW_OF[direction])}
           onMissing={recent.forget}
           onUpdate={balanceMoves.note}
         />

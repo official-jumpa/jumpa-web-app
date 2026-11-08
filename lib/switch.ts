@@ -78,10 +78,26 @@ export const SUPPORTED_SWITCH_ASSETS = [
   "tron:usdc",
 ];
 
+/** Assets only the Nimiq Pay mini app may use; the main app never opts in. */
+export const MINI_APP_SWITCH_ASSETS = ["polygon:usdt"];
+
+/** Per-call options; existing callers pass none and keep today's behaviour. */
+export type SwitchCallOptions = {
+  allowMiniAppAssets?: boolean;
+  /** Where Switch returns funds if an off-ramp fails. */
+  refundAddress?: string;
+};
+
 export function normalizeSwitchAsset(asset: string): string {
   const lower = (asset || "").toLowerCase().trim();
   if (lower.startsWith("eth:")) return `ethereum:${lower.slice(4)}`;
   return lower;
+}
+
+export function isSwitchAssetAllowed(asset: string, allowMiniAppAssets = false): boolean {
+  const normAsset = normalizeSwitchAsset(asset);
+  if (SUPPORTED_SWITCH_ASSETS.includes(normAsset)) return true;
+  return allowMiniAppAssets && MINI_APP_SWITCH_ASSETS.includes(normAsset);
 }
 
 /** Human-readable labels for each supported Switch asset — use these when presenting assets to users */
@@ -202,7 +218,7 @@ export function getSwitchFeeRecipient(asset: string): string | undefined {
     return undefined;
   }
 
-  if (normAsset.startsWith("base:") || normAsset.startsWith("ethereum:")) {
+  if (normAsset.startsWith("base:") || normAsset.startsWith("ethereum:") || normAsset.startsWith("polygon:")) {
     const addr = environment.FEE_WALLET_EVM?.trim();
     if (addr && isValidAddressForChain("evm", addr)) return addr;
     if (addr) console.warn("[Switch] FEE_WALLET_EVM has invalid format for EVM (must start with 0x), omitting developer fee recipient");
@@ -224,10 +240,11 @@ export class SwitchService {
   }  static async initiateOnRamp(
     amount: number,
     asset: string,
-    walletAddress: string
+    walletAddress: string,
+    options?: SwitchCallOptions
   ): Promise<OnRampResponse> {
     const normAsset = normalizeSwitchAsset(asset);
-    if (!SUPPORTED_SWITCH_ASSETS.includes(normAsset)) {
+    if (!isSwitchAssetAllowed(normAsset, options?.allowMiniAppAssets)) {
       return {
         success: false,
         status: 400,
@@ -296,9 +313,9 @@ export class SwitchService {
     }
   }
 
-  static async getQuote(amount: number, asset: string): Promise<QuoteResponse> {
+  static async getQuote(amount: number, asset: string, options?: SwitchCallOptions): Promise<QuoteResponse> {
     const normAsset = normalizeSwitchAsset(asset);
-    if (!SUPPORTED_SWITCH_ASSETS.includes(normAsset)) {
+    if (!isSwitchAssetAllowed(normAsset, options?.allowMiniAppAssets)) {
       return {
         success: false,
         message: "The selected asset is not supported by our provider at this time."
@@ -426,9 +443,9 @@ export class SwitchService {
     }
   }
 
-  static async getOfframpQuote(amount: number, asset: string): Promise<QuoteResponse> {
+  static async getOfframpQuote(amount: number, asset: string, options?: SwitchCallOptions): Promise<QuoteResponse> {
     const normAsset = normalizeSwitchAsset(asset);
-    if (!SUPPORTED_SWITCH_ASSETS.includes(normAsset)) {
+    if (!isSwitchAssetAllowed(normAsset, options?.allowMiniAppAssets)) {
       return {
         success: false,
         message: "The selected asset is not supported by our provider at this time."
@@ -493,10 +510,11 @@ export class SwitchService {
       holder_name: string;
       account_number: string;
       bank_code: string;
-    }
+    },
+    options?: SwitchCallOptions
   ): Promise<OffRampResponse> {
     const normAsset = normalizeSwitchAsset(asset);
-    if (!SUPPORTED_SWITCH_ASSETS.includes(normAsset)) {
+    if (!isSwitchAssetAllowed(normAsset, options?.allowMiniAppAssets)) {
       return {
         success: false,
         status: 400,
@@ -526,6 +544,10 @@ export class SwitchService {
 
       if (environment.SWITCH_JUMPA_FEE > 0 && feeRecipient) {
         payload.developer_recipient = feeRecipient;
+      }
+
+      if (options?.refundAddress) {
+        payload.refund_address = options.refundAddress;
       }
 
       const response = await fetch(`${this.BASE_URL}/offramp/initiate`, {

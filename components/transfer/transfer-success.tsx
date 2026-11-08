@@ -38,6 +38,7 @@ export function TransferSuccess({
   onShare,
   receiptRows,
   reference,
+  onBack,
 }: {
   back: string;
   amount: string;
@@ -61,6 +62,8 @@ export function TransferSuccess({
   receiptRows?: ReceiptRow[];
   /** Provider or transaction reference; a stamped one is made when absent. */
   reference?: string;
+  /** Steps back through a host that keeps its own stack, instead of replacing to `back`. */
+  onBack?: () => void;
 }) {
   const router = useRouter();
   const [showDetails, setShowDetails] = useState(false);
@@ -140,10 +143,13 @@ export function TransferSuccess({
           re-enter the form that was just submitted. */}
       <TransferHeader
         back={back}
-        onBack={() => {
-          router.replace(back);
-          router.refresh();
-        }}
+        onBack={
+          onBack ??
+          (() => {
+            router.replace(back);
+            router.refresh();
+          })
+        }
         action={
           <Image
             src="/logo/wordmark/purple.png"

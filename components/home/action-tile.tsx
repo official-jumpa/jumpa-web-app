@@ -11,10 +11,13 @@ const LABEL =
 export function ActionTile({
   action,
   onSheet,
+  onNavigate,
 }: {
   action: AppAction;
   /** Raises Send or Deposit's chooser; tiles that route ignore it. */
   onSheet?: (sheet: "send" | "receive") => void;
+  /** Routes the tile through the host instead of a link. */
+  onNavigate?: (href: string) => void;
 }) {
   const { label, Icon, iconSize, to, soon, flip } = action;
   const body = (
@@ -44,6 +47,18 @@ export function ActionTile({
         type="button"
         onClick={() => onSheet?.(to.sheet)}
         aria-haspopup="dialog"
+        className={cn("tap active:scale-95", TILE)}
+      >
+        {body}
+      </button>
+    );
+  }
+
+  if (onNavigate) {
+    return (
+      <button
+        type="button"
+        onClick={() => onNavigate(to.href)}
         className={cn("tap active:scale-95", TILE)}
       >
         {body}

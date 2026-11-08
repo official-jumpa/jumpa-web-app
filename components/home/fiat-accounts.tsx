@@ -239,24 +239,17 @@ const TINT: Record<FiatAccount["id"], string> = {
 
 export type FiatCardVariant = keyof typeof CARD;
 
-function AccountCard({
-  account,
-  variant,
-  isKycComplete,
-  onOpenKycModal,
-}: {
-  account: FiatAccount;
-  variant: FiatCardVariant;
-  isKycComplete: boolean;
-  onOpenKycModal: () => void;
-}) {
-  const shell = cn(
+function shellOf(account: FiatAccount, variant: FiatCardVariant) {
+  return cn(
     "relative flex flex-1 flex-col rounded-panel px-4",
     CARD[variant].shell,
     CARD[variant].gap,
     variant === "home" ? TINT[account.id] : "bg-jumpa-neutral-50",
   );
-  const heading = (
+}
+
+function CardHeading({ account }: { account: FiatAccount }) {
+  return (
     <span className="flex items-center gap-1">
       <Image
         src={account.flag}
@@ -270,35 +263,82 @@ function AccountCard({
       </span>
     </span>
   );
+}
 
-  const chevron = (
+function CardChevron({ variant }: { variant: FiatCardVariant }) {
+  return (
     <ChevronRightIcon
       className={cn("absolute right-2.5 size-5", CARD[variant].chevron)}
     />
   );
+}
+
+/** Zero shown on a muted card; neither is a real balance. */
+const SOON_FIGURE: Record<FiatAccount["id"], string> = {
+  ngn: "₦0.00",
+  usd: "$0.00",
+};
+
+/** An account not open to this user yet: laid out like a live card, then muted; the tag sits outside the blur. */
+function SoonAccountCard({
+  account,
+  variant,
+}: {
+  account: FiatAccount;
+  variant: FiatCardVariant;
+}) {
+  return (
+    <>
+      <div aria-disabled="true" className={cn(shellOf(account, variant), SOON)}>
+        <CardHeading account={account} />
+        <span className="flex flex-col">
+          <span className={AVAILABLE}>Available</span>
+          <span className="flex items-center gap-2 text-jumpa-black">
+            {/* Placeholder figure: there is no balance until the account goes live. */}
+            <span className="text-base leading-5.25 font-semibold">
+              {SOON_FIGURE[account.id]}
+            </span>
+            <EyeOffIcon className="size-4" />
+          </span>
+        </span>
+        <CardChevron variant={variant} />
+        <span className="sr-only">(coming soon)</span>
+      </div>
+      <SoonTag className="top-2 right-2.5" />
+    </>
+  );
+}
+
+/** Both accounts muted and tagged Soon, for the Nimiq mini app, which has no Jumpa account behind it. */
+export function SoonFiatAccounts() {
+  return (
+    <ul className="flex items-stretch gap-2">
+      {FIAT_ACCOUNTS.map((account) => (
+        <li key={account.id} className="relative flex flex-1">
+          <SoonAccountCard account={account} variant="home" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function AccountCard({
+  account,
+  variant,
+  isKycComplete,
+  onOpenKycModal,
+}: {
+  account: FiatAccount;
+  variant: FiatCardVariant;
+  isKycComplete: boolean;
+  onOpenKycModal: () => void;
+}) {
+  const shell = shellOf(account, variant);
+  const heading = <CardHeading account={account} />;
+  const chevron = <CardChevron variant={variant} />;
 
   if (NOT_LIVE.includes(account.id)) {
-    // Laid out like a live card, then muted; the tag sits outside the blur.
-    return (
-      <>
-        <div aria-disabled="true" className={cn(shell, SOON)}>
-          {heading}
-          <span className="flex flex-col">
-            <span className={AVAILABLE}>Available</span>
-            <span className="flex items-center gap-2 text-jumpa-black">
-              {/* Placeholder figure: there is no USD balance until the account goes live. */}
-              <span className="text-base leading-5.25 font-semibold">
-                $0.00
-              </span>
-              <EyeOffIcon className="size-4" />
-            </span>
-          </span>
-          {chevron}
-          <span className="sr-only">(coming soon)</span>
-        </div>
-        <SoonTag className="top-2 right-2.5" />
-      </>
-    );
+    return <SoonAccountCard account={account} variant={variant} />;
   }
 
   if (account.balance !== null) {

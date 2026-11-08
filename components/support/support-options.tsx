@@ -7,9 +7,14 @@ import { MessageCircleQuestionIcon } from "@/components/ui/icons/message-circle-
 import { MessageSquareChatIcon } from "@/components/ui/icons/message-square-chat";
 import { SUPPORT_EMAIL, supportHref, supportMailto } from "@/lib/support";
 
-export type SupportOptionId = "chat" | "messages" | "email" | "faqs";
+export type SupportOptionId =
+  | "chat"
+  | "messages"
+  | "email"
+  | "faqs"
+  | "community";
 
-interface SupportOption {
+export interface SupportOption {
   id: SupportOptionId;
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
   title: string;
@@ -18,6 +23,8 @@ interface SupportOption {
   href: string;
   /** Leaves the app — the mail client, not a route. */
   external?: true;
+  /** Opens in a new tab, so a web link doesn't replace the app. */
+  newTab?: true;
 }
 
 /** The ways to reach support. Order and copy come from the design, plus Your messages. */
@@ -82,13 +89,23 @@ function SupportOptionBody({ option }: { option: SupportOption }) {
 }
 
 /** The chooser itself. `mailto:` needs a real anchor, so Email Us is not a Link. */
-export function SupportOptionList() {
+export function SupportOptionList({
+  options = SUPPORT_OPTIONS,
+}: {
+  /** Home's four by default; the Nimiq mini app lists only what works without an account. */
+  options?: SupportOption[];
+} = {}) {
   return (
     <ul className="flex w-full flex-col gap-2">
-      {SUPPORT_OPTIONS.map((option) => (
+      {options.map((option) => (
         <li key={option.id}>
           {option.external ? (
-            <a href={option.href} className={ROW}>
+            <a
+              href={option.href}
+              target={option.newTab ? "_blank" : undefined}
+              rel={option.newTab ? "noopener noreferrer" : undefined}
+              className={ROW}
+            >
               <SupportOptionBody option={option} />
             </a>
           ) : (

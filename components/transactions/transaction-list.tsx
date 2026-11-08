@@ -15,13 +15,17 @@ export function TransactionList({
   onType,
   sentinelRef,
   loadingMore,
+  onSelect,
 }: {
   transactions: Transaction[];
   /** The active Transaction Type filter, "All" when none. */
   typeLabel?: string;
-  onType: () => void;
+  /** Opens the filters from the type pill; without it the pill is not drawn. */
+  onType?: () => void;
   sentinelRef?: RefObject<HTMLDivElement | null>;
   loadingMore?: boolean;
+  /** Opens a row in place instead of linking to its detail screen. */
+  onSelect?: (transaction: Transaction) => void;
 }) {
   return (
     <section className="flex flex-col gap-3">
@@ -29,14 +33,16 @@ export function TransactionList({
         <h2 className="text-xs leading-4.5 font-medium tracking-jumpa-snug text-jumpa-navy-900">
           Transactions
         </h2>
-        <button
-          type="button"
-          onClick={onType}
-          className="tap flex items-center text-xs leading-none tracking-jumpa-snug text-jumpa-grey-450 active:scale-95"
-        >
-          {typeLabel}
-          <ChevronDownMdIcon className="size-4.5" />
-        </button>
+        {onType ? (
+          <button
+            type="button"
+            onClick={onType}
+            className="tap flex items-center text-xs leading-none tracking-jumpa-snug text-jumpa-grey-450 active:scale-95"
+          >
+            {typeLabel}
+            <ChevronDownMdIcon className="size-4.5" />
+          </button>
+        ) : null}
       </div>
 
       {transactions.length === 0 ? (
@@ -46,7 +52,11 @@ export function TransactionList({
           {transactions.map((transaction, index) => (
             <li key={transaction.id || index} className="flex flex-col gap-2.5">
               {index > 0 ? <TransactionRule /> : null}
-              <TransactionRow transaction={transaction} variant="history" />
+              <TransactionRow
+                transaction={transaction}
+                variant="history"
+                onSelect={onSelect}
+              />
             </li>
           ))}
         </ul>

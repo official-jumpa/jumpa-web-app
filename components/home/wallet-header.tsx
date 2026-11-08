@@ -14,7 +14,7 @@ import { ACCOUNT } from "@/lib/wallet";
 
 // No colour here: a second `text-*` from a consumer would not reliably win,
 // since the joins in this file are plain concatenation.
-const CONTROL =
+export const HEADER_CONTROL =
   "relative flex size-10 items-center justify-center rounded-row bg-jumpa-neutral-50 " +
   "text-jumpa-primary-600 tap active:scale-95";
 
@@ -123,7 +123,7 @@ export function WalletHeader({
           type="button"
           onClick={() => setHelpOpen(true)}
           aria-label="Help and support"
-          className={CONTROL}
+          className={HEADER_CONTROL}
         >
           <MessageCircleQuestionIcon className="size-6" />
         </button>
@@ -132,7 +132,7 @@ export function WalletHeader({
           href="/notifications"
           prefetch={true}
           aria-label="Notifications"
-          className={CONTROL}
+          className={HEADER_CONTROL}
         >
           <BellIcon className="size-6" />
           {hasUnread ? (

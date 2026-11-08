@@ -49,9 +49,23 @@ export const SWITCH_DEPOSIT_SAFE_SECONDS = 1500;
 /** How long Switch holds a top-up's bank details open; unpaid ones stop counting after it. */
 export const TOP_UP_WINDOW_SECONDS = 1800;
 
-/** Deeplink that opens Jumpa inside Nimiq Pay. */
-export const NIMIQ_OPEN_URL =
-  "https://nimpay.app/miniapps/open/usejumpa.com/nimiq";
+/** What people type into Nimiq Pay's browser / Mini Apps to open Jumpa. */
+export const NIMIQ_MINI_APP_ADDRESS = "usejumpa.com/nimiq";
+
+/** Deeplink that opens Jumpa inside Nimiq Pay; works once the directory lists it. */
+export const NIMIQ_OPEN_URL = `https://nimpay.app/miniapps/open/${NIMIQ_MINI_APP_ADDRESS}`;
+
+/** Nimiq Pay's official store listings, as linked from nimiq.com/nimiq-pay. */
+export const NIMIQ_PAY_STORES = [
+  {
+    label: "App Store",
+    href: "https://apps.apple.com/app/nimiq-pay/id6471844738",
+  },
+  {
+    label: "Google Play",
+    href: "https://play.google.com/store/apps/details?id=com.nimiq.pay",
+  },
+] as const;
 
 /** A 64- or 65-byte hex signature, as wallets return from `eth_signTypedData_v4`. */
 export const SIGNATURE_PATTERN = /^0x([0-9a-fA-F]{128}|[0-9a-fA-F]{130})$/;

@@ -337,7 +337,11 @@ export const FOOTER = {
 } as const;
 
 export const FOOTER_COLUMNS = [
-  { heading: "Links", links: NAV_LINKS },
+  // The header tabs plus the Nimiq Pay mini app, which has no tab of its own.
+  {
+    heading: "Links",
+    links: [...NAV_LINKS, { label: "Jumpa on Nimiq Pay", href: "/nimiq" }],
+  },
   { heading: "Legal", links: FOOTER.legal },
   { heading: "Social", links: FOOTER.socials },
 ] as const;

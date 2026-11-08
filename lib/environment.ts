@@ -179,6 +179,17 @@ export const environment = {
   // FEES
   SWITCH_JUMPA_FEE: process.env.SWITCH_JUMPA_FEE ? Number(process.env.SWITCH_JUMPA_FEE) : 1,
 
+  // NIMIQ PAY MINI APP — /nimiq stays a 404 unless NIMIQ_MINIAPP_ENABLED is exactly "true".
+  NIMIQ_MINIAPP_ENABLED: process.env.NIMIQ_MINIAPP_ENABLED || "",
+  /** Hot wallet that pays POL gas for gasless cash-outs; keep only a few dollars of POL on it. */
+  NIMIQ_RELAYER_KEY: process.env.NIMIQ_RELAYER_KEY || "",
+  POLYGON_RPC_URL:
+    process.env.POLYGON_RPC_URL || "https://polygon.drpc.org",
+  /** USD limits per Nimiq Pay wallet; parsed and defaulted in lib/nimiq/config.ts. */
+  NIMIQ_DAILY_LIMIT_USD: process.env.NIMIQ_DAILY_LIMIT_USD || "",
+  NIMIQ_TX_LIMIT_USD: process.env.NIMIQ_TX_LIMIT_USD || "",
+  NIMIQ_MIN_USD: process.env.NIMIQ_MIN_USD || "",
+
   // (Airtime & Data)
   SMART_SMS_API: process.env.SMART_SMS_API || "",
   SMART_SMS_BASE_URL: process.env.SMART_SMS_BASE_URL,

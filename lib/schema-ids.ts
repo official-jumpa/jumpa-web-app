@@ -47,6 +47,7 @@ export const SCHEMA_IDS = {
   // ── Utility Entities
   cardref: { prefix: "cardref", length: 12, description: "Card references" },
   idem: { prefix: "idem", length: 20, description: "Idempotency keys" },
+  nimq: { prefix: "nimq", length: 20, description: "Nimiq Pay mini-app orders" },
   wdref: { prefix: "tx", length: 16, description: "Transaction reference IDs (tx{year}{6digits}{6letters})" },
 } as const;
 

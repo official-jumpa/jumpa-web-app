@@ -12,7 +12,8 @@
     "resolve-pending-txs": "node --import tsx script/resolve-transactions.ts",
     "check-deposits": "node --import tsx script/check-deposits.ts",
     "daily-interest": "node --import tsx script/daily-interest.ts",
-    "support-sla": "node --import tsx script/support-sla.ts"
+    "support-sla": "node --import tsx script/support-sla.ts",
+    "test:nimiq": "node --import tsx --test --test-concurrency=1 lib/nimiq/*.test.ts"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.1.1",

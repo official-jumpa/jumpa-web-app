@@ -1,4 +1,5 @@
 import { QRCodeSVG } from "qrcode.react";
+import { BackLink } from "@/components/ui/back-link";
 import { Button } from "@/components/ui/button";
 import { NIMIQ_OPEN_URL } from "@/lib/nimiq/constants";
 import { NimiqNotice } from "./nimiq-notice";
@@ -13,6 +14,7 @@ const STEPS = [
 export function OpenInNimiq({ dailyUsd }: { dailyUsd: number }) {
   return (
     <NimiqNotice
+      back={<BackLink href="/" variant="corner" label="Back" />}
       art={
         <div className="rounded-surface bg-jumpa-white p-4 text-jumpa-black inset-ring inset-ring-jumpa-neutral-100">
           {/* currentColor keeps the modules on a token rather than a hex prop; level H survives the logo. */}

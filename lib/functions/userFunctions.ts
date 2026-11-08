@@ -522,7 +522,7 @@ export async function updateBeneficiary(
   const doc = await Beneficiary.findOneAndUpdate(
     { _id: beneficiaryId, userId, isSaved: true },
     { $set },
-    { new: true },
+    { returnDocument: "after" },
   );
 
   if (doc) {

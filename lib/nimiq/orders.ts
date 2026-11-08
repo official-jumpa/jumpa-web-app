@@ -585,7 +585,7 @@ async function settle(
   const updated = await NimiqOrder.findOneAndUpdate(
     { _id: order._id, status: order.status },
     { $set: { ...next, checkedAt: new Date(now) } },
-    { new: true },
+    { returnDocument: "after" },
   ).lean();
   if (
     updated &&

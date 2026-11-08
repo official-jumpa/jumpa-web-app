@@ -99,7 +99,8 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Cache-Control", value: STATIC_ASSET_CACHE }],
       },
       {
-        source: "/assets/:path*",
+        // Not `/assets/:path*`: that also matches the signed-in `/assets` page and lets Vercy share it.
+        source: "/assets/chains/:path*",
         headers: [{ key: "Cache-Control", value: STATIC_ASSET_CACHE }],
       },
     ];

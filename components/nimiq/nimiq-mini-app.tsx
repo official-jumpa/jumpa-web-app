@@ -7,11 +7,14 @@ import type { NimiqLimits } from "@/lib/nimiq/config";
 import { visibleHistory } from "@/lib/nimiq/history";
 import { isInFlight } from "@/lib/nimiq/order-status";
 import type { Eip1193 } from "@/lib/nimiq/provider";
+import { MINI_APP_TAB_HREF, tabHrefOf } from "@/lib/nimiq/views";
 import { CashOutFlow } from "./cash-out-flow";
 import { ConnectWallet } from "./connect-wallet";
 import { InProgressOrders } from "./in-progress-orders";
+import { MiniAppTabBar } from "./mini-app-tab-bar";
 import { NimiqHistory } from "./nimiq-history";
 import { NimiqHome } from "./nimiq-home";
+import { NimiqMe } from "./nimiq-me";
 import { NimiqOrderView } from "./nimiq-order-view";
 import { OpenInNimiq } from "./open-in-nimiq";
 import { RecentActivity } from "./recent-activity";
@@ -66,6 +69,7 @@ function ConnectedApp({
   const { view } = nav;
   const { refresh, refreshUntilChanged } = account;
   const { take: tookBalanceMove } = balanceMoves;
+  const tabHref = tabHrefOf(view);
   // Re-read on every return to home or history, so statuses are current.
   const history = useOrderHistory(
     recent.ids,
@@ -74,16 +78,16 @@ function ConnectedApp({
   );
   const listed = history.orders && visibleHistory(history.orders);
 
-  // Back on home after a flow: the balance and today's limit may have moved.
+  // Back on a tab after a flow: the balance and today's limit may have moved.
   const lastView = useRef(view.name);
   useEffect(() => {
-    if (view.name === "home" && lastView.current !== "home") {
+    if (tabHref && view.name !== lastView.current) {
       // A finished order can reach the chain a few seconds after it says done.
       if (tookBalanceMove()) void refreshUntilChanged();
       else refresh();
     }
     lastView.current = view.name;
-  }, [view.name, refresh, refreshUntilChanged, tookBalanceMove]);
+  }, [view.name, tabHref, refresh, refreshUntilChanged, tookBalanceMove]);
 
   const openFromHistory = (orderId: string) =>
     nav.openOrder(orderId, { fromHistory: true });
@@ -134,43 +138,68 @@ function ConnectedApp({
         />
       );
     case "history":
+    case "me":
+    case "home":
       return (
-        <NimiqHistory
-          orders={listed}
-          error={history.error}
-          onRetry={history.reload}
-          onBack={nav.back}
-          onOpen={openFromHistory}
-        />
+        <>
+          {renderTab(view.name)}
+          <MiniAppTabBar
+            current={tabHref ?? MINI_APP_TAB_HREF.home}
+            onNavigate={nav.tab}
+          />
+        </>
       );
-    case "home": {
-      const moving = history.orders?.filter(isInFlight) ?? [];
-      const settled = listed?.filter((order) => !isInFlight(order));
-      return (
-        <NimiqHome
-          address={address}
-          account={account.account}
-          accountError={account.error}
-          loading={account.loading}
-          onRefresh={refresh}
-          onOpen={nav.open}
-          activity={
-            <>
-              <InProgressOrders orders={moving} onOpen={nav.openOrder} />
-              {/* Hidden while the only orders are still moving; they show above. */}
-              {settled?.length || !moving.length ? (
-                <RecentActivity
-                  orders={settled?.slice(0, HOME_HISTORY_ROWS)}
-                  error={history.error}
-                  onRetry={history.reload}
-                  onOpen={openFromHistory}
-                  onSeeAll={() => nav.open("history")}
-                />
-              ) : null}
-            </>
-          }
-        />
-      );
+  }
+
+  function renderTab(tab: "home" | "history" | "me") {
+    switch (tab) {
+      case "history":
+        return (
+          <NimiqHistory
+            orders={listed}
+            error={history.error}
+            onRetry={history.reload}
+            onBack={nav.back}
+            onOpen={openFromHistory}
+          />
+        );
+      case "me":
+        return (
+          <NimiqMe
+            address={address}
+            account={account.account}
+            onBack={nav.back}
+          />
+        );
+      case "home": {
+        const moving = history.orders?.filter(isInFlight) ?? [];
+        const settled = listed?.filter((order) => !isInFlight(order));
+        return (
+          <NimiqHome
+            address={address}
+            account={account.account}
+            accountError={account.error}
+            onRefresh={refresh}
+            onNavigate={nav.go}
+            onOpenMe={() => nav.tab(MINI_APP_TAB_HREF.me)}
+            activity={
+              <>
+                <InProgressOrders orders={moving} onOpen={nav.openOrder} />
+                {/* Hidden while the only orders are still moving; they show above. */}
+                {settled?.length || !moving.length ? (
+                  <RecentActivity
+                    orders={settled?.slice(0, HOME_HISTORY_ROWS)}
+                    error={history.error}
+                    onRetry={history.reload}
+                    onOpen={openFromHistory}
+                    onSeeAll={() => nav.tab(MINI_APP_TAB_HREF.history)}
+                  />
+                ) : null}
+              </>
+            }
+          />
+        );
+      }
     }
   }
 }

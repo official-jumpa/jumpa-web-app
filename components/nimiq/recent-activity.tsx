@@ -1,5 +1,6 @@
 "use client";
 
+import { HomeSection } from "@/components/home/home-section";
 import type { PublicOrder } from "@/lib/nimiq/order-status";
 import { OrderHistoryList } from "./order-history-list";
 
@@ -18,29 +19,27 @@ export function RecentActivity({
   onSeeAll: () => void;
 }) {
   return (
-    <section className="mt-8">
-      <div className="flex h-4 items-center justify-between">
-        <h2 className="text-sm leading-4 font-semibold text-jumpa-black">
-          Transaction History
-        </h2>
-        {orders?.length ? (
+    <HomeSection
+      title="Transaction History"
+      className="gap-4"
+      action={
+        orders?.length ? (
           <button
             type="button"
             onClick={onSeeAll}
-            className="tap text-sm leading-4 font-medium text-jumpa-primary-600 active:scale-95"
+            className="tap active:scale-95"
           >
             See All
           </button>
-        ) : null}
-      </div>
-      <div className="mt-4">
-        <OrderHistoryList
-          orders={orders}
-          error={error}
-          onRetry={onRetry}
-          onOpen={onOpen}
-        />
-      </div>
-    </section>
+        ) : null
+      }
+    >
+      <OrderHistoryList
+        orders={orders}
+        error={error}
+        onRetry={onRetry}
+        onOpen={onOpen}
+      />
+    </HomeSection>
   );
 }

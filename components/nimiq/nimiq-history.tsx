@@ -1,11 +1,13 @@
 "use client";
 
-import { TransferHeader } from "@/components/transfer/transfer-header";
+import { TransactionList } from "@/components/transactions/transaction-list";
+import { JumpaLoader } from "@/components/ui/jumpa-loader";
+import { ScreenHeader } from "@/components/ui/screen-header";
+import { historyEntry } from "@/lib/nimiq/history";
 import type { PublicOrder } from "@/lib/nimiq/order-status";
-import { OrderHistoryList } from "./order-history-list";
 import { MINI_APP_PATH } from "./use-mini-app-nav";
 
-/** Every order this device remembers for the wallet, newest first. */
+/** The Txn tab: every order this device remembers for the wallet, newest first, as the main app lists them. */
 export function NimiqHistory({
   orders,
   error,
@@ -20,23 +22,51 @@ export function NimiqHistory({
   onOpen: (orderId: string) => void;
 }) {
   return (
-    <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
-      <TransferHeader
+    <div className="flex flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-6">
+      <ScreenHeader
         back={MINI_APP_PATH}
         onBack={onBack}
-        title="Transaction History"
+        round
+        title="Transaction history"
+        titleWeight="medium"
+        titleStyle="lg"
       />
+
       <div className="mt-6">
-        <OrderHistoryList
-          orders={orders}
-          error={error}
-          onRetry={onRetry}
-          onOpen={onOpen}
-        />
+        {orders ? (
+          <TransactionList
+            transactions={orders.map(historyEntry)}
+            onSelect={(entry) => onOpen(entry.id)}
+          />
+        ) : error ? (
+          <div className="flex flex-col items-center gap-2 py-16 text-center">
+            <p className="text-xs leading-4 font-medium text-jumpa-neutral-400">
+              {error}
+            </p>
+            <button
+              type="button"
+              onClick={onRetry}
+              className="tap text-sm leading-4 font-medium text-jumpa-primary-600 active:scale-95"
+            >
+              Try again
+            </button>
+          </div>
+        ) : (
+          <div className="flex justify-center py-16">
+            <JumpaLoader
+              className="size-8"
+              markClassName="w-4"
+              label="Loading transactions"
+            />
+          </div>
+        )}
       </div>
-      <p className="mt-4 text-center text-xs leading-4 text-jumpa-neutral-400">
-        Orders started on this device.
-      </p>
+
+      {orders?.length ? (
+        <p className="mt-6 text-center text-xs leading-4 text-jumpa-neutral-400">
+          Orders started on this device.
+        </p>
+      ) : null}
     </div>
   );
 }

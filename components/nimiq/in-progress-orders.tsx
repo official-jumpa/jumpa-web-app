@@ -1,5 +1,6 @@
 "use client";
 
+import { HomeSection } from "@/components/home/home-section";
 import { OptionRow } from "@/components/transfer/option-row";
 import { MoneyInsertIcon } from "@/components/ui/icons/money-insert";
 import { MoneyWithdrawalIcon } from "@/components/ui/icons/money-withdrawal";
@@ -28,11 +29,8 @@ export function InProgressOrders({
   if (!orders.length) return null;
 
   return (
-    <section className="mt-8">
-      <h2 className="text-sm leading-4 font-semibold text-jumpa-black">
-        In progress
-      </h2>
-      <div className="mt-4 flex flex-col gap-5">
+    <HomeSection title="In progress" className="gap-4">
+      <div className="flex flex-col gap-5">
         {orders.map((order) => (
           <OptionRow
             key={order.id}
@@ -51,6 +49,6 @@ export function InProgressOrders({
           />
         ))}
       </div>
-    </section>
+    </HomeSection>
   );
 }

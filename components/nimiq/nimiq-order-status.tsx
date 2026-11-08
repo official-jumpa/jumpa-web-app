@@ -92,6 +92,7 @@ export function NimiqOrderStatus({
     return (
       <TransferSuccess
         back={MINI_APP_PATH}
+        onBack={onHome}
         ctaHref={MINI_APP_PATH}
         ctaLabel="Done"
         amount={cashOut ? naira : usdt}

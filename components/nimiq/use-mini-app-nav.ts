@@ -2,37 +2,16 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
-import { ORDER_ID_PATTERN } from "@/lib/nimiq/constants";
+import { type FlowName, MINI_APP_PATH, readView } from "@/lib/nimiq/views";
 
-export const MINI_APP_PATH = "/nimiq";
-
-export type FlowName = "cash-out" | "top-up";
-
-export type MiniAppView =
-  | { name: "home" }
-  | { name: "history" }
-  | { name: FlowName }
-  /** `fromHistory`: Back returns to the history list rather than home. */
-  | { name: "order"; orderId: string; fromHistory: boolean };
+export {
+  type FlowName,
+  MINI_APP_PATH,
+  type MiniAppView,
+} from "@/lib/nimiq/views";
 
 /** Screens this page pushed above home, so Back steps back rather than stacking home. */
 let pushedViews = 0;
-
-function readView(params: URLSearchParams): MiniAppView {
-  const orderId = params.get("order");
-  if (orderId && ORDER_ID_PATTERN.test(orderId)) {
-    return {
-      name: "order",
-      orderId,
-      fromHistory: params.get("from") === "history",
-    };
-  }
-  const view = params.get("view");
-  if (view === "cash-out" || view === "top-up" || view === "history") {
-    return { name: view };
-  }
-  return { name: "home" };
-}
 
 /** The mini app's screens live in its query string, so reloads and Back land where expected. */
 export function useMiniAppNav() {
@@ -50,11 +29,25 @@ export function useMiniAppNav() {
     router.push(href);
   };
 
+  const back = () => {
+    if (pushedViews > 0) {
+      pushedViews -= 1;
+      router.back();
+    } else {
+      router.replace(MINI_APP_PATH);
+    }
+  };
+
   return {
     view,
 
     open(name: FlowName | "history") {
       push(`${MINI_APP_PATH}?view=${name}`);
+    },
+
+    /** Pushes a mini-app href, for shared tiles and pills that hand their route to the host. */
+    go(href: string) {
+      if (href.startsWith(`${MINI_APP_PATH}?`)) push(href);
     },
 
     openOrder(orderId: string, { fromHistory = false } = {}) {
@@ -74,13 +67,13 @@ export function useMiniAppNav() {
     },
 
     /** One screen back: home, or the history list an order was opened from. */
-    back() {
-      if (pushedViews > 0) {
-        pushedViews -= 1;
-        router.back();
-      } else {
-        router.replace(MINI_APP_PATH);
-      }
+    back,
+
+    /** Tabs sit one step above home: home pushes, tab to tab swaps, and Home steps back. */
+    tab(href: string) {
+      if (href === MINI_APP_PATH) back();
+      else if (view.name === "home") push(href);
+      else router.replace(href);
     },
   };
 }

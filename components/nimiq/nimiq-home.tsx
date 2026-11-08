@@ -16,13 +16,44 @@ import { RiseIn } from "@/components/ui/rise-in";
 import { cn } from "@/lib/cn";
 import { formatStable } from "@/lib/naira-deposit";
 import type { AccountSummary } from "@/lib/nimiq/orders";
-import { MINI_APP_CHAT_HREF } from "@/lib/nimiq/views";
+import { MINI_APP_CHAT_HREF, MINI_APP_PATH } from "@/lib/nimiq/views";
 import { MINI_APP_ACTIONS, MINI_APP_PILLS } from "./mini-app-actions";
 import { NimiqHeader } from "./nimiq-header";
 
-/** The main app's ads: chat opens the mini app's chat; savings needs a Jumpa account, so it only shows. */
+/** The mini app's own banners, as exported artwork. */
+function BannerImage({ src }: { src: string }) {
+  return (
+    <Image
+      src={src}
+      alt=""
+      width={357}
+      height={103}
+      className="absolute inset-x-0 bottom-0 h-25.75 w-full rounded-row object-cover"
+    />
+  );
+}
+
+function AirtimeArt() {
+  return <BannerImage src="/images/nimiq/banner-airtime.png" />;
+}
+
+function CryptoArt() {
+  return <BannerImage src="/images/nimiq/banner-crypto.png" />;
+}
+
 const SLIDES: PromoSlide[] = [
-  { ...PROMO_SLIDES.savings, href: undefined },
+  {
+    id: "airtime",
+    href: `${MINI_APP_PATH}?view=airtime`,
+    label: "Get airtime. Get data. Stay connected.",
+    Art: AirtimeArt,
+  },
+  {
+    id: "crypto",
+    href: `${MINI_APP_PATH}?view=top-up`,
+    label: "Buy or sell crypto.",
+    Art: CryptoArt,
+  },
   { ...PROMO_SLIDES.chat, href: MINI_APP_CHAT_HREF },
 ];
 

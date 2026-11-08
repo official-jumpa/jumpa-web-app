@@ -10,6 +10,16 @@ import type { NextConfig } from "next";
 const STATIC_ASSET_CACHE =
   "public, max-age=86400, stale-while-revalidate=2592000";
 
+// Pages built ahead of time get a one-year `s-maxage` by default, and Vercy keeps serving that copy after a deploy. Add new static pages here.
+const PRERENDERED_PAGES = [
+  "/onboarding",
+  "/docs/:path*",
+  "/privacy",
+  "/terms-of-service",
+];
+
+const NO_STORE = "private, no-cache, no-store, max-age=0, must-revalidate";
+
 const nextConfig: NextConfig = {
   images: {
     // Keep an optimised variant on the server for a week instead of the 60s
@@ -39,8 +49,25 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async rewrites() {
+    return {
+      beforeFiles: [],
+      afterFiles: [],
+      // TODO: remove once Vercy's cache is purged; pages it cached from older builds link CSS files a later deploy deleted.
+      fallback: [
+        {
+          source: "/_next/static/chunks/:file.css",
+          destination: "/cache-fallback/styles.css",
+        },
+      ],
+    };
+  },
   async headers() {
     return [
+      ...PRERENDERED_PAGES.map((source) => ({
+        source,
+        headers: [{ key: "Cache-Control", value: NO_STORE }],
+      })),
       {
         source: "/sw.js",
         headers: [

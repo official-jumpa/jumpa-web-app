@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { JumpaLoaderScreen } from "@/components/ui/jumpa-loader";
-import type { NimiqDirection } from "@/lib/nimiq/order-status";
+import type { NimiqDirection, PublicOrder } from "@/lib/nimiq/order-status";
 import { Medallion } from "./medallion";
 import { NimiqNotice } from "./nimiq-notice";
 import { NimiqOrderStatus } from "./nimiq-order-status";
@@ -17,6 +17,7 @@ export function NimiqOrderView({
   backLabel = "Back to home",
   onRetry,
   onMissing,
+  onUpdate,
 }: {
   orderId: string;
   onHome: () => void;
@@ -25,6 +26,8 @@ export function NimiqOrderView({
   onRetry: (direction: NimiqDirection) => void;
   /** The server doesn't know this id; drop it from this device. Must be stable. */
   onMissing: (orderId: string) => void;
+  /** Every state the order is seen in. Must be stable. */
+  onUpdate?: (order: PublicOrder) => void;
 }) {
   const { order, error } = useNimiqOrder(orderId);
   const [sent, setSent] = useState(false);
@@ -33,6 +36,10 @@ export function NimiqOrderView({
   useEffect(() => {
     if (missing) onMissing(orderId);
   }, [missing, orderId, onMissing]);
+
+  useEffect(() => {
+    if (order) onUpdate?.(order);
+  }, [order, onUpdate]);
 
   if (!order) {
     return missing ? (

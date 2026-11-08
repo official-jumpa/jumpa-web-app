@@ -16,6 +16,7 @@ import { NimiqOrderView } from "./nimiq-order-view";
 import { OpenInNimiq } from "./open-in-nimiq";
 import { RecentActivity } from "./recent-activity";
 import { TopUpFlow } from "./top-up-flow";
+import { useBalanceMoves } from "./use-balance-moves";
 import { useMiniAppNav } from "./use-mini-app-nav";
 import { useNimiqAccount } from "./use-nimiq-account";
 import { useNimiqWallet } from "./use-nimiq-wallet";
@@ -61,8 +62,10 @@ function ConnectedApp({
   const account = useNimiqAccount(address);
   const recent = useRecentOrders(address);
   const saved = useSavedRecipients(address);
+  const balanceMoves = useBalanceMoves();
   const { view } = nav;
-  const { refresh } = account;
+  const { refresh, refreshUntilChanged } = account;
+  const { take: tookBalanceMove } = balanceMoves;
   // Re-read on every return to home or history, so statuses are current.
   const history = useOrderHistory(
     recent.ids,
@@ -74,9 +77,13 @@ function ConnectedApp({
   // Back on home after a flow: the balance and today's limit may have moved.
   const lastView = useRef(view.name);
   useEffect(() => {
-    if (view.name === "home" && lastView.current !== "home") refresh();
+    if (view.name === "home" && lastView.current !== "home") {
+      // A finished order can reach the chain a few seconds after it says done.
+      if (tookBalanceMove()) void refreshUntilChanged();
+      else refresh();
+    }
     lastView.current = view.name;
-  }, [view.name, refresh]);
+  }, [view.name, refresh, refreshUntilChanged, tookBalanceMove]);
 
   const openFromHistory = (orderId: string) =>
     nav.openOrder(orderId, { fromHistory: true });
@@ -93,6 +100,7 @@ function ConnectedApp({
           onOrderCreated={recent.remember}
           onSubmitted={(order, bank) => {
             saved.saveBank(bank);
+            balanceMoves.note(order, true);
             nav.showOrder(order.id);
           }}
         />
@@ -107,6 +115,7 @@ function ConnectedApp({
           onCreated={(order, recipient) => {
             recent.remember(order.id);
             if (recipient) saved.saveWallet(recipient);
+            balanceMoves.note(order, true);
             nav.showOrder(order.id);
           }}
         />
@@ -121,6 +130,7 @@ function ConnectedApp({
             nav.restart(direction === "cash_out" ? "cash-out" : "top-up")
           }
           onMissing={recent.forget}
+          onUpdate={balanceMoves.note}
         />
       );
     case "history":

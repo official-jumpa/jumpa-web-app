@@ -208,7 +208,9 @@ export type ChatItem =
   | { kind: "accounts"; card: AccountsCard; answer?: string }
   | { kind: "sep24"; card: any }
   /** Cancel / Confirm pair. Confirm is what raises the PIN sheet. */
-  | { kind: "actions"; confirmLabel?: string; cancelLabel?: string | false };
+  | { kind: "actions"; confirmLabel?: string; cancelLabel?: string | false }
+  /** A card the host draws itself, through Transcript's `renderSlot`. */
+  | { kind: "slot"; id: string };
 
 /** Consecutive agent replies share one avatar, so the transcript is a list of groups. */
 export type ChatEntry =

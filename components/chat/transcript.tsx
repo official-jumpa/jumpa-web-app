@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { AccountsCard } from "@/components/chat/accounts-card";
 import { ActionRow } from "@/components/chat/action-row";
 import { AgentAvatar } from "@/components/chat/agent-avatar";
@@ -24,6 +24,8 @@ type Handlers = {
   onUpdateQuote?: (card: Quote) => void;
   /** Picking a row in a chooser answers the agent as the next user message. */
   onReply?: (reply: string) => void;
+  /** Draws a host's own card for a `slot` item. */
+  renderSlot?: (id: string) => ReactNode;
 };
 
 /** The conversation so far. Groups sit 20px apart, items within a group 8px. */
@@ -113,6 +115,7 @@ function Item({
   onCancel,
   onUpdateQuote,
   onReply,
+  renderSlot,
 }: { item: ChatItem; from: "user" | "agent" } & Handlers) {
   switch (item.kind) {
     case "text":
@@ -197,6 +200,8 @@ function Item({
           <Sep24Card card={item.card} />
         </ChatErrorBoundary>
       );
+    case "slot":
+      return renderSlot?.(item.id) ?? null;
     case "actions":
       return (
         <ActionRow

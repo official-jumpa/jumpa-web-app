@@ -106,6 +106,7 @@ export function BillFlow({
     address,
     noun: "purchase",
     submit: nimiqApi.submitBill,
+    awaitSettled: true,
     onDone: (order) => {
       primeOrder(order);
       onSubmitted(order);

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { Address } from "viem";
 import { type NimiqApiError, nimiqApi } from "@/lib/nimiq/api-client";
-import type { PublicOrder } from "@/lib/nimiq/order-status";
+import { isInFlight, type PublicOrder } from "@/lib/nimiq/order-status";
 import {
   type Eip1193,
   ensurePolygon,
@@ -18,6 +18,24 @@ export type PermitDraft = { order: PublicOrder; typedData: string };
 
 export type CheckoutFailure = { message: string; retry?: () => void };
 
+/** A bill usually settles within seconds; past this the order screen takes over. */
+const SETTLE_WAIT_MS = 60_000;
+const SETTLE_POLL_MS = 2_000;
+
+/** The order once it stops moving, or as last seen when that takes too long. */
+async function untilSettled(order: PublicOrder): Promise<PublicOrder> {
+  const giveUpAt = Date.now() + SETTLE_WAIT_MS;
+  let current = order;
+  while (isInFlight(current) && Date.now() < giveUpAt) {
+    await new Promise((resolve) => setTimeout(resolve, SETTLE_POLL_MS));
+    current = await nimiqApi
+      .order(current.id)
+      .then((found) => found.order)
+      .catch(() => current);
+  }
+  return current;
+}
+
 /**
  * Opens an order, has Nimiq Pay sign its permit, then submits the signature,
  * with the retries a lost reply or a paused relayer needs.
@@ -29,6 +47,7 @@ export function usePermitCheckout({
   submit,
   onDone,
   onExpired,
+  awaitSettled = false,
 }: {
   provider: Eip1193;
   address: Address;
@@ -41,21 +60,26 @@ export function usePermitCheckout({
   onDone: (order: PublicOrder) => void;
   /** The prepared order can no longer be signed. */
   onExpired?: () => void;
+  /** Keeps the last step showing until the order settles, so the result comes straight after. */
+  awaitSettled?: boolean;
 }) {
   const [step, setStep] = useState<CheckoutStep>();
   const [failure, setFailure] = useState<CheckoutFailure>();
   const [notice, setNotice] = useState<string>();
 
+  const finish = async (order: PublicOrder) =>
+    onDone(awaitSettled ? await untilSettled(order) : order);
+
   const send = async (orderId: string, signature: string) => {
     setStep("sending");
     try {
-      onDone((await submit(orderId, signature)).order);
+      await finish((await submit(orderId, signature)).order);
     } catch (error) {
       const refusal = error as NimiqApiError;
       // 409: an earlier attempt already went through (e.g. the reply was lost); show it.
       if (refusal.status === 409) {
         const found = await nimiqApi.order(orderId).catch(() => undefined);
-        if (found) return onDone(found.order);
+        if (found) return finish(found.order);
       }
       // 503: the relayer paused before sending; 0: the reply never came. Same signature again.
       const retry =

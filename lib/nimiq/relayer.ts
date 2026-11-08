@@ -155,6 +155,23 @@ export function encodeTransferFromCall(
   });
 }
 
+/** Above a real USDT0 transferFrom (84,174); a fixed limit skips estimateGas on a node that may not see the permit yet. */
+export const TRANSFER_GAS_LIMIT = BigInt(150_000);
+
+export function transferFromRequest(
+  owner: Address,
+  to: Address,
+  value: bigint,
+  nonce: number,
+) {
+  return {
+    to: POLYGON_USDT.address,
+    data: encodeTransferFromCall(owner, to, value),
+    nonce,
+    gas: TRANSFER_GAS_LIMIT,
+  };
+}
+
 const ALLOWANCE_POLL_MS = 2_000;
 
 /**
@@ -301,11 +318,9 @@ export async function relayPermitTransfer(
     // Signed and recorded before broadcast, so a lost RPC reply never hides a sent transfer.
     let signedTransfer: Hex;
     try {
-      const request = await wallet.prepareTransactionRequest({
-        to: POLYGON_USDT.address,
-        data: encodeTransferFromCall(input.owner, input.to, input.value),
-        nonce,
-      });
+      const request = await wallet.prepareTransactionRequest(
+        transferFromRequest(input.owner, input.to, input.value, nonce),
+      );
       signedTransfer = await wallet.signTransaction(request);
     } catch (error) {
       console.error("[nimiq] transferFrom rejected:", (error as Error).message);

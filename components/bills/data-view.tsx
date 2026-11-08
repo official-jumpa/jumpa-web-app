@@ -1,27 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { BillChip } from "@/components/bills/bill-chip";
 import {
   type BillField,
   BillForm,
   checkRecipient,
 } from "@/components/bills/bill-form";
 import { BillSummary } from "@/components/bills/bill-review";
-import { DataPlanList } from "@/components/bills/data-plan-list";
+import { DataPlanPicker } from "@/components/bills/data-plan-picker";
 import { ReceiptSheet } from "@/components/transactions/receipt-sheet";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { ReviewSheet } from "@/components/transfer/review-sheet";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
-import { FieldError } from "@/components/ui/field-error";
 import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { useNgnAccount } from "@/hooks/use-ngn-account";
 import {
-  DATA_PERIODS,
   type DataPlan,
-  type DataPlanPeriod,
   DEFAULT_NETWORK,
   getNetwork,
   getPeriodLabel,
@@ -47,7 +43,6 @@ export function MobileDataView() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [phone, setPhone] = useState("");
   const [networkId, setNetworkId] = useState(DEFAULT_NETWORK);
-  const [period, setPeriod] = useState<DataPlanPeriod>("monthly");
   const [plan, setPlan] = useState<DataPlan | null>(null);
   const [errors, setErrors] = useState<FormErrors<BillField>>({});
   const [receiptOpen, setReceiptOpen] = useState(false);
@@ -229,31 +224,16 @@ export function MobileDataView() {
           return true;
         }}
       >
-        <div className="mt-4.25 flex gap-2">
-          {DATA_PERIODS.map((entry) => (
-            <BillChip
-              key={entry.value}
-              active={entry.value === period}
-              onClick={() => setPeriod(entry.value)}
-            >
-              {entry.label}
-            </BillChip>
-          ))}
-        </div>
-
-        <div className="mt-6.25 flex flex-col gap-2">
-          <DataPlanList
-            phone={phone}
-            period={period}
-            selected={plan}
-            onSelect={(next) => {
-              clear("plan");
-              setPlan(next);
-            }}
-            onNetworkDetected={setNetworkId}
-          />
-          <FieldError>{errors.plan}</FieldError>
-        </div>
+        <DataPlanPicker
+          phone={phone}
+          selected={plan}
+          error={errors.plan}
+          onSelect={(next) => {
+            clear("plan");
+            setPlan(next);
+          }}
+          onNetworkDetected={setNetworkId}
+        />
       </BillForm>
 
       {sheet === "review" && plan && network ? (

@@ -39,12 +39,15 @@ export function DataPlanList({
   selected,
   onSelect,
   onNetworkDetected,
+  plansUrl = "/api/v1/bills/data",
 }: {
   phone: string;
   period: DataPlanPeriod;
   selected: DataPlan | null;
   onSelect: (plan: DataPlan) => void;
   onNetworkDetected: (network: string) => void;
+  /** Answers `?phone=` with `{ success, plans, detectedNetwork }`. */
+  plansUrl?: string;
 }) {
   const [plans, setPlans] = useState<DataPlan[]>([]);
   const [loading, setLoading] = useState(false);
@@ -62,7 +65,7 @@ export function DataPlanList({
     setError(null);
     try {
       const res = await fetch(
-        `/api/v1/bills/data?phone=${encodeURIComponent(number)}&_t=${Date.now()}`,
+        `${plansUrl}?phone=${encodeURIComponent(number)}&_t=${Date.now()}`,
         {
           cache: "no-store",
           headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
@@ -97,7 +100,7 @@ export function DataPlanList({
     } finally {
       setLoading(false);
     }
-  }, [number]);
+  }, [number, plansUrl]);
 
   useEffect(() => {
     setPlans([]);

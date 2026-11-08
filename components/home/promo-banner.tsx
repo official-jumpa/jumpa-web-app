@@ -17,41 +17,48 @@ const SWIPE_MIN = 40;
 /** A tap that lands this soon after a drag is the drag's own ghost click. */
 const GHOST_MS = 300;
 
-type Slide = {
+export type PromoSlide = {
   id: string;
-  href: string;
+  /** Omitted while the slide's screen isn't available; it then only shows. */
+  href?: string;
   label: string;
   Art: () => React.ReactNode;
 };
 
-const VERIFY: Slide = {
+const VERIFY: PromoSlide = {
   id: "verify",
   href: "/kyc",
   label: "Verify your identity",
   Art: VerifyArt,
 };
 
-const SAVINGS: Slide = {
+const SAVINGS: PromoSlide = {
   id: "savings",
   href: "/savings",
   label: "Start saving and earn up to 15% interest p.a.",
   Art: SavingsArt,
 };
 
-const CHAT: Slide = {
+const CHAT: PromoSlide = {
   id: "chat",
   href: "/home/chat",
   label: "Chat, don't tap. Send, swap and save just by telling Jumpa.",
   Art: ChatArt,
 };
 
-const slides = [SAVINGS, VERIFY, CHAT];
+export const PROMO_SLIDES = { savings: SAVINGS, verify: VERIFY, chat: CHAT };
+
+const HOME_SLIDES = [SAVINGS, VERIFY, CHAT];
 
 /**
  * Home's promo banner. Slides cross-fade and drift — opacity and transform
  * only, so nothing reflows — and a horizontal swipe steps them by hand.
  */
-export function PromoBanner() {
+export function PromoBanner({
+  slides = HOME_SLIDES,
+}: {
+  slides?: PromoSlide[];
+} = {}) {
   const [index, setIndex] = useState(0);
   const drag = useRef<{ x: number; y: number; axis: "x" | "y" | null } | null>(
     null,
@@ -121,7 +128,15 @@ export function PromoBanner() {
         {slides.map(({ id, href, label, Art }, position) => {
           // 0 is on screen, 1 waits on the right, the rest have left to the left.
           const step = (position - active + count) % count;
-          return (
+          const className = cn(
+            "absolute inset-0 transition-[opacity,transform] duration-700 ease-jumpa",
+            step === 0
+              ? "translate-x-0 opacity-100"
+              : step === 1
+                ? "pointer-events-none translate-x-3 opacity-0"
+                : "pointer-events-none -translate-x-3 opacity-0",
+          );
+          return href ? (
             <Link
               key={id}
               prefetch
@@ -129,17 +144,20 @@ export function PromoBanner() {
               aria-label={label}
               aria-hidden={step !== 0}
               tabIndex={step === 0 ? undefined : -1}
-              className={cn(
-                "absolute inset-0 transition-[opacity,transform] duration-700 ease-jumpa",
-                step === 0
-                  ? "translate-x-0 opacity-100"
-                  : step === 1
-                    ? "pointer-events-none translate-x-3 opacity-0"
-                    : "pointer-events-none -translate-x-3 opacity-0",
-              )}
+              className={className}
             >
               <Art />
             </Link>
+          ) : (
+            <div
+              key={id}
+              role="img"
+              aria-label={label}
+              aria-hidden={step !== 0}
+              className={className}
+            >
+              <Art />
+            </div>
           );
         })}
       </div>

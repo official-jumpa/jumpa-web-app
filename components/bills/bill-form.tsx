@@ -51,6 +51,8 @@ export function BillForm({
   onNetworkChange,
   onProceed,
   children,
+  back = "/home",
+  onBack,
 }: {
   title: string;
   phone: string;
@@ -63,6 +65,8 @@ export function BillForm({
   /** True when the form is complete; false keeps the screen and reveals the first flagged field. */
   onProceed: () => boolean;
   children: ReactNode;
+  back?: string;
+  onBack?: () => void;
 }) {
   const fields = useRef<HTMLDivElement>(null);
 
@@ -73,7 +77,13 @@ export function BillForm({
         className="flex flex-1 flex-col px-5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-6"
       >
         <div className="-mx-1">
-          <ScreenHeader back="/home" title={title} titleStyle="bill" round />
+          <ScreenHeader
+            back={back}
+            onBack={onBack}
+            title={title}
+            titleStyle="bill"
+            round
+          />
         </div>
 
         <div className="mt-8">

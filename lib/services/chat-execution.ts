@@ -28,8 +28,10 @@ import { executeOfframpTransfer } from "@/lib/chains/offramp-transfer";
 import { SwitchService } from "@/lib/switch";
 import {
   createTransactionRecord,
+  findRampTransactionByReference,
   updateTransactionByReference,
 } from "@/lib/functions/transactionFunctions";
+import { ALREADY_SUBMITTED } from "@/lib/chat";
 import { updateWalletById } from "@/lib/functions/walletFunctions";
 import { logUserActivity, trackRecent } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
@@ -43,6 +45,8 @@ export interface ChatExecutionResult {
   ok: boolean;
   error?: string;
   status?: number;
+  /** The card must not run again even though this attempt failed: money may have moved, or its order closed. */
+  consumed?: boolean;
   receiptCardData?: any;
   txHash?: string;
   explorerUrl?: string;
@@ -703,6 +707,22 @@ export async function executeChatOfframp(params: {
     return { ok: false, error: "Deposit address missing. Please initiate a new offramp.", status: 400 };
   }
 
+  // A provider order takes one deposit. A second one to the same address is never paid out.
+  if (reference) {
+    const order = await findRampTransactionByReference(userId, reference);
+    if (order?.txHash && order.txHash !== reference) {
+      return { ok: false, consumed: true, error: ALREADY_SUBMITTED, status: 409 };
+    }
+    if (order && order.status !== "PENDING") {
+      return {
+        ok: false,
+        consumed: true,
+        error: "This withdrawal quote expired. Ask for a new one.",
+        status: 409,
+      };
+    }
+  }
+
   // Enforce daily transaction limit
   const outboundAmount = Number(cryptoAmount) || Number(fiatAmount) || 0;
   const outboundCurrency = Number(cryptoAmount) > 0 ? cryptoToken : "NGN";
@@ -735,8 +755,10 @@ export async function executeChatOfframp(params: {
   });
 
   if (!transferResult.success || !transferResult.txHash) {
+    // A send can fail after broadcast (e.g. a confirmation timeout) and still land, so this order is not retried.
     return {
       ok: false,
+      consumed: true,
       error: transferResult.error || "On-chain crypto transfer failed.",
       status: 400,
     };
@@ -753,13 +775,16 @@ export async function executeChatOfframp(params: {
     });
   }
 
+  // Awaited so the order guard above sees this hash before any later confirm.
   if (reference) {
-    updateTransactionByReference(reference, {
+    await updateTransactionByReference(reference, {
       status: "PENDING",
       amountInUsd: offrampAmountInUsd,
       txHash,
       explorerUrl,
-    }).catch(() => {});
+    }).catch((dbErr) =>
+      console.warn(`[Chat] Offramp record update notice: ${formatOneLineError(dbErr)}`),
+    );
   }
 
   updateWalletById(wallet._id, { lastUsedAt: new Date() }).catch(() => {});

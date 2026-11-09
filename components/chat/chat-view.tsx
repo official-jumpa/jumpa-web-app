@@ -13,7 +13,12 @@ import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { ChatErrorBoundary } from "@/components/chat/chat-error-boundary";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { ResultSheet } from "@/components/ui/result-sheet";
-import type { ChatEntry, ChatItem, QuoteCard as Quote } from "@/lib/chat";
+import {
+  type ChatEntry,
+  type ChatItem,
+  isAwaitingConfirmation,
+  type QuoteCard as Quote,
+} from "@/lib/chat";
 import { answersByCard } from "@/lib/chat-answer";
 import { type ChatAttachment, isAudioAttachment } from "@/lib/chat-attachments";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
@@ -488,13 +493,32 @@ export function ChatView({
 
   // Raising PIN sheet on transaction card confirmation
   const handleOpenPin = useCallback(() => {
-    const pendingMsg = [...messages]
-      .reverse()
-      .find((m) => m.isTransaction && m.status === "pending");
-    setPendingActionMsgId(pendingMsg?.id || null);
+    const pendingMsg = [...messages].reverse().find(isAwaitingConfirmation);
+    // Nothing is waiting for a PIN, e.g. a retry after the card already ran.
+    if (!pendingMsg) return;
+    setPendingActionMsgId(pendingMsg.id);
     setPinError(false);
     setPinOpen(true);
   }, [messages]);
+
+  // Re-reads the open session so each card shows its real state after a confirm that did not answer cleanly.
+  const reloadMessages = useCallback(async () => {
+    if (!activeSessionId) return;
+    try {
+      const res = await fetch(
+        `/api/v1/chat/history?sessionId=${activeSessionId}`,
+      );
+      if (!res.ok) return;
+      const resJson = await res.json();
+      const session = resJson.data?.session || resJson.session;
+      if (session?.messages) {
+        setMessages(session.messages);
+        setTotalMessagesCount(session.totalMessages || 0);
+      }
+    } catch (err) {
+      console.error("[ChatView] Error reloading session:", err);
+    }
+  }, [activeSessionId]);
 
   const handleClosePin = useCallback(() => {
     setPinOpen(false);
@@ -520,7 +544,7 @@ export function ChatView({
 
       const latestPendingMsg = [...messages]
         .reverse()
-        .find((m) => m.isTransaction && m.status === "pending");
+        .find(isAwaitingConfirmation);
       const targetId = pendingActionMsgId || latestPendingMsg?.id;
 
       try {
@@ -544,6 +568,7 @@ export function ChatView({
             setPinProcessing(false);
           } else {
             fail(data.error || resJson.error);
+            reloadMessages();
           }
           return;
         }
@@ -555,12 +580,15 @@ export function ChatView({
         // Invalidate client balances across memory and localStorage to notify other views immediately
         invalidateClientBalances();
 
+        setPendingActionMsgId(null);
         setPendingQuoteCard(null);
         setPinProcessing(false);
         setPinOpen(false);
         refreshSessionsList();
       } catch (err) {
         fail(errorMessage(err));
+        // The server may have finished even though no answer arrived.
+        reloadMessages();
       }
     },
     [
@@ -569,6 +597,7 @@ export function ChatView({
       pendingQuoteCard,
       refreshSessionsList,
       fail,
+      reloadMessages,
     ],
   );
 

@@ -8,6 +8,7 @@ import { executeTool } from "@/lib/ai/tool-executor";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { detectTargetChains } from "@/lib/blockchain";
 import { describeAttachments, isAudioAttachment } from "@/lib/chat-attachments";
+import { isAwaitingConfirmation } from "@/lib/chat";
 import { analyzeImageWithGemini } from "@/lib/ai/vision";
 import { getChatAttachments } from "@/lib/functions/chatAttachmentFunctions";
 import { generateId } from "@/lib/schema-ids";
@@ -202,9 +203,10 @@ export async function POST(req: NextRequest) {
       ) &&
         !hasModifyingIntent);
 
+    // Only a card with a Confirm button turns "yes" into a PIN reminder; a receipt never does.
     const lastPendingTxMsg = [...(chatLog.messages || [])]
       .reverse()
-      .find((m: IChatMessage) => m.isTransaction && m.status === "pending");
+      .find(isAwaitingConfirmation);
 
     if (isPureAffirmativeReply && lastPendingTxMsg) {
       const reminderContent =

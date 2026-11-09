@@ -11,7 +11,10 @@ import { type IChatMessage } from "@/models/ChatLog";
 import {
   getChatLogById,
   cancelPendingChatMessage,
+  claimChatTransaction,
+  releaseChatTransaction,
 } from "@/lib/functions/chatFunctions";
+import { ALREADY_SUBMITTED, isAwaitingConfirmation } from "@/lib/chat";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { logUserActivity, isExistingSavedBeneficiary } from "@/lib/functions/userFunctions";
@@ -149,35 +152,39 @@ export async function POST(req: NextRequest) {
     // Find the target action message (always pick the latest pending if messageId not provided)
     const targetMsg = messageId
       ? chatLog.messages.find((m: IChatMessage) => m.id === messageId)
-      : [...chatLog.messages]
-          .reverse()
-          .find((m: IChatMessage) => m.isTransaction && m.status === "pending");
+      : [...chatLog.messages].reverse().find(isAwaitingConfirmation);
 
-    if (!targetMsg) {
-      console.warn(`[Chat] No pending transaction found in session ${sessionId}`);
+    // A card runs once: it must still be awaiting its PIN, and the claim is a single write so a parallel confirm loses.
+    if (
+      !targetMsg ||
+      !isAwaitingConfirmation(targetMsg) ||
+      !(await claimChatTransaction({
+        sessionId,
+        userId,
+        messageId: targetMsg.id,
+      }))
+    ) {
+      console.warn(
+        `[Chat] Refused confirm: message ${messageId || "latest"} in session ${sessionId} is not awaiting confirmation`,
+      );
+      return NextResponse.json({ error: ALREADY_SUBMITTED }, { status: 409 });
     }
 
-    if (targetMsg) {
-      targetMsg.status = "confirmed";
-      if (updatedCardData) {
-        targetMsg.cardData = { ...targetMsg.cardData, ...updatedCardData };
-      }
-      if (updatedParams) {
-        targetMsg.transactionParams = {
-          ...targetMsg.transactionParams,
-          ...updatedParams,
-        };
-      }
+    targetMsg.status = "confirmed";
+    if (updatedCardData) {
+      targetMsg.cardData = { ...targetMsg.cardData, ...updatedCardData };
+    }
+    if (updatedParams) {
+      targetMsg.transactionParams = {
+        ...targetMsg.transactionParams,
+        ...updatedParams,
+      };
+    }
 
-      // Mark all other older pending transactions as cancelled/superseded
-      for (const m of chatLog.messages) {
-        if (
-          m.isTransaction &&
-          m.status === "pending" &&
-          m.id !== targetMsg.id
-        ) {
-          m.status = "cancelled";
-        }
+    // Mark all other older pending transactions as cancelled/superseded
+    for (const m of chatLog.messages) {
+      if (m.isTransaction && m.status === "pending" && m.id !== targetMsg.id) {
+        m.status = "cancelled";
       }
     }
 
@@ -263,6 +270,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (!executionResult.ok) {
+      if (!executionResult.consumed) {
+        await releaseChatTransaction({
+          sessionId,
+          userId,
+          messageId: targetMsg.id,
+        }).catch((releaseErr) =>
+          console.warn(
+            `[Chat] Could not reopen message ${targetMsg.id}: ${formatOneLineError(releaseErr)}`,
+          ),
+        );
+      }
       return NextResponse.json(
         { error: executionResult.error },
         { status: executionResult.status || 400 },
@@ -322,7 +340,8 @@ export async function POST(req: NextRequest) {
         beneficiaryPrompt,
       isTransaction: true,
       cardType: "receipt",
-      status: cardType === "offramp" ? "pending" : "confirmed",
+      // A receipt is never confirmable; a withdrawal's "Processing" lives in its cardData.
+      status: "confirmed",
       cardData: executionResult.receiptCardData,
       timestamp: new Date(),
     };

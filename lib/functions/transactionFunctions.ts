@@ -1421,6 +1421,18 @@ export async function updateTransactionByReference(
   return res.matchedCount > 0;
 }
 
+/** The user's ramp record for a provider reference. Its txHash holds the reference until a deposit is sent. */
+export async function findRampTransactionByReference(
+  userId: string,
+  reference: string,
+): Promise<ITransaction | null> {
+  await connectDB();
+  return Transaction.findOne({
+    userId,
+    $or: [{ "rampDetails.reference": reference }, { txHash: reference }],
+  }).lean<ITransaction>();
+}
+
 export async function findConfirmedTransactionsByReferences(
   userId: string,
   references: string[],

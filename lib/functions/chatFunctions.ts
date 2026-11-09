@@ -89,6 +89,44 @@ export async function deleteChatSession(
 }
 
 /**
+ * Marks a pending transaction card confirmed in one write, so it can run only once.
+ * False when the card is gone or no longer pending: already run, cancelled, or claimed by a parallel confirm.
+ */
+export async function claimChatTransaction(params: {
+  sessionId: string;
+  userId: string;
+  messageId: string;
+}): Promise<boolean> {
+  await connectDB();
+  const res = await ChatLog.updateOne(
+    {
+      _id: params.sessionId,
+      userId: params.userId,
+      messages: { $elemMatch: { id: params.messageId, status: "pending" } },
+    },
+    { $set: { "messages.$.status": "confirmed" } },
+  );
+  return res.modifiedCount > 0;
+}
+
+/** Hands a claimed card back to pending after a failure that moved no money. */
+export async function releaseChatTransaction(params: {
+  sessionId: string;
+  userId: string;
+  messageId: string;
+}): Promise<void> {
+  await connectDB();
+  await ChatLog.updateOne(
+    {
+      _id: params.sessionId,
+      userId: params.userId,
+      messages: { $elemMatch: { id: params.messageId, status: "confirmed" } },
+    },
+    { $set: { "messages.$.status": "pending" } },
+  );
+}
+
+/**
  * Cancels a pending transaction message inside a chat session.
  */
 export async function cancelPendingChatMessage(params: {

@@ -141,6 +141,16 @@ export function friendlyError(
 
   if (any(lower, OFFLINE_PHRASES)) return OFFLINE;
 
+  // The card already ran once; the server refused to send it again.
+  if (has(lower, "already submitted")) {
+    return {
+      title: "Already submitted",
+      message:
+        "This was already submitted, so it wasn't sent again. Check Transactions for its status.",
+      retry: false,
+    };
+  }
+
   if (has(lower, "vault address not configured")) {
     return {
       title: "Savings isn't ready yet",

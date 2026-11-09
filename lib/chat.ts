@@ -19,6 +19,25 @@ export function formatClock(date: Date | string): string {
   });
 }
 
+/** Cards that carry a Confirm button and move money once the PIN is entered. */
+const CONFIRMABLE_CARDS = new Set(["quote", "bridge", "transfer", "offramp"]);
+
+/** A transaction card still waiting for the user's PIN. Receipts and deposit cards never are. */
+export function isAwaitingConfirmation(message: {
+  isTransaction?: boolean;
+  status?: string;
+  cardType?: string;
+}): boolean {
+  return (
+    Boolean(message.isTransaction) &&
+    message.status === "pending" &&
+    CONFIRMABLE_CARDS.has(message.cardType ?? "")
+  );
+}
+
+/** Answer to a confirm for a card that already ran; lib/errors.ts maps it to its own copy. */
+export const ALREADY_SUBMITTED = "This transaction was already submitted.";
+
 /** White row inside a card: caption above a value, with an optional badge. */
 export type CardRow = {
   caption: string;

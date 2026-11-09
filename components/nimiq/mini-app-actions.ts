@@ -24,7 +24,7 @@ export const MINI_APP_PILLS: AppAction[] = [
 const sendOption = (id: string) =>
   SEND_OPTIONS.find((option) => option.id === id) as SendOption;
 
-/** The Send sheet: Polygon addresses and banks work; the rest need a Jumpa account. */
+/** The Send sheet: Polygon addresses, banks and Nimiq Pay users' Jumpa tags work; other chains are Soon. */
 export const MINI_APP_SEND_OPTIONS: SendOption[] = [
   {
     ...sendOption("address"),
@@ -32,7 +32,11 @@ export const MINI_APP_SEND_OPTIONS: SendOption[] = [
     href: `${MINI_APP_PATH}?view=send`,
   },
   { ...sendOption("bank"), href: `${MINI_APP_PATH}?view=cash-out` },
-  { ...sendOption("jumpa"), soon: true },
+  {
+    ...sendOption("jumpa"),
+    caption: "Jumpa tag",
+    href: `${MINI_APP_PATH}?view=send-tag`,
+  },
   {
     ...sendOption("address"),
     id: "other-networks",

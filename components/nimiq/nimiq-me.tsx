@@ -1,8 +1,15 @@
 "use client";
 
 import Image from "next/image";
+import { useState } from "react";
+import type { Address } from "viem";
 import { CopyButton } from "@/components/auth/copy-button";
-import { SettingLink, SettingRow } from "@/components/settings/setting-row";
+import { JumpaTagForm } from "@/components/auth/jumpa-tag-form";
+import {
+  SettingAction,
+  SettingLink,
+  SettingRow,
+} from "@/components/settings/setting-row";
 import {
   SettingCard,
   SettingRule,
@@ -12,27 +19,36 @@ import { SettingsHeader } from "@/components/settings/settings-header";
 import { SupportOptionList } from "@/components/support/support-options";
 import { FileIcon } from "@/components/ui/icons/file";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
+import { TagsIcon } from "@/components/ui/icons/tags";
+import { SheetPortal } from "@/components/ui/sheet-portal";
 import { legalHref } from "@/lib/legal";
 import { formatStable } from "@/lib/naira-deposit";
 import type { AccountSummary } from "@/lib/nimiq/orders";
+import type { Eip1193 } from "@/lib/nimiq/provider";
 import { formatUsd } from "@/lib/token-amount";
 import { shortenAddress } from "@/lib/transfer";
 import { ACCOUNT } from "@/lib/wallet";
 import { NIMIQ_SUPPORT_OPTIONS } from "./nimiq-support";
 import { MINI_APP_PATH } from "./use-mini-app-nav";
+import { checkNimiqTag, useNimiqTag } from "./use-nimiq-tag";
 
 const COIN = "size-6 shrink-0 rounded-full object-contain";
 
-/** The Me tab: the connected wallet, today's limit, help and the legal pages. */
+/** The Me tab: the connected wallet and its Jumpa tag, today's limit, help and the legal pages. */
 export function NimiqMe({
+  provider,
   address,
   account,
   onBack,
 }: {
-  address: string;
+  provider: Eip1193;
+  address: Address;
   account?: AccountSummary;
   onBack: () => void;
 }) {
+  const { tag, claim } = useNimiqTag(provider, address);
+  const [editingTag, setEditingTag] = useState(false);
+
   return (
     <div className="flex flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+21px)] pb-6">
       <SettingsHeader
@@ -53,7 +69,7 @@ export function NimiqMe({
         />
         <span className="flex min-w-0 flex-col">
           <span className="truncate text-base leading-4 font-semibold tracking-jumpa-snug text-jumpa-black">
-            {shortenAddress(address, 6, 4)}
+            {tag ?? shortenAddress(address, 6, 4)}
           </span>
           <span className="mt-1.5 truncate text-xs leading-3 font-medium tracking-jumpa-snug text-jumpa-grey-450">
             Nimiq Pay wallet on Polygon
@@ -64,6 +80,24 @@ export function NimiqMe({
       <div className="mt-6 flex flex-col gap-4">
         <SettingSection label="Your wallet Information">
           <SettingCard>
+            {tag ? (
+              <SettingRow
+                icon={TagsIcon}
+                label="Jumpa Tag"
+                value={tag}
+                action={<CopyButton value={tag} name="Copy Jumpa tag" />}
+              />
+            ) : tag === null ? (
+              <SettingAction
+                icon={TagsIcon}
+                label="Jumpa Tag"
+                value="Tap to set"
+                onClick={() => setEditingTag(true)}
+              />
+            ) : (
+              <SettingRow icon={TagsIcon} label="Jumpa Tag" value="—" />
+            )}
+            <SettingRule />
             <SettingRow
               icon={
                 <Image
@@ -132,6 +166,25 @@ export function NimiqMe({
         Your keys stay in Nimiq Pay. Nothing leaves your wallet without your
         approval there.
       </p>
+
+      {editingTag ? (
+        <SheetPortal onClose={() => setEditingTag(false)}>
+          <div className="flex flex-col gap-4">
+            <h2 className="text-center text-base leading-4.5 font-semibold text-jumpa-black">
+              Set Jumpa Tag
+            </h2>
+            <p className="text-center text-xs leading-4.5 text-jumpa-neutral-400">
+              Other Nimiq Pay users can send you USDT with it. You&rsquo;ll
+              confirm in Nimiq Pay, and it can&rsquo;t be changed later.
+            </p>
+            <JumpaTagForm
+              check={checkNimiqTag}
+              claim={claim}
+              onClose={() => setEditingTag(false)}
+            />
+          </div>
+        </SheetPortal>
+      ) : null}
     </div>
   );
 }

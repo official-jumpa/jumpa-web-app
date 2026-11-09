@@ -8,6 +8,7 @@ export type FlowName =
   | "airtime"
   | "data"
   | "send"
+  | "send-tag"
   | "receive";
 
 export type TabName = "home" | "history" | "me";
@@ -36,6 +37,7 @@ const NAMED_VIEWS = [
   "airtime",
   "data",
   "send",
+  "send-tag",
   "receive",
   "history",
   "me",

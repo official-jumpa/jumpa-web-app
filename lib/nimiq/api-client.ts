@@ -1,4 +1,5 @@
 import type { ChatAnswer, ChatTurn } from "./chat-agent";
+import type { TagClaimInput, TagStatus } from "./names";
 import type { PublicOrder, RampDirection } from "./order-status";
 import type {
   AccountSummary,
@@ -97,6 +98,18 @@ export const nimiqApi = {
 
   createTopUp: (input: TopUpInput) =>
     call<{ order: PublicOrder }>("/top-up", post(input)),
+
+  /** The Jumpa tag this wallet claimed, or null. */
+  tagOf: (address: string, { signal }: Options = {}) =>
+    call<{ tag: string | null }>(`/names?${new URLSearchParams({ address })}`, {
+      signal,
+    }),
+
+  tagStatus: (handle: string, { signal }: Options = {}) =>
+    call<TagStatus>(`/names/${encodeURIComponent(handle)}`, { signal }),
+
+  claimTag: (input: TagClaimInput) =>
+    call<{ tag: string }>("/names", post(input)),
 
   order: (orderId: string, { signal }: Options = {}) =>
     call<{ order: PublicOrder }>(`/orders/${orderId}`, { signal }),

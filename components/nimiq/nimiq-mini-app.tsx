@@ -160,8 +160,11 @@ function ConnectedApp({
         />
       );
     case "send":
+    case "send-tag":
       return (
         <SendFlow
+          key={view.name}
+          by={view.name === "send-tag" ? "tag" : "address"}
           provider={provider}
           address={address}
           account={account.account}
@@ -235,6 +238,7 @@ function ConnectedApp({
       case "me":
         return (
           <NimiqMe
+            provider={provider}
             address={address}
             account={account.account}
             onBack={nav.back}

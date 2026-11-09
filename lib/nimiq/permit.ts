@@ -35,7 +35,7 @@ export function buildPermitTypedData(message: PermitMessage): PermitTypedData {
 }
 
 /** JSON for `eth_signTypedData_v4`: bigints as decimal strings, domain types spelled out. */
-export function serializeTypedData(typedData: PermitTypedData): string {
+export function serializeTypedData(typedData: TypedDataDefinition): string {
   return JSON.stringify(
     {
       ...typedData,

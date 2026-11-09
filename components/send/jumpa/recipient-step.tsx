@@ -20,6 +20,9 @@ export function RecipientStep({
   error,
   onPick,
   onContinue,
+  prompt = "Enter the Jumpa ID, phone number, email or wallet address of the recipient.",
+  fieldLabel = "Recipient tag, phone or wallet address",
+  hints,
 }: {
   query: string;
   onQueryChange: (value: string) => void;
@@ -28,8 +31,12 @@ export function RecipientStep({
   error?: string;
   onPick: (recipient: JumpaRecipient) => void;
   onContinue: () => void;
+  /** Copy for a host that looks up something narrower than the main app does. */
+  prompt?: string;
+  fieldLabel?: string;
+  hints?: Partial<Record<LookupStatus, string>>;
 }) {
-  const hint = error ? undefined : HINT[status];
+  const hint = error ? undefined : { ...HINT, ...hints }[status];
 
   return (
     <form
@@ -45,7 +52,7 @@ export function RecipientStep({
           Who are you sending to?
         </h2>
         <p className="max-w-78 text-xs leading-4.5 tracking-jumpa-snug text-jumpa-neutral-400">
-          Enter the Jumpa ID, phone number, email or wallet address of the recipient.
+          {prompt}
         </p>
 
         <label
@@ -54,7 +61,7 @@ export function RecipientStep({
           }`}
         >
           <span className="text-xs leading-4.5 tracking-jumpa-snug text-jumpa-neutral-400">
-            Recipient tag, phone or wallet address
+            {fieldLabel}
           </span>
           <input
             value={query}

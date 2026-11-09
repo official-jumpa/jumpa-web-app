@@ -59,11 +59,17 @@ export function JumpaTagForm({
   onComplete,
   onClose,
   initialHandle,
+  check = checkTagAvailability,
+  claim,
 }: {
   nextHref?: string;
   onComplete?: (fullTag: string) => void;
   onClose?: () => void;
   initialHandle?: string;
+  /** Asks whether a handle is free; the signed-in account's check by default. */
+  check?: (handle: string) => Promise<TagAvailability>;
+  /** Saves the handle in place of the account route; throws a message to show. */
+  claim?: (handle: string) => Promise<void>;
 }) {
   const router = useRouter();
   const [handle, setHandle] = useState(() =>
@@ -84,7 +90,7 @@ export function JumpaTagForm({
     // Drops a reply that lands after the user has typed on.
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const result = await checkTagAvailability(handle);
+      const result = await check(handle);
       if (!cancelled) setAvailability(result);
     }, SETTLE_MS);
 
@@ -92,7 +98,7 @@ export function JumpaTagForm({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [handle, ready]);
+  }, [handle, ready, check]);
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -116,6 +122,20 @@ export function JumpaTagForm({
   const handleConfirm = async () => {
     setClaiming(true);
     setClaimError(null);
+    if (claim) {
+      try {
+        await claim(handle);
+      } catch (e) {
+        setClaimError((e as Error).message || "Failed to claim tag. Please try again.");
+        setClaiming(false);
+        return;
+      }
+      setClaiming(false);
+      setConfirming(false);
+      onComplete?.(fullTag(handle));
+      onClose?.();
+      return;
+    }
     try {
       const res = await fetch("/api/v1/user/tag", {
         method: "POST",

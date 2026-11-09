@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useState } from "react";
 import { type Address, getAddress, isAddressEqual } from "viem";
+import { RecipientStep } from "@/components/send/jumpa/recipient-step";
+import { SettingsHeader } from "@/components/settings/settings-header";
 import { AmountScreen } from "@/components/transfer/amount-screen";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { FIELD_INPUT, Field, PasteAction } from "@/components/transfer/field";
@@ -27,6 +29,7 @@ import { walletAddressError } from "@/lib/nimiq/recipients";
 import { shortenAddress } from "@/lib/transfer";
 import { MINI_APP_PATH } from "./use-mini-app-nav";
 import { primeOrder } from "./use-nimiq-order";
+import { type TagMatch, useTagLookup } from "./use-nimiq-tag";
 import {
   type CheckoutStep,
   type PermitDraft,
@@ -34,6 +37,8 @@ import {
 } from "./use-permit-checkout";
 
 type Stage = "address" | "amount";
+
+const NO_MATCH = "No Nimiq Pay user has that tag yet.";
 
 const STEP_LABEL: Record<CheckoutStep, string> = {
   preparing: "Preparing your transfer",
@@ -51,8 +56,9 @@ const short = (address: string) => shortenAddress(address, 6, 4);
 
 type Draft = PermitDraft & { key: string };
 
-/** USDT on Polygon to another Polygon wallet: Nimiq Pay signs a permit, Jumpa pays the gas. */
+/** USDT on Polygon to another Polygon wallet, by address or Jumpa tag: Nimiq Pay signs a permit, Jumpa pays the gas. */
 export function SendFlow({
+  by = "address",
   provider,
   address,
   account,
@@ -61,6 +67,8 @@ export function SendFlow({
   onSubmitted,
   onOrderCreated,
 }: {
+  /** How the recipient is picked: a pasted address, or a Nimiq Pay user's Jumpa tag. */
+  by?: "address" | "tag";
   provider: Eip1193;
   address: Address;
   account?: AccountSummary;
@@ -74,6 +82,7 @@ export function SendFlow({
 }) {
   const [stage, setStage] = useState<Stage>("address");
   const [to, setTo] = useState<Address>();
+  const [tag, setTag] = useState<string>();
   const [amount, setAmount] = useState("");
   const [reviewing, setReviewing] = useState(false);
   const [draft, setDraft] = useState<Draft>();
@@ -124,6 +133,23 @@ export function SendFlow({
   });
   const { step, failure, notice } = checkout;
 
+  if ((stage === "address" || !to) && by === "tag") {
+    return (
+      <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
+        <SettingsHeader size="lg" title="Send to Jumpa user" onBack={onLeave} />
+        <SendTagForm
+          own={address}
+          initial={tag}
+          onContinue={(match) => {
+            setTo(match.address);
+            setTag(match.tag);
+            setStage("amount");
+          }}
+        />
+      </div>
+    );
+  }
+
   if (stage === "address" || !to) {
     return (
       <div className="flex min-h-dvh flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-[calc(env(safe-area-inset-bottom)+1.5rem)]">
@@ -142,11 +168,12 @@ export function SendFlow({
   }
 
   const usdt = `${formatStable(settled)} USDT`;
+  const name = tag ?? short(to);
 
   return (
     <>
       <AmountScreen
-        recipient={<RecipientTag primary={short(to)} secondary="Polygon" />}
+        recipient={<RecipientTag primary={name} secondary="Polygon" />}
         onClose={() => setStage("address")}
         amount={amount}
         symbol="USDT"
@@ -182,11 +209,7 @@ export function SendFlow({
                   />
                 }
               />
-              <RecipientTag
-                primary={short(to)}
-                secondary="Polygon"
-                align="right"
-              />
+              <RecipientTag primary={name} secondary="Polygon" align="right" />
             </div>
           }
           headlineLabel="RECIPIENT GETS"
@@ -200,6 +223,7 @@ export function SendFlow({
         >
           <DetailList>
             <DetailRow label="You send" value={usdt} />
+            {tag ? <DetailRow label="Jumpa tag" value={tag} /> : null}
             <DetailRow label="To wallet" value={short(to)} />
             <DetailRow label="Network" value="Polygon" />
             <DetailRow label="Network fee" value="Paid by Jumpa" rule={false} />
@@ -309,5 +333,61 @@ function SendAddressForm({
         Continue
       </Button>
     </div>
+  );
+}
+
+/** The recipient step by tag: the main app's lookup screen, matching Nimiq Pay users' tags only. */
+function SendTagForm({
+  own,
+  initial,
+  onContinue,
+}: {
+  own: Address;
+  initial?: string;
+  onContinue: (match: TagMatch) => void;
+}) {
+  const [query, setQuery] = useState(initial ?? "");
+  const [error, setError] = useState<string>();
+  const lookup = useTagLookup(query);
+  const { match } = lookup;
+  const mine = match ? isAddressEqual(match.address, own) : false;
+  const usable = match && !mine ? match : undefined;
+
+  return (
+    <RecipientStep
+      query={query}
+      onQueryChange={(value) => {
+        setQuery(value);
+        setError(undefined);
+      }}
+      status={lookup.status}
+      recipients={
+        usable
+          ? [
+              {
+                name: usable.handle,
+                tag: usable.handle,
+                image: null,
+                addresses: {},
+              },
+            ]
+          : []
+      }
+      error={error ?? (mine ? "That's your own Jumpa tag." : undefined)}
+      prompt="Enter the Jumpa tag of the Nimiq Pay user you're paying."
+      fieldLabel="Recipient Jumpa tag"
+      hints={{ none: NO_MATCH }}
+      onPick={() => usable && onContinue(usable)}
+      onContinue={() => {
+        if (usable) onContinue(usable);
+        else if (lookup.status !== "searching" && !mine) {
+          setError(
+            lookup.status === "error"
+              ? "Couldn't check that tag right now. Try again."
+              : NO_MATCH,
+          );
+        }
+      }}
+    />
   );
 }

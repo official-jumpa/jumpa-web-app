@@ -18,6 +18,7 @@ import {
 } from "@/lib/validations/user.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
+import { isNimiqHandle } from "@/lib/nimiq/names";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +55,10 @@ export async function GET(req: NextRequest) {
     const candidate = `${handle}@jumpa`;
     const existing = await findUserByJumpaTag(candidate);
 
-    const available = !existing || existing._id.toString() === session.user.id;
+    // A Nimiq Pay wallet's tag is taken here too, so one tag is one person.
+    const available =
+      (!existing || existing._id.toString() === session.user.id) &&
+      !(await isNimiqHandle(handle));
     const suggestions = available
       ? []
       : [`${handle}_`, `${handle}1`, `the${handle}`]
@@ -113,7 +117,10 @@ export async function POST(req: NextRequest) {
     const fullTag = `${handle}@jumpa`;
     const duplicate = await findUserByJumpaTag(fullTag);
 
-    if (duplicate && duplicate._id.toString() !== session.user.id) {
+    if (
+      (duplicate && duplicate._id.toString() !== session.user.id) ||
+      (await isNimiqHandle(handle))
+    ) {
       return NextResponse.json(
         { success: false, error: "That Jumpa tag is already taken" },
         { status: 409 },

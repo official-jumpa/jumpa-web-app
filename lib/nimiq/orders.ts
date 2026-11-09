@@ -3,6 +3,7 @@ import {
   getAddress,
   type Hex,
   isAddress,
+  isAddressEqual,
   parseUnits,
 } from "viem";
 import {
@@ -123,11 +124,16 @@ const COPY = {
     "The network didn't accept this purchase. Your USDT is on its way back to your wallet.",
   billRefunded:
     "The network didn't accept this purchase, so your USDT was sent back to your wallet.",
+  ownWallet: "That's the wallet you're sending from.",
 } as const;
 
 /** How copy names an order the user is paying with a permit. */
 const permitNoun = (direction: NimiqDirection) =>
-  direction === "cash_out" ? "cash-out" : "purchase";
+  direction === "cash_out"
+    ? "cash-out"
+    : direction === "send"
+      ? "transfer"
+      : "purchase";
 
 /** A refusal with the HTTP status the route should answer; the message is fit to show. */
 export class OrderError extends Error {
@@ -252,6 +258,13 @@ export type BillInput = { address: Address; phone: string; network: string } & (
   | { kind: "data"; productName: string }
 );
 
+export type SendInput = {
+  address: Address;
+  /** The Polygon wallet that receives the USDT. */
+  to: Address;
+  amount: string;
+};
+
 export type TopUpInput = {
   address: Address;
   amountNgn: number;
@@ -274,6 +287,7 @@ export async function spentTodayUsd(
     { direction: "cash_out", status: { $in: COUNTED_STATUSES.cash_out } },
     { direction: "airtime", status: { $in: COUNTED_STATUSES.airtime } },
     { direction: "data", status: { $in: COUNTED_STATUSES.data } },
+    { direction: "send", status: { $in: COUNTED_STATUSES.send } },
     {
       direction: "top_up",
       status: {
@@ -538,12 +552,72 @@ export async function createBillOrder(
   return { order: toPublicOrder(order), typedData };
 }
 
+/** Opens a USDT transfer to another Polygon wallet and returns the permit for Nimiq Pay to sign. */
+export async function createSendOrder(
+  input: SendInput,
+  deps: OrderDeps = defaultDeps,
+): Promise<{ order: PublicOrder; typedData: string }> {
+  const owner = getAddress(input.address);
+  const problem = walletAddressError(input.to);
+  if (problem) throw new OrderError(problem, 400);
+  const to = getAddress(input.to);
+  if (isAddressEqual(to, owner)) throw new OrderError(COPY.ownWallet, 400);
+  const units = parseUsdt(input.amount);
+  await deps.connect();
+
+  const relayer = await readyRelayer(deps);
+  await assertWithinLimits(owner, unitsToUsd(units), "send", deps);
+  if ((await deps.chain.readUsdtBalance(owner)) < units) {
+    throw new OrderError(
+      "Your USDT balance is too low for this transfer.",
+      400,
+    );
+  }
+
+  const now = deps.now();
+  const deadline = Math.floor(now / 1000) + PERMIT_TTL_SECONDS;
+  const nonce = await deps.chain.readPermitNonce(owner);
+  const id = generateId("nimq");
+  const order = await NimiqOrder.create({
+    _id: id,
+    direction: "send",
+    walletAddress: owner,
+    recipientAddress: to,
+    status: "awaiting_signature",
+    amountUsd: unitsToUsd(units),
+    cryptoUnits: units.toString(),
+    cryptoAmount: fromUnits(units),
+    // No Naira side and no partner: the order id is the reference.
+    fiatAmount: 0,
+    rate: 0,
+    switchReference: id,
+    depositAddress: to,
+    permit: { spender: relayer, nonce: nonce.toString(), deadline },
+    expiresAt: new Date((deadline - SIGN_MARGIN_SECONDS) * 1000),
+    createdAt: new Date(now),
+  });
+
+  const typedData = serializeTypedData(
+    buildPermitTypedData(permitMessage(order)),
+  );
+  return { order: toPublicOrder(order), typedData };
+}
+
 export function submitCashOutSignature(
   orderId: string,
   signature: Hex,
   deps: OrderDeps = defaultDeps,
 ): Promise<PublicOrder> {
   return submitPermit(orderId, signature, ["cash_out"], deps);
+}
+
+/** Relays the send's permit; the transfer landing in the recipient's wallet completes it. */
+export function submitSendSignature(
+  orderId: string,
+  signature: Hex,
+  deps: OrderDeps = defaultDeps,
+): Promise<PublicOrder> {
+  return submitPermit(orderId, signature, ["send"], deps);
 }
 
 /** Relays the bill's permit, then buys it once the USDT has arrived. */
@@ -630,11 +704,11 @@ async function submitPermit(
         $set: {
           transferTxHash: result.transferTxHash,
           ...(result.permitTxHash ? { permitTxHash: result.permitTxHash } : {}),
-          ...(result.confirmed ? { status: "processing" } : {}),
+          ...(result.confirmed ? { status: settledStatus(order) } : {}),
         },
       },
     );
-    if (result.confirmed) {
+    if (result.confirmed && order.direction !== "send") {
       if (isBillDirection(order.direction)) {
         return advanceBill(await mustFind(order._id), deps);
       }
@@ -964,7 +1038,7 @@ async function nextState(
       const receipt = await deps.chain.readReceiptStatus(
         order.transferTxHash as Hex,
       );
-      if (receipt === "success") return { status: "processing" };
+      if (receipt === "success") return { status: settledStatus(order) };
       if (receipt === "reverted")
         return { status: "failed", failureReason: COPY.reverted };
       // Another transaction took this nonce, so the transfer can never mine.
@@ -978,8 +1052,9 @@ async function nextState(
     }
     case "awaiting_deposit":
     case "processing": {
-      // A bill is bought by advanceBill, not tracked by Switch.
-      if (isBillDirection(order.direction)) return {};
+      // A bill is bought by advanceBill and a send has no partner: neither is tracked by Switch.
+      if (isBillDirection(order.direction) || order.direction === "send")
+        return {};
       const raw = (await deps.switchApi.status(order.switchReference))?.data
         ?.status;
       const mapped = typeof raw === "string" ? fromSwitchStatus(raw) : null;
@@ -1005,6 +1080,10 @@ async function nextState(
       return {};
   }
 }
+
+/** Where an order goes once its transfer mines: a send is done, the rest still have a payout. */
+const settledStatus = (order: Pick<INimiqOrder, "direction">) =>
+  order.direction === "send" ? "completed" : "processing";
 
 function parseUsdt(amount: string): bigint {
   try {

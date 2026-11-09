@@ -53,6 +53,14 @@ export function historyEntry(order: PublicOrder): Transaction {
       amount: `-${usdt}`,
     };
   }
+  if (order.direction === "send") {
+    return {
+      ...base,
+      kind: "send",
+      title: `Sent to ${shortenAddress(order.recipientAddress ?? "", 6, 4)}`,
+      amount: `-${usdt}`,
+    };
+  }
   if (order.recipientAddress) {
     // The Naira left this user; the USDT went to someone else's wallet.
     return {

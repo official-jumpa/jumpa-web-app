@@ -235,6 +235,7 @@ const ORDER_TITLE: Record<NimiqDirection, string> = {
   data: "Mobile data",
   cash_out: "Cash-out",
   top_up: "Top-up",
+  send: "Transfer",
 };
 
 function statusOf(order: PublicOrder): { label: string; tone: RampTone } {

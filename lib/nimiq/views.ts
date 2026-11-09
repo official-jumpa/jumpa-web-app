@@ -2,7 +2,13 @@ import { ORDER_ID_PATTERN } from "./constants";
 
 export const MINI_APP_PATH = "/nimiq";
 
-export type FlowName = "cash-out" | "top-up" | "airtime" | "data";
+export type FlowName =
+  | "cash-out"
+  | "top-up"
+  | "airtime"
+  | "data"
+  | "send"
+  | "receive";
 
 export type TabName = "home" | "history" | "me";
 
@@ -29,6 +35,8 @@ const NAMED_VIEWS = [
   "top-up",
   "airtime",
   "data",
+  "send",
+  "receive",
   "history",
   "me",
 ] as const;

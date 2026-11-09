@@ -5,6 +5,7 @@ import type {
   BillInput,
   CashOutInput,
   Quote,
+  SendInput,
   TopUpInput,
 } from "./orders";
 
@@ -82,6 +83,15 @@ export const nimiqApi = {
   submitBill: (orderId: string, signature: string) =>
     call<{ order: PublicOrder }>(
       `/bills/${orderId}/submit`,
+      post({ signature }),
+    ),
+
+  createSend: (input: SendInput) =>
+    call<{ order: PublicOrder; typedData: string }>("/send", post(input)),
+
+  submitSend: (orderId: string, signature: string) =>
+    call<{ order: PublicOrder }>(
+      `/send/${orderId}/submit`,
       post({ signature }),
     ),
 

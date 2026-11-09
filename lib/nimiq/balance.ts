@@ -11,6 +11,8 @@ export function movesOwnBalance(order: PublicOrder): boolean {
   if (order.direction === "cash_out") {
     return order.status === "processing" || order.status === "completed";
   }
+  // A send's transfer mining is what completes it.
+  if (order.direction === "send") return order.status === "completed";
   return order.status === "completed" && !order.recipientAddress;
 }
 

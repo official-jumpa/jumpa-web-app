@@ -24,7 +24,9 @@ import { NimiqHome } from "./nimiq-home";
 import { NimiqMe } from "./nimiq-me";
 import { NimiqOrderView } from "./nimiq-order-view";
 import { OpenInNimiq } from "./open-in-nimiq";
+import { ReceiveCrypto } from "./receive-crypto";
 import { RecentActivity } from "./recent-activity";
+import { SendFlow } from "./send-flow";
 import { TopUpFlow } from "./top-up-flow";
 import { useBalanceMoves } from "./use-balance-moves";
 import { useMiniAppNav } from "./use-mini-app-nav";
@@ -40,6 +42,7 @@ const FLOW_OF: Record<NimiqDirection, FlowName> = {
   top_up: "top-up",
   airtime: "airtime",
   data: "data",
+  send: "send",
 };
 
 /** Settled orders previewed on home; the rest are a tap on See All away. */
@@ -156,6 +159,24 @@ function ConnectedApp({
           }}
         />
       );
+    case "send":
+      return (
+        <SendFlow
+          provider={provider}
+          address={address}
+          account={account.account}
+          savedWallets={saved.wallets}
+          onLeave={nav.back}
+          onOrderCreated={recent.remember}
+          onSubmitted={(order, to) => {
+            saved.saveWallet(to);
+            balanceMoves.note(order, true);
+            nav.showOrder(order.id);
+          }}
+        />
+      );
+    case "receive":
+      return <ReceiveCrypto address={address} onBack={nav.back} />;
     case "top-up":
       return (
         <TopUpFlow

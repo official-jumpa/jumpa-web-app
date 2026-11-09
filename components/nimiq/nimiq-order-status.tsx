@@ -15,7 +15,7 @@ import {
 } from "@/lib/nimiq/order-status";
 import { SUPPORT_EMAIL } from "@/lib/support";
 import { Medallion } from "./medallion";
-import { OrderDetails, orderRows, topUpPayee } from "./order-details";
+import { OrderDetails, orderRows, sentTo, topUpPayee } from "./order-details";
 import { MINI_APP_PATH } from "./use-mini-app-nav";
 
 type Copy = { title: string; body: string };
@@ -33,6 +33,12 @@ const NAMES: Record<
     expired: "Cash-out expired",
     failed: "Cash-out failed",
     again: "Start a new cash-out",
+  },
+  send: {
+    screen: "Send",
+    expired: "Transfer expired",
+    failed: "Transfer failed",
+    again: "Start a new transfer",
   },
   top_up: {
     screen: "Top up",
@@ -82,6 +88,12 @@ function progressCopy(order: PublicOrder): Copy {
           body: `Moving ${usdt} from your wallet. Jumpa pays the network fee.`,
         };
   }
+  if (order.direction === "send") {
+    return {
+      title: "Sending your USDT",
+      body: `Moving ${usdt} to wallet ${sentTo(order)}. Jumpa pays the network fee.`,
+    };
+  }
   if (order.direction === "top_up") {
     return order.status === "processing"
       ? {
@@ -105,11 +117,16 @@ function progressCopy(order: PublicOrder): Copy {
 }
 
 function problemCopy(order: PublicOrder): Copy {
-  const cashOut = order.direction === "cash_out";
+  const noun =
+    order.direction === "cash_out"
+      ? "cash-out"
+      : order.direction === "send"
+        ? "transfer"
+        : "purchase";
   if (order.status === "awaiting_signature") {
     return {
       title: "Not signed yet",
-      body: `This ${cashOut ? "cash-out" : "purchase"} was never signed, so nothing moved. It expires on its own.`,
+      body: `This ${noun} was never signed, so nothing moved. It expires on its own.`,
     };
   }
   if (order.status === "refunded") {
@@ -162,6 +179,23 @@ export function NimiqOrderStatus({
         subAmount={`${formatStable(order.cryptoAmount)} USDT`}
         title={order.direction === "airtime" ? "Airtime sent" : "Data sent"}
         note={`Your ${billLine(order)} is done.`}
+        details={<OrderDetails order={order} />}
+        receiptRows={orderRows(order)}
+        reference={order.reference}
+      />
+    );
+  }
+
+  if (order.status === "completed" && order.direction === "send") {
+    return (
+      <TransferSuccess
+        back={MINI_APP_PATH}
+        onBack={onHome}
+        ctaHref={MINI_APP_PATH}
+        ctaLabel="Done"
+        amount={`${formatStable(order.cryptoAmount)} USDT`}
+        title="USDT sent"
+        note={`Sent to wallet ${sentTo(order)} on Polygon.`}
         details={<OrderDetails order={order} />}
         receiptRows={orderRows(order)}
         reference={order.reference}

@@ -36,12 +36,12 @@ export type NimiqOrderPermit = {
   deadline: number;
 };
 
-/** A Nimiq Pay mini-app cash-out, top-up or bill; the wallet address is the only identity. */
+/** A Nimiq Pay mini-app cash-out, top-up, bill or send; the wallet address is the only identity. */
 export interface INimiqOrder {
   _id: string;
   direction: NimiqDirection;
   walletAddress: string;
-  /** Top-up only: the checksummed wallet paid when it isn't `walletAddress`. */
+  /** Top-up: the checksummed wallet paid when it isn't `walletAddress`. Send: the recipient. */
   recipientAddress?: string;
   status: NimiqOrderStatus;
   amountUsd: number;
@@ -52,7 +52,7 @@ export interface INimiqOrder {
   rate: number;
   /** Switch's reference; for a bill, the `ref_id` sent to SmartSMS. */
   switchReference: string;
-  /** Where the permit moves the USDT: Switch's deposit, or the relayer for a bill. */
+  /** Where the permit moves the USDT: Switch's deposit, the relayer for a bill, the recipient for a send. */
   depositAddress?: string;
   bank?: NimiqOrderBank;
   depositBank?: NimiqDepositBank;
@@ -86,7 +86,7 @@ const NimiqOrderSchema = new Schema<INimiqOrder>(
     _id: { type: String, default: () => generateId("nimq") },
     direction: {
       type: String,
-      enum: ["cash_out", "top_up", "airtime", "data"],
+      enum: ["cash_out", "top_up", "airtime", "data", "send"],
       required: true,
     },
     walletAddress: {

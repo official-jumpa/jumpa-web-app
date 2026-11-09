@@ -17,7 +17,12 @@ import { cn } from "@/lib/cn";
 import { formatStable } from "@/lib/naira-deposit";
 import type { AccountSummary } from "@/lib/nimiq/orders";
 import { MINI_APP_CHAT_HREF, MINI_APP_PATH } from "@/lib/nimiq/views";
-import { MINI_APP_ACTIONS, MINI_APP_PILLS } from "./mini-app-actions";
+import {
+  MINI_APP_ACTIONS,
+  MINI_APP_PILLS,
+  MINI_APP_RECEIVE_OPTIONS,
+  MINI_APP_SEND_OPTIONS,
+} from "./mini-app-actions";
 import { NimiqHeader } from "./nimiq-header";
 
 /** The mini app's own banners, as exported artwork. */
@@ -96,6 +101,8 @@ export function NimiqHome({
           }}
           chip={<UsdtChip />}
           pills={MINI_APP_PILLS}
+          sendOptions={MINI_APP_SEND_OPTIONS}
+          receiveOptions={MINI_APP_RECEIVE_OPTIONS}
           onRefresh={onRefresh}
           onNavigate={onNavigate}
         />

@@ -6,10 +6,20 @@ import { MoneyInsertIcon } from "@/components/ui/icons/money-insert";
 import { MoneyWithdrawalIcon } from "@/components/ui/icons/money-withdrawal";
 import { formatNaira, formatStable } from "@/lib/naira-deposit";
 import type { PublicOrder } from "@/lib/nimiq/order-status";
+import { sentTo } from "./order-details";
+
+const outgoing = (order: PublicOrder) =>
+  order.direction === "cash_out" || order.direction === "send";
+
+const TITLE: Partial<Record<PublicOrder["direction"], string>> = {
+  cash_out: "Cash-out in progress",
+  send: "Transfer in progress",
+};
 
 function caption(order: PublicOrder): string {
   const usdt = `${formatStable(order.cryptoAmount)} USDT`;
   const naira = formatNaira(order.fiatAmount);
+  if (order.direction === "send") return `${usdt} to ${sentTo(order)}`;
   if (order.direction === "cash_out") {
     return `${naira} to ${order.bank?.accountName ?? "your bank"}`;
   }
@@ -34,16 +44,8 @@ export function InProgressOrders({
         {orders.map((order) => (
           <OptionRow
             key={order.id}
-            Icon={
-              order.direction === "cash_out"
-                ? MoneyWithdrawalIcon
-                : MoneyInsertIcon
-            }
-            title={
-              order.direction === "cash_out"
-                ? "Cash-out in progress"
-                : "Top-up in progress"
-            }
+            Icon={outgoing(order) ? MoneyWithdrawalIcon : MoneyInsertIcon}
+            title={TITLE[order.direction] ?? "Top-up in progress"}
             caption={caption(order)}
             onClick={() => onOpen(order.id)}
           />

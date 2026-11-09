@@ -4,7 +4,10 @@ export type RampDirection = "cash_out" | "top_up";
 /** Airtime and data are bought with USDT the user moves to Jumpa. */
 export type BillDirection = "airtime" | "data";
 
-export type NimiqDirection = RampDirection | BillDirection;
+/** USDT moved from the user's wallet straight to another Polygon wallet. */
+export type SendDirection = "send";
+
+export type NimiqDirection = RampDirection | BillDirection | SendDirection;
 
 export const isBillDirection = (
   direction: NimiqDirection,
@@ -40,7 +43,7 @@ export type PublicOrder = {
   createdAt: string;
   /** When the signature (cash-out) or the bank transfer (top-up) stops being accepted. */
   expiresAt?: string;
-  /** Top-up only: set when the USDT goes to a wallet other than the connected one. */
+  /** Top-up: set when the USDT goes to a wallet other than the connected one. Send: always the recipient. */
   recipientAddress?: string;
   bank?: { name: string; accountName: string; accountNumberMasked: string };
   depositBank?: {
@@ -82,6 +85,7 @@ export const COUNTED_STATUSES: Record<NimiqDirection, NimiqOrderStatus[]> = {
   top_up: ["awaiting_deposit", "processing", "completed"],
   airtime: ["relaying", "processing", "completed"],
   data: ["relaying", "processing", "completed"],
+  send: ["relaying", "processing", "completed"],
 };
 
 const SWITCH_STATUS_MAP: Record<string, SwitchDerivedStatus> = {

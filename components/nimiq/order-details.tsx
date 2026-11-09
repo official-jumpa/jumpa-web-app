@@ -12,7 +12,13 @@ export function topUpPayee(order: Pick<PublicOrder, "recipientAddress">) {
     : "your Nimiq Pay wallet";
 }
 
-/** Label/value pairs for an order, shared by the detail box and the shared receipt. */
+/** The wallet a send paid, shortened. */
+export function sentTo(order: Pick<PublicOrder, "recipientAddress">) {
+  return order.recipientAddress
+    ? shortenAddress(order.recipientAddress, 6, 4)
+    : "another wallet";
+}
+
 /** A bill's rows: what was bought, for whom, and what it cost. */
 function billRows(
   order: PublicOrder,
@@ -39,9 +45,19 @@ function billRows(
   ];
 }
 
+/** Label/value pairs for an order, shared by the detail box and the shared receipt. */
 export function orderRows(order: PublicOrder): ReceiptRow[] {
   const usdt = `${formatStable(order.cryptoAmount)} USDT`;
   const naira = formatNaira(order.fiatAmount);
+  if (order.direction === "send") {
+    return [
+      { label: "You send", value: usdt },
+      { label: "To wallet", value: sentTo(order) },
+      { label: "Network", value: "Polygon" },
+      { label: "Network fee", value: "Paid by Jumpa" },
+      { label: "Reference", value: order.reference },
+    ];
+  }
   if (order.direction === "airtime" || order.direction === "data") {
     return [
       ...billRows(order, usdt, naira),

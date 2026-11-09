@@ -9,6 +9,7 @@ import { POLYGON_USDT } from "./constants";
 import {
   createBillOrder,
   createCashOutOrder,
+  createSendOrder,
   createTopUpOrder,
   listOrders,
   type OrderDeps,
@@ -17,6 +18,7 @@ import {
   spentTodayUsd,
   submitBillSignature,
   submitCashOutSignature,
+  submitSendSignature,
 } from "./orders";
 import { buildPermitTypedData } from "./permit";
 import { RelayError, RelayerUnavailableError } from "./relayer";
@@ -38,6 +40,8 @@ const cashOut = {
   bank: "044",
   accountNumber: "0123456789",
 };
+
+const send = { address: owner.address, to: FRIEND, amount: "10" };
 
 function harness() {
   let seq = 0;
@@ -796,6 +800,86 @@ describe("nimiq orders", () => {
     const done = await refreshOrder(stuck.id, deps);
     assert.equal(done.status, "refunded");
     assert.equal(state.refunds.length, 2);
+  });
+
+  test("a send stores the recipient as the deposit and never calls Switch", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps, state } = harness();
+
+    const { order, typedData } = await createSendOrder(send, deps);
+
+    const stored = await NimiqOrder.findById(order.id).lean();
+    assert.equal(stored?.status, "awaiting_signature");
+    assert.equal(stored?.depositAddress, FRIEND);
+    assert.equal(order.recipientAddress, FRIEND);
+    assert.equal(stored?.permit?.spender, RELAYER);
+    assert.equal(JSON.parse(typedData).message.value, "10000000");
+    assert.equal(state.offramps.length + state.onramps.length, 0);
+  });
+
+  test("a send refuses its own wallet and addresses that would burn the USDT", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps } = harness();
+
+    await rejectsWith(
+      createSendOrder({ ...send, to: owner.address }, deps),
+      400,
+      "That's the wallet you're sending from.",
+    );
+    await rejectsWith(
+      createSendOrder({ ...send, to: POLYGON_USDT.address }, deps),
+      400,
+    );
+    assert.equal(await NimiqOrder.countDocuments(), 0);
+  });
+
+  test("a signed send moves the USDT to the recipient, completes and counts toward today", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps, state } = harness();
+    const { order } = await createSendOrder(send, deps);
+
+    const done = await submitSendSignature(
+      order.id,
+      await signFor(order.id),
+      deps,
+    );
+
+    assert.equal(done.status, "completed");
+    assert.deepEqual(state.relayTo, [FRIEND]);
+    assert.ok(done.explorerUrl?.endsWith(TRANSFER_HASH));
+    assert.deepEqual(state.confirms, []);
+    assert.equal(await spentTodayUsd(owner.address, START, "cash_out"), 10);
+  });
+
+  test("a send confirmed after the request ends completes on the next poll", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps, state } = harness();
+    state.relayConfirmed = false;
+    state.switchStatus = "FAILED";
+    const { order } = await createSendOrder(send, deps);
+
+    const pending = await submitSendSignature(
+      order.id,
+      await signFor(order.id),
+      deps,
+    );
+    assert.equal(pending.status, "relaying");
+
+    state.now += MINUTE;
+    const done = await refreshOrder(order.id, deps);
+    assert.equal(done.status, "completed");
+    assert.deepEqual(state.confirms, []);
+  });
+
+  test("a cash-out signature can't be submitted as a send", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps } = harness();
+    const { order } = await createCashOutOrder(cashOut, deps);
+
+    await rejectsWith(
+      submitSendSignature(order.id, await signFor(order.id), deps),
+      404,
+    );
   });
 });
 

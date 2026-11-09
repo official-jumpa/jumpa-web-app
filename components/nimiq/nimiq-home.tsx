@@ -99,7 +99,7 @@ export function NimiqHome({
             balanceHidden = visible;
             setVisible(!visible);
           }}
-          chip={<UsdtChip />}
+          chip={<BalanceChip />}
           pills={MINI_APP_PILLS}
           sendOptions={MINI_APP_SEND_OPTIONS}
           receiveOptions={MINI_APP_RECEIVE_OPTIONS}
@@ -135,23 +135,16 @@ export function NimiqHome({
   );
 }
 
-/** Where the Balance Details chip sits on the main card: the one asset this balance counts. */
-function UsdtChip() {
+/** Where the Balance Details chip sits on the main card; no breakdown until a second chain is counted. */
+function BalanceChip() {
   return (
     <span
       className={cn(
-        "flex h-7 w-fit items-center gap-1.5 rounded-pill pr-3 pl-1 text-xs leading-2.5 font-medium tracking-jumpa-snug text-jumpa-white",
+        "flex h-7 w-fit items-center rounded-pill px-3 text-xs leading-2.5 font-medium tracking-jumpa-snug text-jumpa-white",
         GLASS,
       )}
     >
-      <Image
-        src="/coins/usdt.webp"
-        alt=""
-        width={20}
-        height={20}
-        className="size-5 rounded-full"
-      />
-      USDT on Polygon
+      Balance
     </span>
   );
 }

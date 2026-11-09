@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { ComponentType, ReactNode, SVGProps } from "react";
+import { SOON, SoonTag } from "@/components/ui/soon-tag";
+import { cn } from "@/lib/cn";
 
 /** Icon tile, title and caption — the row shape shared by every chooser here. */
 export function OptionRow({
@@ -9,6 +11,7 @@ export function OptionRow({
   caption,
   onClick,
   href,
+  soon,
 }: {
   Icon?: ComponentType<SVGProps<SVGSVGElement>>;
   /** Anything that replaces the purple tile — an avatar, a bank mark. */
@@ -17,6 +20,8 @@ export function OptionRow({
   caption: ReactNode;
   onClick?: () => void;
   href?: string;
+  /** Muted and inert, with a Soon tag on the tile, for a way that isn't live yet. */
+  soon?: boolean;
 }) {
   const body = (
     <>
@@ -37,6 +42,21 @@ export function OptionRow({
   );
 
   const className = "tap flex w-full items-center gap-4 active:scale-[0.99]";
+
+  if (soon) {
+    return (
+      <span className="relative flex">
+        <span
+          aria-disabled="true"
+          className={cn("flex w-full items-center gap-4", SOON)}
+        >
+          {body}
+          <span className="sr-only">(coming soon)</span>
+        </span>
+        <SoonTag className="-top-1 left-7.5" />
+      </span>
+    );
+  }
 
   if (href) {
     return (

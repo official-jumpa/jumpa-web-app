@@ -3,7 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { type ReactNode, useState } from "react";
+import type { ReceiveOption } from "@/components/transfer/receive-options";
 import { ReceiveOptionsSheet } from "@/components/transfer/receive-options-sheet";
+import type { SendOption } from "@/components/transfer/send-options";
 import { SendOptionsSheet } from "@/components/transfer/send-options-sheet";
 import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { EyeIcon } from "@/components/ui/icons/eye";
@@ -42,8 +44,12 @@ interface BalancePanelProps {
   pills?: AppAction[];
   /** Runs on refresh instead of re-reading every client balance. */
   onRefresh?: () => void;
-  /** Takes over route pills, for a host that keeps its own navigation stack. */
+  /** Takes over route pills and the sheets' rows, for a host that keeps its own navigation stack. */
   onNavigate?: (href: string) => void;
+  /** The Send sheet's rows; the main app's by default. */
+  sendOptions?: SendOption[];
+  /** The Deposit sheet's rows; the main app's by default. */
+  receiveOptions?: ReceiveOption[];
 }
 
 /**
@@ -61,6 +67,8 @@ export function BalancePanel({
   pills = HOME_PILLS,
   onRefresh = invalidateClientBalances,
   onNavigate,
+  sendOptions,
+  receiveOptions,
 }: BalancePanelProps) {
   const [internalVisible, setInternalVisible] = useState(false);
   const visible = controlledVisible ?? internalVisible;
@@ -214,11 +222,19 @@ export function BalancePanel({
       ) : null}
 
       {sheet === "send" ? (
-        <SendOptionsSheet onClose={() => setSheet(null)} />
+        <SendOptionsSheet
+          options={sendOptions}
+          onNavigate={onNavigate}
+          onClose={() => setSheet(null)}
+        />
       ) : null}
 
       {sheet === "receive" ? (
-        <ReceiveOptionsSheet onClose={() => setSheet(null)} />
+        <ReceiveOptionsSheet
+          options={receiveOptions}
+          onNavigate={onNavigate}
+          onClose={() => setSheet(null)}
+        />
       ) : null}
     </section>
   );

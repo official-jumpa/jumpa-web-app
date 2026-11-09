@@ -4,12 +4,13 @@ import { ArrowUpRightIcon } from "@/components/ui/icons/arrow-up-right";
 import { CircleInformationIcon } from "@/components/ui/icons/circle-information";
 import { UsersIcon } from "@/components/ui/icons/users";
 
-type SendOption = {
+export type SendOption = {
   id: string;
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
   title: string;
   caption: string;
   href: string;
+  soon?: boolean;
 };
 
 /**
@@ -41,12 +42,22 @@ export const SEND_OPTIONS: SendOption[] = [
 ];
 
 /** The chooser body, so the sheet and the standalone screen cannot drift. */
-export function SendOptionList() {
+export function SendOptionList({
+  options = SEND_OPTIONS,
+  onNavigate,
+}: {
+  options?: SendOption[];
+  /** Takes over the links, for a host that keeps its own navigation stack. */
+  onNavigate?: (href: string) => void;
+}) {
   return (
     <ul className="flex flex-col gap-6 rounded-surface bg-jumpa-neutral-50 px-5 py-4">
-      {SEND_OPTIONS.map(({ id, ...option }) => (
+      {options.map(({ id, href, ...option }) => (
         <li key={id}>
-          <OptionRow {...option} />
+          <OptionRow
+            {...option}
+            {...(onNavigate ? { onClick: () => onNavigate(href) } : { href })}
+          />
         </li>
       ))}
     </ul>

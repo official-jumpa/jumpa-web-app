@@ -1,11 +1,22 @@
 "use client";
 
 import { CloseButton } from "@/components/transfer/close-button";
-import { SendOptionList } from "@/components/transfer/send-options";
+import {
+  type SendOption,
+  SendOptionList,
+} from "@/components/transfer/send-options";
 import { SheetPortal } from "@/components/ui/sheet-portal";
 
 /** Raised by Send on the home hero. */
-export function SendOptionsSheet({ onClose }: { onClose: () => void }) {
+export function SendOptionsSheet({
+  onClose,
+  options,
+  onNavigate,
+}: {
+  onClose: () => void;
+  options?: SendOption[];
+  onNavigate?: (href: string) => void;
+}) {
   return (
     <SheetPortal onClose={onClose}>
       <div className="flex items-center justify-between gap-3">
@@ -16,7 +27,7 @@ export function SendOptionsSheet({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="mt-3">
-        <SendOptionList />
+        <SendOptionList options={options} onNavigate={onNavigate} />
       </div>
     </SheetPortal>
   );

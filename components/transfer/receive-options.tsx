@@ -6,7 +6,7 @@ import { CoinFrontIcon } from "@/components/ui/icons/coin-front";
 
 export type ReceiveOptionId = "fiat" | "crypto";
 
-type ReceiveOption = {
+export type ReceiveOption = {
   id: ReceiveOptionId;
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
   title: string;
@@ -37,11 +37,11 @@ export const RECEIVE_ROW_RESTING = "bg-jumpa-neutral-50";
 export const RECEIVE_ROW_PICKED =
   "bg-jumpa-primary-100 inset-ring-1 inset-ring-jumpa-primary-600";
 
-export function ReceiveOptionBody({ id }: { id: ReceiveOptionId }) {
-  const option =
-    RECEIVE_OPTIONS.find((entry) => entry.id === id) ?? RECEIVE_OPTIONS[0];
-  const { Icon, title } = option;
-
+export function ReceiveOptionBody({
+  option: { Icon, title },
+}: {
+  option: ReceiveOption;
+}) {
   return (
     <>
       <span className="flex items-center gap-2">
@@ -57,14 +57,14 @@ export function ReceiveOptionBody({ id }: { id: ReceiveOptionId }) {
 export function ReceiveOptionList() {
   return (
     <ul className="flex w-full flex-col gap-2">
-      {RECEIVE_OPTIONS.map(({ id, href }) => (
-        <li key={id}>
+      {RECEIVE_OPTIONS.map((option) => (
+        <li key={option.id}>
           <Link
             prefetch
-            href={href}
+            href={option.href}
             className={`${RECEIVE_ROW} ${RECEIVE_ROW_RESTING}`}
           >
-            <ReceiveOptionBody id={id} />
+            <ReceiveOptionBody option={option} />
           </Link>
         </li>
       ))}

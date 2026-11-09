@@ -2,25 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DepositQr } from "@/components/assets/deposit-qr";
+import { DepositDetails } from "@/components/assets/deposit-details";
 import { NetworkSheet } from "@/components/assets/network-sheet";
-import { CopyButton } from "@/components/auth/copy-button";
 import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
-import { GlobeIcon } from "@/components/ui/icons/globe";
-import { UsersIcon } from "@/components/ui/icons/users";
 import { ScreenHeader } from "@/components/ui/screen-header";
 import type { Chain } from "@/lib/blockchain";
 import { depositNotes } from "@/lib/transfer";
-
-/** Renders a note string, turning **word** markers into bold <strong> spans. */
-function renderNote(note: string) {
-  const parts = note.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((part, i) =>
-    part.startsWith("**") && part.endsWith("**")
-      ? <strong key={i}>{part.slice(2, -2)}</strong>
-      : part,
-  );
-}
 
 /** Where to send funds so they land in this wallet, on the chosen chain. */
 export function DepositInfo({
@@ -55,26 +42,13 @@ export function DepositInfo({
         round
       />
 
-      <h2 className="mt-6 text-base leading-5 font-medium text-jumpa-black">
-        Account Information
-      </h2>
-
-      <dl className="mt-3 flex flex-col gap-4 rounded-surface bg-jumpa-neutral-50 px-4 py-4">
-        {/* The row is a button on multi-chain assets — the address follows it. */}
-        <div className="flex items-center gap-3">
-          <GlobeIcon
-            aria-hidden="true"
-            className="size-6 shrink-0 text-jumpa-primary-600"
-          />
-          <span className="flex min-w-0 flex-1 flex-col">
-            <dt className="text-xs leading-4 text-jumpa-neutral-500">
-              Network
-            </dt>
-            <dd className="truncate text-sm leading-4.5 font-medium text-jumpa-black">
-              {chain.name}
-            </dd>
-          </span>
-          {switchable ? (
+      <DepositDetails
+        network={chain.name}
+        address={chain.address}
+        notes={depositNotes(symbol, chain.name, priceUsd)}
+        available={isAvailable}
+        networkAction={
+          switchable ? (
             <button
               type="button"
               onClick={() => setPicking(true)}
@@ -83,51 +57,9 @@ export function DepositInfo({
               Change
               <ChevronDownIcon aria-hidden="true" className="size-4" />
             </button>
-          ) : null}
-        </div>
-
-        {/* -mb-px: the design draws a zero-height line, a 1px box would add flow. */}
-        <span className="-mb-px block h-px w-full bg-jumpa-neutral-100" />
-
-        <div className="flex items-center gap-3">
-          <UsersIcon
-            aria-hidden="true"
-            className="size-6 shrink-0 text-jumpa-primary-600"
-          />
-          <span className="flex min-w-0 flex-1 flex-col">
-            <dt className="text-xs leading-4 text-jumpa-neutral-500">
-              Wallet address
-            </dt>
-            <dd className="truncate text-sm leading-4.5 font-medium text-jumpa-black">
-              {chain.address}
-            </dd>
-          </span>
-          {isAvailable && <CopyButton value={chain.address} />}
-        </div>
-      </dl>
-
-      <div className="mt-4 flex h-73.5 items-center justify-center rounded-surface bg-jumpa-neutral-50">
-        {isAvailable ? (
-          <DepositQr value={chain.address} />
-        ) : (
-          <p className="text-sm text-jumpa-neutral-400 text-center px-6">
-            This network is not yet available
-          </p>
-        )}
-      </div>
-
-      <h2 className="mt-4 text-sm leading-4.5 font-medium text-jumpa-black">
-        Deposit info
-      </h2>
-
-      <ul className="mt-3 flex flex-col gap-1 rounded-surface bg-jumpa-primary-50 px-4 py-4 text-xs leading-5 font-medium text-jumpa-black">
-        {depositNotes(symbol, chain.name, priceUsd).map((note, i) => (
-          <li key={i} className="flex gap-1.5">
-            <span aria-hidden="true">&bull;</span>
-            <span>{renderNote(note)}</span>
-          </li>
-        ))}
-      </ul>
+          ) : null
+        }
+      />
 
       {picking ? (
         <NetworkSheet

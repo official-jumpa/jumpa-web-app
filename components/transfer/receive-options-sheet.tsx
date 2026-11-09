@@ -7,6 +7,7 @@ import {
   RECEIVE_ROW,
   RECEIVE_ROW_PICKED,
   RECEIVE_ROW_RESTING,
+  type ReceiveOption,
   ReceiveOptionBody,
   type ReceiveOptionId,
 } from "@/components/transfer/receive-options";
@@ -18,19 +19,29 @@ import { SheetPortal } from "@/components/ui/sheet-portal";
  * Fiat or crypto, raised from the home hero. Picking a row marks it; Continue
  * acts on the choice.
  */
-export function ReceiveOptionsSheet({ onClose }: { onClose: () => void }) {
+export function ReceiveOptionsSheet({
+  onClose,
+  options = RECEIVE_OPTIONS,
+  onNavigate,
+}: {
+  onClose: () => void;
+  options?: ReceiveOption[];
+  /** Takes over Continue's navigation, for a host that keeps its own stack. */
+  onNavigate?: (href: string) => void;
+}) {
   const router = useRouter();
   const [picked, setPicked] = useState<ReceiveOptionId>();
   const [error, setError] = useState<string>();
 
   const proceed = () => {
-    const option = RECEIVE_OPTIONS.find((entry) => entry.id === picked);
+    const option = options.find((entry) => entry.id === picked);
     if (!option) {
       setError("Pick how you want to add money");
       return;
     }
 
-    router.push(option.href);
+    if (onNavigate) onNavigate(option.href);
+    else router.push(option.href);
   };
 
   return (
@@ -44,19 +55,19 @@ export function ReceiveOptionsSheet({ onClose }: { onClose: () => void }) {
         <div className="flex w-full flex-col gap-8">
           <div className="flex w-full flex-col gap-2">
             <ul className="flex w-full flex-col gap-2">
-              {RECEIVE_OPTIONS.map(({ id }) => (
-                <li key={id}>
+              {options.map((option) => (
+                <li key={option.id}>
                   <button
                     type="button"
-                    aria-pressed={picked === id}
+                    aria-pressed={picked === option.id}
                     onClick={() => {
-                      setPicked(id);
+                      setPicked(option.id);
                       setError(undefined);
                     }}
-                    className={`${RECEIVE_ROW} ${picked === id ? RECEIVE_ROW_PICKED : RECEIVE_ROW_RESTING
+                    className={`${RECEIVE_ROW} ${picked === option.id ? RECEIVE_ROW_PICKED : RECEIVE_ROW_RESTING
                       }`}
                   >
-                    <ReceiveOptionBody id={id} />
+                    <ReceiveOptionBody option={option} />
                   </button>
                 </li>
               ))}

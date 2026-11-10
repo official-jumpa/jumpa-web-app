@@ -5,7 +5,7 @@ import type { SessionSummary } from "@/components/chat/chat-header";
 import type { ChatAttachment } from "@/lib/chat-attachments";
 import type { ChatCard } from "@/lib/nimiq/chat-cards";
 
-export type TopUpStep = "confirmed" | "sent";
+export type TopUpStep = "confirmed" | "sent" | "cancelled";
 
 export type ChatLine = {
   id: string;
@@ -19,7 +19,7 @@ export type ChatLine = {
   answer?: string;
   /** The order this line's confirm card placed. */
   orderId?: string;
-  /** How far the user got on this line's top-up: Confirm, then "I've sent the money". */
+  /** How far the user got on this line's top-up: Confirm, then "I've sent the money", or Cancel. */
   topUpStep?: TopUpStep;
   /** The user turned this line's confirm card down. */
   declined?: boolean;

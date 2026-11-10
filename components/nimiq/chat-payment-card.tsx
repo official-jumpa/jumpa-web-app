@@ -298,7 +298,7 @@ export function ChatOrderCard({
 }: {
   orderId: string;
   onUpdate: (order: PublicOrder) => void;
-  /** A top-up waiting on a transfer: Confirm, then "I've sent the money". */
+  /** A top-up waiting on a transfer: Confirm, then "I've sent the money"; Cancel beside both. */
   topUpStep?: TopUpStep;
   onTopUpStep?: (step: TopUpStep) => void;
 }) {
@@ -322,7 +322,6 @@ export function ChatOrderCard({
     );
   }
 
-  const { label, tone } = statusOf(order);
   const progress = progressOf(order);
   const settledBadly =
     order.status === "failed" ||
@@ -333,10 +332,15 @@ export function ChatOrderCard({
     order.direction === "top_up" &&
     order.status === "awaiting_deposit" &&
     order.depositBank;
+  // Only the chat drops it; if the money is sent anyway, the real status takes over.
+  const cancelled = awaitingTransfer && topUpStep === "cancelled";
+  const { label, tone } = cancelled
+    ? { label: "Cancelled", tone: "error" as const }
+    : statusOf(order);
 
   return (
     <RampShell title={ORDER_TITLE[order.direction]} status={label} tone={tone}>
-      {awaitingTransfer && order.depositBank ? (
+      {awaitingTransfer && !cancelled && order.depositBank ? (
         <TransferDetails order={order} bank={order.depositBank} />
       ) : null}
       <DetailBox>
@@ -358,7 +362,7 @@ export function ChatOrderCard({
           View on Polygonscan
         </a>
       ) : null}
-      {awaitingTransfer ? (
+      {awaitingTransfer && !cancelled ? (
         topUpStep === "sent" ? (
           <RampNotice tone="pending">
             We&rsquo;re checking for your transfer. This card updates by itself
@@ -369,11 +373,11 @@ export function ChatOrderCard({
             onConfirm={() =>
               onTopUpStep?.(topUpStep === "confirmed" ? "sent" : "confirmed")
             }
-            onCancel={() => {}}
-            cancelLabel={false}
+            onCancel={() => onTopUpStep?.("cancelled")}
             confirmLabel={
               topUpStep === "confirmed" ? "I’ve sent the money" : "Confirm"
             }
+            fit={topUpStep === "confirmed"}
           />
         )
       ) : null}

@@ -10,11 +10,14 @@ export function ActionRow({
   onCancel,
   confirmLabel = "Confirm",
   cancelLabel = "Cancel",
+  fit = false,
 }: {
   onConfirm: () => void;
   onCancel: () => void;
   confirmLabel?: string;
   cancelLabel?: string | false;
+  /** Each button hugs its label, for a confirm label too long for the fixed pair. */
+  fit?: boolean;
 }) {
   if (cancelLabel === false) {
     return (
@@ -29,18 +32,18 @@ export function ActionRow({
   }
 
   return (
-    <div className="flex w-52 gap-1.75">
+    <div className={fit ? "flex gap-1.75 self-start" : "flex w-52 gap-1.75"}>
       <button
         type="button"
         onClick={onCancel}
-        className={`${BUTTON} flex-1 bg-jumpa-neutral-750 text-jumpa-neutral-275`}
+        className={`${BUTTON} ${fit ? "px-4" : "flex-1"} bg-jumpa-neutral-750 text-jumpa-neutral-275`}
       >
         {cancelLabel}
       </button>
       <button
         type="button"
         onClick={onConfirm}
-        className={`${BUTTON} flex-1 bg-jumpa-primary-600 text-jumpa-neutral-25`}
+        className={`${BUTTON} ${fit ? "px-4" : "flex-1"} bg-jumpa-primary-600 text-jumpa-neutral-25`}
       >
         {confirmLabel}
       </button>

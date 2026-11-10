@@ -44,6 +44,7 @@ const stellarTestnetSwapQuote: DeepSeekTool = {
       "Only call this when the user has explicitly confirmed they want to swap on Stellar Testnet. " +
       "Available Stellar Testnet assets: XLM, USDC. " +
       "If the user requests USDT, inform them it is not available on Stellar and offer XLM↔USDC swaps. " +
+      "Never call it for a Solana, SOL or USDT swap — those are done on the Swap screen. " +
       "Do NOT call this if fromToken or toToken or fromAmount are not yet known — ask the user first.",
     parameters: {
       type: "object",
@@ -100,6 +101,7 @@ const stellarMainnetSwapQuote: DeepSeekTool = {
       "Fetch a live Soroswap DEX quote for a token swap on the Stellar MAINNET network. " +
       "Only call this when the user has explicitly confirmed they want to swap on Stellar Mainnet. " +
       "Available Stellar Mainnet assets: XLM, USDC. " +
+      "Never call it for a Solana, SOL or USDT swap — those are done on the Swap screen. " +
       "Do NOT call this if fromToken, toToken, or fromAmount are not yet known — ask the user first.",
     parameters: {
       type: "object",
@@ -626,6 +628,8 @@ const swapTokens: DeepSeekTool = {
   function: {
     name: "swap_tokens",
     description:
+      "Stellar swaps only (XLM ↔ USDC). Never call it when the user mentions Solana or wants to swap SOL or USDT — " +
+      "those swaps are done on the Swap screen; reply with the Swap screen steps from the instructions instead. " +
       "Start a token swap when the user has NOT already given the network, both tokens and the amount. " +
       "Call this for any open-ended swap request — 'swap tokens', 'I want to swap', 'swap my XLM'. " +
       "Pass only what the user has actually told you and omit the rest: the tool answers with the chooser " +

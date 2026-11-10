@@ -12,6 +12,7 @@ import {
   detectCarrierFromPhone,
   MOBILE_NETWORKS,
 } from "@/lib/bills";
+import type { ChatAttachment } from "@/lib/chat-attachments";
 import { formatNaira, formatStable } from "@/lib/naira-deposit";
 import {
   isValidNigerianPhone,
@@ -31,16 +32,23 @@ import {
   usdtFor,
 } from "./chat-cards";
 import { BILL_RATE_PROBE_USDT } from "./constants";
-import type { RampDirection } from "./order-status";
+import type { PublicOrder, RampDirection } from "./order-status";
 import {
   type AccountSummary,
+  createTopUpOrder,
   getAccountSummary,
   getQuote,
+  OrderError,
   type Quote,
 } from "./orders";
 
 /** A message the mini app keeps on the device and sends back with each question. */
-export type ChatTurn = { role: "user" | "assistant"; content: string };
+export type ChatTurn = {
+  role: "user" | "assistant";
+  content: string;
+  /** Photos, PDFs or a voice note sent with the turn. */
+  attachments?: ChatAttachment[];
+};
 
 export type ChatAnswer = { reply: string; card?: ChatCard };
 
@@ -52,6 +60,8 @@ export type ChatDeps = {
     accountNumber: string,
     bank: string,
   ) => Promise<ResolvedAccount>;
+  /** Opens a top-up to the connected wallet; the order carries the account to pay. */
+  topUp: (address: Address, amountNgn: number) => Promise<PublicOrder>;
   step: (options: {
     messages: ChatHistoryMessage[];
     tools: DeepSeekTool[];
@@ -65,6 +75,7 @@ const defaultDeps: ChatDeps = {
   quote: (direction, amount) => getQuote(direction, amount),
   plans: (phone) => listDataPlans(phone),
   resolveAccount: resolveNigerianAccount,
+  topUp: (address, amountNgn) => createTopUpOrder({ address, amountNgn }),
   step: runAgentStep,
 };
 
@@ -149,7 +160,7 @@ export const NIMIQ_CHAT_TOOLS: DeepSeekTool[] = [
   ),
   tool(
     "top_up",
-    "Prices a top-up (the user pays Naira by bank transfer and receives USDT) and shows a card the user confirms in this chat.",
+    "Opens a top-up (the user pays Naira by bank transfer and receives USDT): the card under the reply shows the bank account to pay into straight away.",
     { amountNgn: { type: "number", description: "Naira to pay." } },
   ),
   tool("show_history", "Shows the user's recent orders in this chat."),
@@ -166,7 +177,7 @@ The user's wallet holds USDT on Polygon. Right here in this chat they can:
 Savings, investing, swaps, cards, referrals and other coins or chains are not in the mini app yet: say they are coming soon, and that the full Jumpa app at usejumpa.com has more.
 
 Rules:
-- You never move money yourself. A payment tool puts a card under your reply; the user checks it, taps Confirm and approves in Nimiq Pay, all in this chat. A top-up is the exception: after Confirm the card shows the bank account to pay the Naira into, and there is nothing to approve in Nimiq Pay.
+- You never move money yourself. A payment tool puts a card under your reply; the user checks it, taps Confirm and approves in Nimiq Pay, all in this chat. A top-up is the exception: its card shows the bank account straight away; the user taps Confirm, transfers the Naira, then taps "I've sent the money". Nothing is approved in Nimiq Pay.
 - As soon as the user asks for a payment, call its tool with whatever they gave, using earlier messages too. If the tool says details are missing, ask for all of them in one short question.
 - Never state a balance, rate, fee or Naira figure that a tool did not give you.
 - Jumpa pays the Polygon network fee.
@@ -190,15 +201,10 @@ const stringArg = (value: unknown) =>
 const SHOWN =
   "A card with these details is under your reply. Tell the user to check it, tap Confirm and approve in Nimiq Pay. Do not ask for anything else.";
 
-// A top-up is paid by bank transfer, so Nimiq Pay has nothing to sign.
-const TOP_UP_SHOWN =
-  "A card with these details is under your reply. Tell the user to check it and tap Confirm: the bank account to transfer the Naira to then shows on the card. There is nothing to sign in Nimiq Pay for a top-up, so never mention it. Do not ask for anything else.";
-
 /** The card to confirm, and what the model tells the user about it. */
 function proposed(proposal: ChatProposal, details: string): ToolResult {
-  const shown = proposal.kind === "top-up" ? TOP_UP_SHOWN : SHOWN;
   return {
-    summary: `${details} ${shown}`,
+    summary: `${details} ${SHOWN}`,
     card: { type: "confirm", proposal },
   };
 }
@@ -445,12 +451,21 @@ export async function runNimiqTool(
       const amount = numberArg(args.amountNgn);
       const amountNgn = amount && amount > 0 ? Math.round(amount) : undefined;
       if (!amountNgn) return missing(["the amount in Naira"], notes);
-      const quote = await deps.quote("top_up", amountNgn);
-      const usdt = Math.floor(quote.receive.amount * 100) / 100;
-      return proposed(
-        { kind: "top-up", amountNgn, usdt },
-        `Paying ${formatNaira(amountNgn)} gets about ${formatStable(usdt)} USDT. After Confirm, the card shows the account to transfer to.`,
-      );
+      // Opened at once so the card shows the account; Confirm then "I've sent the money" follow on the card.
+      let order: PublicOrder;
+      try {
+        order = await deps.topUp(address, amountNgn);
+      } catch (error) {
+        if (!(error instanceof OrderError)) throw error;
+        return {
+          summary: `The top-up could not be opened: ${error.message} Tell the user in one sentence.`,
+        };
+      }
+      const naira = formatNaira(order.fiatAmount);
+      return {
+        summary: `Paying ${naira} gets about ${formatStable(order.cryptoAmount)} USDT. The card under your reply shows the bank account. Tell the user to tap Confirm, transfer exactly ${naira} to it from their bank app, then tap "I've sent the money". Do not repeat the account details, mention Nimiq Pay approval or ask for anything else.`,
+        card: { type: "order", order },
+      };
     }
     case "show_history":
       return {
@@ -505,14 +520,21 @@ export async function answerChat(
 
     messages.push(response.rawAssistantMessage);
     for (const call of response.toolCalls) {
-      const result: ToolResult = await runNimiqTool(
-        call.toolName,
-        call.toolArgs,
-        address,
-        deps,
-      ).catch(() => ({
-        summary: "That didn't work just now; ask the user to try again.",
-      }));
+      // A top-up opens a real order, so one answer opens at most one.
+      const result: ToolResult =
+        card?.type === "order"
+          ? {
+              summary:
+                "The top-up is already open; its card is under your reply.",
+            }
+          : await runNimiqTool(
+              call.toolName,
+              call.toolArgs,
+              address,
+              deps,
+            ).catch(() => ({
+              summary: "That didn't work just now; ask the user to try again.",
+            }));
       summaries.push(result.summary);
       if (result.card) card = result.card;
       messages.push({

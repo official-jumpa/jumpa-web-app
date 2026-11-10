@@ -23,6 +23,7 @@ import {
 } from "@/lib/nimiq/order-status";
 import type { Eip1193 } from "@/lib/nimiq/provider";
 import { orderRows } from "./order-details";
+import type { TopUpStep } from "./use-chat-sessions";
 import { primeOrder, useNimiqOrder } from "./use-nimiq-order";
 import { type CheckoutStep, usePermitCheckout } from "./use-permit-checkout";
 
@@ -40,12 +41,25 @@ type CardProps = {
   onDecline: () => void;
   /** Every state the placed order is seen in. Must be stable. */
   onUpdate: (order: PublicOrder) => void;
+  topUpStep?: TopUpStep;
+  onTopUpStep?: (step: TopUpStep) => void;
 };
 
 /** A payment confirmed and followed inside the chat. */
-export function ChatPaymentCard({ orderId, onUpdate, ...props }: CardProps) {
+export function ChatPaymentCard({
+  orderId,
+  onUpdate,
+  topUpStep,
+  onTopUpStep,
+  ...props
+}: CardProps) {
   return orderId ? (
-    <ChatOrderCard orderId={orderId} onUpdate={onUpdate} />
+    <ChatOrderCard
+      orderId={orderId}
+      onUpdate={onUpdate}
+      topUpStep={topUpStep}
+      onTopUpStep={onTopUpStep}
+    />
   ) : (
     <ProposalCard {...props} />
   );
@@ -276,12 +290,17 @@ function progressOf(order: PublicOrder): string | undefined {
 }
 
 /** A placed order, kept current while the chat is open. */
-function ChatOrderCard({
+export function ChatOrderCard({
   orderId,
   onUpdate,
+  topUpStep,
+  onTopUpStep,
 }: {
   orderId: string;
   onUpdate: (order: PublicOrder) => void;
+  /** A top-up waiting on a transfer: Confirm, then "I've sent the money". */
+  topUpStep?: TopUpStep;
+  onTopUpStep?: (step: TopUpStep) => void;
 }) {
   const { order, error } = useNimiqOrder(orderId);
 
@@ -310,12 +329,14 @@ function ChatOrderCard({
     order.status === "refunded" ||
     order.status === "refunding" ||
     order.status === "expired";
+  const awaitingTransfer =
+    order.direction === "top_up" &&
+    order.status === "awaiting_deposit" &&
+    order.depositBank;
 
   return (
     <RampShell title={ORDER_TITLE[order.direction]} status={label} tone={tone}>
-      {order.direction === "top_up" &&
-      order.status === "awaiting_deposit" &&
-      order.depositBank ? (
+      {awaitingTransfer && order.depositBank ? (
         <TransferDetails order={order} bank={order.depositBank} />
       ) : null}
       <DetailBox>
@@ -336,6 +357,25 @@ function ChatOrderCard({
         >
           View on Polygonscan
         </a>
+      ) : null}
+      {awaitingTransfer ? (
+        topUpStep === "sent" ? (
+          <RampNotice tone="pending">
+            We&rsquo;re checking for your transfer. This card updates by itself
+            once it arrives.
+          </RampNotice>
+        ) : (
+          <ActionRow
+            onConfirm={() =>
+              onTopUpStep?.(topUpStep === "confirmed" ? "sent" : "confirmed")
+            }
+            onCancel={() => {}}
+            cancelLabel={false}
+            confirmLabel={
+              topUpStep === "confirmed" ? "I’ve sent the money" : "Confirm"
+            }
+          />
+        )
       ) : null}
     </RampShell>
   );
@@ -366,9 +406,6 @@ function TransferDetails({
         </button>
       </DetailBox>
       {bank.notes.length ? <RampNotes notes={bank.notes} /> : null}
-      <RampNotice tone="pending">
-        This card updates by itself once your transfer arrives.
-      </RampNotice>
     </>
   );
 }

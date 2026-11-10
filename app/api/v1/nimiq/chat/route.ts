@@ -9,18 +9,33 @@ import {
   readJson,
 } from "@/lib/nimiq/api";
 import { answerChat } from "@/lib/nimiq/chat-agent";
+import { isStoredFile, withAttachments } from "@/lib/nimiq/chat-media";
 
 /** Messages sent back with each question; the device keeps the rest. */
 const MAX_TURNS = 12;
+
+const attachment = z.object({
+  id: z.string().max(100),
+  url: z.string().url().max(500).refine(isStoredFile, "Unknown file."),
+  name: z.string().max(200),
+  mime: z.string().max(100),
+  size: z.number().nonnegative(),
+});
 
 const schema = z.object({
   address: addressField,
   messages: z
     .array(
-      z.object({
-        role: z.enum(["user", "assistant"]),
-        content: z.string().trim().min(1).max(1000),
-      }),
+      z
+        .object({
+          role: z.enum(["user", "assistant"]),
+          content: z.string().trim().max(1000),
+          attachments: z.array(attachment).max(4).optional(),
+        })
+        .refine(
+          (turn) => turn.content || turn.attachments?.length,
+          "Type a message.",
+        ),
     )
     .min(1, "Type a message.")
     .max(MAX_TURNS)
@@ -40,7 +55,19 @@ export async function POST(req: NextRequest) {
   if (input.response) return input.response;
 
   try {
-    return ok(await answerChat(input.data.address, input.data.messages));
+    const { messages } = input.data;
+    // Photos are only read on the newest turn; older ones are just named.
+    const turns = await Promise.all(
+      messages.map(async ({ role, content, attachments }, index) => ({
+        role,
+        content: await withAttachments(
+          content,
+          attachments,
+          index === messages.length - 1,
+        ),
+      })),
+    );
+    return ok(await answerChat(input.data.address, turns));
   } catch (error) {
     return handleError(error, "chat");
   }

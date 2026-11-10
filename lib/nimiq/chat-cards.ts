@@ -1,3 +1,5 @@
+import type { PublicOrder } from "./order-status";
+
 /** A payment the chat has priced; the user confirms it in the chat and approves it in Nimiq Pay. */
 export type ChatProposal =
   | {
@@ -51,7 +53,9 @@ export type ChatCard =
     }
   /** Picking one sends its reply as the user's next message. */
   | { type: "choices"; options: { label: string; reply: string }[] }
-  | { type: "history" };
+  | { type: "history" }
+  /** An order the chat already opened (a top-up); the card follows it. */
+  | { type: "order"; order: PublicOrder };
 
 /** USDT this many Naira costs at the rate, rounded up to the cent like the server. */
 export const usdtFor = (naira: number, perUsdt: number) =>

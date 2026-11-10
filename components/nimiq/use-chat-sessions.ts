@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import type { SessionSummary } from "@/components/chat/chat-header";
+import type { ChatAttachment } from "@/lib/chat-attachments";
 import type { ChatCard } from "@/lib/nimiq/chat-cards";
+
+export type TopUpStep = "confirmed" | "sent";
 
 export type ChatLine = {
   id: string;
@@ -10,10 +13,14 @@ export type ChatLine = {
   content: string;
   /** What the reply carries under its text. */
   card?: ChatCard;
+  /** Photos, PDFs or a voice note the user sent; a voice note's text is its transcript. */
+  attachments?: ChatAttachment[];
   /** The row picked from this line's plans or choices. */
   answer?: string;
   /** The order this line's confirm card placed. */
   orderId?: string;
+  /** How far the user got on this line's top-up: Confirm, then "I've sent the money". */
+  topUpStep?: TopUpStep;
   /** The user turned this line's confirm card down. */
   declined?: boolean;
   /** A reply that never came; shown, but not sent back as context. */

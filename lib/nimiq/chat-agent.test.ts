@@ -4,8 +4,27 @@ import type { Address } from "viem";
 import type { AIStepResponse, ChatHistoryMessage } from "@/lib/ai/jumpaAgent";
 import { BankLookupError } from "./bank";
 import { answerChat, type ChatDeps, runNimiqTool } from "./chat-agent";
+import type { PublicOrder } from "./order-status";
+import { OrderError } from "./orders";
 
 const ADDRESS: Address = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
+
+const TOP_UP_ORDER: PublicOrder = {
+  id: "order-1",
+  direction: "top_up",
+  status: "awaiting_deposit",
+  cryptoAmount: "10",
+  fiatAmount: 16_000,
+  rate: 1600,
+  reference: "REF-1",
+  createdAt: "2026-11-10T20:00:00.000Z",
+  depositBank: {
+    bankName: "Test Bank",
+    accountName: "Checkout",
+    accountNumber: "0123456789",
+    notes: [],
+  },
+};
 
 function deps(steps: AIStepResponse[] = []): ChatDeps & {
   seen: ChatHistoryMessage[][];
@@ -67,6 +86,7 @@ function deps(steps: AIStepResponse[] = []): ChatDeps & {
       }
       return { accountName: "ADA OBI", bankName: "GTBank", switchCode: "058" };
     },
+    topUp: async () => TOP_UP_ORDER,
     step: async ({ messages }) => {
       seen.push([...messages]);
       const next = steps.shift();
@@ -200,20 +220,41 @@ describe("runNimiqTool", () => {
     }
   });
 
-  test("top-up: prices the USDT the Naira buys", async () => {
+  test("top-up: opens straight away, so the card shows the account before Confirm", async () => {
+    const opened: [Address, number][] = [];
     const result = await runNimiqTool(
       "top_up",
       { amountNgn: 16_000 },
       ADDRESS,
-      deps(),
+      {
+        ...deps(),
+        topUp: async (address, amountNgn) => {
+          opened.push([address, amountNgn]);
+          return TOP_UP_ORDER;
+        },
+      },
     );
-    assert.deepEqual(result.card, {
-      type: "confirm",
-      proposal: { kind: "top-up", amountNgn: 16_000, usdt: 10 },
-    });
-    // A top-up is paid by bank transfer: Confirm shows the account, nothing to approve.
-    assert.doesNotMatch(result.summary, /approve/i);
+    assert.deepEqual(opened, [[ADDRESS, 16_000]]);
+    assert.deepEqual(result.card, { type: "order", order: TOP_UP_ORDER });
+    assert.match(result.summary, /10\.00 USDT/);
     assert.match(result.summary, /account/);
+    assert.match(result.summary, /Confirm.*I've sent the money/);
+  });
+
+  test("top-up: a refusal is explained, with no card", async () => {
+    const result = await runNimiqTool(
+      "top_up",
+      { amountNgn: 16_000 },
+      ADDRESS,
+      {
+        ...deps(),
+        topUp: async () => {
+          throw new OrderError("Top-ups are paused right now.", 503);
+        },
+      },
+    );
+    assert.equal(result.card, undefined);
+    assert.match(result.summary, /Top-ups are paused right now\./);
   });
 
   test("balance and rates come from the tools, in Naira per USDT", async () => {

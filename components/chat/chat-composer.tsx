@@ -61,6 +61,10 @@ interface ChatComposerProps {
   menuExtras?: AttachmentExtra[];
   /** Off where uploads aren't available: no + menu and no mic, so the button only sends. */
   media?: boolean;
+  /** Where files and voice notes go; discards are deleted there too. */
+  uploadUrl?: string;
+  /** Off where the upload route can't delete, so a discarded voice note is just dropped. */
+  deletable?: boolean;
 }
 
 /** Message entry with MediaRecorder audio capture, Vercy Storage, and Gemini 2.5 transcription. */
@@ -75,6 +79,8 @@ export function ChatComposer({
   staged = false,
   menuExtras,
   media = true,
+  uploadUrl = "/api/v1/chat/attachments",
+  deletable = true,
 }: ChatComposerProps) {
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const imageRef = useRef<HTMLInputElement>(null);
@@ -133,7 +139,7 @@ export function ChatComposer({
       const body = new FormData();
       body.append("file", file);
 
-      const res = await fetch("/api/v1/chat/attachments", {
+      const res = await fetch(uploadUrl, {
         method: "POST",
         body,
       });
@@ -274,7 +280,7 @@ export function ChatComposer({
       const form = new FormData();
       form.append("file", file);
 
-      const uploadRes = await fetch("/api/v1/chat/attachments?mode=voice", {
+      const uploadRes = await fetch(`${uploadUrl}?mode=voice`, {
         method: "POST",
         body: form,
       });
@@ -348,10 +354,10 @@ export function ChatComposer({
           const uploadedUrl = voiceReview.uploaded?.url;
           URL.revokeObjectURL(voiceReview.previewUrl);
           setVoiceReview(null);
-          if (uploadedUrl) {
+          if (uploadedUrl && deletable) {
             try {
               await fetch(
-                `/api/v1/chat/attachments?url=${encodeURIComponent(uploadedUrl)}`,
+                `${uploadUrl}?url=${encodeURIComponent(uploadedUrl)}`,
                 { method: "DELETE" },
               );
             } catch (delErr) {

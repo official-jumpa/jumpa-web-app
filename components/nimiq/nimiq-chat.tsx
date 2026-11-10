@@ -22,13 +22,15 @@ import { MoneyWithdrawalIcon } from "@/components/ui/icons/money-withdrawal";
 import { PhoneIcon } from "@/components/ui/icons/phone";
 import { WalletPlusIcon } from "@/components/ui/icons/wallet-plus";
 import type { ChatEntry, ChatItem } from "@/lib/chat";
+import { type ChatAttachment, isAudioAttachment } from "@/lib/chat-attachments";
 import { nimiqApi } from "@/lib/nimiq/api-client";
 import { type ChatCard, usdtFor } from "@/lib/nimiq/chat-cards";
 import type { PublicOrder } from "@/lib/nimiq/order-status";
 import type { Eip1193 } from "@/lib/nimiq/provider";
-import { ChatPaymentCard } from "./chat-payment-card";
+import { ChatOrderCard, ChatPaymentCard } from "./chat-payment-card";
 import { OrderHistoryList } from "./order-history-list";
 import { type ChatLine, newChatId, useChatSessions } from "./use-chat-sessions";
+import { primeOrder } from "./use-nimiq-order";
 
 /** Lines sent with each question; the route accepts up to 12. */
 const SENT_LINES = 12;
@@ -36,6 +38,8 @@ const SENT_LINES = 12;
 const MAX_CHARS = 1000;
 /** Orders the history card lists. */
 const HISTORY_ROWS = 5;
+/** The mini app's own upload route; the main app's needs a Jumpa login. */
+const NIMIQ_UPLOADS = "/api/v1/nimiq/chat/attachments";
 
 const INTRO = "Cash out, top up, or buy airtime and data, right here.";
 
@@ -64,13 +68,31 @@ function toEntries(lines: ChatLine[], revealId?: string): ChatEntry[] {
   const entries: ChatEntry[] = [];
   for (const line of lines) {
     const role = line.role === "assistant" ? "agent" : "user";
+    const voice = line.attachments?.some((file) =>
+      isAudioAttachment(file.mime, file.name),
+    );
     const items: ChatItem[] = [
-      {
-        kind: "text",
-        text: line.content,
-        paragraph: line.content.length > 50 || line.content.includes("\n"),
-        reveal: line.id === revealId,
-      },
+      // Files sit above the text; a voice note carries its transcript itself.
+      ...(line.attachments?.length
+        ? [
+            {
+              kind: "attachments" as const,
+              items: line.attachments,
+              transcript: voice ? line.content : undefined,
+            },
+          ]
+        : []),
+      ...(line.content && !voice
+        ? [
+            {
+              kind: "text" as const,
+              text: line.content,
+              paragraph:
+                line.content.length > 50 || line.content.includes("\n"),
+              reveal: line.id === revealId,
+            },
+          ]
+        : []),
       ...(line.card ? [{ kind: "slot" as const, id: line.id }] : []),
     ];
     const last = entries.at(-1);
@@ -128,11 +150,18 @@ export function NimiqChat({
       const turns = history
         .filter((line) => !line.failed)
         .slice(-SENT_LINES)
-        .map(({ role, content }) => ({
+        .map(({ role, content, attachments }) => ({
           role,
           content: content.slice(0, MAX_CHARS),
+          ...(attachments?.length ? { attachments } : {}),
         }));
       const answer = await nimiqApi.chat(address, turns);
+      // A top-up arrives already opened: remember it like one placed from a card.
+      if (answer.card?.type === "order") {
+        primeOrder(answer.card.order);
+        onOrderCreated(answer.card.order.id);
+        onPlaced(answer.card.order);
+      }
       reply = {
         id: newChatId("line"),
         role: "assistant",
@@ -152,12 +181,17 @@ export function NimiqChat({
     setWaitingOn(null);
   };
 
-  const send = (text?: string) => {
+  const send = (text?: string, attachments?: ChatAttachment[]) => {
     const content = (text ?? input).trim();
-    if (!content || responding) return;
+    if ((!content && !attachments?.length) || responding) return;
     const asked: ChatLine[] = [
       ...lines,
-      { id: newChatId("line"), role: "user", content },
+      {
+        id: newChatId("line"),
+        role: "user",
+        content,
+        ...(attachments?.length ? { attachments } : {}),
+      },
     ];
     chats.edit(activeId, () => asked);
     setInput("");
@@ -240,6 +274,8 @@ export function NimiqChat({
             }}
             onDecline={() => patch(line.id, { declined: true })}
             onUpdate={onUpdate}
+            topUpStep={line.topUpStep}
+            onTopUpStep={(topUpStep) => patch(line.id, { topUpStep })}
           />
         );
       case "plans":
@@ -263,6 +299,15 @@ export function NimiqChat({
             card={{ options: card.options }}
             answer={line.answer}
             onReply={(reply) => pickChoice(line, reply)}
+          />
+        );
+      case "order":
+        return (
+          <ChatOrderCard
+            orderId={card.order.id}
+            onUpdate={onUpdate}
+            topUpStep={line.topUpStep}
+            onTopUpStep={(topUpStep) => patch(line.id, { topUpStep })}
           />
         );
       case "history":
@@ -332,9 +377,10 @@ export function NimiqChat({
         <ChatComposer
           value={input}
           onChange={setInput}
-          onSend={(_, typed) => send(typed)}
+          onSend={(attachments, typed) => send(typed, attachments)}
           disabled={responding}
-          media={false}
+          uploadUrl={NIMIQ_UPLOADS}
+          deletable={false}
         />
       </ChatDock>
     </div>

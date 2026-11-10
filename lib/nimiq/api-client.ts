@@ -27,10 +27,17 @@ export class NimiqApiError extends Error {
 
 type Options = { signal?: AbortSignal };
 
+/** Marks a GET so it misses the replies Vercy cached before this API sent no-store. */
+const skipStaleCache = (path: string) =>
+  `${path}${path.includes("?") ? "&" : "?"}fresh=1`;
+
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${BASE}${path}`, { cache: "no-store", ...init });
+    res = await fetch(`${BASE}${init.method ? path : skipStaleCache(path)}`, {
+      cache: "no-store",
+      ...init,
+    });
   } catch (error) {
     if ((error as Error).name === "AbortError") throw error;
     throw new NimiqApiError(OFFLINE, 0);

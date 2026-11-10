@@ -69,6 +69,11 @@ const nextConfig: NextConfig = {
         headers: [{ key: "Cache-Control", value: NO_STORE }],
       })),
       {
+        // Vercy caches GET replies that carry no Cache-Control, for every caller; balances and order status must be live.
+        source: "/api/v1/nimiq/:path*",
+        headers: [{ key: "Cache-Control", value: NO_STORE }],
+      },
+      {
         source: "/sw.js",
         headers: [
           {

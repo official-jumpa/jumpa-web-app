@@ -4,6 +4,7 @@ import { RampNotes } from "@/components/chat/ramp-parts";
 import { BankTicket } from "@/components/receive/bank-ticket";
 import { TransferHeader } from "@/components/transfer/transfer-header";
 import { Button } from "@/components/ui/button";
+import { FieldError } from "@/components/ui/field-error";
 import { formatNaira, formatStable } from "@/lib/naira-deposit";
 import type { PublicOrder } from "@/lib/nimiq/order-status";
 import { topUpPayee } from "./order-details";
@@ -20,10 +21,17 @@ export function TopUpPayment({
   order,
   onSent,
   onHome,
+  onCancel,
+  cancelling,
+  cancelError,
 }: {
   order: PublicOrder;
   onSent: () => void;
   onHome: () => void;
+  /** Closes the order on the server, so it stops waiting for a transfer. */
+  onCancel: () => void;
+  cancelling: boolean;
+  cancelError?: string;
 }) {
   const deposit = order.depositBank;
 
@@ -64,9 +72,23 @@ export function TopUpPayment({
             Pay before {payBy(order.expiresAt)}, or this account closes.
           </p>
         ) : null}
-        <Button variant="gradient" size="lg" onClick={onSent}>
+        {cancelError ? <FieldError>{cancelError}</FieldError> : null}
+        <Button
+          variant="gradient"
+          size="lg"
+          onClick={onSent}
+          disabled={cancelling}
+        >
           I&rsquo;ve sent the money
         </Button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={cancelling}
+          className="tap flex h-11 items-center justify-center text-sm leading-4 font-medium text-jumpa-primary-600 disabled:opacity-50"
+        >
+          {cancelling ? "Cancelling…" : "Cancel top-up"}
+        </button>
       </div>
     </div>
   );

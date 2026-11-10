@@ -23,6 +23,7 @@ import {
 } from "@/lib/nimiq/order-status";
 import type { Eip1193 } from "@/lib/nimiq/provider";
 import { orderRows } from "./order-details";
+import { useCancelTopUp } from "./use-cancel-top-up";
 import type { TopUpStep } from "./use-chat-sessions";
 import { primeOrder, useNimiqOrder } from "./use-nimiq-order";
 import { type CheckoutStep, usePermitCheckout } from "./use-permit-checkout";
@@ -55,6 +56,7 @@ export function ChatPaymentCard({
 }: CardProps) {
   return orderId ? (
     <ChatOrderCard
+      address={props.address}
       orderId={orderId}
       onUpdate={onUpdate}
       topUpStep={topUpStep}
@@ -262,6 +264,8 @@ function statusOf(order: PublicOrder): { label: string; tone: RampTone } {
       return { label: "Failed", tone: "error" };
     case "expired":
       return { label: "Expired", tone: "error" };
+    case "cancelled":
+      return { label: "Cancelled", tone: "error" };
     case "awaiting_deposit":
       return { label: "Awaiting transfer", tone: "pending" };
     case "awaiting_signature":
@@ -291,18 +295,22 @@ function progressOf(order: PublicOrder): string | undefined {
 
 /** A placed order, kept current while the chat is open. */
 export function ChatOrderCard({
+  address,
   orderId,
   onUpdate,
   topUpStep,
   onTopUpStep,
 }: {
+  /** The connected wallet, which may cancel its own unpaid top-up. */
+  address: string;
   orderId: string;
   onUpdate: (order: PublicOrder) => void;
   /** A top-up waiting on a transfer: Confirm, then "I've sent the money"; Cancel beside both. */
   topUpStep?: TopUpStep;
   onTopUpStep?: (step: TopUpStep) => void;
 }) {
-  const { order, error } = useNimiqOrder(orderId);
+  const { order, error, replace } = useNimiqOrder(orderId);
+  const cancel = useCancelTopUp(address, replace);
 
   useEffect(() => {
     if (order) onUpdate(order);
@@ -332,8 +340,10 @@ export function ChatOrderCard({
     order.direction === "top_up" &&
     order.status === "awaiting_deposit" &&
     order.depositBank;
-  // Only the chat drops it; if the money is sent anyway, the real status takes over.
-  const cancelled = awaitingTransfer && topUpStep === "cancelled";
+  // Cards from before the server cancel only marked the step; those orders expire on their own.
+  const cancelled =
+    order.status === "cancelled" ||
+    Boolean(awaitingTransfer && topUpStep === "cancelled");
   const { label, tone } = cancelled
     ? { label: "Cancelled", tone: "error" as const }
     : statusOf(order);
@@ -362,18 +372,27 @@ export function ChatOrderCard({
           View on Polygonscan
         </a>
       ) : null}
+      {awaitingTransfer && !cancelled && cancel.error ? (
+        <RampNotice tone="error">{cancel.error}</RampNotice>
+      ) : null}
       {awaitingTransfer && !cancelled ? (
         topUpStep === "sent" ? (
           <RampNotice tone="pending">
             We&rsquo;re checking for your transfer. This card updates by itself
             once it arrives.
           </RampNotice>
+        ) : cancel.cancelling ? (
+          <RampNotice tone="pending">Cancelling your top-up…</RampNotice>
         ) : (
           <ActionRow
             onConfirm={() =>
               onTopUpStep?.(topUpStep === "confirmed" ? "sent" : "confirmed")
             }
-            onCancel={() => onTopUpStep?.("cancelled")}
+            onCancel={() => {
+              void cancel.cancel(order.id).then((done) => {
+                if (done) onTopUpStep?.("cancelled");
+              });
+            }}
             confirmLabel={
               topUpStep === "confirmed" ? "I’ve sent the money" : "Confirm"
             }

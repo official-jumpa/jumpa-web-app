@@ -42,7 +42,17 @@ export function useNimiqAccount(address: string) {
 
   const refresh = useCallback(() => void load(), [load]);
 
-  /** After an order lands: re-reads until the USDT balance moves, for up to 30s. */
+  /** A background re-read: no spinner, and a failure keeps what's shown. */
+  const refreshQuietly = useCallback(async () => {
+    try {
+      setAccount(await nimiqApi.account(address));
+      setError(undefined);
+    } catch {
+      // The next tick tries again.
+    }
+  }, [address]);
+
+  /** After an order lands: re-reads until the USDT balance moves, for up to 2 minutes. */
   const refreshUntilChanged = useCallback(async () => {
     watch.current?.abort();
     const controller = new AbortController();
@@ -58,10 +68,18 @@ export function useNimiqAccount(address: string) {
         return next.usdtBalance;
       },
       shown.current?.usdtBalance,
-      { signal: controller.signal },
+      // Switch can report a top-up done a while before the USDT lands on Polygon.
+      { signal: controller.signal, timeoutMs: 120_000 },
     );
     if (!controller.signal.aborted) setLoading(false);
   }, [address]);
 
-  return { account, error, loading, refresh, refreshUntilChanged };
+  return {
+    account,
+    error,
+    loading,
+    refresh,
+    refreshQuietly,
+    refreshUntilChanged,
+  };
 }

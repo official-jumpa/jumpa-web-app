@@ -48,6 +48,8 @@ export const SWITCH_DEPOSIT_SAFE_SECONDS = 1500;
 
 /** How long Switch holds a top-up's bank details open; unpaid ones stop counting after it. */
 export const TOP_UP_WINDOW_SECONDS = 1800;
+/** After that window, how long an unpaid or cancelled top-up still watches Switch for a late bank credit. */
+export const TOP_UP_LATE_GRACE_SECONDS = 1800;
 
 /** What people type into Nimiq Pay's browser / Mini Apps to open Jumpa. */
 export const NIMIQ_MINI_APP_ADDRESS = "usejumpa.com/nimiq";

@@ -22,6 +22,7 @@ export type NimiqOrderStatus =
   | "completed"
   | "failed"
   | "expired"
+  | "cancelled"
   /** Bill only: the network refused it and the USDT is going back. */
   | "refunding"
   | "refunded";
@@ -65,6 +66,7 @@ export const FINAL_STATUSES: readonly NimiqOrderStatus[] = [
   "completed",
   "failed",
   "expired",
+  "cancelled",
   "refunded",
 ];
 

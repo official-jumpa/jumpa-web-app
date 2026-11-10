@@ -121,6 +121,13 @@ export const nimiqApi = {
   order: (orderId: string, { signal }: Options = {}) =>
     call<{ order: PublicOrder }>(`/orders/${orderId}`, { signal }),
 
+  /** Cancels an unpaid top-up; refused once its Naira has arrived. */
+  cancelTopUp: (orderId: string, address: string) =>
+    call<{ order: PublicOrder }>(
+      `/orders/${orderId}/cancel`,
+      post({ address }),
+    ),
+
   /** Several orders in one call, newest first; unknown ids are left out. */
   orders: (orderIds: string[], { signal }: Options = {}) =>
     call<{ orders: PublicOrder[] }>(

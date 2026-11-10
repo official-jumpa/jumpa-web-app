@@ -29,6 +29,7 @@ import { RecentActivity } from "./recent-activity";
 import { SendFlow } from "./send-flow";
 import { TopUpFlow } from "./top-up-flow";
 import { useBalanceMoves } from "./use-balance-moves";
+import { useLiveRefresh } from "./use-live-refresh";
 import { useMiniAppNav } from "./use-mini-app-nav";
 import { useNimiqAccount } from "./use-nimiq-account";
 import { useNimiqWallet } from "./use-nimiq-wallet";
@@ -85,16 +86,27 @@ function ConnectedApp({
   const saved = useSavedRecipients(address);
   const balanceMoves = useBalanceMoves();
   const { view } = nav;
-  const { refresh, refreshUntilChanged } = account;
-  const { take: tookBalanceMove } = balanceMoves;
+  const { refresh, refreshQuietly, refreshUntilChanged } = account;
+  const { note: noteOrder, take: tookBalanceMove } = balanceMoves;
   const tabHref = tabHrefOf(view);
+  const onTab =
+    view.name === "home" || view.name === "history" || view.name === "chat";
   // Re-read on every return to home or history, so statuses are current.
-  const history = useOrderHistory(
-    recent.ids,
-    view.name === "home" || view.name === "history" || view.name === "chat",
-    recent.forget,
-  );
+  const history = useOrderHistory(recent.ids, onTab, recent.forget);
   const listed = history.orders && visibleHistory(history.orders);
+
+  // Money can arrive with no screen change: a top-up settling, or USDT sent in from outside.
+  useLiveRefresh(onTab, () => {
+    history.refreshQuietly();
+    void refreshQuietly();
+  });
+
+  // A remembered order that just settled moved the balance; re-read until it shows.
+  useEffect(() => {
+    if (!history.orders) return;
+    for (const order of history.orders) noteOrder(order);
+    if (tookBalanceMove()) void refreshUntilChanged();
+  }, [history.orders, noteOrder, tookBalanceMove, refreshUntilChanged]);
 
   // Back on a tab after a flow: the balance and today's limit may have moved.
   const lastView = useRef(view.name);
@@ -198,6 +210,7 @@ function ConnectedApp({
     case "order":
       return (
         <NimiqOrderView
+          address={address}
           orderId={view.orderId}
           onHome={nav.back}
           backLabel={view.fromHistory ? "Back to history" : "Back to home"}

@@ -6,7 +6,7 @@ import type { PublicOrder } from "@/lib/nimiq/order-status";
 
 /**
  * The remembered orders, loaded in one call each time `active` turns on (home or
- * history comes into view), so statuses are current without polling.
+ * history comes into view); `refreshQuietly` keeps them current in the background.
  */
 export function useOrderHistory(
   ids: string[],
@@ -20,11 +20,11 @@ export function useOrderHistory(
   const key = ids.join(",");
 
   const load = useCallback(
-    (asked: string[]) => {
+    (asked: string[], quiet = false) => {
       inFlight.current?.abort();
       const controller = new AbortController();
       inFlight.current = controller;
-      setError(undefined);
+      if (!quiet) setError(undefined);
       nimiqApi
         .orders(asked, { signal: controller.signal })
         .then((result) => {
@@ -34,7 +34,7 @@ export function useOrderHistory(
           if (missing.length) onMissing(...missing);
         })
         .catch((failure: Error) => {
-          if (!controller.signal.aborted) setError(failure.message);
+          if (!controller.signal.aborted && !quiet) setError(failure.message);
         });
     },
     [onMissing],
@@ -55,5 +55,10 @@ export function useOrderHistory(
     if (key) load(key.split(","));
   }, [key, load]);
 
-  return { orders, error, reload };
+  /** A background re-load: a failure keeps the list shown. */
+  const refreshQuietly = useCallback(() => {
+    if (key) load(key.split(","), true);
+  }, [key, load]);
+
+  return { orders, error, reload, refreshQuietly };
 }

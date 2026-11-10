@@ -4,7 +4,11 @@ import type { Transaction } from "@/lib/wallet";
 import type { NimiqOrderStatus, PublicOrder } from "./order-status";
 
 /** Orders where nothing moved: an unsigned cash-out, or a top-up nobody paid. */
-const HIDDEN: readonly NimiqOrderStatus[] = ["awaiting_signature", "expired"];
+const HIDDEN: readonly NimiqOrderStatus[] = [
+  "awaiting_signature",
+  "expired",
+  "cancelled",
+];
 
 const STATUS: Record<NimiqOrderStatus, Transaction["status"]> = {
   awaiting_signature: "pending",
@@ -14,6 +18,7 @@ const STATUS: Record<NimiqOrderStatus, Transaction["status"]> = {
   completed: "completed",
   failed: "failed",
   expired: "failed",
+  cancelled: "failed",
   refunding: "pending",
   // The purchase failed; the row's amount says what came back.
   refunded: "failed",

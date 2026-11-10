@@ -7,6 +7,7 @@ import { type INimiqOrder, NimiqOrder } from "@/models/NimiqOrder";
 import type { BillOutcome, BillPurchase } from "./bill-provider";
 import { POLYGON_USDT } from "./constants";
 import {
+  cancelTopUp,
   createBillOrder,
   createCashOutOrder,
   createSendOrder,
@@ -650,6 +651,76 @@ describe("nimiq orders", () => {
       await spentTodayUsd(owner.address, START + 1801 * 1000, "top_up"),
       0,
     );
+  });
+
+  test("cancel closes an unpaid top-up for its own wallet only", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps, state } = harness();
+    state.switchStatus = "AWAITING_DEPOSIT";
+    const order = await createTopUpOrder(
+      { address: owner.address, amountNgn: 16_000 },
+      deps,
+    );
+
+    await rejectsWith(cancelTopUp(order.id, FRIEND, deps), 404);
+    const cancelled = await cancelTopUp(order.id, owner.address, deps);
+
+    assert.equal(cancelled.status, "cancelled");
+    assert.equal(await spentTodayUsd(owner.address, START, "top_up"), 0);
+    // Cancelling twice is harmless.
+    state.now += 5_000;
+    assert.equal(
+      (await cancelTopUp(order.id, owner.address, deps)).status,
+      "cancelled",
+    );
+  });
+
+  test("cancel refuses a top-up whose Naira has already arrived", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps, state } = harness();
+    state.switchStatus = "AWAITING_DEPOSIT";
+    const order = await createTopUpOrder(
+      { address: owner.address, amountNgn: 16_000 },
+      deps,
+    );
+    state.switchStatus = "PROCESSING";
+    state.now += 5_000;
+
+    await rejectsWith(cancelTopUp(order.id, owner.address, deps), 409);
+    assert.equal((await refreshOrder(order.id, deps)).status, "processing");
+  });
+
+  test("a cancelled top-up paid anyway still completes", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps, state } = harness();
+    state.switchStatus = "AWAITING_DEPOSIT";
+    const order = await createTopUpOrder(
+      { address: owner.address, amountNgn: 16_000 },
+      deps,
+    );
+    await cancelTopUp(order.id, owner.address, deps);
+    state.switchStatus = "COMPLETED";
+    state.now += 10 * 60 * 1000;
+
+    assert.equal((await refreshOrder(order.id, deps)).status, "completed");
+  });
+
+  test("an unpaid top-up Switch never closes expires after its window and grace", async (t) => {
+    if (skipWithoutDb(t)) return;
+    const { deps, state } = harness();
+    state.switchStatus = "PENDING";
+    const order = await createTopUpOrder(
+      { address: owner.address, amountNgn: 16_000 },
+      deps,
+    );
+
+    state.now = START + 59 * 60 * 1000;
+    assert.equal(
+      (await refreshOrder(order.id, deps)).status,
+      "awaiting_deposit",
+    );
+    state.now = START + 61 * 60 * 1000;
+    assert.equal((await refreshOrder(order.id, deps)).status, "expired");
   });
   const airtime = {
     kind: "airtime" as const,

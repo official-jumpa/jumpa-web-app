@@ -8,10 +8,12 @@ import { Medallion } from "./medallion";
 import { NimiqNotice } from "./nimiq-notice";
 import { NimiqOrderStatus } from "./nimiq-order-status";
 import { TopUpPayment } from "./top-up-payment";
+import { useCancelTopUp } from "./use-cancel-top-up";
 import { useNimiqOrder } from "./use-nimiq-order";
 
 /** One order, kept current: the payment details for an unpaid top-up, otherwise its status. */
 export function NimiqOrderView({
+  address,
   orderId,
   onHome,
   backLabel = "Back to home",
@@ -19,6 +21,8 @@ export function NimiqOrderView({
   onMissing,
   onUpdate,
 }: {
+  /** The connected wallet, which may cancel its own unpaid top-up. */
+  address: string;
   orderId: string;
   onHome: () => void;
   /** Names where `onHome` lands, e.g. the history list the order was opened from. */
@@ -29,7 +33,8 @@ export function NimiqOrderView({
   /** Every state the order is seen in. Must be stable. */
   onUpdate?: (order: PublicOrder) => void;
 }) {
-  const { order, error } = useNimiqOrder(orderId);
+  const { order, error, replace } = useNimiqOrder(orderId);
+  const cancel = useCancelTopUp(address, replace);
   const [sent, setSent] = useState(false);
   const missing = !order && error?.status === 404;
 
@@ -67,6 +72,9 @@ export function NimiqOrderView({
         order={order}
         onSent={() => setSent(true)}
         onHome={onHome}
+        onCancel={() => void cancel.cancel(order.id)}
+        cancelling={cancel.cancelling}
+        cancelError={cancel.error}
       />
     );
   }

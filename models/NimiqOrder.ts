@@ -106,6 +106,7 @@ const NimiqOrderSchema = new Schema<INimiqOrder>(
         "completed",
         "failed",
         "expired",
+        "cancelled",
         "refunding",
         "refunded",
       ],

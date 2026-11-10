@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { NimiqApiError, nimiqApi } from "@/lib/nimiq/api-client";
 import { FINAL_STATUSES, type PublicOrder } from "@/lib/nimiq/order-status";
 
@@ -52,5 +52,11 @@ export function useNimiqOrder(orderId: string) {
     };
   }, [orderId]);
 
-  return { order, error };
+  /** Shows a state another call returned, such as a cancel. */
+  const replace = useCallback((next: PublicOrder) => {
+    known.set(next.id, next);
+    setOrder(next);
+  }, []);
+
+  return { order, error, replace };
 }

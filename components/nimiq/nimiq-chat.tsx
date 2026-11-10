@@ -304,6 +304,7 @@ export function NimiqChat({
       case "order":
         return (
           <ChatOrderCard
+            address={address}
             orderId={card.order.id}
             onUpdate={onUpdate}
             topUpStep={line.topUpStep}

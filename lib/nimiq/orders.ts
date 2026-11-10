@@ -49,6 +49,7 @@ import {
   POLYGON_USDT,
   SIGN_MARGIN_SECONDS,
   SWITCH_ASSET,
+  TOP_UP_LATE_GRACE_SECONDS,
   TOP_UP_WINDOW_SECONDS,
 } from "./constants";
 import { checkAmountLimits } from "./limits";
@@ -125,6 +126,8 @@ const COPY = {
   billRefunded:
     "The network didn't accept this purchase, so your USDT was sent back to your wallet.",
   ownWallet: "That's the wallet you're sending from.",
+  topUpUnderway:
+    "Your Naira has already arrived, so this top-up can't be cancelled.",
 } as const;
 
 /** How copy names an order the user is paying with a permit. */
@@ -809,6 +812,35 @@ export async function refreshOrder(
   return settle(await mustFind(orderId), deps);
 }
 
+/** Cancels an unpaid top-up for the wallet that opened it; one whose Naira has arrived can't be. */
+export async function cancelTopUp(
+  orderId: string,
+  address: Address,
+  deps: OrderDeps = defaultDeps,
+): Promise<PublicOrder> {
+  await deps.connect();
+  const order = await mustFind(orderId);
+  if (
+    order.direction !== "top_up" ||
+    order.walletAddress !== address.toLowerCase()
+  ) {
+    throw new OrderError(COPY.notFound, 404);
+  }
+  // Ask Switch first, so a transfer that just landed isn't cancelled.
+  const current = await settle(order, deps);
+  if (current.status === "processing" || current.status === "completed") {
+    throw new OrderError(COPY.topUpUnderway, 409);
+  }
+  if (current.status !== "awaiting_deposit") return current;
+  const cancelled = await NimiqOrder.findOneAndUpdate(
+    { _id: order._id, status: "awaiting_deposit" },
+    { $set: { status: "cancelled" } },
+    { returnDocument: "after" },
+  ).lean();
+  if (!cancelled) throw new OrderError(COPY.topUpUnderway, 409);
+  return toPublicOrder(cancelled);
+}
+
 /**
  * The orders a device remembers, newest first; ids the server doesn't know are left out.
  * Orders still moving are settled first; one that can't be is listed as last stored.
@@ -838,8 +870,11 @@ async function settle(
   deps: OrderDeps,
 ): Promise<PublicOrder> {
   const now = deps.now();
+  // A cancelled top-up is final for the user, but Naira sent anyway must still complete it.
+  const watchingCancelled =
+    order.status === "cancelled" && now < topUpWatchEnds(order);
   if (
-    FINAL_STATUSES.includes(order.status) ||
+    (FINAL_STATUSES.includes(order.status) && !watchingCancelled) ||
     (order.checkedAt && now - order.checkedAt.getTime() < CHECK_INTERVAL_MS)
   ) {
     return toPublicOrder(order);
@@ -1058,8 +1093,13 @@ async function nextState(
       const raw = (await deps.switchApi.status(order.switchReference))?.data
         ?.status;
       const mapped = typeof raw === "string" ? fromSwitchStatus(raw) : null;
-      if (!mapped || mapped === order.status || mapped === "awaiting_deposit")
-        return {};
+      if (!mapped || mapped === order.status || mapped === "awaiting_deposit") {
+        // Switch doesn't always report EXPIRED; past the window and its grace, nothing is coming.
+        return order.status === "awaiting_deposit" &&
+          now >= topUpWatchEnds(order)
+          ? { status: "expired" }
+          : {};
+      }
       if (mapped !== "failed") return { status: mapped };
       if (
         order.direction === "top_up" &&
@@ -1076,9 +1116,25 @@ async function nextState(
             : COPY.topUpFailed,
       };
     }
+    case "cancelled": {
+      const raw = (await deps.switchApi.status(order.switchReference))?.data
+        ?.status;
+      const mapped = typeof raw === "string" ? fromSwitchStatus(raw) : null;
+      return mapped === "processing" || mapped === "completed"
+        ? { status: mapped }
+        : {};
+    }
     default:
       return {};
   }
+}
+
+/** When an unpaid top-up stops waiting: Switch's closing time plus room for a late bank credit. */
+function topUpWatchEnds(order: INimiqOrder): number {
+  const closes =
+    order.expiresAt?.getTime() ??
+    order.createdAt.getTime() + TOP_UP_WINDOW_SECONDS * 1000;
+  return closes + TOP_UP_LATE_GRACE_SECONDS * 1000;
 }
 
 /** Where an order goes once its transfer mines: a send is done, the rest still have a payout. */

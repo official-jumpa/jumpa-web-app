@@ -135,6 +135,12 @@ function problemCopy(order: PublicOrder): Copy {
       body: order.failureReason ?? FALLBACK_FAILURE,
     };
   }
+  if (order.status === "cancelled") {
+    return {
+      title: "Top-up cancelled",
+      body: "No money moved. If you already sent Naira, contact support with the reference.",
+    };
+  }
   if (order.status === "expired") {
     return order.direction !== "top_up"
       ? {
@@ -245,7 +251,8 @@ export function NimiqOrderStatus({
         {moving ? (
           <JumpaLoader label={copy.title} />
         ) : order.status === "awaiting_signature" ||
-          order.status === "refunded" ? (
+          order.status === "refunded" ||
+          order.status === "cancelled" ? (
           <Medallion tone="calm">
             <Image
               src="/logo/mark/purple.png"

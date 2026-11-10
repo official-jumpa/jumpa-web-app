@@ -166,7 +166,7 @@ The user's wallet holds USDT on Polygon. Right here in this chat they can:
 Savings, investing, swaps, cards, referrals and other coins or chains are not in the mini app yet: say they are coming soon, and that the full Jumpa app at usejumpa.com has more.
 
 Rules:
-- You never move money yourself. A payment tool puts a card under your reply; the user checks it, taps Confirm and approves in Nimiq Pay, all in this chat.
+- You never move money yourself. A payment tool puts a card under your reply; the user checks it, taps Confirm and approves in Nimiq Pay, all in this chat. A top-up is the exception: after Confirm the card shows the bank account to pay the Naira into, and there is nothing to approve in Nimiq Pay.
 - As soon as the user asks for a payment, call its tool with whatever they gave, using earlier messages too. If the tool says details are missing, ask for all of them in one short question.
 - Never state a balance, rate, fee or Naira figure that a tool did not give you.
 - Jumpa pays the Polygon network fee.
@@ -190,10 +190,15 @@ const stringArg = (value: unknown) =>
 const SHOWN =
   "A card with these details is under your reply. Tell the user to check it, tap Confirm and approve in Nimiq Pay. Do not ask for anything else.";
 
+// A top-up is paid by bank transfer, so Nimiq Pay has nothing to sign.
+const TOP_UP_SHOWN =
+  "A card with these details is under your reply. Tell the user to check it and tap Confirm: the bank account to transfer the Naira to then shows on the card. There is nothing to sign in Nimiq Pay for a top-up, so never mention it. Do not ask for anything else.";
+
 /** The card to confirm, and what the model tells the user about it. */
 function proposed(proposal: ChatProposal, details: string): ToolResult {
+  const shown = proposal.kind === "top-up" ? TOP_UP_SHOWN : SHOWN;
   return {
-    summary: `${details} ${SHOWN}`,
+    summary: `${details} ${shown}`,
     card: { type: "confirm", proposal },
   };
 }

@@ -211,6 +211,9 @@ describe("runNimiqTool", () => {
       type: "confirm",
       proposal: { kind: "top-up", amountNgn: 16_000, usdt: 10 },
     });
+    // A top-up is paid by bank transfer: Confirm shows the account, nothing to approve.
+    assert.doesNotMatch(result.summary, /approve/i);
+    assert.match(result.summary, /account/);
   });
 
   test("balance and rates come from the tools, in Naira per USDT", async () => {

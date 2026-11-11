@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { CircleInformationIcon } from "@/components/ui/icons/circle-information";
+import { TriangleWarningIcon } from "@/components/ui/icons/triangle-warning";
 import { cn } from "@/lib/cn";
 
 /** Shared pieces for the on- and off-ramp checkout cards, so the two stay in step. */
@@ -66,19 +67,53 @@ export function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 /** Provider notes — instructions, not errors, so they sit on the card's own white. */
+/** A note that costs the user money if skipped: the account expires, or takes one payment only. */
+const CAUTION = /used once|only once|one[- ]time|expir/i;
+/** The words in a caution the eye should land on. */
+const STRESS = /(\d+\s*minutes?|(?:can )?only be used once|one[- ]time)/gi;
+
+/** A caution with its key words in bold; `split` puts the matches at odd indexes. */
+function stressed(note: string) {
+  return note.split(STRESS).map((part, index) =>
+    index % 2 ? (
+      // biome-ignore lint/suspicious/noArrayIndexKey: pieces of one fixed string never reorder
+      <strong key={index} className="font-semibold text-jumpa-black">
+        {part}
+      </strong>
+    ) : (
+      part
+    ),
+  );
+}
+
+/** The provider's notes; a caution leads, on a caution ground, so it isn't skimmed past. */
 export function RampNotes({ notes }: { notes: string[] | string }) {
-  const items = Array.isArray(notes) ? notes : [notes];
+  const list = Array.isArray(notes) ? notes : [notes];
+  const items = [
+    ...list.filter((note) => CAUTION.test(note)),
+    ...list.filter((note) => !CAUTION.test(note)),
+  ];
   return (
     <div className="flex flex-col gap-1.5 rounded-xl bg-jumpa-white px-3 py-2.5">
-      {items.map((note) => (
-        <p
-          key={note}
-          className="flex gap-1.5 text-[11px] leading-4 text-jumpa-neutral-400"
-        >
-          <CircleInformationIcon className="mt-0.5 size-3 shrink-0" />
-          <span>{note}</span>
-        </p>
-      ))}
+      {items.map((note) =>
+        CAUTION.test(note) ? (
+          <p
+            key={note}
+            className="-mx-1.5 flex gap-1.5 rounded-lg bg-jumpa-warning-50 px-1.5 py-1.5 text-[11px] leading-4 font-medium text-jumpa-neutral-550 inset-ring inset-ring-jumpa-warning/30"
+          >
+            <TriangleWarningIcon className="mt-0.5 size-3 shrink-0 text-jumpa-warning" />
+            <span>{stressed(note)}</span>
+          </p>
+        ) : (
+          <p
+            key={note}
+            className="flex gap-1.5 text-[11px] leading-4 text-jumpa-neutral-400"
+          >
+            <CircleInformationIcon className="mt-0.5 size-3 shrink-0" />
+            <span>{note}</span>
+          </p>
+        ),
+      )}
     </div>
   );
 }

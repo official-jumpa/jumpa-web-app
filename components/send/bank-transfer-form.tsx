@@ -16,6 +16,7 @@ import { CircleInformationIcon } from "@/components/ui/icons/circle-information"
 import { GlobeIcon } from "@/components/ui/icons/globe";
 import { ShieldCheckIcon } from "@/components/ui/icons/shield-check";
 import { SegmentedToggle } from "@/components/ui/segmented-toggle";
+import { WithdrawalsPausedNote } from "@/components/send/withdrawals-paused-note";
 import { getAssetLogo } from "@/lib/assets";
 import { MOBILE_NETWORKS, PHONE_NUMBER_MIN } from "@/lib/bills";
 import { supportedBanks } from "@/lib/constants/banks";
@@ -208,6 +209,7 @@ export function BankTransferForm({
   onChange,
   onPickRecent,
   onContinue,
+  paused = false,
 }: {
   form: BankForm;
   defaultCountry?: string;
@@ -215,6 +217,8 @@ export function BankTransferForm({
   onChange: (next: BankForm) => void;
   onPickRecent: (account: BankAccountItem) => void;
   onContinue: () => void;
+  /** Naira withdrawals are switched off: show why and block Continue. */
+  paused?: boolean;
 }) {
   const [recentAccounts, setRecentAccounts] = useState<BankAccountItem[]>(
     () => initialBeneficiaries || [],
@@ -381,6 +385,8 @@ export function BankTransferForm({
 
   return (
     <div ref={fields} className="flex flex-1 flex-col gap-5 pt-6">
+      {paused ? <WithdrawalsPausedNote /> : null}
+
       <SelectField
         label="Select country"
         icon={<GlobeIcon aria-hidden="true" className="size-6 shrink-0" />}
@@ -535,25 +541,34 @@ export function BankTransferForm({
               </Field>
               */}
 
-              <p className="flex items-center gap-2 rounded-surface bg-jumpa-primary-50 px-3 py-3.5">
-                <ShieldCheckIcon
-                  aria-hidden="true"
-                  className="size-5 shrink-0 text-jumpa-primary-600"
-                />
-                <span className="text-[10px] leading-3.5 font-medium text-jumpa-primary-600">
-                  {form.network === "Nigeria Bank"
-                    ? "Direct NGN transfer settles within seconds"
-                    : country.routing
-                    ? "ACH transfer typically arrives within 1-2 business days"
-                    : `${country.currency} transfers typically arrive within seconds`}
-                </span>
-              </p>
+              {/* Promising seconds-fast settlement is wrong while withdrawals are paused. */}
+              {paused ? null : (
+                <p className="flex items-center gap-2 rounded-surface bg-jumpa-primary-50 px-3 py-3.5">
+                  <ShieldCheckIcon
+                    aria-hidden="true"
+                    className="size-5 shrink-0 text-jumpa-primary-600"
+                  />
+                  <span className="text-[10px] leading-3.5 font-medium text-jumpa-primary-600">
+                    {form.network === "Nigeria Bank"
+                      ? "Direct NGN transfer settles within seconds"
+                      : country.routing
+                      ? "ACH transfer typically arrives within 1-2 business days"
+                      : `${country.currency} transfers typically arrive within seconds`}
+                  </span>
+                </p>
+              )}
             </>
           ) : null}
         </>
       )}
 
-      <Button variant="gradient" size="lg" className="mt-auto" onClick={submit}>
+      <Button
+        variant={paused ? "softBrand" : "gradient"}
+        size="lg"
+        className="mt-auto"
+        onClick={submit}
+        disabled={paused}
+      >
         Continue
       </Button>
     </div>

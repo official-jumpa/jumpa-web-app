@@ -28,6 +28,11 @@ export const NGN_BENEFITS: NgnBenefit[] = [
 /** How long the opening modal holds when animating transitions. */
 export const NGN_OPENING_MS = 2400;
 
+/** Shown on the withdraw form and returned by the API while NGN_WITHDRAWALS_PAUSED is on. */
+export const NGN_WITHDRAWALS_PAUSED_TITLE = "Bank withdrawals are paused";
+export const NGN_WITHDRAWALS_PAUSED_MESSAGE =
+  "Our banking partner is having a temporary issue, so withdrawals to bank accounts are paused for now. Your Naira balance is safe. Please check back shortly.";
+
 /** A line of the issued account, with the value the user can copy. */
 export type NgnAccountField = {
   label: string;

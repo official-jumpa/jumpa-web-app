@@ -3,6 +3,7 @@ import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
 import { getUserById, getBeneficiariesAndRecents } from "@/lib/functions/userFunctions";
 import { BankTransferView } from "@/components/send/bank-transfer-view";
 import type { BankAccountItem } from "@/components/send/bank-transfer-form";
+import { environment } from "@/lib/environment";
 
 export const metadata: Metadata = { title: "Bank transfer" };
 
@@ -60,6 +61,7 @@ export default async function BankTransferPage(props: PageProps) {
       initialNetwork={initialNetwork}
       initialAsset={initialAsset}
       initialBeneficiaries={initialBeneficiaries}
+      withdrawalsPaused={environment.NGN_WITHDRAWALS_PAUSED}
     />
   );
 }

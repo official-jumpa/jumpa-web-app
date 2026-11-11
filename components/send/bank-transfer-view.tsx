@@ -31,17 +31,23 @@ type Sheet = "review" | "pin" | null;
 const CRYPTO_CHIPS = [25, 50, 100] as const;
 /** Standard fiat amount chips in Naira (e.g. 1k, 5k, 10k NGN) */
 const FIAT_CHIPS = [1000, 5000, 10000] as const;
+/** Shown when the reply can't be read: the transfer may still have gone through. */
+const UNCONFIRMED =
+  "We couldn't confirm this transfer. Check your transactions before trying again.";
 
 export function BankTransferView({
   defaultCountry = "Nigeria",
   initialNetwork,
   initialAsset,
   initialBeneficiaries,
+  withdrawalsPaused = false,
 }: {
   defaultCountry?: string;
   initialNetwork?: string;
   initialAsset?: string;
   initialBeneficiaries?: BankAccountItem[];
+  /** NGN_WITHDRAWALS_PAUSED: blocks Naira-balance withdrawals; crypto cash-outs stay open. */
+  withdrawalsPaused?: boolean;
 }) {
   const [stage, setStage] = useState<Stage>("form");
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -387,7 +393,12 @@ export function BankTransferView({
           }),
         });
 
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
+        if (!data) {
+          setErrorMessage(UNCONFIRMED);
+          setSheet(null);
+          return;
+        }
 
         if (!res.ok || !data.success) {
           if (res.status === 401 && data.error?.toLowerCase().includes("pin")) {
@@ -407,10 +418,8 @@ export function BankTransferView({
           fiatCurrency: "NGN",
         });
         setStage("done");
-      } catch (err: any) {
-        setErrorMessage(
-          err?.message || "Failed to connect to withdrawal service",
-        );
+      } catch {
+        setErrorMessage(UNCONFIRMED);
         setSheet(null);
       } finally {
         setIsSubmitting(false);
@@ -437,7 +446,12 @@ export function BankTransferView({
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      if (!data) {
+        setErrorMessage(UNCONFIRMED);
+        setSheet(null);
+        return;
+      }
 
       if (!res.ok || !data.success) {
         if (res.status === 401 && data.error?.toLowerCase().includes("pin")) {
@@ -461,8 +475,8 @@ export function BankTransferView({
         cryptoToken: data.cryptoToken,
       });
       setStage("done");
-    } catch (err: any) {
-      setErrorMessage(err?.message || "Failed to connect to transfer service");
+    } catch {
+      setErrorMessage(UNCONFIRMED);
       setSheet(null);
     } finally {
       setIsSubmitting(false);
@@ -665,6 +679,7 @@ export function BankTransferView({
         form={form}
         defaultCountry={defaultCountry}
         initialBeneficiaries={initialBeneficiaries}
+        paused={withdrawalsPaused && isFiatWithdrawal}
         onChange={setForm}
         onPickRecent={(account) =>
           setForm({

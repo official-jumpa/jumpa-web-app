@@ -249,6 +249,8 @@ export const environment = {
   AELLA_API_KEY: process.env.AELLA_API_KEY || "",
   AELLA_SANDBOX_KEY: process.env.AELLA_SANDBOX_KEY || "",
   AELLA_BASE_URL: process.env.AELLA_BASE_URL || "https://api.aellaapp.com",
+  /** Pauses Naira-balance withdrawals while Aella payouts are down; on only when exactly "true". */
+  NGN_WITHDRAWALS_PAUSED: process.env.NGN_WITHDRAWALS_PAUSED === "true",
 };
 
 export default environment;

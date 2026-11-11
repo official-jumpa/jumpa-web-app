@@ -9,6 +9,11 @@ import { logUserActivity } from "@/lib/functions/userFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { formatOneLineError, isTimeoutError } from "@/lib/utils/api-best-practices";
 import { isLimitError } from "@/lib/functions/transactionLimitFunctions";
+import { environment } from "@/lib/environment";
+import { NGN_WITHDRAWALS_PAUSED_MESSAGE } from "@/lib/ngn-account";
+
+/** Vercy replaces 502/504 replies with its own HTML page, so a failed bank provider answers 424. */
+const PROVIDER_FAILED = 424;
 
 /**
  * POST /api/v1/ngn-account/withdraw
@@ -25,6 +30,14 @@ export async function POST(req: NextRequest) {
     });
     if (!authResult.ok) return authResult.response;
     const userId = authResult.userId;
+
+    // Refuse before the PIN check and the debit, so a paused withdrawal costs nothing.
+    if (environment.NGN_WITHDRAWALS_PAUSED) {
+      return NextResponse.json(
+        { success: false, error: NGN_WITHDRAWALS_PAUSED_MESSAGE, code: "WITHDRAWALS_PAUSED" },
+        { status: 423 },
+      );
+    }
 
     const rawBody = await req.json().catch(() => ({}));
 
@@ -119,7 +132,7 @@ export async function POST(req: NextRequest) {
           success: false,
           error: "The transfer request timed out while contacting the banking provider. Please check your transaction history before retrying.",
         },
-        { status: 504 },
+        { status: PROVIDER_FAILED },
       );
     }
 
@@ -142,9 +155,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: "Banking network service is temporarily unavailable. Please try again shortly or check your transaction history for status.",
+        error: "Our banking partner couldn't complete this transfer. Check your transaction history before trying again.",
       },
-      { status: 502 },
+      { status: PROVIDER_FAILED },
     );
   }
 }

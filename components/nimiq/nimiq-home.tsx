@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { type ReactNode, useState } from "react";
 import { ActionGrid } from "@/components/home/action-grid";
 import { BalancePanel, GLASS } from "@/components/home/balance-panel";
@@ -25,41 +24,12 @@ import {
 } from "./mini-app-actions";
 import { NimiqHeader } from "./nimiq-header";
 
-/** The mini app's own banners, as exported artwork. */
-function BannerImage({ src }: { src: string }) {
-  return (
-    <Image
-      src={src}
-      alt=""
-      width={357}
-      height={103}
-      className="absolute inset-x-0 bottom-0 h-25.75 w-full rounded-row object-cover"
-    />
-  );
-}
-
-function AirtimeArt() {
-  return <BannerImage src="/images/nimiq/banner-airtime.png" />;
-}
-
-function CryptoArt() {
-  return <BannerImage src="/images/nimiq/banner-crypto.png" />;
-}
-
+/** The main app's ads, pointed at mini-app screens; what works here leads. */
 const SLIDES: PromoSlide[] = [
-  {
-    id: "airtime",
-    href: `${MINI_APP_PATH}?view=airtime`,
-    label: "Get airtime. Get data. Stay connected.",
-    Art: AirtimeArt,
-  },
-  {
-    id: "crypto",
-    href: `${MINI_APP_PATH}?view=top-up`,
-    label: "Buy or sell crypto.",
-    Art: CryptoArt,
-  },
-  { ...PROMO_SLIDES.chat, href: MINI_APP_CHAT_HREF },
+  { ...PROMO_SLIDES.airtime, href: `${MINI_APP_PATH}?view=airtime` },
+  { ...PROMO_SLIDES.oneApp, href: MINI_APP_CHAT_HREF },
+  // Savings is Soon here, so its ad only shows.
+  { ...PROMO_SLIDES.savings, href: undefined },
 ];
 
 /** Survives a trip into a flow and back; a fresh open shows the balance. */

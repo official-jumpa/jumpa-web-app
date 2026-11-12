@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
-import { MessageCircleDotsIcon } from "@/components/ui/icons/message-circle-dots";
+import { getNetwork } from "@/lib/bills";
 import { cn } from "@/lib/cn";
 
 /** How long each slide holds before the next one takes over. */
@@ -25,30 +25,35 @@ export type PromoSlide = {
   Art: () => React.ReactNode;
 };
 
-const VERIFY: PromoSlide = {
-  id: "verify",
-  href: "/kyc",
-  label: "Verify your identity",
-  Art: VerifyArt,
-};
-
 const SAVINGS: PromoSlide = {
   id: "savings",
   href: "/savings",
-  label: "Start saving and earn up to 15% interest p.a.",
+  label: "Save for what's next. Earn up to 15% interest p.a. on your savings.",
   Art: SavingsArt,
 };
 
-const CHAT: PromoSlide = {
-  id: "chat",
-  href: "/home/chat",
-  label: "Chat, don't tap. Send, swap and save just by telling Jumpa.",
-  Art: ChatArt,
+const AIRTIME: PromoSlide = {
+  id: "airtime",
+  href: "/airtime",
+  label: "Get airtime. Get data. Stay connected.",
+  Art: AirtimeArt,
 };
 
-export const PROMO_SLIDES = { savings: SAVINGS, verify: VERIFY, chat: CHAT };
+const ONE_APP: PromoSlide = {
+  id: "one-app",
+  href: "/more",
+  label:
+    "One app. More ways to move. Send, save, spend and trade, all in one place.",
+  Art: OneAppArt,
+};
 
-const HOME_SLIDES = [SAVINGS, VERIFY, CHAT];
+export const PROMO_SLIDES = {
+  savings: SAVINGS,
+  airtime: AIRTIME,
+  oneApp: ONE_APP,
+};
+
+const HOME_SLIDES = [SAVINGS, AIRTIME, ONE_APP];
 
 /**
  * Home's promo banner. Slides cross-fade and drift — opacity and transform
@@ -108,8 +113,8 @@ export function PromoBanner({
   };
 
   return (
-    <div className="flex flex-col items-center gap-2.5">
-      {/* The art pokes 15px above the card, so the box reserves it. */}
+    // The top pad is the headroom the old pop-out art took, so the card stays where Home draws it.
+    <div className="flex flex-col items-center gap-2.5 pt-3.75">
       {/* biome-ignore lint/a11y/noStaticElementInteractions: the slides inside are links; this only adds a swipe */}
       <div
         onPointerDown={onPointerDown}
@@ -126,7 +131,7 @@ export function PromoBanner({
           }
         }}
         onDragStart={(event) => event.preventDefault()}
-        className="relative h-29.5 w-full touch-pan-y"
+        className="relative aspect-357/103 w-full touch-pan-y"
       >
         {slides.map(({ id, href, label, Art }, position) => {
           // 0 is on screen, 1 waits on the right, the rest have left to the left.
@@ -190,152 +195,235 @@ export function PromoBanner({
   );
 }
 
-/** The 103px purple card every slide sits on, with its wave and glows. */
-function SlideCard({
-  tilt,
+/** Where the ad artwork lives. */
+const ART = "/images/promo";
+
+/** The 357×103 ad artboard. It scales as one piece, so sizes inside read as design px. */
+function AdFrame({
+  className,
   children,
 }: {
-  /** The verify slide tips its wave and sits 3px higher; the savings slide lays it flat. */
-  tilt?: boolean;
+  /** The card's ground. */
+  className: string;
   children: React.ReactNode;
 }) {
   return (
-    <span
-      className={cn(
-        "absolute inset-x-0 isolate block h-25.75 overflow-hidden rounded-row bg-jumpa-primary-600",
-        tilt ? "bottom-0.75" : "bottom-0",
-      )}
-    >
+    <span className="frame-357 block size-full">
       <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10"
+        className={cn(
+          "relative isolate block h-103 w-357 overflow-hidden rounded-u-20",
+          className,
+        )}
       >
-        {/* The wave goes down first; the glows over it are what lift it off the card. */}
-        <Image
-          src="/images/home/banner-wave.svg"
-          alt=""
-          width={252}
-          height={84}
-          className={cn(
-            "absolute max-w-none",
-            tilt ? "top-12 -right-9.75 rotate-[7.29deg]" : "top-5 -right-10.75",
-          )}
-        />
-        <Image
-          src="/images/home/banner-glow-wide.svg"
-          alt=""
-          width={296}
-          height={181}
-          className="absolute top-1.5 -left-px max-w-none"
-        />
-        <Image
-          src="/images/home/banner-glow.svg"
-          alt=""
-          width={244}
-          height={201}
-          className="absolute -top-8 -right-14.5 max-w-none"
-        />
-        <Image
-          src="/images/home/banner-glow.svg"
-          alt=""
-          width={244}
-          height={201}
-          className="absolute -top-1 -left-27.25 max-w-none"
-        />
-        {tilt ? (
-          <Image
-            src="/images/home/banner-glow.svg"
-            alt=""
-            width={244}
-            height={201}
-            className="absolute -top-5.25 left-6.25 max-w-none"
-          />
-        ) : null}
+        {children}
       </span>
-      {children}
     </span>
   );
 }
 
+/** Motion ticks off the savings coin: one stroke, placed three times. */
+const COIN_TICKS = [
+  "top-31.75 left-215.25 rotate-[19.37deg]",
+  "top-28.5 left-220.25 rotate-[42.78deg]",
+  "top-37.25 left-212 rotate-[-7.75deg]",
+];
+
 function SavingsArt() {
   return (
-    <>
-      <SlideCard>
-        <span className="absolute top-[calc(50%-1px)] left-6.5 w-37.25 -translate-y-1/2 text-[18.5px] leading-5 font-semibold tracking-jumpa-snug text-jumpa-white">
-          Start saving and earn up to{" "}
-          <span className="text-jumpa-alt-400">15%</span> interest p.a.
+    <AdFrame className="bg-jumpa-primary-600">
+      <Image
+        src={`${ART}/savings-chart.webp`}
+        alt=""
+        width={348}
+        height={116}
+        loading="eager"
+        className="absolute top-0 left-16 h-116 w-348.25 max-w-none mix-blend-lighten"
+      />
+      <span className="absolute top-65.5 left-27 text-u-10.75/10 font-medium tracking-jumpa-snug whitespace-nowrap text-jumpa-white">
+        <span className="block">
+          Earn up to <span className="font-bold text-jumpa-alt-400">15%</span>{" "}
+          interest
         </span>
-      </SlideCard>
+        <span className="block">p.a. on your savings.</span>
+      </span>
+      <span className="absolute top-15.5 left-19.25 w-140 -rotate-1 -skew-x-11 scale-y-98 text-u-20.75/19 font-extrabold tracking-jumpa-tight whitespace-nowrap text-jumpa-white">
+        <span className="block">SAVE FOR</span>
+        <span className="block bg-linear-to-r from-jumpa-alt-400 via-jumpa-alt-250 via-[44.231%] to-jumpa-alt-400 to-[98.558%] bg-clip-text text-transparent">
+          WHAT’S NEXT.
+        </span>
+      </span>
+      {/* Drawn on a slant; the turn stands it upright beside the copy. */}
       <Image
-        src="/images/home/banner-shadow.svg"
+        src={`${ART}/savings-rule.svg`}
         alt=""
-        width={91}
-        height={24}
-        className="pointer-events-none absolute top-23.5 right-6.25 max-w-none"
+        width={19}
+        height={11}
+        className="absolute top-70.5 left-11 h-11.25 w-18.75 max-w-none rotate-60"
       />
       <Image
-        src="/images/home/piggy-bank.webp"
+        src={`${ART}/savings-underline.svg`}
         alt=""
-        width={136}
-        height={136}
-        priority
-        className="pointer-events-none absolute -top-2.5 right-1.25 max-w-none"
+        width={79}
+        height={6}
+        className="absolute top-53.25 left-74.25 h-6.25 w-78.75 max-w-none"
       />
-    </>
+      <Image
+        src={`${ART}/savings-piggy.webp`}
+        alt=""
+        width={84}
+        height={93}
+        loading="eager"
+        className="absolute top-14 left-196 h-93 w-84.25 max-w-none"
+      />
+      {COIN_TICKS.map((place) => (
+        <Image
+          key={place}
+          src={`${ART}/savings-spark.svg`}
+          alt=""
+          width={9}
+          height={6}
+          className={cn("absolute h-6 w-8.75 max-w-none", place)}
+        />
+      ))}
+    </AdFrame>
   );
 }
 
-function VerifyArt() {
+/** Carrier discs on the airtime ad, back to front; logos and tints come from the bills list. */
+const AD_CARRIERS = [
+  { id: "9mobile", disc: "top-42.5 left-203 size-22", mark: "size-14" },
+  {
+    id: "glo",
+    // Glo's disc in the art is the success green.
+    disc: "top-35.25 left-229.25 size-22 bg-jumpa-success",
+    mark: "size-15",
+  },
+  { id: "airtel", disc: "top-28 left-212.5 size-22", mark: "size-12" },
+  {
+    id: "mtn",
+    disc: "top-48 left-219.5 size-21.75",
+    mark: "size-full object-cover",
+  },
+];
+
+function AirtimeArt() {
   return (
-    <SlideCard tilt>
-      <span className="absolute top-5.5 left-5.25 text-[18.5px] leading-5 font-semibold tracking-jumpa-snug text-jumpa-white">
-        Verify your identity
-      </span>
-      <span className="absolute top-11.75 left-5.25 w-51.5 text-[10px] leading-3 tracking-jumpa-snug text-jumpa-white">
-        A quick verification helps us keep your account secure and meet
-        regulatory requirements.
-      </span>
+    <AdFrame className="bg-linear-[170.453deg] from-jumpa-primary-600 from-[25.788%] to-jumpa-primary-925 to-[95.164%]">
       <Image
-        src="/images/home/verified-badge.webp"
+        src={`${ART}/airtime-street.webp`}
         alt=""
-        width={88}
-        height={85}
-        priority
-        className="pointer-events-none absolute top-1.25 right-7.75 h-21.25 w-22 max-w-none"
+        width={264}
+        height={148}
+        className="absolute -top-26 -left-7 h-147.5 w-264.25 max-w-none object-cover"
       />
       <Image
-        src="/images/home/badge-check.svg"
+        src={`${ART}/airtime-man.webp`}
         alt=""
-        width={29}
-        height={22}
-        className="pointer-events-none absolute top-9.5 right-15 max-w-none"
+        width={296}
+        height={165}
+        className="absolute -top-31 left-61 h-165 w-296 max-w-none object-cover"
       />
-    </SlideCard>
+      <Image
+        src={`${ART}/airtime-glow.svg`}
+        alt=""
+        width={480}
+        height={372}
+        className="absolute -top-146.5 -left-180 h-372.5 w-480.25 max-w-none"
+      />
+      <span className="absolute top-29.25 left-18 w-182 text-u-17.5/17.75 font-bold tracking-jumpa-snug whitespace-nowrap text-jumpa-white">
+        <span className="block bg-linear-to-r from-jumpa-alt-400 via-jumpa-alt-350 via-[49.048%] to-jumpa-alt-400 bg-clip-text text-transparent">
+          Get Airtime. Get Data.
+        </span>
+        <span className="block">Stay Connected.</span>
+      </span>
+      <Image
+        src={`${ART}/airtime-wave.svg`}
+        alt=""
+        width={120}
+        height={55}
+        className="absolute top-55 -left-7 h-54.75 w-120 max-w-none -scale-x-100"
+      />
+      {AD_CARRIERS.map(({ id, disc, mark }) => {
+        const network = getNetwork(id);
+        return network ? (
+          <span
+            key={id}
+            style={{ backgroundColor: network.tint }}
+            className={cn(
+              "absolute flex items-center justify-center overflow-hidden rounded-full",
+              disc,
+            )}
+          >
+            <Image
+              src={network.logo}
+              alt=""
+              width={22}
+              height={22}
+              className={cn("max-w-none", mark)}
+            />
+          </span>
+        ) : null;
+      })}
+      <Image
+        src={`${ART}/airtime-phone.webp`}
+        alt=""
+        width={14}
+        height={29}
+        className="absolute top-66 left-262 h-29.25 w-13.5 max-w-none"
+      />
+    </AdFrame>
   );
 }
 
-/** Chat, don't tap: a "send money" message floating off a lime chat disc. */
-function ChatArt() {
+function OneAppArt() {
   return (
-    <>
-      <SlideCard>
-        <span className="absolute top-5.5 left-6.5 text-[18.5px] leading-5 font-semibold tracking-jumpa-snug text-jumpa-white">
-          Chat, <span className="text-jumpa-alt-400">don't tap</span>
-        </span>
-        <span className="absolute top-12.25 left-6.5 w-38 text-[10px] leading-3 tracking-jumpa-snug text-jumpa-white">
-          Send, swap and save just by telling Jumpa what you need.
-        </span>
-      </SlideCard>
-      <span className="pointer-events-none absolute top-2 right-7 flex size-15 -rotate-8 items-center justify-center rounded-full bg-jumpa-alt-400 text-jumpa-primary-600 shadow-jumpa-sm">
-        <MessageCircleDotsIcon className="size-8.5" />
+    <AdFrame className="bg-jumpa-primary-600">
+      <Image
+        src={`${ART}/one-app-wallpaper.webp`}
+        alt=""
+        width={114}
+        height={202}
+        className="absolute -top-49.5 left-45.25 h-202.25 w-113.75 max-w-none rotate-[-88.97deg] object-cover mix-blend-multiply"
+      />
+      <Image
+        src={`${ART}/one-app-glow-right.svg`}
+        alt=""
+        width={296}
+        height={181}
+        className="absolute -top-58.5 left-173.5 h-180.75 w-295.75 max-w-none"
+      />
+      <Image
+        src={`${ART}/one-app-glow-left.svg`}
+        alt=""
+        width={139}
+        height={201}
+        className="absolute -top-59 -left-68 h-201 w-139 max-w-none"
+      />
+      <span className="absolute top-65.5 left-17 text-u-9/10 tracking-jumpa-snug whitespace-nowrap text-jumpa-white">
+        Send. Save. Spend. Trade. All in one place.
+      </span>
+      <span className="absolute top-30.25 left-15 text-u-16/16.5 font-extrabold tracking-jumpa-snug whitespace-nowrap text-jumpa-white uppercase">
+        <span className="block text-jumpa-alt-400">One app.</span>
+        <span className="block">More ways to move.</span>
       </span>
       <Image
-        src="/images/landing/cta-message-dollars.webp"
+        src={`${ART}/one-app-woman.webp`}
         alt=""
-        width={303}
-        height={109}
-        className="pointer-events-none absolute top-16 right-17.5 h-8 w-22.25 max-w-none rotate-3"
+        width={201}
+        height={112}
+        className="absolute top-0 left-160 h-112 w-200.75 max-w-none object-cover"
       />
-    </>
+      <Image
+        src={`${ART}/one-app-plane.svg`}
+        alt=""
+        width={78}
+        height={36}
+        className="absolute top-26 left-155.5 h-36.5 w-78 max-w-none rotate-[-172.44deg] -scale-y-100"
+      />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 rounded-[inherit] shadow-jumpa-ad-rim"
+      />
+    </AdFrame>
   );
 }

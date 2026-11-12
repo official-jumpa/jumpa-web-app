@@ -2,6 +2,7 @@
   "name": "jumpa-web-app",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "prebuild": "node script/sync-sw-version.mjs",
     "dev": "next dev",

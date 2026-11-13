@@ -7,12 +7,8 @@ import {
 
 /** Auto-save: a standing instruction that tops up one plan on a schedule. */
 
-/**
- * TODO: set to `true` once `npm run auto-save` is scheduled on the host.
- * Until then the entry and its API only work in development, so nobody can
- * switch on a rule that never runs.
- */
-export const AUTO_SAVE_LIVE = process.env.NODE_ENV !== "production";
+/** Kill switch: `false` hides the entry and closes the API. Runs come from `npm run auto-save` on Vercy. */
+export const AUTO_SAVE_LIVE = true;
 
 export type AutoSaveCadence = "daily" | "weekly" | "monthly" | "custom";
 export type AutoSaveSource = "ngn" | "usdc";

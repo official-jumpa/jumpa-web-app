@@ -15,6 +15,9 @@ import {
   isTimeoutError,
 } from "@/lib/utils/api-best-practices";
 
+/** Vercy replaces 502/504 replies with its own HTML page, so a failed provider answers 424. */
+const PROVIDER_FAILED = 424;
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -173,18 +176,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Your order is pending, please check the status shortly before trying again.",
+            "Your data purchase is still processing. Check your transaction history before trying again.",
         },
-        { status: 504 },
+        { status: PROVIDER_FAILED },
       );
     }
 
     return NextResponse.json(
       {
         error:
-          "Unable to complete data subscription at this time. Please try again shortly.",
+          "We couldn't complete this data purchase. Check your transaction history before trying again.",
       },
-      { status: 502 },
+      { status: PROVIDER_FAILED },
     );
   }
 }

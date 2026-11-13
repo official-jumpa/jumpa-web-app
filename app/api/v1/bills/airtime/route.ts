@@ -9,6 +9,9 @@ import {
   isTimeoutError,
 } from "@/lib/utils/api-best-practices";
 
+/** Vercy replaces 502/504 replies with its own HTML page, so a failed provider answers 424. */
+const PROVIDER_FAILED = 424;
+
 /**
  * POST /api/v1/bills/airtime
  * Recharges airtime on a mobile phone.
@@ -92,18 +95,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Your order is pending, please check the status shortly before trying again.",
+            "Your airtime recharge is still processing. Check your transaction history before trying again.",
         },
-        { status: 504 },
+        { status: PROVIDER_FAILED },
       );
     }
 
     return NextResponse.json(
       {
         error:
-          "Unable to complete airtime recharge at this time. Please try again shortly.",
+          "We couldn't complete this airtime recharge. Check your transaction history before trying again.",
       },
-      { status: 502 },
+      { status: PROVIDER_FAILED },
     );
   }
 }

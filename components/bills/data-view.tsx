@@ -22,7 +22,11 @@ import {
   getNetwork,
   getPeriodLabel,
 } from "@/lib/bills";
-import { friendlyBillError, readBillResponse } from "@/lib/bills-errors";
+import {
+  friendlyBillError,
+  readBillResponse,
+  unconfirmedBillMessage,
+} from "@/lib/bills-errors";
 import type { Receipt } from "@/lib/receipt";
 import type { FormErrors } from "@/lib/validation";
 
@@ -109,7 +113,7 @@ export function MobileDataView() {
         }),
       });
 
-      const { data, raw } = await readBillResponse(res);
+      const { data } = await readBillResponse(res);
 
       const detail = String(data?.error ?? "").toLowerCase();
       // A lockout also says "PIN", and tinting the box red would hide the wait
@@ -122,7 +126,9 @@ export function MobileDataView() {
 
       if (!res.ok) {
         if (wrongPin) setPinError(true);
-        else fail(data?.error || raw || "Data subscription failed.");
+        // No readable reply means a gateway page: the debit may already have happened.
+        else if (!data) fail(unconfirmedBillMessage("data"));
+        else fail(data.error || "Data subscription failed.");
         setIsProcessing(false);
         return;
       }

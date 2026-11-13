@@ -22,6 +22,19 @@ const BUCKETS: {
   retry: boolean;
 }[] = [
   {
+    // Provider timed out after the debit, or our reply never arrived: the order may still land.
+    match: /still processing|couldn't confirm/i,
+    title: () => "Not confirmed yet",
+    message: (_k, text) => text.trim(),
+    retry: false,
+  },
+  {
+    // The routes' reply once the wallet may already be debited: no one-tap retry.
+    match: /before trying again/i,
+    message: (_k, text) => text.trim(),
+    retry: false,
+  },
+  {
     // A gateway or a Next error page is HTML, so `res.json()` throws a parser
     // error. That is the provider being down, not something the user can read.
     match:
@@ -151,6 +164,10 @@ export function friendlyBillError(raw: unknown, kind: BillKind): Friendly {
     retry: true,
   };
 }
+
+/** A purchase got a gateway page instead of our reply, so the debit may already have happened. */
+export const unconfirmedBillMessage = (kind: BillKind) =>
+  `We couldn't confirm your ${NOUN[kind]}. Check your transaction history before trying again.`;
 
 /**
  * Reads a response body that may not be JSON at all — a gateway or a Next

@@ -21,7 +21,11 @@ import { FileDownloadIcon } from "@/components/ui/icons/file-download";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { useNgnAccount } from "@/hooks/use-ngn-account";
 import { DEFAULT_NETWORK, getNetwork } from "@/lib/bills";
-import { friendlyBillError, readBillResponse } from "@/lib/bills-errors";
+import {
+  friendlyBillError,
+  readBillResponse,
+  unconfirmedBillMessage,
+} from "@/lib/bills-errors";
 import type { Receipt } from "@/lib/receipt";
 import { formatAmount } from "@/lib/transfer";
 import type { FormErrors } from "@/lib/validation";
@@ -116,7 +120,7 @@ export function AirtimeView() {
         }),
       });
 
-      const { data, raw } = await readBillResponse(res);
+      const { data } = await readBillResponse(res);
 
       const detail = String(data?.error ?? "").toLowerCase();
       // A lockout also says "PIN", and tinting the box red would hide the wait
@@ -129,7 +133,9 @@ export function AirtimeView() {
 
       if (!res.ok) {
         if (wrongPin) setPinError(true);
-        else fail(data?.error || raw || "Airtime recharge failed");
+        // No readable reply means a gateway page: the debit may already have happened.
+        else if (!data) fail(unconfirmedBillMessage("airtime"));
+        else fail(data.error || "Airtime recharge failed");
         setIsProcessing(false);
         return;
       }

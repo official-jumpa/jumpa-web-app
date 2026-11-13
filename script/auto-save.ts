@@ -6,7 +6,7 @@ import { formatOneLineError } from "@/lib/utils/api-best-practices";
 /**
  * Runs every auto-save rule that is due, once.
  * Usage:
- *   npm run auto-save              # one pass, for the host's cron (every minute)
+ *   npm run auto-save              # one pass, for the Vercy cron (every 5 minutes)
  *   npm run auto-save -- --watch   # a pass every minute until Ctrl+C, for local testing
  */
 const WATCH_INTERVAL_MS = 60_000;

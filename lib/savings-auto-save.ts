@@ -329,12 +329,9 @@ export function intervalLabel(minutes: number): string {
   return hours === 1 ? "Every hour" : `Every ${hours} hours`;
 }
 
-/**
- * Gaps a custom rule can repeat on.
- * TODO: the minute gaps are for testing; drop any shorter than the host's cron interval before going live.
- */
+/** Gaps a custom rule can repeat on. Vercy runs the job every 5 minutes at most, so none is shorter. */
 export const AUTO_SAVE_INTERVAL_MINUTES: readonly number[] = [
-  1, 2, 5, 10, 15, 30, 60, 120, 180, 360, 720,
+  5, 10, 15, 30, 60, 120, 180, 360, 720,
 ];
 
 export const AUTO_SAVE_INTERVALS: PickerOption[] =

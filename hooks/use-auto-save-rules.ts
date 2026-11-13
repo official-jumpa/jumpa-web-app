@@ -13,10 +13,10 @@ export type AutoSaveResult =
 
 const ENDPOINT = "/api/v1/savings/auto-save";
 
-/** Time the job gets to land a due run before we look; it runs every minute. */
+/** Time the job gets to land a due run before the first look. */
 const RUN_GRACE_MS = 15_000;
-/** How often to look again while a due run has not landed yet. */
-const OVERDUE_POLL_MS = 30_000;
+/** The job only runs every few minutes, so a due run is looked for once a minute until it lands. */
+const OVERDUE_POLL_MS = 60_000;
 /** Longest single wait, so a monthly rule never overflows `setTimeout`. */
 const MAX_WAIT_MS = 60 * 60_000;
 

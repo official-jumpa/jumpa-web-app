@@ -18,6 +18,7 @@ import type { Streak } from "@/lib/savings-moments";
 import { GoalCard } from "./goal-card";
 import { HubEmpty } from "./hub-empty";
 import { StreakButton } from "./moments/streak-button";
+import { RefreshButton } from "./refresh-button";
 import { slideIn } from "./slide-in";
 import { TotalCard } from "./total-card";
 
@@ -51,6 +52,7 @@ export function HubOverview({
   onCurrency,
   onTab,
   onNew,
+  onRefresh,
   onStory,
   onPick,
   onOpen,
@@ -67,6 +69,8 @@ export function HubOverview({
   onTab: (next: PlanTab) => void;
   /** The header's shortcut straight to a new flexible goal. */
   onNew: () => void;
+  /** Re-reads the plans, for money that moved while the page was open. */
+  onRefresh: () => void;
   /** Streak, badges and milestones, behind the header's flame. */
   onStory: () => void;
   onPick: (kind: SavingsKind) => void;
@@ -103,6 +107,7 @@ export function HubOverview({
         action={
           <span className="flex items-center gap-2">
             <StreakButton streak={streak} onClick={onStory} />
+            <RefreshButton onClick={onRefresh} />
             <button
               type="button"
               aria-label="New savings goal"

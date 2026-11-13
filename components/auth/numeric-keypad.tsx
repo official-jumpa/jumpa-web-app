@@ -6,9 +6,23 @@ import { triggerHaptic } from "@/lib/haptics";
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"];
 
 const KEY_CLASS =
-  "tap flex items-center justify-center rounded-key border border-jumpa-neutral-100 bg-jumpa-neutral-50 " +
-  "font-numeric text-4xl leading-9 text-jumpa-black active:scale-95 active:bg-jumpa-neutral-100 " +
+  "tap flex items-center justify-center border border-jumpa-neutral-100 bg-jumpa-neutral-50 " +
+  "font-numeric text-jumpa-black active:scale-95 active:bg-jumpa-neutral-100 " +
   "disabled:opacity-40";
+
+/** `sm` is the same pad drawn smaller, for a screen that also carries a CTA under it. */
+const SIZE = {
+  md: {
+    grid: "h-69.5 gap-x-3 gap-y-2.5",
+    key: "rounded-key text-4xl leading-9",
+    del: "h-6.5 w-10.25",
+  },
+  sm: {
+    grid: "h-60 gap-x-2.5 gap-y-2.25",
+    key: "rounded-row text-[31px] leading-8",
+    del: "h-5.5 w-9",
+  },
+} as const;
 
 /** Frame the auth screens put around the pad. Sits 8px wider than the gutter. */
 export const KEYPAD_PANEL =
@@ -22,9 +36,11 @@ export function NumericKeypad({
   className,
   withDecimal = false,
   leftKey,
+  size = "md",
 }: {
   onDigit: (digit: string) => void;
   onBackspace: () => void;
+  size?: keyof typeof SIZE;
   /** Locks the pad while the entry is being checked. */
   disabled?: boolean;
   /** Panel around the grid, if the screen calls for one. */
@@ -48,10 +64,12 @@ export function NumericKeypad({
     "0",
     "del",
   ];
+  const style = SIZE[size];
+  const keyClass = `${KEY_CLASS} ${style.key}`;
 
   return (
     <div className={className}>
-      <div className="grid h-69.5 grid-cols-3 grid-rows-4 gap-x-3 gap-y-2.5">
+      <div className={`grid grid-cols-3 grid-rows-4 ${style.grid}`}>
         {keys.map((key, index) =>
           key === "" ? (
             <span key={`blank-${index}`} className="flex items-center justify-center">
@@ -67,9 +85,9 @@ export function NumericKeypad({
               }}
               disabled={disabled}
               aria-label="Delete"
-              className={KEY_CLASS}
+              className={keyClass}
             >
-              <BackspaceIcon className="h-6.5 w-10.25" />
+              <BackspaceIcon className={style.del} />
             </button>
           ) : (
             <button
@@ -80,7 +98,7 @@ export function NumericKeypad({
                 onDigit(key);
               }}
               disabled={disabled}
-              className={KEY_CLASS}
+              className={keyClass}
             >
               {key}
             </button>

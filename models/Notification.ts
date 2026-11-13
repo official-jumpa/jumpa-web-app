@@ -26,7 +26,8 @@ export type NotificationType =
   | "SECURITY_ALERT"
   | "SUPPORT_AGENT_REPLIED"
   | "SUPPORT_TICKET_UPDATED"
-  | "SUPPORT_TICKET_RESOLVED";
+  | "SUPPORT_TICKET_RESOLVED"
+  | "AUTO_SAVE";
 
 export interface INotification {
   _id: string;

@@ -2,6 +2,8 @@
 
 import { type ReactNode, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { toast } from "@/components/ui/toast";
+import { AutoSaveEntry } from "@/components/savings/auto-save/auto-save-entry";
+import { AutoSaveFlow } from "@/components/savings/auto-save/auto-save-flow";
 import { CreateGoalForm } from "@/components/savings/hub/create-goal-form";
 import { GoalDetail } from "@/components/savings/hub/goal-detail";
 import { HubOverview } from "@/components/savings/hub/hub-overview";
@@ -11,7 +13,14 @@ import { SavingsIntroSheet } from "@/components/savings/savings-intro-sheet";
 import { SAVINGS_INTROS } from "@/components/savings/savings-intros";
 import { JoinCircleView } from "@/components/savings/join-circle-view";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
+import {
+  type AutoSaveResult,
+  useAutoSaveRules,
+} from "@/hooks/use-auto-save-rules";
+import { invalidateClientBalances } from "@/lib/client-events";
+import { useRefreshSignal } from "@/lib/refresh";
 import type { SavingsKind } from "@/lib/savings";
+import type { AutoSaveDraft } from "@/lib/savings-auto-save";
 import {
   closeGoal,
   HUB_CURRENCIES,
@@ -34,6 +43,7 @@ import {
 type Stage =
   | { screen: "hub" }
   | { screen: "detail"; id: string }
+  | { screen: "auto-save"; id: string }
   | { screen: "create"; kind: SavingsKind }
   | { screen: "join-circle" };
 
@@ -47,6 +57,7 @@ type Overlay =
  * - Withdrawals (all currencies)
  * - On-chain USDC creation (when deposit > 0)
  * - On-chain USDC top-ups
+ * - Starting or changing an auto-save
  */
 type PendingPinAction =
   | {
@@ -78,6 +89,11 @@ type PendingPinAction =
       planId: string;
       forfeit: boolean;
       amount?: number;
+    }
+  | {
+      type: "auto_save";
+      planId: string;
+      draft: AutoSaveDraft;
     }
   | null;
 
@@ -140,6 +156,14 @@ export function SavingsView() {
     fetchPlans();
     return () => window.clearTimeout(celebrateTimer.current);
   }, [fetchPlans]);
+
+  // A scheduled save moved money while the page was open: re-read the plans and the Naira balance.
+  const refreshAfterRun = useCallback(() => {
+    fetchPlans();
+    invalidateClientBalances({ ngnOnly: true });
+  }, [fetchPlans]);
+  const autoSave = useAutoSaveRules({ onRun: refreshAfterRun });
+  useRefreshSignal(fetchPlans);
 
   /** Applies a change and, if it earned anything, celebrates it once the screen has caught up. */
   const commit = (next: HubGoal[]) => {
@@ -426,6 +450,57 @@ export function SavingsView() {
     }
   };
 
+  // 5. Auto-save (Requires PIN to start a rule or change one)
+  const handleAutoSave = async (
+    planId: string,
+    draft: AutoSaveDraft,
+    pin: string,
+  ) => {
+    if (isSubmittingRef.current || submitting) return;
+
+    isSubmittingRef.current = true;
+    setSubmitting(true);
+    try {
+      const editing = Boolean(autoSave.rules[planId]);
+      const result = await autoSave.save(planId, draft, pin);
+      if (!result.ok) {
+        if (result.wrongPin) {
+          setPinError(true);
+        } else {
+          setPinAction(null);
+        }
+        toast.error(result.message);
+        return;
+      }
+
+      toast.success(editing ? "Auto-save updated" : "Auto-save is on");
+      setPinAction(null);
+      go({ screen: "detail", id: planId });
+    } catch (err) {
+      setPinAction(null);
+      toast.error(
+        err instanceof Error ? err.message : "Could not save auto-save",
+      );
+    } finally {
+      isSubmittingRef.current = false;
+      setSubmitting(false);
+      setPinPending(false);
+    }
+  };
+
+  // Pause, resume and turn-off need no PIN: none of them moves money.
+  const settleAutoSave = async (
+    change: Promise<AutoSaveResult>,
+    done: string,
+  ) => {
+    const result = await change;
+    if (result.ok) {
+      toast.success(done);
+    } else {
+      toast.error(result.message);
+    }
+  };
+
   // Unified PIN Submission Handler
   const handlePinSubmit = async (pin: string) => {
     if (!pinAction) return;
@@ -445,11 +520,13 @@ export function SavingsView() {
         pinAction.forfeit,
         pin,
       );
+    } else if (pinAction.type === "auto_save") {
+      await handleAutoSave(pinAction.planId, pinAction.draft, pin);
     }
   };
 
   const selected =
-    stage.screen === "detail"
+    stage.screen === "detail" || stage.screen === "auto-save"
       ? goals.find((goal) => goal.id === stage.id)
       : undefined;
 
@@ -467,6 +544,36 @@ export function SavingsView() {
         }}
         onSaveAgain={() => go({ screen: "create", kind: selected.kind })}
         onShare={() => share(goalMoment(selected))}
+        autoSave={
+          <AutoSaveEntry
+            goal={selected}
+            rule={autoSave.rules[selected.id]}
+            onSetUp={() => go({ screen: "auto-save", id: selected.id })}
+            onPause={(paused) =>
+              settleAutoSave(
+                autoSave.setPaused(selected.id, paused),
+                paused ? "Auto-save paused" : "Auto-save resumed",
+              )
+            }
+            onTurnOff={() =>
+              settleAutoSave(
+                autoSave.remove(selected.id),
+                "Auto-save turned off",
+              )
+            }
+          />
+        }
+      />
+    );
+  } else if (stage.screen === "auto-save" && selected) {
+    screen = (
+      <AutoSaveFlow
+        goal={selected}
+        rule={autoSave.rules[selected.id]}
+        onExit={() => go({ screen: "detail", id: selected.id })}
+        onSubmit={(draft) =>
+          setPinAction({ type: "auto_save", planId: selected.id, draft })
+        }
       />
     );
   } else if (stage.screen === "create") {
@@ -511,6 +618,10 @@ export function SavingsView() {
         onCurrency={switchCurrency}
         onTab={switchTab}
         onNew={() => go({ screen: "create", kind: "individual" })}
+        onRefresh={() => {
+          fetchPlans();
+          autoSave.reload();
+        }}
         onStory={() => setOverlay({ type: "story" })}
         onPick={(kind) => {
           if (!seenIntros[kind]) {
@@ -529,9 +640,11 @@ export function SavingsView() {
       ? "hub"
       : stage.screen === "detail"
         ? `detail-${stage.id}-${selected?.closed ? "closed" : "open"}`
-        : stage.screen === "create"
-          ? `create-${stage.kind}`
-          : "join-circle";
+        : stage.screen === "auto-save"
+          ? `auto-save-${stage.id}`
+          : stage.screen === "create"
+            ? `create-${stage.kind}`
+            : "join-circle";
 
   return (
     <>
@@ -603,7 +716,9 @@ export function SavingsView() {
                 ? "Creating savings plan..."
                 : pinAction.type === "join"
                   ? "Joining circle..."
-                  : "Depositing..."
+                  : pinAction.type === "auto_save"
+                    ? "Setting up auto-save..."
+                    : "Depositing..."
           }
           onComplete={handlePinSubmit}
           onRetry={() => setPinError(false)}

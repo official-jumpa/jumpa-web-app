@@ -7,6 +7,7 @@ import {
   closeSavingsPlanRecord,
   getUserActiveNgnSavings,
   getUserActiveUsdcSavings,
+  moveNgnIntoPlan,
 } from "@/lib/functions/savingsFunctions";
 import {
   atomicDebitNgnBalance,
@@ -555,30 +556,17 @@ export async function depositSavingsExecution(
       }
     }
 
-    await connectDB();
-    const session = await mongoose.startSession();
     let updatedPlan: any;
     try {
-      await session.withTransaction(async () => {
-        await atomicDebitNgnBalance({ userId, amount, memo: `savings:deposit:topup:${plan._id}`, session });
-        updatedPlan = await SavingsPlan.findOneAndUpdate(
-          { _id: plan._id, status: "Active", currentAmount: { $gte: 0 } },
-          { $inc: { currentAmount: amount } },
-          { returnDocument: "after", session },
-        );
-        if (!updatedPlan) throw new Error("Savings plan is no longer active");
-        await createSavingsTransaction({ planId: plan._id, userId, currency: "NGN", kind: "top_up", amount, at: new Date() }, session);
-        await Transaction.create([{
-          userId, walletId: wallet._id, type: "SAVINGS_DEPOSIT", status: "CONFIRMED",
-          chain: "fiat", network: "mainnet", fromAddress: "ngn_account", toAddress: "savings_plan",
-          amount: String(amount), token: "NGN", memo: `savings:topup:${plan._id}`,
-          savingsDetails: { planId: plan._id, vaultAddress: "ngn_db_vault" }, executedAt: new Date(),
-        }], { session });
+      updatedPlan = await moveNgnIntoPlan({
+        userId,
+        walletId: wallet._id,
+        planId: plan._id,
+        amount,
+        via: "topup",
       });
     } catch (err: any) {
       return { ok: false, error: err.message || `Insufficient NGN balance for this top-up (₦${amount.toLocaleString()}).`, status: 400 };
-    } finally {
-      await session.endSession();
     }
 
     return {

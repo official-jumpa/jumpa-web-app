@@ -121,6 +121,8 @@ export async function updateSavingsPlanBalance(params: {
 }
 
 import { SavingsTransaction, type ISavingsTransaction } from "@/models/SavingsTransaction";
+import { Transaction } from "@/models/Transaction";
+import { atomicDebitNgnBalance } from "@/lib/functions/aellaFunctions";
 
 /**
  * Inserts a new savings transaction record into the DB.
@@ -132,6 +134,68 @@ export async function createSavingsTransaction(
   await connectDB();
   const [record] = await SavingsTransaction.create([data], { session });
   return record;
+}
+
+/**
+ * Moves Naira from the wallet into an active plan in one DB transaction.
+ * Throws "Insufficient NGN wallet balance" or "Savings plan is no longer active"; nothing moves on a throw.
+ */
+export async function moveNgnIntoPlan(params: {
+  userId: string;
+  walletId?: string;
+  planId: string;
+  amount: number;
+  /** Tags the ledger memos: `topup` for a manual top-up, `autosave` for a scheduled one. */
+  via: "topup" | "autosave";
+}): Promise<ISavingsPlan> {
+  const { userId, walletId, planId, amount, via } = params;
+  await connectDB();
+  const session = await mongoose.startSession();
+  try {
+    let plan: ISavingsPlan | null = null;
+    await session.withTransaction(async () => {
+      await atomicDebitNgnBalance({
+        userId,
+        amount,
+        memo: `savings:deposit:${via}:${planId}`,
+        session,
+      });
+      plan = await SavingsPlan.findOneAndUpdate(
+        { _id: planId, status: "Active", currentAmount: { $gte: 0 } },
+        { $inc: { currentAmount: amount } },
+        { returnDocument: "after", session },
+      );
+      if (!plan) throw new Error("Savings plan is no longer active");
+      await createSavingsTransaction(
+        { planId, userId, currency: "NGN", kind: "top_up", amount, at: new Date() },
+        session,
+      );
+      await Transaction.create(
+        [
+          {
+            userId,
+            walletId,
+            type: "SAVINGS_DEPOSIT",
+            status: "CONFIRMED",
+            chain: "fiat",
+            network: "mainnet",
+            fromAddress: "ngn_account",
+            toAddress: "savings_plan",
+            amount: String(amount),
+            token: "NGN",
+            memo: `savings:${via}:${planId}`,
+            savingsDetails: { planId, vaultAddress: "ngn_db_vault" },
+            executedAt: new Date(),
+          },
+        ],
+        { session },
+      );
+    });
+    if (!plan) throw new Error("Savings plan is no longer active");
+    return plan;
+  } finally {
+    await session.endSession();
+  }
 }
 
 /**

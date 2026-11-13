@@ -14,9 +14,12 @@
     "check-deposits": "node --import tsx script/check-deposits.ts",
     "daily-interest": "node --import tsx script/daily-interest.ts",
     "support-sla": "node --import tsx script/support-sla.ts",
-    "test:nimiq": "node --import tsx --test --test-concurrency=1 lib/nimiq/*.test.ts"
+    "auto-save": "node --import tsx script/auto-save.ts",
+    "test:nimiq": "node --import tsx --test --test-concurrency=1 lib/nimiq/*.test.ts",
+    "test:auto-save": "node --import tsx --test lib/auto-save-schedule.test.ts"
   },
   "dependencies": {
+    "@date-fns/tz": "^1.5.0",
     "@mediapipe/tasks-vision": "^1.1.1",
     "@noble/hashes": "^2.4.0",
     "@radix-ui/react-select": "^2.4.1",

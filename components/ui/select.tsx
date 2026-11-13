@@ -5,6 +5,7 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 import { CaretDownIcon } from "@/components/ui/icons/caret-down";
 import { CheckIcon } from "@/components/ui/icons/check";
+import { ChevronDownIcon } from "@/components/ui/icons/chevron-down";
 import { usePopoverBoundary } from "@/hooks/use-popover-boundary";
 import { cn } from "@/lib/cn";
 
@@ -30,9 +31,22 @@ const TRIGGER = {
   /** Compact pill that sits in a screen header beside the title. */
   currency:
     "h-11 gap-0.5 rounded-pill bg-jumpa-neutral-50 pr-3 pl-2 text-xs leading-4 font-medium text-jumpa-black",
+  /** Tall bordered row led by an icon tile — the schedule pickers on the auto-save review. */
+  row: "h-16.25 w-full gap-3.5 rounded-tab bg-jumpa-white pr-4 pl-3.75 text-base leading-5 font-semibold tracking-jumpa-snug text-jumpa-grey-950 inset-ring-[1.5px] inset-ring-jumpa-grey-150",
 } as const;
 
-const LOGO = { field: 20, pill: 16, savings: 20, currency: 20 } as const;
+const LOGO = {
+  field: 20,
+  pill: 16,
+  savings: 20,
+  currency: 20,
+  row: 20,
+} as const;
+
+/** Triggers that draw their own caret instead of the small filled one. */
+const CARET: Partial<Record<keyof typeof TRIGGER, ReactNode>> = {
+  row: <ChevronDownIcon className="size-5 text-jumpa-grey-400" />,
+};
 
 export function Select({
   value,
@@ -97,7 +111,9 @@ export function Select({
         <Primitive.Value placeholder={placeholder} />
         {disabled ? null : (
           <Primitive.Icon className="ml-auto flex shrink-0">
-            <CaretDownIcon aria-hidden="true" className="size-3" />
+            {CARET[variant] ?? (
+              <CaretDownIcon aria-hidden="true" className="size-3" />
+            )}
           </Primitive.Icon>
         )}
       </Primitive.Trigger>

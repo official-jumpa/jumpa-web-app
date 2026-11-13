@@ -106,6 +106,20 @@ const SOFT: Variant = {
   offText: "text-jumpa-primary-950",
 };
 
+/** White thumb in a cool-grey well — the auto-save currency switch. */
+const WELL: Variant = {
+  display: "flex",
+  grid: "grid",
+  frame: "gap-1 rounded-pill bg-jumpa-grey-75 p-1",
+  gap: 1,
+  pad: 1,
+  option:
+    "flex h-9 flex-1 items-center justify-center gap-1.5 rounded-pill text-sm leading-4.5",
+  thumb: "bg-jumpa-white shadow-jumpa-thumb",
+  onText: "font-semibold text-jumpa-primary-950",
+  offText: "font-medium text-jumpa-grey-500",
+};
+
 const VARIANTS = {
   chip: CHIP,
   split: SPLIT,
@@ -113,6 +127,7 @@ const VARIANTS = {
   track: TRACK,
   glass: GLASS,
   soft: SOFT,
+  well: WELL,
 } as const;
 
 /**

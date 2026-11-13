@@ -42,6 +42,7 @@ export const SCHEMA_IDS = {
   ngn: { prefix: "ngn", length: 16, description: "NGN fiat accounts" },
   bill: { prefix: "bill", length: 16, description: "Airtime and data bill purchases" },
   savtx: { prefix: "savtx", length: 16, description: "Savings transaction history" },
+  asave: { prefix: "asave", length: 16, description: "Savings auto-save rules" },
   stmt: { prefix: "stmt", length: 16, description: "Account statement records" },
 
   // ── Utility Entities

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { CopyButton } from "@/components/auth/copy-button";
 import {
   PLAN_ACTION_BUTTON,
@@ -49,6 +49,7 @@ export function GoalDetail({
   onWithdraw,
   onSaveAgain,
   onShare,
+  autoSave,
 }: {
   goal: HubGoal;
   onBack: () => void;
@@ -59,6 +60,8 @@ export function GoalDetail({
   onSaveAgain: () => void;
   /** Opens this plan's share card: its latest milestone, or its start. */
   onShare: () => void;
+  /** The plan's auto-save row, under its actions. */
+  autoSave?: ReactNode;
 }) {
   const [sheet, setSheet] = useState<Sheet>(null);
   const { closed } = goal;
@@ -165,6 +168,8 @@ export function GoalDetail({
           </>
         )}
       </PlanActions>
+
+      {autoSave}
 
       {goal.circle && !closed ? <CircleInvite circle={goal.circle} /> : null}
 

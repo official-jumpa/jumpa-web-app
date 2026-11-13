@@ -61,6 +61,7 @@ export const notificationTypeEnum = z.enum([
   "SUPPORT_AGENT_REPLIED",
   "SUPPORT_TICKET_UPDATED",
   "SUPPORT_TICKET_RESOLVED",
+  "AUTO_SAVE",
 ]);
 
 /**

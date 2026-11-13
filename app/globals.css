@@ -179,6 +179,14 @@
   --color-jumpa-alt-350: #dcf667; /* sheen across the airtime ad headline */
   --color-jumpa-primary-925: #560b99; /* foot of the airtime ad */
 
+  /* Auto-save */
+  --color-jumpa-grey-950: #0b0b0f; /* headings and figures */
+  --color-jumpa-grey-200: #d1d5db; /* ring of an unpicked radio */
+  --color-jumpa-grey-150: #eef0f4; /* option, row and summary card border */
+  --color-jumpa-grey-75: #f4f4f8; /* currency switch track */
+  --color-jumpa-lavender-150: #e7e3f0; /* step still ahead on the progress rail */
+  --color-jumpa-primary-25: #f7f4ff; /* review summary card */
+
   /* Typography. Geist at every size — the face the Figma file specifies.
      `display` and `numeric` still stand in for Gotham Ultra and Neue Montreal,
      which are licensed and not ours to ship. See README.md. */
@@ -222,6 +230,7 @@
   --shadow-jumpa-disc: 0 0 16px rgb(0 0 0 / 0.35); /* direction disc on a quote */
   --shadow-jumpa-toast: 0 8px 24px rgb(17 17 17 / 0.08); /* toast, lifted off the screen under it */
   --shadow-jumpa-ad-rim: inset 0 4px 6px rgb(143 18 255 / 0.16); /* purple lip along the top of the one-app ad */
+  --shadow-jumpa-thumb: 0 2px 6px rgb(0 0 0 / 0.08); /* thumb of the auto-save currency switch */
   --shadow-jumpa-card:
     0 6px 7px rgb(0 0 0 / 0.1), 2px 25px 12.5px rgb(0 0 0 / 0.09),
     4px 57px 17px rgb(0 0 0 / 0.05), 7px 101px 20px rgb(0 0 0 / 0.01);

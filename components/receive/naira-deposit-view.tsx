@@ -22,6 +22,7 @@ import {
   ONRAMP_CHAINS,
   ONRAMP_SOON_CHAINS,
   type OnrampOrder,
+  onrampMinMessage,
 } from "@/lib/naira-deposit";
 import { formatAmount, sanitiseAmount } from "@/lib/transfer";
 
@@ -175,10 +176,17 @@ export function NairaDepositView({
 
   const received =
     locked && order ? Number(order.cryptoAmount) : quote.received;
+  const minFiat = quote.minFiat;
+  const belowMin =
+    minFiat !== undefined &&
+    Math.round(naira) > 0 &&
+    Math.round(naira) < minFiat;
+  const formError =
+    quote.error ?? (belowMin ? onrampMinMessage(minFiat) : undefined);
   const canContinue =
     Math.round(naira) > 0 &&
     !quote.loading &&
-    !quote.error &&
+    !formError &&
     quote.received !== undefined;
 
   return (
@@ -269,9 +277,9 @@ export function NairaDepositView({
         </p>
       </div>
 
-      {quote.error && !locked ? (
+      {formError && !locked ? (
         <div className="mt-3">
-          <FieldError>{quote.error}</FieldError>
+          <FieldError>{formError}</FieldError>
         </div>
       ) : null}
 

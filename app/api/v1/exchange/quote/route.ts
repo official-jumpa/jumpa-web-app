@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
+import { getOnrampMinNaira } from "@/lib/functions/onrampFunctions";
 import { SwitchService } from "@/lib/switch";
 import { switchQuoteSchema } from "@/lib/validations/switch.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
@@ -33,6 +34,9 @@ export async function POST(req: NextRequest) {
     }
 
     const { amount, asset, direction = "onramp" } = validation.data;
+    // Priced alongside the quote, so the screen can show the minimum as they type.
+    const minFiatPending =
+      direction === "onramp" ? getOnrampMinNaira(asset) : Promise.resolve(null);
 
     let result: {
       success: boolean;
@@ -141,6 +145,7 @@ export async function POST(req: NextRequest) {
       rate: result.data?.rate,
       source: result.data?.source,
       destination: result.data?.destination,
+      minFiatAmount: await minFiatPending,
     });
   } catch (err: any) {
     const isTimeout = isTimeoutError(err);

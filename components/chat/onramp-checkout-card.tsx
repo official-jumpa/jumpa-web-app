@@ -12,6 +12,7 @@ import {
 } from "@/components/chat/chat-card";
 import { RampNotes, RampNotice } from "@/components/chat/ramp-parts";
 import type { OnrampCard } from "@/lib/chat";
+import { ONRAMP_FAILED_MESSAGE } from "@/lib/naira-deposit";
 import { formatAmount } from "@/lib/transfer";
 
 /** Shared with `ActionRow`'s pair, so the two read as the same control. */
@@ -95,10 +96,7 @@ export function OnrampCheckoutCard({
           paidRef.current?.();
         } else if (data?.success && data.isFailed) {
           setPhase("failed");
-          setNotice(
-            data.message ||
-              "This order expired. Start a new deposit to try again.",
-          );
+          setNotice(data.message || ONRAMP_FAILED_MESSAGE);
         } else if (data?.success && data.isProcessing) {
           setPhase("delivering");
           setNotice(

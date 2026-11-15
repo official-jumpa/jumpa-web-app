@@ -1,4 +1,5 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
+import { CONTRACT_ADDRESSES } from "@/lib/blockchain";
 import { environment } from "@/lib/environment";
 
 // Patch server-side DNS lookup for Stellar testnet when local router fails on AWS ELB CNAMEs
@@ -76,6 +77,27 @@ export function getHorizonServer(
   network: "testnet" | "mainnet" = "testnet",
 ): StellarSdk.Horizon.Server {
   return network === "mainnet" ? stellarMainnetServer : stellarTestnetServer;
+}
+
+/**
+ * Whether `address` can take USDC on mainnet: activated, with the USDC trustline.
+ * Read-only. Answers true when Horizon can't be reached, so an outage doesn't block deposits.
+ */
+export async function canReceiveStellarUsdc(address: string): Promise<boolean> {
+  try {
+    const account = await stellarMainnetServer.loadAccount(address);
+    return account.balances.some(
+      (b) =>
+        "asset_code" in b &&
+        b.asset_code === "USDC" &&
+        b.asset_issuer === CONTRACT_ADDRESSES.stellar.mainnet.USDC,
+    );
+  } catch (err) {
+    const e = err as { response?: { status?: number }; status?: number; message?: string };
+    if (e?.response?.status === 404 || e?.status === 404) return false;
+    console.warn(`[Stellar] Couldn't check ${address} for USDC: ${e?.message}`);
+    return true;
+  }
 }
 
 /**

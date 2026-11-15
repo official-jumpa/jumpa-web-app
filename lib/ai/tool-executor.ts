@@ -7,7 +7,11 @@
  */
 
 import { getBridgeQuote } from "@/lib/bridge";
-import { fetchStellarBalances, fundTestnetAccount } from "@/lib/chains/stellar";
+import {
+  canReceiveStellarUsdc,
+  fetchStellarBalances,
+  fundTestnetAccount,
+} from "@/lib/chains/stellar";
 import { getAssetLogo } from "@/lib/assets";
 import type {
   AccountsCard,
@@ -41,6 +45,13 @@ import { toChatPlan } from "./savings-plan-card";
 import { getNetworkFromToolName, type JumpaToolName } from "./tools";
 import { analyzeImageWithGemini } from "./vision";
 import { getCentiivQuote, createCentiivOnramp, createCentiivOfframp } from "@/lib/functions/centiivFunctions";
+import { getOnrampNairaPerToken } from "@/lib/functions/onrampFunctions";
+import {
+  formatNaira,
+  ONRAMP_MIN_USD,
+  onrampMinMessage,
+  onrampMinNaira,
+} from "@/lib/naira-deposit";
 import { findCentiivBank } from "@/lib/constants/centiiv-banks";
 import { getLiveRates } from "@/lib/rates";
 import { getSponsorKeypair } from "@/lib/chains/stellar/sponsor";
@@ -489,6 +500,56 @@ const BRIDGE_AMOUNTS: ChatOption[] = [
   { label: "25 USDC", amount: "$25.00", logo: "/coins/usdc.webp", reply: "25 USDC" },
   { label: "Custom Amount", custom: true, placeholder: "Enter amount in USDC" },
 ];
+
+/** Offered when an on-ramp is under the minimum: the minimum, two round sums, or their own. */
+function onrampAmountOptions(
+  asset: string,
+  token: string,
+  nairaPerToken: number,
+): ChatOption[] {
+  const chain = asset.split(":")[0] ?? "";
+  const where = `${token} on ${chain.charAt(0).toUpperCase()}${chain.slice(1)}`;
+  const row = (usd: number): ChatOption => {
+    const naira = Math.ceil(usd * nairaPerToken);
+    return {
+      label: formatNaira(naira),
+      amount: `$${usd.toFixed(2)}`,
+      logo: getAssetLogo(token),
+      reply: `Deposit ₦${naira.toLocaleString("en-NG")} for ${where}`,
+    };
+  };
+  const min = onrampMinNaira(nairaPerToken);
+  return [
+    row(ONRAMP_MIN_USD),
+    row(5),
+    row(10),
+    {
+      label: "Custom Amount",
+      custom: true,
+      placeholder: `Amount in naira, ₦${min.toLocaleString("en-NG")} or more`,
+    },
+  ];
+}
+
+/** Where to send a deposit instead when their Stellar wallet can't take USDC yet. */
+function stellarOnrampFallbacks(fiatAmount: number): ChatOption[] {
+  const naira = fiatAmount.toLocaleString("en-NG");
+  return [
+    { label: "USDC on Base", logo: getAssetLogo("base"), reply: `Deposit ₦${naira} for USDC on Base` },
+    { label: "USDC on Solana", logo: getAssetLogo("sol"), reply: `Deposit ₦${naira} for USDC on Solana` },
+  ];
+}
+
+/** A provider's ISO deadline as a Lagos clock time, e.g. "3:45 PM"; null when it sent none. */
+function lagosTime(iso?: string): string | null {
+  const at = iso ? new Date(iso) : null;
+  if (!at || Number.isNaN(at.getTime())) return null;
+  return at.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Africa/Lagos",
+  });
+}
 
 function parseBridgeChain(
   val?: string,
@@ -1227,40 +1288,63 @@ export async function executeTool(
           throw new Error("USDT is not supported on Base. Please choose Solana or Ethereum for USDT.");
         }
 
-        let amount: number;
         const cleanFiat = fiatAmount
           ? Number(String(fiatAmount).replace(/[^\d.]/g, ""))
           : 0;
         const cleanCrypto = cryptoAmount
           ? Number(String(cryptoAmount).replace(/[^\d.]/g, ""))
           : 0;
+        if (!(cleanFiat > 0) && !(cleanCrypto > 0)) {
+          throw new Error("Please specify the amount in Naira (fiatAmount) or crypto (cryptoAmount).");
+        }
 
+        const [nairaPerToken, stellarReady] = await Promise.all([
+          getOnrampNairaPerToken(asset),
+          isStellar ? canReceiveStellarUsdc(walletAddress) : true,
+        ]);
+
+        let amount: number;
         if (cleanFiat > 0) {
           amount = Math.round(cleanFiat);
-        } else if (cleanCrypto > 0) {
-          if (isStellar) {
-            const quote = await getCentiivQuote({ fromAsset: "NGN", toAsset: "USDC", amount: 50000 });
-            const rawRate = Number(quote.rate);
-            const onrampRatePerUsd = rawRate > 0 && rawRate < 1 ? 1 / rawRate : rawRate;
-            amount = Math.round(cleanCrypto * onrampRatePerUsd);
-          } else {
-            const rateRes = await SwitchService.getOnrampRate(asset);
-            if (!rateRes.success || !rateRes.rate) {
-              throw new Error(
-                rateRes.message || "Failed to fetch live onramp exchange rate"
-              );
-            }
-            amount = Math.round(cleanCrypto * rateRes.rate);
-            console.log(
-              `[ToolExecutor] [User: ${userId}] Computed onramp fiat amount: ₦${amount.toLocaleString()} for ${cleanCrypto} ${cryptoToken} (Rate: ₦${rateRes.rate})`
-            );
-          }
+        } else if (nairaPerToken) {
+          amount = Math.round(cleanCrypto * nairaPerToken);
         } else {
-          throw new Error("Please specify the amount in Naira (fiatAmount) or crypto (cryptoAmount).");
+          throw new Error("Couldn't get a live rate to price this deposit. Try again shortly.");
         }
 
         if (isNaN(amount) || amount <= 0) {
           throw new Error("Invalid onramp amount");
+        }
+
+        // Under the minimum: no order, just amounts that clear it. Skipped when there's no live rate.
+        if (nairaPerToken && amount < onrampMinNaira(nairaPerToken)) {
+          const token = (cryptoToken || asset.split(":")[1] || "USDC").toUpperCase();
+          return {
+            toolName: name,
+            summaryForAI:
+              `${onrampMinMessage(onrampMinNaira(nairaPerToken))} ₦${amount.toLocaleString("en-NG")} is below it, ` +
+              "so no order was created. Ask them to pick an amount from the card.",
+            cardHint: {
+              type: "options",
+              data: { options: onrampAmountOptions(asset, token, nairaPerToken) },
+            },
+            requiresConfirmation: false,
+          };
+        }
+
+        // Centiiv can't deliver to a Stellar wallet that isn't activated with a USDC trustline.
+        if (!stellarReady) {
+          return {
+            toolName: name,
+            summaryForAI:
+              "No order was created: their Stellar wallet isn't activated for USDC yet, so the deposit " +
+              "couldn't land there. Offer USDC on Base or Solana from the card instead.",
+            cardHint: {
+              type: "options",
+              data: { options: stellarOnrampFallbacks(amount) },
+            },
+            requiresConfirmation: false,
+          };
         }
 
         let deposit: any;
@@ -1280,11 +1364,15 @@ export async function executeTool(
           });
 
           reference = res.id;
+          const payBy = lagosTime(res.temporaryWallet?.expiresAt);
           deposit = { //centiiv returns accountNumber and not virtualAccountNumber..
             bank_name: res.temporaryWallet?.bankName || "",
             account_name: res.temporaryWallet?.accountName || "",
             account_number: res.temporaryWallet?.accountNumber || "",
-            note: "Transfer the exact amount from a bank account in your own name.",
+            note: [
+              ...(payBy ? [`This account expires at ${payBy}. Pay before then.`] : []),
+              "Transfer the exact amount from a bank account in your own name.",
+            ],
           };
 
           if (cleanFiat > 0) {

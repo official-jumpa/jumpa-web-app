@@ -6,6 +6,8 @@ import { switchOnrampSchema } from "@/lib/validations/switch.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
+import { getOnrampMinNaira } from "@/lib/functions/onrampFunctions";
+import { onrampMinMessage } from "@/lib/naira-deposit";
 import {
   formatOneLineError,
   isTimeoutError,
@@ -37,6 +39,15 @@ export async function POST(req: NextRequest) {
     }
 
     const { fiatAmount, cryptoToken, asset, walletAddress } = validation.data;
+
+    // Skipped when there's no live rate; Switch still prices the order itself.
+    const minFiatAmount = await getOnrampMinNaira(asset);
+    if (minFiatAmount && fiatAmount < minFiatAmount) {
+      return NextResponse.json(
+        { success: false, error: onrampMinMessage(minFiatAmount), minFiatAmount },
+        { status: 400 },
+      );
+    }
 
     const result = await SwitchService.initiateOnRamp(
       fiatAmount,

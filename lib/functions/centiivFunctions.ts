@@ -174,6 +174,8 @@ export async function createCentiivOnramp(params: {
       accountName: string;
       bankName: string;
       bankCode: string;
+      /** When the account stops taking the transfer. */
+      expiresAt?: string;
     };
   }>("/requests", {
     method: "POST",

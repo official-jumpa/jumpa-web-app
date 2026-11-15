@@ -10,6 +10,8 @@ export type OnrampQuote = {
   received?: number;
   /** Naira per one token. */
   rate?: number;
+  /** Smallest naira deposit allowed, when the server could price it. */
+  minFiat?: number;
   loading: boolean;
   error?: string;
 };
@@ -44,6 +46,7 @@ export function useOnrampQuote(amount: number, asset: string): OnrampQuote {
           received: Number(data.destination?.amount ?? 0),
           // Some providers quote tokens per naira; the screen always reads naira per token.
           rate: raw > 0 && raw < 1 ? 1 / raw : raw,
+          minFiat: Number(data.minFiatAmount) || undefined,
         });
       } catch (err) {
         if (controller.signal.aborted) return;

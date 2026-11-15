@@ -15,6 +15,22 @@ export const ONRAMP_CHAINS: Record<NairaToken, string[]> = {
 /** Listed as coming soon: Stellar settles through a provider the route does not call yet. */
 export const ONRAMP_SOON_CHAINS = ["stellar"];
 
+/** Smallest on-ramp in dollars; chat, the Deposit Naira screen and the server all hold to it. */
+export const ONRAMP_MIN_USD = 1.5;
+
+/** The naira that buys `ONRAMP_MIN_USD` at `nairaPerToken`, rounded up to a whole naira. */
+export function onrampMinNaira(nairaPerToken: number): number {
+  return Math.ceil(ONRAMP_MIN_USD * nairaPerToken);
+}
+
+export function onrampMinMessage(minNaira: number): string {
+  return `The minimum deposit is ${formatNaira(minNaira)} ($${ONRAMP_MIN_USD.toFixed(2)}).`;
+}
+
+/** An order that closed unpaid or failed; the user may still have sent money. */
+export const ONRAMP_FAILED_MESSAGE =
+  "This deposit expired or didn't go through. If you already paid, share your receipt in Support.";
+
 export function isNairaToken(value?: string | null): value is NairaToken {
   return NAIRA_TOKENS.includes(value as NairaToken);
 }

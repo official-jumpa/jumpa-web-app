@@ -15,6 +15,7 @@ import {
   isTimeoutError,
 } from "@/lib/utils/api-best-practices";
 import { dispatchTransactionEmail } from "@/lib/functions/transactionEmailFunctions";
+import { ONRAMP_FAILED_MESSAGE } from "@/lib/naira-deposit";
 
 export const dynamic = "force-dynamic";
 
@@ -207,7 +208,9 @@ export async function GET(req: NextRequest) {
       }
     } else if (isFailed) {
       humanMessage =
-        "Transaction failed or expired. Please initiate a new transaction.";
+        existingTx?.type === "OFFRAMP"
+          ? "Transaction failed or expired. Please initiate a new transaction."
+          : ONRAMP_FAILED_MESSAGE;
       try {
         await updateTransactionByReference(validation.data.reference, {
           status: "FAILED",

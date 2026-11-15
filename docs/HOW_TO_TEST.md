@@ -1,6 +1,8 @@
-# How to Test: End-to-End Tranche 1 & Tranche 2 Testing Guide
+# How to Test: Tranche 1, 2 and 3 Testing Guide
 
 This guide provides step-by-step instructions for testing Jumpa's core features on the Stellar Testnet, including seamless onboarding, automated wallet generation, AI-powered conversational swaps via Soroswap, on-chain settlement, DeFindex yield savings, and Allbridge cross-chain bridging.
+
+Tranche 3 runs on Stellar mainnet with real money. Its steps are in [Tranche 3: testing on mainnet](#tranche-3-testing-on-mainnet) below.
 
 ---
 
@@ -120,6 +122,45 @@ This guide provides step-by-step instructions for testing Jumpa's core features 
    - Click **Confirm** on the Bridge Card.
    - The **PIN Sheet drawer** slides up. Enter your 6-digit PIN.
    - Jumpa verifies the PIN, records the transaction under `status: "SIMULATED"` in the database, and renders a verified **Receipt Card** labeled **`Simulated`**.
+
+---
+
+## Tranche 3: testing on mainnet
+
+Everything here uses real money on Stellar mainnet at [usejumpa.com](https://usejumpa.com). About $5 is enough to go through all of it. Every receipt links to its transaction on Stellar Expert, so you can check each step on chain as you go. The contract addresses to look for are listed in section 7 of [`TRANCHE_3_COMPLETE.md`](TRANCHE_3_COMPLETE.md).
+
+### Get your wallet ready
+
+A new Stellar address doesn't exist on the network until it holds at least 1 XLM, and it can't hold USDC until it has a USDC trustline. To get there:
+
+1. Sign up at usejumpa.com and set your PIN. Open **Receive** and copy your Stellar address.
+2. Send it about 20 XLM from an exchange or another wallet. Sending 1 XLM or more to a new address creates the account. Most exchanges do this for you.
+3. In chat, type *"swap 15 XLM to USDC"* and confirm with your PIN. This first swap also opens your USDC trustline, and Jumpa pays the network fee.
+
+### Swap through Soroswap
+
+1. In chat, type *"swap 2 XLM to USDC"*, or use the Swap tab at `/swap`.
+2. Check the quote card, tap **Confirm** and enter your PIN.
+3. Open the receipt's explorer link. The transaction calls `swap_exact_tokens_for_tokens` on the Soroswap router, and the fee is paid by Jumpa's fee account.
+
+### Save into DeFindex
+
+1. Go to `/savings` and create a USDC goal.
+2. Top it up with 1 USDC and enter your PIN. The transaction calls `deposit` on the DeFindex vault, and the goal balance updates from the vault.
+3. Optional: turn on auto-save at $0.10 a day. Runs are picked up every five minutes, so the first one lands shortly after its scheduled time.
+
+### Bridge with Circle CCTP
+
+1. In chat, type *"bridge 1 USDC from Stellar to Base"*, or use the Bridge tab at `/swap`.
+2. The card shows the fee and what will arrive. Confirm with your PIN.
+3. The Stellar transaction calls `deposit_for_burn` on Circle's TokenMessenger. The USDC usually reaches your Base wallet within a few minutes.
+
+### Naira in and out (needs a Nigerian bank account)
+
+1. To deposit, type *"buy 3000 naira of USDC on Stellar"* in chat. Pay the exact amount into the account shown before it expires, and the USDC arrives in your Stellar wallet. The minimum is $1.50 worth of naira.
+2. To cash out, type *"withdraw 2 USDC to my bank"* and pick the account. The receipt links to the USDC payment on Stellar.
+
+If the chat offers USDC on Base or Solana when you ask for Stellar, your wallet isn't ready to hold USDC yet. Do the first swap above, then try again.
 
 ---
 

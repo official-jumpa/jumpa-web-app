@@ -80,6 +80,11 @@ export const DOCS_CATEGORIES: DocCategory[] = [
         id: "virtual-accounts",
         description: "Personalized Nigerian bank virtual accounts with instant automated reconciliation.",
       },
+      {
+        title: "Stellar Integrations",
+        id: "stellar-integrations",
+        description: "How swaps, savings, bridging and naira payments run on Stellar, and how your keys are derived and protected.",
+      },
     ],
   },
   {
@@ -334,11 +339,11 @@ export const DOCS_PAGES: Record<string, DocPage> = {
       {
         id: "stellar-activation",
         title: "Stellar Account Activation & USDC Trustlines",
-        content: `The Stellar network has two unique on-chain requirements that can easily confuse beginners:\n\n1. **Account Activation (Base Reserve):** A new Stellar address does not exist on the public ledger until it is funded with a minimum starting reserve of at least 1 XLM.\n2. **USDC Trustlines:** To protect users from receiving spam tokens, Stellar requires an address to explicitly open a 'trustline' before it can receive tokens like Circle USDC.\n\n**How Jumpa Handles It Automatically:**\nJumpa completely automates this process for you. When your Jumpa Stellar wallet is initialized, Jumpa's platform sponsor automatically funds the 1.6 XLM base reserve to activate your account on-chain and establishes the official Circle USDC trustline behind the scenes.\n\nYou never have to purchase XLM or configure blockchain settings—your Stellar address is active and ready to receive USDC immediately.\n\n*(Note: If you withdraw funds from Jumpa to a friend's external Stellar wallet, their external address must already be activated with at least 1 XLM).*`,
+        content: `The Stellar network has two on-chain rules that can confuse beginners:\n\n1. **Account Activation (Base Reserve):** A new Stellar address does not exist on the public ledger until it receives at least 1 XLM.\n2. **USDC Trustlines:** To protect users from spam tokens, a Stellar address has to open a 'trustline' before it can hold a token like Circle USDC. Each trustline sets aside another 0.5 XLM as a reserve.\n\n**How It Works on Jumpa:**\nYour Stellar wallet becomes active the first time it receives 1 XLM or more. Most exchanges handle this for you when you withdraw XLM to a new address. After that, your first swap from XLM to USDC opens your USDC trustline, and Jumpa pays the network fee for it.\n\nIf you try to buy USDC on Stellar before your wallet is ready, Jumpa offers to send it to your Base or Solana wallet instead.\n\nSending to someone else's Stellar wallet? It has to be active already, and it needs a USDC trustline to receive USDC.`,
         callout: {
           type: "tip",
-          title: "Zero Setup Friction",
-          text: "Jumpa covers the Stellar activation fee and trustline configuration automatically, so you can receive USDC instantly with zero prior setup.",
+          title: "Getting Set Up",
+          text: "Send at least 3 XLM to your Stellar address, then swap some of it to USDC. After that, your wallet can receive USDC from anywhere.",
         },
       },
       {
@@ -375,6 +380,83 @@ export const DOCS_PAGES: Record<string, DocPage> = {
         id: "virtual-account-benefits",
         title: "Key Advantages",
         content: `Jumpa's virtual account architecture provides distinct advantages over conventional funding methods:\n\n- **No Crypto Complexity:** You don't need to navigate hex addresses, network chains, or QR codes just to fund your account with Naira.\n- **Instant Automated Reconciliation:** Every transaction is tied specifically to your unique account number, eliminating manual payment proofs, delayed confirmations, or misrouted deposits.\n- **Bank-Grade Reliability:** Powered by Nigeria's Central Bank-licensed clearing switches, ensuring 99.9% uptime and immediate payment notifications.`,
+      },
+    ],
+  },
+  "stellar-integrations": {
+    id: "stellar-integrations",
+    category: "Architecture",
+    categoryId: "architecture",
+    title: "Stellar Integrations",
+    description:
+      "How swaps, savings, bridging and naira payments run on Stellar, and how your keys are derived and protected.",
+    lastUpdated: "November 2026",
+    sections: [
+      {
+        id: "overview",
+        title: "How Jumpa Uses Stellar",
+        content: `Stellar is the main network behind Jumpa. When you swap, save, move USDC to another chain or cash out to a Nigerian bank, the money moves on Stellar mainnet through one of four services.\n\nYou don't have to pick any of them. You type what you want in chat, or use the Swap and Savings screens, and Jumpa handles the rest. Every action ends with a receipt that links to its transaction on Stellar Expert.`,
+        table: {
+          headers: ["Service", "What you do in Jumpa", "What happens on Stellar"],
+          rows: [
+            ["Soroswap", "Swap XLM, USDC and other Stellar tokens", "A swap through the Soroswap router contract"],
+            ["DeFindex", "Save USDC toward a goal and earn yield", "A deposit into a DeFindex USDC vault"],
+            ["Circle CCTP", "Move USDC between Stellar and Base, Ethereum or Solana", "Circle burns USDC on one chain and mints it on the other"],
+            ["Centiiv", "Buy USDC with naira, or cash USDC out to your bank", "USDC moves between your wallet and Centiiv"],
+          ],
+        },
+      },
+      {
+        id: "swaps",
+        title: "Swaps Through Soroswap",
+        content: `Ask for a swap in chat, for example "swap 20 XLM to USDC", or open the Swap tab. Jumpa gets a quote from Soroswap, which checks prices across Soroswap, Aqua, Phoenix and the Stellar DEX and picks the best route. The quote card shows the rate and what you'll receive.\n\nWhen you confirm with your PIN, Jumpa signs the swap with your key and sends it to the Soroswap router contract. You don't need XLM for the network fee, because Jumpa pays it.`,
+      },
+      {
+        id: "savings",
+        title: "Savings on DeFindex",
+        content: `Savings goals hold USDC in a DeFindex vault on Stellar. Your goal balance and the APY on the Savings screen are read from the vault itself, so the yield moves with the vault's returns. It isn't a fixed rate.\n\n- You can top up a goal at any time from the Savings screen.\n- Auto-save deposits for you on a daily, weekly, monthly or custom schedule, from $0.10 a run. You approve the plan once with your PIN.\n- Locked goals can still be withdrawn early. You lose the interest earned, but your principal comes back in full.`,
+      },
+      {
+        id: "bridging",
+        title: "Moving USDC Across Chains",
+        content: `Jumpa uses Circle's Cross-Chain Transfer Protocol (CCTP) to move USDC between Stellar and Base, Ethereum or Solana. There are no liquidity pools or wrapped tokens involved. Circle burns the USDC on the chain it leaves and mints the same amount of native USDC on the chain it arrives on.\n\nType something like "bridge 10 USDC from Stellar to Base", or use the Bridge tab. The card shows the fee and how much will arrive before you confirm. Most transfers land within a few minutes.`,
+      },
+      {
+        id: "naira",
+        title: "Naira Deposits and Payouts",
+        content: `Centiiv connects Jumpa's Stellar wallets to Nigerian bank transfers.\n\n- To buy USDC, ask in chat, for example "buy 5000 naira of USDC on Stellar". Jumpa shows a bank account and an exact amount. Pay it before it expires and the USDC arrives in your Stellar wallet. The minimum is $1.50 worth of naira.\n- To cash out, ask to withdraw USDC to your bank and pick the account. Jumpa sends the USDC from your Stellar wallet to Centiiv, and Centiiv pays naira into your account.\n\nYour wallet needs a USDC trustline before it can receive USDC on Stellar. If it doesn't have one yet, Jumpa offers to deliver the USDC on Base or Solana instead. [Stellar Account Activation](/docs/gas-abstraction#stellar-activation) explains how to get set up.`,
+      },
+      {
+        id: "fees",
+        title: "Network Fees",
+        content: `Every Stellar transaction pays a small network fee in XLM. On swaps and naira payouts, Jumpa pays it for you by wrapping your signed transaction in a fee bump from its own fee account. On Stellar Expert you'll see that account, [GAB72B74…KRSQF4IB](https://stellar.expert/explorer/public/account/GAB72B74GG24KKJMASIYPFFDCHPZ7GJK4TZBTG7HFPN4K5GUKRSQF4IB), as the fee payer. For savings deposits, Jumpa sends your wallet a little XLM first if you're short.\n\nSwaps into or out of USDC carry a flat service fee of $0.05 in USDC. A manual savings top-up pays the same fee only when Jumpa had to send you XLM for it. Auto-save runs never do.`,
+      },
+      {
+        id: "keys",
+        title: "Your Keys and Derivation Path",
+        content: `When you sign up, Jumpa creates a 12-word BIP-39 recovery phrase for you. Your Stellar account is derived from it at \`m/44'/148'/0'\`, the path set by SEP-0005 and used by other Stellar wallets. The same 12 words restore the same Stellar account in any wallet that follows SEP-0005, so you can take your account elsewhere whenever you like. If you imported a wallet with a Stellar secret key instead, Jumpa uses that key as it is.\n\nYou can view your phrase, or export your Stellar secret key on its own, from Settings after entering your PIN. This is how the phrase becomes a Stellar key:`,
+        codeBlock: {
+          language: "typescript",
+          filename: "derive-stellar-key.ts",
+          code: `import * as bip39 from "bip39";
+import { derivePath } from "ed25519-hd-key";
+import { Keypair } from "@stellar/stellar-sdk";
+
+// SEP-0005: the first Stellar account for a BIP-39 phrase
+const seed = bip39.mnemonicToSeedSync(phrase);
+const { key } = derivePath("m/44'/148'/0'", seed.toString("hex"));
+const keypair = Keypair.fromRawEd25519Seed(key);`,
+        },
+      },
+      {
+        id: "data-protection",
+        title: "How We Protect Your Keys and Data",
+        content: `Your recovery phrase is never stored in plain text. It's encrypted with AES-256-GCM, with a random salt and IV for each wallet. The encryption key is derived with HKDF-SHA256 from that salt and a server secret kept outside the database, so a copy of the database on its own can't unlock any wallet.\n\nThat server secret is also what lets auto-save run while you're away, so we limit when it's used. Your phrase is decrypted in memory only for these three things, and dropped straight after:\n\n- signing a transaction you confirmed with your PIN\n- running an auto-save plan you set up and approved with your PIN\n- showing you your phrase when you ask for it in Settings\n\nThe AI assistant never sees your keys. It can only prepare a confirmation card, and your PIN is what releases the transaction. Your PIN is stored as a bcrypt hash, and five wrong attempts lock your wallet for 15 minutes.\n\nStellar transactions are public, which is why you can check every one of them. Your name, phone number, bank details and ID documents are not. They stay off chain in Jumpa's database and never go into a Stellar transaction. See [Security & Privacy Safeguards](/docs/security-features) for more.`,
+      },
+      {
+        id: "verify",
+        title: "Check Any Transaction Yourself",
+        content: `Every receipt in Jumpa links to its transaction on [Stellar Expert](https://stellar.expert/explorer/public). These are the accounts and contracts behind each service, so you can look at their activity directly:\n\n- Jumpa fee account: [GAB72B74…KRSQF4IB](https://stellar.expert/explorer/public/account/GAB72B74GG24KKJMASIYPFFDCHPZ7GJK4TZBTG7HFPN4K5GUKRSQF4IB)\n- Soroswap router: [CAG5LRYQ…CCFAJDDH](https://stellar.expert/explorer/public/contract/CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH)\n- DeFindex USDC vault: [CCPAXQPQ…IB3T23VV](https://stellar.expert/explorer/public/contract/CCPAXQPQQALOPBRTWUJ6EMSCVSGQLADQLITHZIFHW4J2MV5QIB3T23VV)\n- Circle CCTP TokenMessenger: [CAE2G5Z7…FLPNFTXL](https://stellar.expert/explorer/public/contract/CAE2G5Z77UP7GYPYGFOWFGW7C7J6I4YP2AFGSADRKQY62SYUFLPNFTXL)\n- Centiiv settlement: [CALU3LXG…7QUZGRV4](https://stellar.expert/explorer/public/contract/CALU3LXG6NI3LREMGX6AWTUV4WMSV6HFBUMR5AKF52B2J3ZK7QUZGRV4)`,
       },
     ],
   },

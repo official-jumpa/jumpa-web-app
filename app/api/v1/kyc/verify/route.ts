@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import {
   completeKycVerification,
   getOrCreateKycRecord,
+  kycFailureMessage,
   parseMyazaBiodata,
   syncKycToUserProfile,
 } from "@/lib/functions/kycFunctions";
@@ -280,26 +281,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Intercept failure from provider and map to friendly copy
-    const rawMsg = String(data?.message || data?.error || "");
-    let userFacingError =
-      "Identity verification could not be completed. Please review your details and try again.";
-
-    if (response.status >= 500 || data?.error === "internal_error") {
-      userFacingError =
-        "The verification service is momentarily busy. Please try submitting again in a moment.";
-    } else if (/facial|face|match|confidence/i.test(rawMsg)) {
-      userFacingError =
-        "Facial match could not be confirmed. Please take a clear, well-lit live selfie looking straight at the camera.";
-    } else if (
-      response.status === 422 ||
-      /invalid|not found|id number|record|does not match/i.test(rawMsg)
-    ) {
-      userFacingError =
-        "The ID number provided was not found. Please double-check your ID number and try again.";
-    } else if (rawMsg && rawMsg.length < 120 && !rawMsg.includes("{")) {
-      userFacingError = rawMsg;
-    }
+    const userFacingError = kycFailureMessage(data, idType, response.status);
 
     console.error(
       `[Myaza] Upstream failure | Status: ${response.status} | Payload: ${formatOneLineError(data)}`,

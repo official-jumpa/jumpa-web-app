@@ -4,6 +4,7 @@ import {
   completeKycVerification,
   getCachedKycRecord,
   getOrCreateKycRecord,
+  kycFailureMessage,
   parseMyazaBiodata,
   resetKycDraft,
   setCachedKycRecord,
@@ -121,10 +122,7 @@ export async function GET(req: NextRequest) {
             statusStr === "failed" ||
             statusStr === "declined"
           ) {
-            const errorMsg =
-              myazaData.message ||
-              myazaData.error ||
-              "Identity verification was rejected";
+            const errorMsg = kycFailureMessage(myazaData, kycRecord.idType);
             await completeKycVerification(auth.userId, {
               verificationId: kycRecord.verificationId,
               status: "failed",

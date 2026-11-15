@@ -797,3 +797,59 @@ export function parseMyazaBiodata(data: any): IKycDetails {
           : null,
   };
 }
+
+/** The parts of a Myaza verdict that explain a decline; some arrive nested under `result`/`data`. */
+type MyazaVerdict =
+  | {
+      reason?: unknown;
+      reasonCode?: unknown;
+      message?: unknown;
+      error?: unknown;
+      result?: MyazaVerdict;
+      data?: MyazaVerdict;
+    }
+  | null
+  | undefined;
+
+const KYC_ID_NOT_FOUND =
+  "The ID number provided was not found. Please double-check your ID number and try again.";
+const KYC_NIN_NOT_FOUND =
+  "That NIN wasn't found in the government database. Check the number and try again. To confirm your NIN, dial *346# from the phone number linked to it.";
+const KYC_GENERIC_FAILURE =
+  "Identity verification could not be completed. Please review your details and try again.";
+
+/**
+ * What to tell the user when Myaza declines or fails a verification: our own copy
+ * for codes we can act on, then Myaza's `reason` (written for end users), then a
+ * read of its `message`/`error`.
+ */
+export function kycFailureMessage(
+  data: MyazaVerdict,
+  idType?: string | null,
+  httpStatus = 200,
+): string {
+  const body = data?.result || data?.data || data || {};
+  const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+
+  if (httpStatus >= 500 || data?.error === "internal_error") {
+    return "The verification service is momentarily busy. Please try submitting again in a moment.";
+  }
+
+  const code = text(data?.reasonCode) || text(body.reasonCode);
+  if (code === "identity_not_found") {
+    return idType === "nin" ? KYC_NIN_NOT_FOUND : KYC_ID_NOT_FOUND;
+  }
+
+  const reason = text(data?.reason) || text(body.reason);
+  if (reason && reason.length <= 300 && !reason.includes("{")) return reason;
+
+  const raw = text(data?.message) || text(data?.error);
+  if (/facial|face|match|confidence/i.test(raw)) {
+    return "Facial match could not be confirmed. Please take a clear, well-lit live selfie looking straight at the camera.";
+  }
+  if (httpStatus === 422 || /invalid|not found|id number|record|does not match/i.test(raw)) {
+    return KYC_ID_NOT_FOUND;
+  }
+  if (raw && raw.length < 120 && !raw.includes("{")) return raw;
+  return KYC_GENERIC_FAILURE;
+}

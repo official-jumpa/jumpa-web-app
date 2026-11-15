@@ -30,6 +30,11 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, mainnet as ethMainnet } from "viem/chains";
+import {
+  EVM_GAS_UNITS,
+  evmGasReserveWei,
+  SOL_TRANSFER_FEE,
+} from "./native-fee";
 import { getHorizonServer } from "./stellar/client";
 import {
   wrapWithFeeBump,
@@ -457,7 +462,7 @@ export async function sendSolana(params: {
   if (upperAsset === "SOL") {
     const lamports = await connection.getBalance(keypair.publicKey);
     const availableSol = Number(lamports) / LAMPORTS_PER_SOL;
-    const requiredSol = numAmount + 0.000005; // send amount + network fee
+    const requiredSol = numAmount + SOL_TRANSFER_FEE;
     if (availableSol < requiredSol) {
       throw new Error(
         `Insufficient SOL balance for transfer and network fee. Available: ${availableSol.toFixed(6)} SOL, Required: ~${requiredSol.toFixed(6)} SOL.`,
@@ -615,10 +620,11 @@ export async function sendEvm(params: {
   // 1. Pre-flight Balance Checks (Gas and Token balances)
   const ethBalance = await publicClient.getBalance({ address: account.address });
   const gasPrice = await publicClient.getGasPrice();
-  const estimatedGasUnits = upperAsset === "ETH" ? BigInt(21000) : BigInt(65000);
-  const estimatedFeeWei = (gasPrice * estimatedGasUnits * BigInt(12)) / BigInt(10); // 20% safety margin
-  const minThresholdWei = chain === "eth" ? parseEther("0.0001") : parseEther("0.000005");
-  const requiredGasWei = estimatedFeeWei > minThresholdWei ? estimatedFeeWei : minThresholdWei;
+  const requiredGasWei = evmGasReserveWei(
+    chain,
+    gasPrice,
+    upperAsset === "ETH" ? EVM_GAS_UNITS.native : EVM_GAS_UNITS.token,
+  );
 
   let txHash: `0x${string}`;
 

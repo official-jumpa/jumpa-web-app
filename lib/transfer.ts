@@ -234,6 +234,13 @@ export const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
   },
 };
 
+/** Each chain's own coin, which pays its gas, so sending it has to leave the fee behind. */
+export const NATIVE_COIN: Partial<Record<NetworkConfig["chain"], string>> = {
+  base: "ETH",
+  eth: "ETH",
+  solana: "SOL",
+};
+
 /** Chains the wallet-address form offers. */
 export const NETWORKS = Object.keys(NETWORK_CONFIGS);
 

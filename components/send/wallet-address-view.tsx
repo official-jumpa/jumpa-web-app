@@ -16,11 +16,17 @@ import { TransferHeader } from "@/components/transfer/transfer-header";
 import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { ResultSheet } from "@/components/ui/result-sheet";
+import { useNativeSendFee } from "@/hooks/use-native-send-fee";
 import { getAssetLogo } from "@/lib/assets";
-import { usdEquivalent } from "@/lib/token-amount";
+import { decimalsFor, usdEquivalent } from "@/lib/token-amount";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import { invalidateClientBalances } from "@/lib/client-events";
-import { NETWORK_CONFIGS, shortenAddress, type WalletContact } from "@/lib/transfer";
+import {
+  NETWORK_CONFIGS,
+  sanitiseAmount,
+  shortenAddress,
+  type WalletContact,
+} from "@/lib/transfer";
 
 type Stage = "form" | "amount" | "done";
 type Sheet = "review" | "pin" | null;
@@ -51,6 +57,8 @@ export function WalletAddressView({
   );
   const [amount, setAmount] = useState("");
   const [liveBalance, setLiveBalance] = useState("$0.00");
+  /** The selected asset's balance as a number, once the wallet lookup finds it. */
+  const [tokenBalance, setTokenBalance] = useState<number>();
   /** Live price for the selected asset, straight off `/api/v1/wallet`. */
   const [priceUsd, setPriceUsd] = useState<string>();
 
@@ -63,6 +71,25 @@ export function WalletAddressView({
   const short = shortenAddress(form.address, 18, 0);
   /** What the entered amount is worth, shown on the amount, review and receipt. */
   const equivalent = usdEquivalent(amount, priceUsd);
+
+  // Sending a chain's own coin pays its gas from the same balance, so MAX leaves the fee behind.
+  const nativeFee = useNativeSendFee(currentConfig.chain, form.asset);
+  const maxSend =
+    nativeFee && tokenBalance !== undefined
+      ? sanitiseAmount(
+          Math.max(0, tokenBalance - nativeFee.holdback).toFixed(10),
+          decimalsFor(form.asset),
+        )
+          .replace(/0+$/, "")
+          .replace(/\.$/, "")
+      : undefined;
+  const feeUsd = nativeFee && usdEquivalent(nativeFee.fee, priceUsd);
+  // Same shape as the static labels, e.g. "0.00001 ETH (~$0.03)".
+  const feeLabel = nativeFee
+    ? `${nativeFee.fee.toLocaleString("en-US", { maximumSignificantDigits: 2 })} ${form.asset}${
+        feeUsd ? ` (${feeUsd.replace("≈ ", "~")})` : ""
+      }`
+    : currentConfig.feeLabel;
 
   // Fetch live balance for current selected asset & chain
   useEffect(() => {
@@ -79,6 +106,7 @@ export function WalletAddressView({
         // Cleared up front: a price left over from the previous asset would be
         // quoted against this one for as long as the lookup misses.
         setPriceUsd(undefined);
+        setTokenBalance(undefined);
 
         if (Array.isArray(data.tokens)) {
           const matched = data.tokens.find(
@@ -93,6 +121,7 @@ export function WalletAddressView({
           if (matched) {
             const tokenAmount = parseFloat(matched.balance) || 0;
             setLiveBalance(`${tokenAmount} ${form.asset}`);
+            setTokenBalance(tokenAmount);
             setPriceUsd(matched.priceUsd);
             return;
           }
@@ -216,7 +245,7 @@ export function WalletAddressView({
     <DetailList>
       <DetailRow label="Network" value={currentConfig.name} />
       <DetailRow label="Asset" value={form.asset} />
-      <DetailRow label="Network fee" value={currentConfig.feeLabel} />
+      <DetailRow label="Network fee" value={feeLabel} />
       <DetailRow label="Settlement time" value={currentConfig.settlementTime} />
       {form.memo?.trim() ? (
         <DetailRow label="Memo" value={form.memo.trim()} rule={false} />
@@ -232,7 +261,7 @@ export function WalletAddressView({
           { label: "To", value: form.address },
           { label: "Amount", value: `${amount} ${form.asset}` },
           { label: "Network", value: currentConfig.name },
-          { label: "Network fee", value: currentConfig.feeLabel },
+          { label: "Network fee", value: feeLabel },
           ...(form.memo?.trim() ? [{ label: "Memo", value: form.memo.trim() }] : []),
           ...(txResult?.txHash ? [{ label: "Transaction hash", value: txResult.txHash, accent: true }] : []),
         ]}
@@ -271,6 +300,12 @@ export function WalletAddressView({
           amount={amount}
           symbol={form.asset}
           balance={liveBalance}
+          maxAmount={maxSend}
+          lowBalanceError={
+            maxSend !== undefined
+              ? `Insufficient balance. Some ${form.asset} stays in your wallet for the network fee, so you can send up to ${maxSend} ${form.asset}.`
+              : undefined
+          }
           chips={CHIPS}
           rate={equivalent ?? ""}
           caption="Always verify the address is correct. Payments to wrong addresses cannot be reversed."

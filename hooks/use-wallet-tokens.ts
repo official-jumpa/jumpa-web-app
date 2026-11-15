@@ -10,8 +10,12 @@ export interface WalletToken {
   network: string;
 }
 
-/** Mainnet holdings straight off `/api/v1/wallet`, refreshed after any send. */
-export function useWalletTokens() {
+/** Mainnet holdings straight off `/api/v1/wallet`, refreshed after any send. Nothing loads while `enabled` is false. */
+export function useWalletTokens({
+  enabled = true,
+}: {
+  enabled?: boolean;
+} = {}) {
   const [tokens, setTokens] = useState<WalletToken[]>([]);
   const [ready, setReady] = useState(false);
 
@@ -52,9 +56,10 @@ export function useWalletTokens() {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     load();
     return onBalanceRefresh(() => load(true));
-  }, [load]);
+  }, [load, enabled]);
 
   return { tokens, ready };
 }

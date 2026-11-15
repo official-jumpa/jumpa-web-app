@@ -1,4 +1,5 @@
 import { connectDB } from "@/lib/db";
+import { creditPlanForUsdcDeposit } from "@/lib/functions/savingsFunctions";
 import { Transaction, type ITransaction } from "@/models/Transaction";
 import { SwitchService } from "@/lib/switch";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
@@ -254,6 +255,27 @@ async function _applySyncResult(
   );
 
   const statusChanged = updateRes.modifiedCount > 0;
+
+  // A USDC savings deposit that landed after its send timed out: book it into the plan now.
+  if (
+    newStatus === "CONFIRMED" &&
+    statusChanged &&
+    tx.type === "SAVINGS_DEPOSIT" &&
+    tx.chain === "stellar" &&
+    tx.savingsDetails?.planId
+  ) {
+    await creditPlanForUsdcDeposit({
+      userId: tx.userId,
+      planId: tx.savingsDetails.planId,
+      amount: Number(tx.amount),
+      txHash: txHash || tx.txHash,
+    }).catch((err) =>
+      console.error(
+        `[Transaction Sync] Savings deposit ${tx._id} confirmed but not credited:`,
+        err?.message || err,
+      ),
+    );
+  }
 
   tx.status = newStatus;
   if (txHash) tx.txHash = txHash;

@@ -16,7 +16,7 @@
     "support-sla": "node --import tsx script/support-sla.ts",
     "auto-save": "node --import tsx script/auto-save.ts",
     "test:nimiq": "node --import tsx --test --test-concurrency=1 lib/nimiq/*.test.ts",
-    "test:auto-save": "node --import tsx --test lib/auto-save-schedule.test.ts"
+    "test:auto-save": "node --import tsx --test lib/auto-save-schedule.test.ts lib/savings-auto-save.test.ts"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",

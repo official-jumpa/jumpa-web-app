@@ -15,7 +15,7 @@ async function runOnce() {
   const started = Date.now();
   const summary = await runDueAutoSaves();
   console.log(
-    `[AutoSave] saved ${summary.saved}, failed ${summary.failed}, ended ${summary.ended}, skipped ${summary.skipped} (${Date.now() - started}ms)`,
+    `[AutoSave] saved ${summary.saved}, failed ${summary.failed}, ended ${summary.ended}, skipped ${summary.skipped}, unconfirmed ${summary.unconfirmed} (${Date.now() - started}ms)`,
   );
 }
 

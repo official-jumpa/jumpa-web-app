@@ -87,6 +87,7 @@ export interface ITransaction {
     vaultAddress?: string;
     shares?: string;
     penaltyFee?: string;
+    yieldTxHash?: string;
   };
 
   // Bridge Details (if type === "BRIDGE")
@@ -225,6 +226,15 @@ const TransactionSchema = new Schema<ITransaction>(
       relayTxHash: { type: String },
       settledAt: { type: Date },
       lastSettlementError: { type: String },
+    },
+
+    // `planId` lets the resolver credit a deposit that confirms after its send timed out.
+    savingsDetails: {
+      planId: { type: String },
+      vaultAddress: { type: String },
+      shares: { type: String },
+      penaltyFee: { type: String },
+      yieldTxHash: { type: String },
     },
 
     bridgeDetails: {

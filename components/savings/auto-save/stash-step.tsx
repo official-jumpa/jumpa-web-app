@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NumericKeypad } from "@/components/auth/numeric-keypad";
 import { SparkIcon } from "@/components/ui/icons/spark";
 import { SegmentedToggle } from "@/components/ui/segmented-toggle";
@@ -18,6 +19,7 @@ import {
   type SavingsCurrency,
   type SavingsGoal,
 } from "@/lib/savings-hub";
+import { formatAmount, sanitiseAmount } from "@/lib/transfer";
 import { StepScreen } from "./step-screen";
 
 const CURRENCY_OPTIONS = (
@@ -27,6 +29,17 @@ const CURRENCY_OPTIONS = (
   label: `${currencySymbol(currency)} ${AUTO_SAVE_CURRENCIES[currency].label}`,
   disabled: !AUTO_SAVE_CURRENCIES[currency].live,
 }));
+
+/** Digits, plus a point and cents where the currency has them; never longer than its ceiling. */
+function cleanEntry(raw: string, currency: SavingsCurrency): string {
+  const { cap, decimals } = AUTO_SAVE_CURRENCIES[currency];
+  const entry = decimals
+    ? sanitiseAmount(raw, decimals)
+    : raw.replace(/\D/g, "");
+  const [whole, ...cents] = entry.split(".");
+  const trimmed = whole.replace(/^0+(?=\d)/, "").slice(0, String(cap).length);
+  return [trimmed, ...cents].join(".");
+}
 
 const INSIGHT =
   "flex w-full items-center justify-center gap-2 rounded-panel px-3.5 py-2.5 text-center text-xs leading-4 font-medium";
@@ -54,16 +67,18 @@ export function StashStep({
   const rhythm = { cadence, intervalMinutes };
   const rules = AUTO_SAVE_CURRENCIES[currency];
   const error = amountError(amount, goal);
-  const digits = amount ? String(amount) : "";
+  // Text, not a number, so "5." and "5.0" survive while they are typed.
+  const [entry, setEntry] = useState(() => (amount ? String(amount) : ""));
 
-  // Whole amounts only, and never longer than the ceiling itself.
-  const set = (next: string) =>
-    onChange(
-      Number(next.replace(/\D/g, "").slice(0, String(rules.cap).length)),
-    );
-  const push = (digit: string) => set(digits + digit);
-  const backspace = () => set(digits.slice(0, -1));
-  useKeypadKeys({ push, backspace, set });
+  const set = (next: string) => {
+    const clean = cleanEntry(next, currency);
+    setEntry(clean);
+    onChange(Number(clean) || 0);
+  };
+  const push = (key: string) => set(entry + key);
+  const backspace = () => set(entry.slice(0, -1));
+  const withDecimal = rules.decimals > 0;
+  useKeypadKeys({ push, backspace, set, decimal: withDecimal });
 
   return (
     <StepScreen
@@ -109,7 +124,7 @@ export function StashStep({
                   : "text-jumpa-grey-400",
             )}
           >
-            {formatWhole(amount)}
+            {entry ? formatAmount(entry) : formatWhole(0)}
           </span>
           <span
             aria-hidden="true"
@@ -127,7 +142,7 @@ export function StashStep({
             key={quick}
             type="button"
             aria-pressed={quick === amount}
-            onClick={() => onChange(quick)}
+            onClick={() => set(String(quick))}
             className={cn(
               "tap flex h-10 flex-1 items-center justify-center rounded-pill text-sm leading-4 font-semibold tracking-jumpa-snug active:scale-95",
               quick === amount
@@ -161,6 +176,7 @@ export function StashStep({
 
       <NumericKeypad
         size="sm"
+        withDecimal={withDecimal}
         onDigit={push}
         onBackspace={backspace}
         className="mt-4.5"

@@ -199,6 +199,36 @@ export async function moveNgnIntoPlan(params: {
 }
 
 /**
+ * Books a confirmed on-chain USDC deposit into its plan. Call it only from the
+ * update that moved the deposit's Transaction to CONFIRMED, so it runs once.
+ */
+export async function creditPlanForUsdcDeposit(deposit: {
+  userId: string;
+  planId: string;
+  amount: number;
+  txHash: string;
+}): Promise<ISavingsPlan | null> {
+  const { userId, planId, amount, txHash } = deposit;
+  await connectDB();
+  const plan = await SavingsPlan.findOneAndUpdate(
+    { _id: planId },
+    { $inc: { currentAmount: amount }, $addToSet: { txHashes: txHash } },
+    { returnDocument: "after" },
+  ).lean<ISavingsPlan>();
+  if (!plan) return null;
+  await createSavingsTransaction({
+    planId,
+    userId,
+    currency: "USDC",
+    kind: "top_up",
+    amount,
+    txHash,
+    at: new Date(),
+  });
+  return plan;
+}
+
+/**
  * Retrieves the transaction history for a savings plan.
  */
 export async function getSavingsTransactionsByPlanId(

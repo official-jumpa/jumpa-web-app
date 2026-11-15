@@ -109,6 +109,10 @@ type CurrencyRules = {
   label: string;
   /** Most one plan may hold: the ceiling a manual top-up is held to. */
   cap: number;
+  /** Smallest amount a rule may move each time. */
+  min: number;
+  /** Decimal places an amount may carry: Naira is whole, USDC goes to the cent. */
+  decimals: number;
   /** Shortcut amounts on the amount step. */
   quickAmounts: Record<AutoSaveCadence, readonly number[]>;
 };
@@ -118,6 +122,8 @@ export const AUTO_SAVE_CURRENCIES: Record<SavingsCurrency, CurrencyRules> = {
     live: true,
     label: "Naira",
     cap: 1_000_000,
+    min: 1,
+    decimals: 0,
     quickAmounts: {
       daily: [500, 1000, 2000, 5000],
       // TODO: placeholder shortcuts. The design only sets the daily ones.
@@ -128,11 +134,11 @@ export const AUTO_SAVE_CURRENCIES: Record<SavingsCurrency, CurrencyRules> = {
     },
   },
   USDC: {
-    // TODO: not live. A USDC deposit is signed with the saver's PIN, so it
-    // cannot run unattended yet. Flip once that path exists.
-    live: false,
+    live: true,
     label: "Dollar",
     cap: 1_000,
+    min: 0.1,
+    decimals: 2,
     // TODO: placeholder shortcuts. Nothing is designed for USDC yet.
     quickAmounts: {
       daily: [1, 2, 5, 10],
@@ -216,11 +222,32 @@ export function roomLeft(goal: SavingsGoal): number {
   return Math.max(0, Math.min(toTarget, cap - goal.saved));
 }
 
+/** Why an amount breaks its currency's minimum or precision, or nothing. Shared by the screens and the API. */
+export function amountRuleError(
+  amount: number,
+  currency: SavingsCurrency,
+): string | undefined {
+  const { min, decimals } = AUTO_SAVE_CURRENCIES[currency];
+  if (amount < min) {
+    return `The smallest amount is ${formatAutoSaveAmount(min, currency)}`;
+  }
+  if (!Number.isInteger(Number((amount * 10 ** decimals).toFixed(6)))) {
+    return decimals
+      ? `Use up to ${decimals} decimal places`
+      : "Use a whole amount";
+  }
+  return undefined;
+}
+
 /** Why an amount cannot be saved on repeat, or nothing when it can. */
 export function amountError(
   amount: number,
   goal: SavingsGoal,
 ): string | undefined {
+  if (amount > 0) {
+    const ruleError = amountRuleError(amount, goal.currency);
+    if (ruleError) return ruleError;
+  }
   const room = roomLeft(goal);
   if (amount <= room) return undefined;
   return room > 0
@@ -242,9 +269,22 @@ export function startDraft(goal: SavingsGoal): AutoSaveDraft {
   };
 }
 
-/** "2,000": whole amounts drop the decimals the hub's figures carry. */
+/** "2,000" or "0.10": whole amounts drop the decimals, others show cents. */
 export function formatWhole(amount: number): string {
-  return amount.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  const value = Math.round(amount * 100) / 100;
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** Drops what a currency cannot carry, e.g. a fraction of a cent left before a target. */
+export function toCurrencyPrecision(
+  amount: number,
+  currency: SavingsCurrency,
+): number {
+  const scale = 10 ** AUTO_SAVE_CURRENCIES[currency].decimals;
+  return Math.floor(Number((amount * scale).toFixed(6))) / scale;
 }
 
 export function formatAutoSaveAmount(

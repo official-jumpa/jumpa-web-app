@@ -9,6 +9,7 @@ import {
   formatAutoSaveAmount,
   sourceCopy,
 } from "@/lib/savings-auto-save";
+import { enablePinlessSigning } from "@/lib/services/savings-usdc";
 import type { SaveAutoSaveInput } from "@/lib/validations/auto-save.validation";
 import { AutoSaveRule, type IAutoSaveRule } from "@/models/AutoSaveRule";
 import { type ISavingsPlan, SavingsPlan } from "@/models/SavingsPlan";
@@ -106,6 +107,14 @@ export async function saveAutoSaveRule(
         ? `That is more than the ${formatAutoSaveAmount(room, plan.currency)} left on this plan`
         : "This plan has already reached its target",
     );
+  }
+
+  // Each USDC run signs on-chain without the PIN, so make sure that will work now.
+  if (
+    plan.currency === "USDC" &&
+    !(await enablePinlessSigning(wallet, input.pin))
+  ) {
+    return fail("We couldn't unlock your wallet. Please try again.", 500);
   }
 
   const { pin: _pin, planId, ...schedule } = input;

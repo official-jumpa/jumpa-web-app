@@ -45,7 +45,8 @@ const AutoSaveRuleSchema = new Schema<IAutoSaveRule>(
       enum: ["daily", "weekly", "monthly", "custom"],
       required: true,
     },
-    amount: { type: Number, required: true, min: 1 },
+    // Per-currency minimums live in `amountRuleError`; USDC goes below 1.
+    amount: { type: Number, required: true, min: 0.01 },
     currency: { type: String, enum: ["NGN", "USDC"], required: true },
     source: { type: String, enum: ["ngn", "usdc"], required: true },
     weekday: { type: Number, min: 0, max: 6, default: 1 },

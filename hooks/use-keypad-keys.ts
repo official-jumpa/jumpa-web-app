@@ -7,11 +7,14 @@ export function useKeypadKeys({
   push,
   backspace,
   set,
+  decimal = false,
   enabled = true,
 }: {
   push: (digit: string) => void;
   backspace: () => void;
   set?: (next: string) => void;
+  /** Lets "." through, for pads that show a decimal point. */
+  decimal?: boolean;
   enabled?: boolean;
 }) {
   useEffect(() => {
@@ -25,7 +28,7 @@ export function useKeypadKeys({
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (inField(event.target)) return;
 
-      if (/^\d$/.test(event.key)) {
+      if (/^\d$/.test(event.key) || (decimal && event.key === ".")) {
         event.preventDefault();
         triggerHaptic("light");
         push(event.key);
@@ -52,5 +55,5 @@ export function useKeypadKeys({
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("paste", onPaste);
     };
-  }, [push, backspace, set, enabled]);
+  }, [push, backspace, set, decimal, enabled]);
 }

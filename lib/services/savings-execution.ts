@@ -46,6 +46,11 @@ import {
   isLimitError,
 } from "@/lib/functions/transactionLimitFunctions";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
+import {
+  moveUsdcIntoPlan,
+  UsdcDepositError,
+  unlockStellarKeypair,
+} from "@/lib/services/savings-usdc";
 
 const defindexClient = new DefindexClient(
   environment.DEFINDEX_API_KEY,
@@ -601,34 +606,8 @@ export async function depositSavingsExecution(
   }
 
   const stellarAddress = wallet.addresses?.xlm || wallet.address;
-  const balances = await fetchStellarBalances(stellarAddress);
-  const availableUsdc = Number(balances.mainnet.usdc) || 0;
-  const nativeXlm = Number(balances.mainnet.xlm) || 0;
-  const needsGasAbstraction = nativeXlm < 2.0;
-  const gasFeeUsdc = needsGasAbstraction ? getStellarFeeAmount() : 0;
-  const totalRequiredUsdc = amount + gasFeeUsdc;
-
-  // Strict Pre-condition: Check total USDC before ANY wallet activation or sponsorship
-  if (availableUsdc < totalRequiredUsdc) {
-    const errorMsg = needsGasAbstraction
-      ? `Insufficient USDC balance: you have $${availableUsdc.toFixed(2)} USDC, but this top-up requires $${amount.toFixed(2)} USDC plus $${gasFeeUsdc.toFixed(2)} USDC network fee.`
-      : `Insufficient balance: you have $${availableUsdc.toFixed(2)} USDC and this top-up needs $${amount.toFixed(2)}.`;
-    return {
-      ok: false,
-      error: errorMsg,
-      status: 400,
-    };
-  }
-
-  let secret: string;
-  try {
-    secret = decryptMnemonic(
-      wallet.encryptedMnemonic,
-      wallet.iv,
-      wallet.salt,
-      pin,
-    );
-  } catch {
+  const keypair = unlockStellarKeypair(wallet, pin);
+  if (!keypair) {
     return {
       ok: false,
       error: "Failed to decrypt wallet credentials",
@@ -636,113 +615,31 @@ export async function depositSavingsExecution(
     };
   }
 
-  const keys =
-    wallet.setupMethod === "IMPORTED_PRIVATE_KEY"
-      ? deriveStellarKeypairFromPrivateKey(secret)
-      : deriveStellarKeypairFromMnemonic(secret);
-
-  const userKeypair = StellarSdk.Keypair.fromSecret(keys.secretKey);
-  const amountStroops = Math.round(amount * 10_000_000);
-
-  // All pre-conditions passed: sponsor gas if needed
-  if (needsGasAbstraction) {
-    const gasRes = await ensureSufficientStellarGas(stellarAddress, 2.0, 2.5, "mainnet");
-    if (gasRes.sponsored && gasFeeUsdc > 0) {
-      await collectStellarGasFeeUsdc({
-        userKeypair,
-        amountUsdc: gasFeeUsdc,
-        network: "mainnet",
-      }).catch((feeErr) => {
-        console.warn("[Savings Gas Abstraction] Fee collection notice:", feeErr?.message || feeErr);
-      });
-    }
-  }
-
-  const targetVault = environment.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS;
-  let txHash: string | undefined;
-  let explorerUrl: string | undefined;
-  const topUpTransactionId = generateId("wdref");
-  await Transaction.create({
-    _id: topUpTransactionId,
-    userId,
-    walletId: wallet._id,
-    type: "SAVINGS_DEPOSIT",
-    status: "PENDING",
-    chain: "stellar",
-    network: "mainnet",
-    fromAddress: stellarAddress,
-    toAddress: targetVault,
-    amount: String(amount),
-    token: "USDC",
-    memo: `savings:topup:${plan._id}`,
-    savingsDetails: { planId: plan._id, vaultAddress: targetVault },
-  });
-
   try {
-    const depositRes = await defindexClient.deposit(targetVault, {
-      amounts: [amountStroops],
-      caller: stellarAddress,
-      invest: true,
-      slippageBps: 50,
-    });
-
-    if (!depositRes?.xdr) {
-      return {
-        ok: false,
-        error: "DeFindex failed to generate top-up transaction",
-        status: 500,
-      };
-    }
-
-    const tx = StellarSdk.TransactionBuilder.fromXDR(
-      depositRes.xdr,
-      StellarSdk.Networks.PUBLIC,
-    );
-    tx.sign(userKeypair);
-
-    const sendRes = await defindexClient.send(tx.toXDR());
-    txHash = sendRes.txHash;
-    explorerUrl = getExplorerTxUrl("stellar", txHash, false);
-    await Transaction.findByIdAndUpdate(topUpTransactionId, {
-      status: "CONFIRMED", txHash, explorerUrl, executedAt: new Date(),
-    });
-  } catch (onChainErr: any) {
-    console.error(
-      `Error: ${formatOneLineError(onChainErr?.rawDetail || onChainErr)}`,
-    );
-    await Transaction.findByIdAndUpdate(topUpTransactionId, {
-      status: "PENDING", errorMessage: formatOneLineError(onChainErr?.rawDetail || onChainErr),
+    const deposit = await moveUsdcIntoPlan({
+      userId,
+      walletId: wallet._id,
+      stellarAddress,
+      keypair,
+      planId: plan._id,
+      amount,
+      via: "topup",
+      chargeGasFee: true,
     });
     return {
+      ok: true,
+      plan: formatPlanForUI(deposit.plan),
+      txHash: deposit.txHash,
+      explorerUrl: deposit.explorerUrl,
+    };
+  } catch (err) {
+    if (!(err instanceof UsdcDepositError)) throw err;
+    return {
       ok: false,
-      error: "Unable to complete on-chain savings top-up. Please verify your balance and try again.",
-      status: 400,
+      error: err.message,
+      status: err.kind === "build" ? 502 : 400,
     };
   }
-
-  const newTotal = (plan.currentAmount || 0) + amount;
-  plan.currentAmount = newTotal;
-  if (txHash && !plan.txHashes.includes(txHash)) {
-    plan.txHashes.push(txHash);
-  }
-  await plan.save();
-
-  await createSavingsTransaction({
-    planId: plan._id,
-    userId,
-    currency: "USDC",
-    kind: "top_up",
-    amount,
-    txHash,
-    at: new Date(),
-  });
-
-  return {
-    ok: true,
-    plan: formatPlanForUI(plan),
-    txHash,
-    explorerUrl,
-  };
 }
 
 /**

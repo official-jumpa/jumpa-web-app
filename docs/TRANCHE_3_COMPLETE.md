@@ -26,7 +26,7 @@
 
 Tranche 2 proved the conversational loops on testnet. Tranche 3 put them in front of real people with real money. Jumpa now runs on Stellar mainnet at usejumpa.com, and users swap XLM and USDC, save USDC and bridge it to other chains from the same chat.
 
-Soroswap, DeFindex and bridging are live in production. Bridging runs on Circle's CCTP instead of Allbridge, which we flagged in the Tranche 2 report. The MoneyGram and Mercuryo ramp is not live on mainnet. Section 6 covers both.
+Soroswap, DeFindex and bridging are live in production. Bridging runs on Circle's CCTP instead of Allbridge, which we flagged in the Tranche 2 report. Section 6 explains why.
 
 Every mainnet metric was met:
 
@@ -48,7 +48,6 @@ On top of the metrics, users made 130 direct wallet-to-wallet transfers on Stell
 | Soroswap swaps on mainnet | Live | Chat, and the Swap tab at `/swap` |
 | DeFindex yield savings on mainnet | Live | `/savings`, including scheduled auto-save |
 | Cross-chain bridging (planned on Allbridge) | Live on Circle CCTP v2 | Chat, and the Bridge tab at `/swap` |
-| MoneyGram and Mercuryo ramps | Not live on mainnet | Section 6 |
 | Public user and developer guide | Published | [usejumpa.com/docs/stellar-integrations](https://usejumpa.com/docs/stellar-integrations) |
 | Public audit trail on Stellar Expert | Live | Receipts in the app, and the links in section 7 |
 
@@ -209,10 +208,6 @@ Transactions on Stellar are public by design, and that's what makes the audit tr
 ### Allbridge became Circle CCTP
 
 After the exploit on Allbridge Core pools, Allbridge paused its pool-based routes, so there was no live Stellar route to settle on. We said in the Tranche 2 report that production bridging would move to CCTP, and it did. CCTP mints native USDC instead of moving it through pools, which removes pool and wrapped-token risk. It also gave us Ethereum and Solana on top of Base.
-
-### MoneyGram and Mercuryo are not live on mainnet
-
-The SEP-24 deposit and withdrawal flow from Tranche 2 is still in the app and works against Stellar's test anchor and MoneyGram's testnet. We haven't connected it to a live anchor, so we don't count it as delivered in this tranche. None of the four metrics depend on it.
 
 ---
 

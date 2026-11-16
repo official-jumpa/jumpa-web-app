@@ -194,7 +194,10 @@ export function sendTeamAlertEmail(
   alert: SupportAlert,
   to: string[] = teamRecipients(),
 ): Promise<void> {
-  const about = alert.quote ? ` — "${clip(alert.quote.text, 60)}"` : "";
+  // Subjects can't hold line breaks; the email provider rejects them.
+  const about = alert.quote
+    ? ` — "${clip(alert.quote.text.replace(/\s+/g, " ").trim(), 60)}"`
+    : "";
   return send(
     to,
     `[Support]${alert.high ? " High priority ·" : ""} ${alert.event} ${alert.ref}${about}`,

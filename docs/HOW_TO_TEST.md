@@ -127,7 +127,7 @@ Tranche 3 runs on Stellar mainnet with real money. Its steps are in [Tranche 3: 
 
 ## Tranche 3: testing on mainnet
 
-Everything here uses real money on Stellar mainnet at [usejumpa.com](https://usejumpa.com). About $5 is enough to go through all of it. Every receipt links to its transaction on Stellar Expert, so you can check each step on chain as you go. The contract addresses to look for are listed in section 7 of [`TRANCHE_3_COMPLETE.md`](TRANCHE_3_COMPLETE.md).
+Everything here uses real money on Stellar mainnet at [usejumpa.com](https://usejumpa.com). About $5 is enough to go through all of it. Every receipt links to its transaction on Stellar Expert, so you can check each step on chain as you go. The contract addresses to look for are listed in section 5 of [`TRANCHE_3_COMPLETE.md`](TRANCHE_3_COMPLETE.md).
 
 ### Get your wallet ready
 

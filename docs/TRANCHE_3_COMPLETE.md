@@ -1,7 +1,7 @@
 # Tranche 3: Production mainnet launch
 
 > **Project:** Jumpa web app (`jumpa-web-app`), live at [usejumpa.com](https://usejumpa.com)
-> **Status:** Complete
+> **Status:** All four mainnet metrics met
 > **Reporting period:** 23 August to 15 November 2026. Every figure below comes from our production transaction ledger and was cross-checked against Stellar mainnet.
 
 ---
@@ -10,10 +10,10 @@
 
 1. [Summary](#summary)
 2. [Deliverables at a glance](#deliverables-at-a-glance)
-3. [Swaps through Soroswap](#1-swaps-through-soroswap)
-4. [Savings on DeFindex](#2-savings-on-defindex)
-5. [Moving USDC between chains with Circle CCTP](#3-moving-usdc-between-chains-with-circle-cctp)
-6. [Naira in and out through Centiiv](#4-naira-in-and-out-through-centiiv)
+3. [Architecture](#1-architecture)
+4. [Swaps through Soroswap](#2-swaps-through-soroswap)
+5. [Savings on DeFindex](#3-savings-on-defindex)
+6. [Moving USDC between chains with Circle CCTP](#4-moving-usdc-between-chains-with-circle-cctp)
 7. [Keys, signing and data protection](#5-keys-signing-and-data-protection)
 8. [Changes from the original plan](#6-changes-from-the-original-plan)
 9. [Checking it yourself on Stellar Expert](#7-checking-it-yourself-on-stellar-expert)
@@ -24,9 +24,9 @@
 
 ## Summary
 
-Tranche 2 proved the conversational loops on testnet. Tranche 3 put them in front of real people with real money. Jumpa now runs on Stellar mainnet at usejumpa.com, and users swap, save, bridge and cash out to Nigerian bank accounts from the same chat.
+Tranche 2 proved the conversational loops on testnet. Tranche 3 put them in front of real people with real money. Jumpa now runs on Stellar mainnet at usejumpa.com, and users swap XLM and USDC, save USDC and bridge it to other chains from the same chat.
 
-All four integrations are live in production. Two of them run on different providers from the ones we planned. Bridging moved from Allbridge to Circle's CCTP, which we flagged in the Tranche 2 report. Fiat ramps moved from MoneyGram and Mercuryo to Centiiv, a Nigerian payments partner that settles naira bank transfers directly against USDC on Stellar. Section 6 explains both.
+Soroswap, DeFindex and bridging are live in production. Bridging runs on Circle's CCTP instead of Allbridge, which we flagged in the Tranche 2 report. The MoneyGram and Mercuryo ramp is not live on mainnet. Section 6 covers both.
 
 Every mainnet metric was met:
 
@@ -37,7 +37,7 @@ Every mainnet metric was met:
 | Active savings goals holding stablecoins in DeFindex | 20 | **27** |
 | Production app live, with public transaction links | Live | usejumpa.com, where every on-chain receipt links to Stellar Expert |
 
-On top of the metrics, users sent 473 naira payouts funded from Stellar USDC (about $15,470) and 130 direct Stellar transfers in the same period.
+On top of the metrics, users made 130 direct wallet-to-wallet transfers on Stellar in the same period.
 
 ---
 
@@ -48,13 +48,68 @@ On top of the metrics, users sent 473 naira payouts funded from Stellar USDC (ab
 | Soroswap swaps on mainnet | Live | Chat, and the Swap tab at `/swap` |
 | DeFindex yield savings on mainnet | Live | `/savings`, including scheduled auto-save |
 | Cross-chain bridging (planned on Allbridge) | Live on Circle CCTP v2 | Chat, and the Bridge tab at `/swap` |
-| Fiat on and off ramps (planned on MoneyGram and Mercuryo) | Live on Centiiv | Deposit Naira, and cash out to a bank in chat |
+| MoneyGram and Mercuryo ramps | Not live on mainnet | Section 6 |
 | Public user and developer guide | Published | [usejumpa.com/docs/stellar-integrations](https://usejumpa.com/docs/stellar-integrations) |
 | Public audit trail on Stellar Expert | Live | Receipts in the app, and the links in section 7 |
 
 ---
 
-## 1. Swaps through Soroswap
+## 1. Architecture
+
+The shape is the same as in Tranche 2. What changed for mainnet: Circle CCTP replaced the Allbridge simulation, a fee account now pays network fees on swaps, auto-save runs deposits on a schedule, and every transaction settles on Stellar mainnet with its hash saved to the ledger.
+
+```mermaid
+flowchart TD
+    subgraph App ["1. Chat and app screens at usejumpa.com"]
+        User(["User"]) -->|"'swap 100 XLM to USDC'"| Chat["Chat"]
+        User -->|"Swap, Bridge and Savings tabs"| Screens["App screens"]
+        Chat -->|"AI prepares a card, never signs"| Card["Quote, bridge or savings card"]
+        Screens --> Card
+        Card -->|"Confirm"| Pin["PIN sheet"]
+    end
+
+    subgraph Server ["2. Jumpa server"]
+        Pin -->|"bcrypt check, 5 tries then 15 min lock"| Exec["Execution layer"]
+        Cron["Auto-save runner, every 5 min"] -->|"Plans approved with PIN"| Exec
+        Exec -->|"Decrypt in memory, AES-256-GCM"| Keys["Wallet key at m/44'/148'/0'"]
+        Keys -->|"Sign"| Exec
+        Exec -->|"Save tx hash"| Ledger[("Transaction ledger")]
+    end
+
+    subgraph Integrations ["3. Integrations"]
+        Exec -->|"Quote and build"| SoroswapAPI["Soroswap API"]
+        Exec -->|"Build deposit or withdrawal"| DeFindexAPI["DeFindex API"]
+        Exec -->|"Wait for attestation"| Iris["Circle attestation service"]
+    end
+
+    subgraph Mainnet ["4. Stellar mainnet"]
+        Exec -->|"Signed swap"| FeeBump["Fee bump from Jumpa fee account"]
+        FeeBump --> Router["Soroswap router"]
+        Exec -->|"Signed deposit or withdrawal"| Vault["DeFindex USDC vault"]
+        Exec -->|"Signed deposit_for_burn"| Messenger["CCTP TokenMessenger"]
+        Router --> Explorer["Receipt links to Stellar Expert"]
+        Vault --> Explorer
+        Messenger --> Explorer
+    end
+
+    Iris -->|"Mint native USDC"| Dest["Base, Ethereum or Solana"]
+
+    classDef ui fill:#f5f3ff,stroke:#8b5cf6,stroke-width:1.5px;
+    classDef server fill:#eff6ff,stroke:#3b82f6,stroke-width:1.5px;
+    classDef proto fill:#f0fdf4,stroke:#22c55e,stroke-width:1.5px;
+    classDef chain fill:#fffbeb,stroke:#f59e0b,stroke-width:1.5px;
+
+    class App ui;
+    class Server server;
+    class Integrations proto;
+    class Mainnet chain;
+```
+
+Three rules hold across every flow. The AI assistant only prepares a card and never touches keys. Nothing is signed until the user enters their PIN, or for auto-save, until they've approved the plan with it. Every transaction's hash goes into the ledger and onto the user's receipt.
+
+---
+
+## 2. Swaps through Soroswap
 
 A user types something like "swap 100 XLM to USDC" in chat, or opens the swap screen. We ask the Soroswap API for a quote across the liquidity it aggregates (Soroswap's own pools, Aqua, Phoenix and the Stellar DEX) and show it as a card the user can edit. Nothing moves until they confirm with their 4-digit PIN. The server then:
 
@@ -78,7 +133,7 @@ All three were fee-bumped by Jumpa's fee account, so the users paid no XLM for g
 
 ---
 
-## 2. Savings on DeFindex
+## 3. Savings on DeFindex
 
 USDC savings goals deposit into a DeFindex vault on mainnet. Money goes in two ways: a manual top-up, or auto-save, which moves a fixed amount on a schedule the user picks (daily, weekly, monthly or a custom gap). Auto-save on USDC starts at $0.10. Both paths share one deposit routine:
 
@@ -108,7 +163,7 @@ Balances and APY in the app are read live from the vault. A withdrawal redeems t
 
 ---
 
-## 3. Moving USDC between chains with Circle CCTP
+## 4. Moving USDC between chains with Circle CCTP
 
 CCTP v2 burns USDC on the source chain, waits for Circle to attest the burn, then mints the same amount of native USDC on the destination. There are no liquidity pools and no wrapped tokens in between. Jumpa supports Stellar to and from Base, Ethereum and Solana.
 
@@ -122,21 +177,6 @@ In the period, 14 bridges left Stellar ($460.61, five users) and 4 arrived on St
 | :--- | :--- | :--- | :--- |
 | 15 Nov 2026 | 10 USDC, Stellar to Base | `deposit_for_burn` | [313c9127…0e3cd48c](https://stellar.expert/explorer/public/tx/313c912703b9d9114ab871a1eb09579e2839e1fc1588ab8f9bf968e70e3cd48c) |
 | 14 Nov 2026 | 20.2 USDC, Stellar to Solana | `deposit_for_burn` | [6f727266…6a9d37da](https://stellar.expert/explorer/public/tx/6f72726645281146f8d74c650f25f4f9692a2daf416f99e304a861236a9d37da) |
-
----
-
-## 4. Naira in and out through Centiiv
-
-To cash out, the user picks a bank account in chat. Jumpa sends USDC from their Stellar wallet to Centiiv (fee-bumped, so no XLM is needed), and Centiiv pays naira into the account. There were 473 of these payouts in the period, worth about $15,470.
-
-To deposit, the user gets a one-off bank account, pays naira into it, and Centiiv delivers USDC to their Stellar wallet through its settlement contract. Deposits start at $1.50. Before we create the order, we check that the wallet can actually hold USDC. If it can't, the chat offers USDC on Base or Solana instead, so the payment never lands somewhere it can't be received.
-
-**Centiiv settlement contract:** [`CALU3LXG6NI3LREMGX6AWTUV4WMSV6HFBUMR5AKF52B2J3ZK7QUZGRV4`](https://stellar.expert/explorer/public/contract/CALU3LXG6NI3LREMGX6AWTUV4WMSV6HFBUMR5AKF52B2J3ZK7QUZGRV4)
-
-| Date | Flow | Transaction |
-| :--- | :--- | :--- |
-| 15 Nov 2026 | Payout: 6 USDC sent to Centiiv, naira paid to the user's bank | [a631e088…e778aae5](https://stellar.expert/explorer/public/tx/a631e0886d2be0d9d6d91c45775f1b136b77ec67f387f67e4a8ef609e778aae5) |
-| 15 Nov 2026 | Deposit: 2.18 USDC delivered after a naira transfer | [008e556e…8ac3bc88](https://stellar.expert/explorer/public/tx/008e556e6f06f8b64d4cc1e60960b37b16a9ce05340be0e52d35963a8ac3bc88) |
 
 ---
 
@@ -160,7 +200,7 @@ The PIN is stored as a bcrypt hash. Five wrong attempts lock the wallet for 15 m
 
 ### What is public and what isn't
 
-Transactions on Stellar are public by design, and that's what makes the audit trail in section 7 possible. Names, phone numbers, bank details and ID documents stay off chain in our own database, and Jumpa never puts them in a Stellar transaction.
+Transactions on Stellar are public by design, and that's what makes the audit trail in section 7 possible. Names, email addresses, phone numbers and ID documents stay off chain in our own database, and Jumpa never puts them in a Stellar transaction.
 
 ---
 
@@ -170,17 +210,17 @@ Transactions on Stellar are public by design, and that's what makes the audit tr
 
 After the exploit on Allbridge Core pools, Allbridge paused its pool-based routes, so there was no live Stellar route to settle on. We said in the Tranche 2 report that production bridging would move to CCTP, and it did. CCTP mints native USDC instead of moving it through pools, which removes pool and wrapped-token risk. It also gave us Ethereum and Solana on top of Base.
 
-### MoneyGram and Mercuryo became Centiiv
+### MoneyGram and Mercuryo are not live on mainnet
 
-Almost all of our users are in Nigeria, and they move money by naira bank transfer. Centiiv settles exactly that, naira transfers in and out, directly against USDC on Stellar, so it fits how people actually use Jumpa. The SEP-24 sandbox from Tranche 2 (Stellar's test anchor and MoneyGram's testnet) is still in the app for testing, but it isn't connected to a live anchor, and we don't count it here.
+The SEP-24 deposit and withdrawal flow from Tranche 2 is still in the app and works against Stellar's test anchor and MoneyGram's testnet. We haven't connected it to a live anchor, so we don't count it as delivered in this tranche. None of the four metrics depend on it.
 
 ---
 
 ## 7. Checking it yourself on Stellar Expert
 
-Every swap, bridge and savings deposit in our ledger stores its Stellar transaction hash. Naira payouts store a Stellar Expert link to the USDC payment behind them; we checked every payout from 3 October onwards. Users see the same link on their receipt in chat and on the swap, bridge and send screens. One savings withdrawal (of 17) was recorded without its hash, and we're tracing it.
+Every swap, bridge and savings deposit in our ledger stores its Stellar transaction hash. Users see the matching Stellar Expert link on their receipt in chat and on the swap, bridge and send screens. One savings withdrawal (of 17) was recorded without its hash, and we're tracing it.
 
-The quickest public check is Jumpa's fee account. It pays the network fee on most user transactions through fee bumps, so it appears on them. Since 17 September 2026 it has taken part in 1,490 mainnet transactions, 905 of them fee bumps on user transactions.
+The quickest public check is Jumpa's fee account. It pays the network fee on swaps and wallet transfers through fee bumps, so it appears on them. Since 17 September 2026 it has taken part in 1,490 mainnet transactions, 905 of them fee bumps on user transactions.
 
 | What | Address |
 | :--- | :--- |
@@ -188,7 +228,6 @@ The quickest public check is Jumpa's fee account. It pays the network fee on mos
 | Soroswap router | [`CAG5LRYQ…CCFAJDDH`](https://stellar.expert/explorer/public/contract/CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH) |
 | DeFindex vault | [`CCPAXQPQ…IB3T23VV`](https://stellar.expert/explorer/public/contract/CCPAXQPQQALOPBRTWUJ6EMSCVSGQLADQLITHZIFHW4J2MV5QIB3T23VV) |
 | CCTP TokenMessenger | [`CAE2G5Z7…FLPNFTXL`](https://stellar.expert/explorer/public/contract/CAE2G5Z77UP7GYPYGFOWFGW7C7J6I4YP2AFGSADRKQY62SYUFLPNFTXL) |
-| Centiiv settlement | [`CALU3LXG…7QUZGRV4`](https://stellar.expert/explorer/public/contract/CALU3LXG6NI3LREMGX6AWTUV4WMSV6HFBUMR5AKF52B2J3ZK7QUZGRV4) |
 
 To repeat our checks, open any transaction above and confirm three things: it succeeded, it calls the contract named in the table, and the fee was paid by the Jumpa fee account where we say it was.
 
@@ -217,7 +256,6 @@ For a hands-on walkthrough on mainnet, see the Tranche 3 section of [`HOW_TO_TES
 | USDC savings deposits | [`lib/services/savings-usdc.ts`](../lib/services/savings-usdc.ts), [`lib/services/savings-execution.ts`](../lib/services/savings-execution.ts) |
 | Auto-save | [`lib/services/auto-save-runner.ts`](../lib/services/auto-save-runner.ts), [`script/auto-save.ts`](../script/auto-save.ts) |
 | CCTP bridging | [`lib/execution/bridge-execute.ts`](../lib/execution/bridge-execute.ts), [`lib/chains/stellar/cctp-bridge.ts`](../lib/chains/stellar/cctp-bridge.ts), [`lib/chains/solana/cctp-bridge.ts`](../lib/chains/solana/cctp-bridge.ts) |
-| Centiiv deposits and payouts | [`lib/functions/centiivFunctions.ts`](../lib/functions/centiivFunctions.ts), [`lib/chains/offramp-transfer.ts`](../lib/chains/offramp-transfer.ts) |
 | Key derivation and encryption | [`lib/chains/stellar/keypair.ts`](../lib/chains/stellar/keypair.ts), [`lib/crypto.ts`](../lib/crypto.ts) |
 | PIN checks and lockout | [`lib/execution/verify-pin.ts`](../lib/execution/verify-pin.ts) |
 | Contract addresses | [`lib/blockchain.ts`](../lib/blockchain.ts) |

@@ -155,13 +155,6 @@ A new Stellar address doesn't exist on the network until it holds at least 1 XLM
 2. The card shows the fee and what will arrive. Confirm with your PIN.
 3. The Stellar transaction calls `deposit_for_burn` on Circle's TokenMessenger. The USDC usually reaches your Base wallet within a few minutes.
 
-### Naira in and out (needs a Nigerian bank account)
-
-1. To deposit, type *"buy 3000 naira of USDC on Stellar"* in chat. Pay the exact amount into the account shown before it expires, and the USDC arrives in your Stellar wallet. The minimum is $1.50 worth of naira.
-2. To cash out, type *"withdraw 2 USDC to my bank"* and pick the account. The receipt links to the USDC payment on Stellar.
-
-If the chat offers USDC on Base or Solana when you ask for Stellar, your wallet isn't ready to hold USDC yet. Do the first swap above, then try again.
-
 ---
 
 ## Troubleshooting & Tips

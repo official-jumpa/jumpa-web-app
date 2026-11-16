@@ -1,32 +1,43 @@
-# Tranche 3: Production mainnet launch
+# Tranche 3: Production Mainnet Launch — Implementation & Verification Guide
 
-> **Project:** Jumpa web app (`jumpa-web-app`), live at [usejumpa.com](https://usejumpa.com)
-> **Status:** All four mainnet metrics met
-> **Reporting period:** 23 August to 15 November 2026. Every figure below comes from our production transaction ledger and was cross-checked against Stellar mainnet.
-
----
-
-## Contents
-
-1. [Summary](#summary)
-2. [Deliverables at a glance](#deliverables-at-a-glance)
-3. [Architecture](#1-architecture)
-4. [Swaps through Soroswap](#2-swaps-through-soroswap)
-5. [Savings on DeFindex](#3-savings-on-defindex)
-6. [Moving USDC between chains with Circle CCTP](#4-moving-usdc-between-chains-with-circle-cctp)
-7. [Keys, signing and data protection](#5-keys-signing-and-data-protection)
-8. [Changes from the original plan](#6-changes-from-the-original-plan)
-9. [Checking it yourself on Stellar Expert](#7-checking-it-yourself-on-stellar-expert)
-10. [How the metrics were measured](#8-how-the-metrics-were-measured)
-11. [Code map](#9-code-map)
+> **Jumpa Web Application** (`jumpa-web-app`), live at [usejumpa.com](https://usejumpa.com)  
+> **Status:** Live on Stellar Mainnet & All Four Metrics Met  
+> **Scope:** Production deployment of Soroswap swaps, DeFindex yield savings and Circle CCTP cross-chain bridging on Stellar mainnet, public integration documentation, and a Stellar Expert audit trail, on Next.js 16 / React 19.  
+> **Reporting Period:** 23 August to 15 November 2026. Every figure below comes from our production transaction ledger and was cross-checked against Stellar mainnet.
 
 ---
 
-## Summary
+## Table of Contents
+
+1. [Executive Summary](#executive-summary)
+2. [Deliverables at a Glance](#deliverables-at-a-glance)
+3. [Milestones & Architecture Overview](#1-milestones--architecture-overview)
+4. [Milestone 1: Conversational Swaps via Soroswap](#2-milestone-1-conversational-swaps-via-soroswap)
+5. [Milestone 2: DeFi Savings Yield via DeFindex](#3-milestone-2-defi-savings-yield-via-defindex)
+6. [Milestone 3: Cross-Chain Bridging via Circle CCTP](#4-milestone-3-cross-chain-bridging-via-circle-cctp)
+7. [Key Derivation, Signing & Data Privacy](#5-key-derivation-signing--data-privacy)
+8. [Changes From the Original Plan](#6-changes-from-the-original-plan)
+9. [On-Chain Verification via Stellar Expert](#7-on-chain-verification-via-stellar-expert)
+10. [How Completion Was Measured & Verified](#8-how-completion-was-measured--verified)
+11. [Codebase Directory & File Reference Map](#9-codebase-directory--file-reference-map)
+
+---
+
+## Executive Summary
 
 Tranche 2 proved the conversational loops on testnet. Tranche 3 put them in front of real people with real money. Jumpa now runs on Stellar mainnet at usejumpa.com, and users swap XLM and USDC, save USDC and bridge it to other chains from the same chat.
 
-Soroswap, DeFindex and bridging are live in production. Bridging runs on Circle's CCTP instead of Allbridge, which we flagged in the Tranche 2 report. Section 6 explains why.
+**Soroswap** swaps, **DeFindex** yield savings and **Circle CCTP** bridging are live in production. Bridging runs on CCTP instead of Allbridge, as set out in the Tranche 2 migration plan. Section 6 explains why.
+
+```
+TRANCHE 3 - MAINNET
+PRODUCTION MAINNET LAUNCH
+
+Milestones & Deliverables:
+✓ Mainnet Deployments: Soroswap swaps, DeFindex yield savings and cross-chain bridging (Circle CCTP) live on the Jumpa production web application.
+✓ Public Documentation: User and developer guide covering Jumpa's integration architecture, key derivation path and data privacy safeguards, published on the official Jumpa website.
+✓ On-chain Verification: Mainnet swaps, bridges and savings deposits record their transaction hash and link to the Stellar Expert explorer.
+```
 
 Every mainnet metric was met:
 
@@ -41,7 +52,7 @@ On top of the metrics, users made 130 direct wallet-to-wallet transfers on Stell
 
 ---
 
-## Deliverables at a glance
+## Deliverables at a Glance
 
 | Deliverable | Status | Where to find it |
 | :--- | :--- | :--- |
@@ -53,7 +64,7 @@ On top of the metrics, users made 130 direct wallet-to-wallet transfers on Stell
 
 ---
 
-## 1. Architecture
+## 1. Milestones & Architecture Overview
 
 The shape is the same as in Tranche 2. What changed for mainnet: Circle CCTP replaced the Allbridge simulation, a fee account now pays network fees on swaps, auto-save runs deposits on a schedule, and every transaction settles on Stellar mainnet with its hash saved to the ledger.
 
@@ -108,7 +119,7 @@ Three rules hold across every flow. The AI assistant only prepares a card and ne
 
 ---
 
-## 2. Swaps through Soroswap
+## 2. Milestone 1: Conversational Swaps via Soroswap
 
 A user types something like "swap 100 XLM to USDC" in chat, or opens the swap screen. We ask the Soroswap API for a quote across the liquidity it aggregates (Soroswap's own pools, Aqua, Phoenix and the Stellar DEX) and show it as a card the user can edit. Nothing moves until they confirm with their 4-digit PIN. The server then:
 
@@ -132,7 +143,7 @@ All three were fee-bumped by Jumpa's fee account, so the users paid no XLM for g
 
 ---
 
-## 3. Savings on DeFindex
+## 3. Milestone 2: DeFi Savings Yield via DeFindex
 
 USDC savings goals deposit into a DeFindex vault on mainnet. Money goes in two ways: a manual top-up, or auto-save, which moves a fixed amount on a schedule the user picks (daily, weekly, monthly or a custom gap). Auto-save on USDC starts at $0.10. Both paths share one deposit routine:
 
@@ -162,7 +173,7 @@ Balances and APY in the app are read live from the vault. A withdrawal redeems t
 
 ---
 
-## 4. Moving USDC between chains with Circle CCTP
+## 4. Milestone 3: Cross-Chain Bridging via Circle CCTP
 
 CCTP v2 burns USDC on the source chain, waits for Circle to attest the burn, then mints the same amount of native USDC on the destination. There are no liquidity pools and no wrapped tokens in between. Jumpa supports Stellar to and from Base, Ethereum and Solana.
 
@@ -179,41 +190,44 @@ In the period, 14 bridges left Stellar ($460.61, five users) and 4 arrived on St
 
 ---
 
-## 5. Keys, signing and data protection
+## 5. Key Derivation, Signing & Data Privacy
 
-### Wallet and derivation
+### 5.1 Wallet & Key Derivation
 
 At sign-up, every user gets a 12-word BIP-39 recovery phrase. Their Stellar key is derived from it at `m/44'/148'/0'`, the SEP-0005 path that other Stellar wallets use. That means the same 12 words restore the same Stellar account in any SEP-0005 wallet. Users can view their phrase, or export their Stellar secret key on its own, from Settings after entering their PIN.
 
-### Encryption at rest
+### 5.2 Encryption at Rest
 
 The phrase is never stored in plain text. It's encrypted with AES-256-GCM, with a random salt and IV for each wallet. The encryption key is derived with HKDF-SHA256 from that salt and a server secret that lives outside the database, so a copy of the database alone can't unlock any wallet. Older wallets were encrypted with a key derived from the user's PIN through Argon2id. They move to the current scheme in the background the next time their owner enters their PIN.
 
-### When a key is used
+### 5.3 When a Key Is Used
 
 The phrase is decrypted in memory only when it's needed, and it's dropped straight after. That happens in three cases: signing a transaction the user confirmed with their 4-digit PIN, signing a scheduled auto-save the user set up and approved with their PIN, and showing the phrase to the user when they ask to see it in Settings. The AI assistant never sees keys. It can only prepare a card, and the PIN is what releases a transaction.
 
-### PIN
+### 5.4 PIN Protection
 
 The PIN is stored as a bcrypt hash. Five wrong attempts lock the wallet for 15 minutes.
 
-### What is public and what isn't
+### 5.5 What Is Public and What Isn't
 
 Transactions on Stellar are public by design, and that's what makes the audit trail in section 7 possible. Names, email addresses, phone numbers and ID documents stay off chain in our own database, and Jumpa never puts them in a Stellar transaction.
 
 ---
 
-## 6. Changes from the original plan
+## 6. Changes From the Original Plan
 
-### Allbridge became Circle CCTP
+### 6.1 Allbridge Became Circle CCTP
 
 After the exploit on Allbridge Core pools, Allbridge paused its pool-based routes, so there was no live Stellar route to settle on. We said in the Tranche 2 report that production bridging would move to CCTP, and it did. CCTP mints native USDC instead of moving it through pools, which removes pool and wrapped-token risk. It also gave us Ethereum and Solana on top of Base.
 
 ---
 
-## 7. Checking it yourself on Stellar Expert
+## 7. On-Chain Verification via Stellar Expert
 
-Every swap, bridge and savings deposit in our ledger stores its Stellar transaction hash. Users see the matching Stellar Expert link on their receipt in chat and on the swap, bridge and send screens. One savings withdrawal (of 17) was recorded without its hash, and we're tracing it.
+Every swap, bridge and savings deposit in our ledger stores its Stellar transaction hash. Users see the matching Stellar Expert link on their receipt in chat and on the swap, bridge and send screens.
+
+> [!NOTE]
+> **Ledger Transparency:** One savings withdrawal (of 17) was recorded without its transaction hash. We're tracing it on chain.
 
 The quickest public check is Jumpa's fee account. It pays the network fee on swaps and wallet transfers through fee bumps, so it appears on them. Since 17 September 2026 it has taken part in 1,490 mainnet transactions, 905 of them fee bumps on user transactions.
 
@@ -228,7 +242,9 @@ To repeat our checks, open any transaction above and confirm three things: it su
 
 ---
 
-## 8. How the metrics were measured
+## 8. How Completion Was Measured & Verified
+
+> 💡 **Step-by-Step Testing Guide:** For a hands-on walkthrough on mainnet, see the Tranche 3 section of [`HOW_TO_TEST.md`](HOW_TO_TEST.md).
 
 The figures come from the production transaction ledger: records with status `CONFIRMED`, network `mainnet` and chain `stellar`, created between 23 August and 15 November 2026. We checked the sample transactions in this report one by one on Horizon.
 
@@ -237,22 +253,23 @@ The figures come from the production transaction ledger: records with status `CO
 - **Metric 3** counts savings goals that are in USDC, attached to the DeFindex vault, active, and holding a balance above zero: 27.
 - **Metric 4** is the production app at usejumpa.com, with each receipt linking to the transaction on Stellar Expert.
 
-For a hands-on walkthrough on mainnet, see the Tranche 3 section of [`HOW_TO_TEST.md`](HOW_TO_TEST.md).
-
 ---
 
-## 9. Code map
+## 9. Codebase Directory & File Reference Map
 
-| Area | Files |
-| :--- | :--- |
-| Soroswap quotes and swap execution | [`lib/dex/soroswap/client.ts`](../lib/dex/soroswap/client.ts), [`lib/execution/stellar-swap.ts`](../lib/execution/stellar-swap.ts) |
-| Fee bumps and the fee account | [`lib/chains/stellar/sponsor.ts`](../lib/chains/stellar/sponsor.ts) |
-| DeFindex client | [`lib/chains/stellar/defindex-client.ts`](../lib/chains/stellar/defindex-client.ts) |
-| USDC savings deposits | [`lib/services/savings-usdc.ts`](../lib/services/savings-usdc.ts), [`lib/services/savings-execution.ts`](../lib/services/savings-execution.ts) |
-| Auto-save | [`lib/services/auto-save-runner.ts`](../lib/services/auto-save-runner.ts), [`script/auto-save.ts`](../script/auto-save.ts) |
-| CCTP bridging | [`lib/execution/bridge-execute.ts`](../lib/execution/bridge-execute.ts), [`lib/chains/stellar/cctp-bridge.ts`](../lib/chains/stellar/cctp-bridge.ts), [`lib/chains/solana/cctp-bridge.ts`](../lib/chains/solana/cctp-bridge.ts) |
-| Key derivation and encryption | [`lib/chains/stellar/keypair.ts`](../lib/chains/stellar/keypair.ts), [`lib/crypto.ts`](../lib/crypto.ts) |
-| PIN checks and lockout | [`lib/execution/verify-pin.ts`](../lib/execution/verify-pin.ts) |
-| Contract addresses | [`lib/blockchain.ts`](../lib/blockchain.ts) |
-| Ledger models | [`models/Transaction.ts`](../models/Transaction.ts), [`models/SavingsPlan.ts`](../models/SavingsPlan.ts) |
-| Public docs content | [`lib/docs/content.ts`](../lib/docs/content.ts) |
+| Component / Feature | File Path | Key Functions / Exports |
+| :--- | :--- | :--- |
+| **Soroswap Client** | [`lib/dex/soroswap/client.ts`](../lib/dex/soroswap/client.ts) | `fetchSoroswapQuote`, `buildSoroswapTransaction` |
+| **Stellar Swap Execution** | [`lib/execution/stellar-swap.ts`](../lib/execution/stellar-swap.ts) | `executeStellarSwap` |
+| **Fee Bumps & Fee Account** | [`lib/chains/stellar/sponsor.ts`](../lib/chains/stellar/sponsor.ts) | `wrapWithFeeBump`, `sponsoredSubmit`, `ensureSufficientStellarGas`, `collectStellarGasFeeUsdc` |
+| **DeFindex Client** | [`lib/chains/stellar/defindex-client.ts`](../lib/chains/stellar/defindex-client.ts) | `DefindexClient` (`deposit`, `withdraw`, `getBalance`, `getApy`, `send`) |
+| **USDC Savings Deposits** | [`lib/services/savings-usdc.ts`](../lib/services/savings-usdc.ts)<br/>[`lib/services/savings-execution.ts`](../lib/services/savings-execution.ts) | `moveUsdcIntoPlan`, `enablePinlessSigning`<br/>`depositSavingsExecution`, `withdrawSavingsExecution` |
+| **Auto-Save Runner** | [`lib/services/auto-save-runner.ts`](../lib/services/auto-save-runner.ts)<br/>[`script/auto-save.ts`](../script/auto-save.ts) | `runDueAutoSaves` |
+| **CCTP Bridging** | [`lib/execution/bridge-execute.ts`](../lib/execution/bridge-execute.ts)<br/>[`lib/chains/stellar/cctp-bridge.ts`](../lib/chains/stellar/cctp-bridge.ts)<br/>[`lib/chains/solana/cctp-bridge.ts`](../lib/chains/solana/cctp-bridge.ts) | `executeBridge`<br/>`relayToStellar`<br/>`relayToSolana` |
+| **Key Derivation** | [`lib/chains/stellar/keypair.ts`](../lib/chains/stellar/keypair.ts) | `STELLAR_DERIVATION_PATH`, `deriveStellarKeypairFromMnemonic` |
+| **Mnemonic Encryption/Decryption** | [`lib/crypto.ts`](../lib/crypto.ts) | `encryptMnemonic`, `decryptMnemonic` |
+| **PIN Verification** | [`lib/execution/verify-pin.ts`](../lib/execution/verify-pin.ts) | `verifyWalletPin` |
+| **Contract Addresses** | [`lib/blockchain.ts`](../lib/blockchain.ts) | `CONTRACT_ADDRESSES` |
+| **Transaction Schema** | [`models/Transaction.ts`](../models/Transaction.ts) | `Transaction` (`SWAP`, `BRIDGE`, `SAVINGS_DEPOSIT`, `SAVINGS_WITHDRAW`) |
+| **Savings Plan Schema** | [`models/SavingsPlan.ts`](../models/SavingsPlan.ts) | `SavingsPlan` |
+| **Public Docs Content** | [`lib/docs/content.ts`](../lib/docs/content.ts) | `DOCS_PAGES["stellar-integrations"]` |

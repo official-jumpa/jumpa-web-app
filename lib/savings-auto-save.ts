@@ -1,6 +1,8 @@
 import type { SavingsKind } from "@/lib/savings";
 import {
   currencySymbol,
+  dayNumber,
+  isoDay,
   type SavingsCurrency,
   type SavingsGoal,
 } from "@/lib/savings-hub";
@@ -409,4 +411,39 @@ export function ruleSummary(rule: AutoSaveDraft): string {
     scheduleLabel(rule),
     ...(rule.cadence === "custom" ? [] : [timeLabel(rule.time)]),
   ].join(" · ");
+}
+
+/** "Today, 11:30am" plus "in 1h 24m" while the next run is under a day away. */
+export function nextRunCopy(
+  nextRunAt: string,
+  now: number,
+): { when: string; countdown?: string } {
+  const run = new Date(nextRunAt);
+  const left = Math.ceil((run.getTime() - now) / 60_000);
+  // The job runs every 5 minutes, so a due run can land a little late.
+  if (left <= 0) return { when: "Any moment now" };
+
+  const days = dayNumber(isoDay(run)) - dayNumber(isoDay(new Date(now)));
+  const day =
+    days === 0
+      ? "Today"
+      : days === 1
+        ? "Tomorrow"
+        : run.toLocaleDateString("en-GB", {
+            weekday: "short",
+            day: "2-digit",
+            month: "short",
+          });
+  const when = `${day}, ${timeLabel(`${pad(run.getHours())}:${pad(run.getMinutes())}`)}`;
+  if (left >= MINUTES_PER_DAY) return { when };
+
+  const hours = Math.floor(left / 60);
+  const minutes = left % 60;
+  const countdown =
+    hours === 0
+      ? `in ${minutes} min`
+      : minutes === 0
+        ? `in ${hours}h`
+        : `in ${hours}h ${minutes}m`;
+  return { when, countdown };
 }

@@ -1,13 +1,18 @@
+import { useEffect, useState } from "react";
 import { DetailList, DetailRow } from "@/components/transfer/detail-list";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import {
   type AutoSaveRule,
   formatAutoSaveAmount,
+  nextRunCopy,
   scheduleLabel,
   sourceCopy,
   timeLabel,
 } from "@/lib/savings-auto-save";
+
+/** How often the countdown to the next top-up refreshes. */
+const TICK_MS = 30_000;
 
 /** A running rule read back, with the two things left to do to it: change it or end it. */
 export function AutoSaveSheet({
@@ -23,6 +28,14 @@ export function AutoSaveSheet({
   onChange: () => void;
   onTurnOff: () => void;
 }) {
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), TICK_MS);
+    return () => clearInterval(id);
+  }, []);
+  const next =
+    !rule.paused && rule.nextRunAt ? nextRunCopy(rule.nextRunAt, now) : null;
+
   return (
     <BottomSheet onClose={onClose} pb="pb-7.5">
       <div className="flex flex-col gap-6 pt-2">
@@ -43,7 +56,25 @@ export function AutoSaveSheet({
             value={formatAutoSaveAmount(rule.amount, rule.currency)}
           />
           <DetailRow label="How often" value={scheduleLabel(rule)} />
-          <DetailRow label="Time" value={timeLabel(rule.time)} />
+          {/* A custom gap repeats from the last run, so it has no time of day. */}
+          {rule.cadence === "custom" ? null : (
+            <DetailRow label="Time" value={timeLabel(rule.time)} />
+          )}
+          {next ? (
+            <DetailRow
+              label="Next top-up"
+              value={
+                <>
+                  {next.when}
+                  {next.countdown ? (
+                    <span className="font-normal text-jumpa-black/50">
+                      {` · ${next.countdown}`}
+                    </span>
+                  ) : null}
+                </>
+              }
+            />
+          ) : null}
           <DetailRow
             label="Pay with"
             value={sourceCopy(rule.source).title}

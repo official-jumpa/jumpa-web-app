@@ -74,6 +74,8 @@ export function clearUnlockedCookie() {
 
 interface AutoLockContextValue {
   isLocked: boolean;
+  /** The unlock screen is up; nothing else should open over the app. */
+  lockScreenShown: boolean;
   timeoutSetting: AutoLockTimeoutOption;
   updateTimeoutSetting: (option: AutoLockTimeoutOption) => Promise<void>;
   unlock: (password: string) => Promise<{ success: boolean; error?: string }>;
@@ -292,6 +294,7 @@ export function AutoLockProvider({
     <AutoLockContext.Provider
       value={{
         isLocked,
+        lockScreenShown: isLocked && hasPassword,
         timeoutSetting,
         updateTimeoutSetting,
         unlock,

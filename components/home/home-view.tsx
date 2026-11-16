@@ -5,6 +5,7 @@ import { BalancePanel } from "@/components/home/balance-panel";
 import { FiatAccounts } from "@/components/home/fiat-accounts";
 import { PromoBanner } from "@/components/home/promo-banner";
 import { QuickActions } from "@/components/home/quick-actions";
+import { SavingsPromoModal } from "@/components/home/savings-promo-modal";
 import { TransactionHistory } from "@/components/home/transaction-history";
 import { WalletHeader } from "@/components/home/wallet-header";
 import { RiseIn } from "@/components/ui/rise-in";
@@ -330,6 +331,7 @@ export function HomeView({
           loading={loadingTransactions}
         />
       </RiseIn>
+      <SavingsPromoModal />
     </div>
   );
 }

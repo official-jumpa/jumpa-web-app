@@ -5,7 +5,7 @@ import Link from "next/link";
 import { CookieIcon } from "@/components/ui/icons/cookie";
 import { CloseIcon } from "@/components/ui/icons/close";
 
-const STORAGE_KEY = "jumpa_cookie_choices_dismissed";
+export const STORAGE_KEY = "jumpa_cookie_choices_dismissed";
 
 export function CookieChoicesBanner() {
   const [mounted, setMounted] = useState(false);

@@ -186,6 +186,8 @@
   --color-jumpa-grey-75: #f4f4f8; /* currency switch track */
   --color-jumpa-lavender-150: #e7e3f0; /* step still ahead on the progress rail */
   --color-jumpa-primary-25: #f7f4ff; /* review summary card */
+  --color-jumpa-primary-30: #f8f0ff; /* foot of the savings pop-up */
+  --color-jumpa-primary-975: #1d014a; /* savings pop-up body copy */
 
   /* Typography. Geist at every size — the face the Figma file specifies.
      `display` and `numeric` still stand in for Gotham Ultra and Neue Montreal,
@@ -206,6 +208,7 @@
   --tracking-jumpa: -0.01em;
   --tracking-jumpa-snug: -0.03em;
   --tracking-jumpa-tight: -0.04em; /* slanted headline on the savings ad */
+  --tracking-jumpa-tighter: -0.05em; /* slanted headline on the savings pop-up */
   /* The footer tracks a flat -0.42px, so its 24px type lands between the two. */
   --tracking-jumpa-wide: -0.0175em;
   --tracking-jumpa-display: -0.17em;

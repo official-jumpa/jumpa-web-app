@@ -264,7 +264,11 @@ export function AutoLockProvider({
         if (!res.ok || (!data.data?.verified && !data.verified)) {
           return {
             success: false,
-            error: data.error || "Incorrect password",
+            error:
+              data.error ||
+              (res.status >= 500
+                ? "Something went wrong. Please try again."
+                : "Incorrect password"),
           };
         }
 
@@ -274,11 +278,13 @@ export function AutoLockProvider({
         notifyLockSync("unlock");
 
         return { success: true };
-      } catch (err: any) {
+      } catch (err) {
+        // fetch only throws when no response came back, e.g. offline
         console.error("[AutoLock] Unlock error:", err);
         return {
           success: false,
-          error: err?.message || "Failed to verify password",
+          error:
+            "We couldn't reach Jumpa. Check your connection and try again.",
         };
       }
     },

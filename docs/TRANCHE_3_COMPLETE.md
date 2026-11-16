@@ -201,7 +201,7 @@ Users made 108 deposits into the vault in the period. The 20 largest come to $54
 
 ## 4. Milestone 3: Cross-Chain Bridging via Circle CCTP
 
-We switched bridging from Allbridge to Circle CCTP. Allbridge was hacked and paused its routes, so it could no longer process transactions on Stellar. As planned in our Tranche 2 report, Jumpa now bridges USDC with Circle CCTP, between Stellar and Base, Ethereum and Solana.
+We switched bridging from Allbridge to Circle CCTP. Allbridge was exploited and paused its routes, so it could no longer process transactions on Stellar. As planned in our Tranche 2 report, Jumpa now bridges USDC with Circle CCTP, between Stellar and Base, Ethereum and Solana.
 
 In the period, users made 14 bridges out of Stellar, worth $460.61.
 

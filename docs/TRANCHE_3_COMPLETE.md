@@ -90,7 +90,7 @@ flowchart TD
         Exec -->|"Signed swap"| FeeBump["Fee bump from Jumpa fee account"]
         FeeBump --> Router["Soroswap router"]
         Exec -->|"Signed deposit or withdrawal"| Vault["DeFindex USDC vault"]
-        Exec -->|"Signed deposit_for_burn"| Messenger["CCTP TokenMessenger"]
+        Exec -->|"Signed bridge"| Messenger["Circle CCTP"]
         Router --> Explorer["Receipt links to Stellar Expert"]
         Vault --> Explorer
         Messenger --> Explorer
@@ -201,20 +201,15 @@ Users made 108 deposits into the vault in the period. The 20 largest come to $54
 
 ## 4. Milestone 3: Cross-Chain Bridging via Circle CCTP
 
-CCTP v2 burns USDC on the source chain, waits for Circle to attest the burn, then mints the same amount of native USDC on the destination. There are no liquidity pools and no wrapped tokens in between. Jumpa supports Stellar to and from Base, Ethereum and Solana.
+We switched bridging from Allbridge to Circle CCTP. Allbridge was hacked and paused its routes, so it could no longer process transactions on Stellar. As planned in our Tranche 2 report, Jumpa now bridges USDC with Circle CCTP, between Stellar and Base, Ethereum and Solana.
 
-> [!NOTE]
-> **Why We Switched From Allbridge to Circle CCTP:** The plan was to bridge through Allbridge Core. After an exploit on its pools, Allbridge paused its pool-based routes, which left no live Stellar route for us to use. As we said in the Tranche 2 report, we moved Jumpa's bridging to Circle CCTP, Circle's own cross-chain protocol for USDC. CCTP mints native USDC instead of moving it through pools, which removes pool and wrapped-token risk. It also gave us Ethereum and Solana on top of Base.
+In the period, users made 14 bridges out of Stellar, worth $460.61.
 
-Leaving Stellar, the user's wallet calls `deposit_for_burn` on Circle's TokenMessenger contract. We poll Circle's attestation service and submit the mint on the destination chain. Coming into Stellar, the burn happens on the source chain and the mint lands through Circle's forwarder contract on Stellar. The bridge card shows the fee and the amount that will arrive before the user confirms with their PIN.
-
-In the period, 14 bridges left Stellar ($460.61, five users) and 4 arrived on Stellar (one each from Base and Ethereum, two from Solana). The metric counts only the 14 outbound bridges, because those are the ones with a Stellar-side transaction in our ledger.
-
-**CCTP TokenMessenger on Stellar:** [`CAE2G5Z77UP7GYPYGFOWFGW7C7J6I4YP2AFGSADRKQY62SYUFLPNFTXL`](https://stellar.expert/explorer/public/contract/CAE2G5Z77UP7GYPYGFOWFGW7C7J6I4YP2AFGSADRKQY62SYUFLPNFTXL)
+**CCTP contract on Stellar:** [`CAE2G5Z77UP7GYPYGFOWFGW7C7J6I4YP2AFGSADRKQY62SYUFLPNFTXL`](https://stellar.expert/explorer/public/contract/CAE2G5Z77UP7GYPYGFOWFGW7C7J6I4YP2AFGSADRKQY62SYUFLPNFTXL)
 
 ### 4.1 All 14 Mainnet Bridges Out of Stellar
 
-This is every bridge with a Stellar-side transaction in the period, $460.61 in total, listed by value. Each one calls `deposit_for_burn` on the TokenMessenger.
+Every bridge out of Stellar in the period, listed by value.
 
 | # | Date | Bridge | Transaction hash |
 | :--- | :--- | :--- | :--- |
@@ -246,7 +241,7 @@ The quickest public check is Jumpa's fee account. It pays the network fee on swa
 | Jumpa fee account | [`GAB72B74GG24KKJMASIYPFFDCHPZ7GJK4TZBTG7HFPN4K5GUKRSQF4IB`](https://stellar.expert/explorer/public/account/GAB72B74GG24KKJMASIYPFFDCHPZ7GJK4TZBTG7HFPN4K5GUKRSQF4IB) |
 | Soroswap router | [`CAG5LRYQ…CCFAJDDH`](https://stellar.expert/explorer/public/contract/CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH) |
 | DeFindex vault | [`CCPAXQPQ…IB3T23VV`](https://stellar.expert/explorer/public/contract/CCPAXQPQQALOPBRTWUJ6EMSCVSGQLADQLITHZIFHW4J2MV5QIB3T23VV) |
-| CCTP TokenMessenger | [`CAE2G5Z7…FLPNFTXL`](https://stellar.expert/explorer/public/contract/CAE2G5Z77UP7GYPYGFOWFGW7C7J6I4YP2AFGSADRKQY62SYUFLPNFTXL) |
+| Circle CCTP | [`CAE2G5Z7…FLPNFTXL`](https://stellar.expert/explorer/public/contract/CAE2G5Z77UP7GYPYGFOWFGW7C7J6I4YP2AFGSADRKQY62SYUFLPNFTXL) |
 
 To repeat our checks, open any transaction in sections 2 to 4 and confirm that it succeeded and that it calls the contract named above its table. On the swaps, also confirm that the Jumpa fee account paid the fee.
 

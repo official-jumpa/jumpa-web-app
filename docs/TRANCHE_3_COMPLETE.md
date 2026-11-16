@@ -79,9 +79,9 @@ flowchart TD
     end
 
     subgraph Server ["2. Jumpa server"]
-        Pin -->|"bcrypt check, 5 tries then 15 min lock"| Exec["Execution layer"]
+        Pin -->|"PIN check"| Exec["Execution layer"]
         Cron["Auto-save runner, every 5 min"] -->|"Plans approved with PIN"| Exec
-        Exec -->|"Decrypt in memory, AES-256-GCM"| Keys["Wallet key at m/44'/148'/0'"]
+        Exec -->|"Decrypt in memory"| Keys["User's wallet key"]
         Keys -->|"Sign"| Exec
         Exec -->|"Save tx hash"| Ledger[("Transaction ledger")]
     end
@@ -198,7 +198,7 @@ At sign-up, every user gets a 12-word BIP-39 recovery phrase. Their Stellar key 
 
 ### 5.2 Encryption at Rest
 
-The phrase is never stored in plain text. It's encrypted with AES-256-GCM, with a random salt and IV for each wallet. The encryption key is derived with HKDF-SHA256 from that salt and a server secret that lives outside the database, so a copy of the database alone can't unlock any wallet. Older wallets were encrypted with a key derived from the user's PIN through Argon2id. They move to the current scheme in the background the next time their owner enters their PIN.
+The phrase is never stored in plain text. It's encrypted before it's stored.
 
 ### 5.3 When a Key Is Used
 
@@ -206,7 +206,7 @@ The phrase is decrypted in memory only when it's needed, and it's dropped straig
 
 ### 5.4 PIN Protection
 
-The PIN is stored as a bcrypt hash. Five wrong attempts lock the wallet for 15 minutes.
+The PIN is never stored in readable form, and repeated wrong attempts lock the wallet for a while.
 
 ### 5.5 What Is Public and What Isn't
 
@@ -263,11 +263,9 @@ The figures come from the production transaction ledger: records with status `CO
 | **Stellar Swap Execution** | [`lib/execution/stellar-swap.ts`](../lib/execution/stellar-swap.ts) | `executeStellarSwap` |
 | **Fee Bumps & Fee Account** | [`lib/chains/stellar/sponsor.ts`](../lib/chains/stellar/sponsor.ts) | `wrapWithFeeBump`, `sponsoredSubmit`, `ensureSufficientStellarGas`, `collectStellarGasFeeUsdc` |
 | **DeFindex Client** | [`lib/chains/stellar/defindex-client.ts`](../lib/chains/stellar/defindex-client.ts) | `DefindexClient` (`deposit`, `withdraw`, `getBalance`, `getApy`, `send`) |
-| **USDC Savings Deposits** | [`lib/services/savings-usdc.ts`](../lib/services/savings-usdc.ts)<br/>[`lib/services/savings-execution.ts`](../lib/services/savings-execution.ts) | `moveUsdcIntoPlan`, `enablePinlessSigning`<br/>`depositSavingsExecution`, `withdrawSavingsExecution` |
+| **USDC Savings Deposits** | [`lib/services/savings-usdc.ts`](../lib/services/savings-usdc.ts)<br/>[`lib/services/savings-execution.ts`](../lib/services/savings-execution.ts) | `moveUsdcIntoPlan`<br/>`depositSavingsExecution`, `withdrawSavingsExecution` |
 | **Auto-Save Runner** | [`lib/services/auto-save-runner.ts`](../lib/services/auto-save-runner.ts)<br/>[`script/auto-save.ts`](../script/auto-save.ts) | `runDueAutoSaves` |
 | **CCTP Bridging** | [`lib/execution/bridge-execute.ts`](../lib/execution/bridge-execute.ts)<br/>[`lib/chains/stellar/cctp-bridge.ts`](../lib/chains/stellar/cctp-bridge.ts)<br/>[`lib/chains/solana/cctp-bridge.ts`](../lib/chains/solana/cctp-bridge.ts) | `executeBridge`<br/>`relayToStellar`<br/>`relayToSolana` |
-| **Key Derivation** | [`lib/chains/stellar/keypair.ts`](../lib/chains/stellar/keypair.ts) | `STELLAR_DERIVATION_PATH`, `deriveStellarKeypairFromMnemonic` |
-| **Mnemonic Encryption/Decryption** | [`lib/crypto.ts`](../lib/crypto.ts) | `encryptMnemonic`, `decryptMnemonic` |
 | **PIN Verification** | [`lib/execution/verify-pin.ts`](../lib/execution/verify-pin.ts) | `verifyWalletPin` |
 | **Contract Addresses** | [`lib/blockchain.ts`](../lib/blockchain.ts) | `CONTRACT_ADDRESSES` |
 | **Transaction Schema** | [`models/Transaction.ts`](../models/Transaction.ts) | `Transaction` (`SWAP`, `BRIDGE`, `SAVINGS_DEPOSIT`, `SAVINGS_WITHDRAW`) |

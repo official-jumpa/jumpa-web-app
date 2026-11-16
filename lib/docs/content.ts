@@ -408,7 +408,7 @@ export const DOCS_PAGES: Record<string, DocPage> = {
       {
         id: "how-it-works",
         title: "How a Request Flows",
-        content: `Every swap, savings deposit and bridge takes the same path:\n\n1. You ask in chat or use one of the screens. The AI assistant reads your request and prepares a card with the quote. It can't sign or send anything.\n2. You confirm with your 4-digit PIN. The server checks it against a bcrypt hash.\n3. The server decrypts your key in memory, builds the transaction with the right service (Soroswap, DeFindex or Circle) and signs it.\n4. The transaction goes to Stellar mainnet. On swaps, Jumpa's fee account wraps it in a fee bump and pays the network fee.\n5. The transaction hash is saved to your history, and your receipt links to it on Stellar Expert.\n\nAuto-save follows the same path from step 3, on the schedule you approved with your PIN.`,
+        content: `Every swap, savings deposit and bridge takes the same path:\n\n1. You ask in chat or use one of the screens. The AI assistant reads your request and prepares a card with the quote. It can't sign or send anything.\n2. You confirm with your 4-digit PIN.\n3. The server decrypts your key in memory, builds the transaction with the right service (Soroswap, DeFindex or Circle) and signs it.\n4. The transaction goes to Stellar mainnet. On swaps, Jumpa's fee account wraps it in a fee bump and pays the network fee.\n5. The transaction hash is saved to your history, and your receipt links to it on Stellar Expert.\n\nAuto-save follows the same path from step 3, on the schedule you approved with your PIN.`,
       },
       {
         id: "swaps",
@@ -433,24 +433,12 @@ export const DOCS_PAGES: Record<string, DocPage> = {
       {
         id: "keys",
         title: "Your Keys and Derivation Path",
-        content: `When you sign up, Jumpa creates a 12-word BIP-39 recovery phrase for you. Your Stellar account is derived from it at \`m/44'/148'/0'\`, the path set by SEP-0005 and used by other Stellar wallets. The same 12 words restore the same Stellar account in any wallet that follows SEP-0005, so you can take your account elsewhere whenever you like. If you imported a wallet with a Stellar secret key instead, Jumpa uses that key as it is.\n\nYou can view your phrase, or export your Stellar secret key on its own, from Settings after entering your PIN. This is how the phrase becomes a Stellar key:`,
-        codeBlock: {
-          language: "typescript",
-          filename: "derive-stellar-key.ts",
-          code: `import * as bip39 from "bip39";
-import { derivePath } from "ed25519-hd-key";
-import { Keypair } from "@stellar/stellar-sdk";
-
-// SEP-0005: the first Stellar account for a BIP-39 phrase
-const seed = bip39.mnemonicToSeedSync(phrase);
-const { key } = derivePath("m/44'/148'/0'", seed.toString("hex"));
-const keypair = Keypair.fromRawEd25519Seed(key);`,
-        },
+        content: `When you sign up, Jumpa creates a 12-word BIP-39 recovery phrase for you. Your Stellar account is derived from it at \`m/44'/148'/0'\`, the path set by SEP-0005 and used by other Stellar wallets. The same 12 words restore the same Stellar account in any wallet that follows SEP-0005, so you can take your account elsewhere whenever you like.\n\nYou can view your phrase, or export your Stellar secret key on its own, from Settings after entering your PIN.`,
       },
       {
         id: "data-protection",
         title: "How We Protect Your Keys and Data",
-        content: `Your recovery phrase is never stored in plain text. It's encrypted with AES-256-GCM, with a random salt and IV for each wallet. The encryption key is derived with HKDF-SHA256 from that salt and a server secret kept outside the database, so a copy of the database on its own can't unlock any wallet.\n\nThat server secret is also what lets auto-save run while you're away, so we limit when it's used. Your phrase is decrypted in memory only for these three things, and dropped straight after:\n\n- signing a transaction you confirmed with your PIN\n- running an auto-save plan you set up and approved with your PIN\n- showing you your phrase when you ask for it in Settings\n\nThe AI assistant never sees your keys. It can only prepare a confirmation card, and your PIN is what releases the transaction. Your PIN is stored as a bcrypt hash, and five wrong attempts lock your wallet for 15 minutes.\n\nStellar transactions are public, which is why you can check every one of them. Your name, email address, phone number and ID documents are not. They stay off chain in Jumpa's database and never go into a Stellar transaction. See [Security & Privacy Safeguards](/docs/security-features) for more.`,
+        content: `Your recovery phrase is never stored in plain text. It's encrypted before it's stored, and it's only decrypted in memory for these three things, then dropped straight after:\n\n- signing a transaction you confirmed with your PIN\n- running an auto-save plan you set up and approved with your PIN\n- showing you your phrase when you ask for it in Settings\n\nThe AI assistant never sees your keys. It can only prepare a confirmation card, and your PIN is what releases the transaction. Your PIN is never stored in readable form, and repeated wrong attempts lock your wallet for a while.\n\nStellar transactions are public, which is why you can check every one of them. Your name, email address, phone number and ID documents are not. They stay off chain in Jumpa's database and never go into a Stellar transaction. See [Security & Privacy Safeguards](/docs/security-features) for more.`,
       },
       {
         id: "verify",

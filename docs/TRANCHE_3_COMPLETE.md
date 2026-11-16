@@ -204,7 +204,7 @@ Users made 108 deposits into the vault in the period. The 20 largest come to $54
 CCTP v2 burns USDC on the source chain, waits for Circle to attest the burn, then mints the same amount of native USDC on the destination. There are no liquidity pools and no wrapped tokens in between. Jumpa supports Stellar to and from Base, Ethereum and Solana.
 
 > [!NOTE]
-> **Allbridge Became Circle CCTP:** After the exploit on Allbridge Core pools, Allbridge paused its pool-based routes, so there was no live Stellar route to settle on. We said in the Tranche 2 report that production bridging would move to CCTP, and it did. CCTP mints native USDC instead of moving it through pools, which removes pool and wrapped-token risk. It also gave us Ethereum and Solana on top of Base.
+> **Why We Switched From Allbridge to Circle CCTP:** The plan was to bridge through Allbridge Core. After an exploit on its pools, Allbridge paused its pool-based routes, which left no live Stellar route for us to use. As we said in the Tranche 2 report, we moved Jumpa's bridging to Circle CCTP, Circle's own cross-chain protocol for USDC. CCTP mints native USDC instead of moving it through pools, which removes pool and wrapped-token risk. It also gave us Ethereum and Solana on top of Base.
 
 Leaving Stellar, the user's wallet calls `deposit_for_burn` on Circle's TokenMessenger contract. We poll Circle's attestation service and submit the mint on the destination chain. Coming into Stellar, the burn happens on the source chain and the mint lands through Circle's forwarder contract on Stellar. The bridge card shows the fee and the amount that will arrive before the user confirms with their PIN.
 

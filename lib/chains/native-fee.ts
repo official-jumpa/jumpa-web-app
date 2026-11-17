@@ -18,6 +18,11 @@ export const SOL_TRANSFER_FEE = 0.000005;
 /** What a Solana account keeps to stay open; a send that leaves less (but not zero) fails. */
 const SOL_RENT_EXEMPT_MIN = 0.00089088;
 
+/** A TRX send's bandwidth (~270 bytes at 1,000 sun) once the free daily allowance is used up. */
+const TRX_TRANSFER_FEE = 0.27;
+/** Activating an address that has never held TRX costs 1.1 TRX; MAX keeps 1.2 so a send to any address clears. */
+const TRX_HOLDBACK = 1.2;
+
 /** MAX keeps back 1.5× what the send checks for, so gas rising before the PIN can't fail it. */
 const MAX_HEADROOM = { num: BigInt(3), den: BigInt(2) };
 
@@ -40,10 +45,13 @@ export type NativeSendFee = {
   holdback: number;
 };
 
-/** Live cost of sending a chain's own coin (ETH on Base/Ethereum, SOL on Solana). */
+/** Live cost of sending a chain's own coin (ETH on Base/Ethereum, SOL on Solana, TRX on Tron). */
 export async function getNativeSendFee(
-  chain: EvmChain | "solana",
+  chain: EvmChain | "solana" | "tron",
 ): Promise<NativeSendFee> {
+  if (chain === "tron") {
+    return { fee: TRX_TRANSFER_FEE, holdback: TRX_HOLDBACK };
+  }
   if (chain === "solana") {
     return {
       fee: SOL_TRANSFER_FEE,

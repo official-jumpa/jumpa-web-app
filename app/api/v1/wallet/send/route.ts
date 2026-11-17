@@ -25,7 +25,10 @@ import {
   resolveChainPrivateKey,
   type TransferResult,
 } from "@/lib/chains/transfer-service";
-import { executeTronTokenTransfer } from "@/lib/chains/tron/transfer";
+import {
+  executeTronNativeTransfer,
+  executeTronTokenTransfer,
+} from "@/lib/chains/tron/transfer";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
 import {
   assertDailyTransactionLimit, isLimitError,
@@ -147,11 +150,22 @@ export async function POST(req: NextRequest) {
         asset,
       });
     } else if (config.chain === "tron") {
-      const tronRes = await executeTronTokenTransfer({
-        mnemonicOrPrivateKey: phrase,
-        toAddress: recipient,
-        amount,
-      });
+      // Only TRX and USDT are wired; anything else must fail, never fall back to USDT.
+      if (asset !== "TRX" && asset !== "USDT") {
+        throw new Error(`${asset} can't be sent on Tron yet`);
+      }
+      const tronRes =
+        asset === "TRX"
+          ? await executeTronNativeTransfer({
+              mnemonicOrPrivateKey: phrase,
+              toAddress: recipient,
+              amount,
+            })
+          : await executeTronTokenTransfer({
+              mnemonicOrPrivateKey: phrase,
+              toAddress: recipient,
+              amount,
+            });
       if (!tronRes.success || !tronRes.txHash) {
         throw new Error(tronRes.error || "Tron transfer failed");
       }

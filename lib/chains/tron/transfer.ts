@@ -14,6 +14,37 @@ export interface TronTransferResult {
   error?: string;
 }
 
+type TronAccount = ReturnType<typeof privateKeyToAccount>;
+
+/** A real Tron address: 0x41 prefix, 20-byte body and a matching checksum, so a typo never receives funds. */
+export function isTronAddress(address: string): boolean {
+  try {
+    const bytes = bs58.decode(address.trim());
+    if (bytes.length !== 25 || bytes[0] !== 0x41) return false;
+    const check = sha256(sha256(bytes.subarray(0, 21), "bytes"), "bytes");
+    return Buffer.from(check.subarray(0, 4)).equals(Buffer.from(bytes.subarray(21)));
+  } catch {
+    return false;
+  }
+}
+
+/** The signing account's own Tron address (Base58Check). */
+function ownerAddressOf(account: TronAccount): string {
+  const rawAddressBytes = Buffer.from(account.address.slice(2), "hex");
+  const payload = Buffer.concat([Buffer.from([0x41]), rawAddressBytes]);
+  const hash1 = sha256(payload);
+  const hash2 = sha256(hash1);
+  const checksum = Buffer.from(hash2.slice(2, 10), "hex");
+  return bs58.encode(Buffer.concat([payload, checksum]));
+}
+
+/** Exact TRX → sun (1 TRX = 1,000,000 sun); null when the amount isn't a plain number with at most 6 decimals. */
+function trxToSun(amount: string): bigint | null {
+  const match = /^(\d+)(?:\.(\d{0,6}))?$/.exec(amount.trim());
+  if (!match) return null;
+  return BigInt(match[1]) * BigInt(1_000_000) + BigInt((match[2] ?? "").padEnd(6, "0"));
+}
+
 /**
  * Convert a Tron Base58Check address (starting with 'T') to a 20-byte hex address (0x...)
  */
@@ -69,18 +100,14 @@ export async function executeTronTokenTransfer(options: {
     tokenContractAddress = CONTRACT_ADDRESSES.tron.mainnet.USDT.address,
   } = options;
 
+  if (!isTronAddress(toAddress)) {
+    return { success: false, error: "That isn't a valid Tron address." };
+  }
+
   try {
     const privateKey = deriveTronPrivateKey(mnemonicOrPrivateKey);
     const account = privateKeyToAccount(privateKey);
-
-    // Derive sender's Tron Base58Check address from account
-    const rawAddressBytes = Buffer.from(account.address.slice(2), "hex");
-    const tronPrefix = Buffer.from([0x41]);
-    const payload = Buffer.concat([tronPrefix, rawAddressBytes]);
-    const hash1 = sha256(payload);
-    const hash2 = sha256(hash1);
-    const checksum = Buffer.from(hash2.slice(2, 10), "hex");
-    const ownerTronAddress = bs58.encode(Buffer.concat([payload, checksum]));
+    const ownerTronAddress = ownerAddressOf(account);
 
     const numAmount = Number(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
@@ -121,44 +148,118 @@ export async function executeTronTokenTransfer(options: {
       return { success: false, error: "Unable to send transaction to the Tron network. Please try again shortly." };
     }
 
-    const transaction = triggerData.transaction;
-    const txId = transaction.txID;
-
-    // 2. Sign transaction hash with secp256k1 private key
-    // In Tron, signature is compact r + s + v (65 bytes hex string)
-    const signatureHex = await account.sign({
-      hash: `0x${txId}` as `0x${string}`,
-    });
-
-    // Strip 0x
-    const sigClean = signatureHex.slice(2);
-    transaction.signature = [sigClean];
-
-    // 3. Broadcast signed transaction to Tron network
-    const broadcastRes = await fetch(`${TRON_API_HOST}/wallet/broadcasttransaction`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(transaction),
-    });
-
-    const broadcastData = await broadcastRes.json();
-
-    if (!broadcastData.result) {
-      const errMsg = broadcastData.message
-        ? Buffer.from(broadcastData.message, "hex").toString()
-        : JSON.stringify(broadcastData);
-      return { success: false, error: `Tron broadcast failed: ${errMsg}` };
-    }
-
-    console.log(`[TronTransfer] ✅ Successfully sent Tron transaction: ${txId}`);
-
-    return {
-      success: true,
-      txHash: txId,
-      explorerUrl: `https://tronscan.org/#/transaction/${txId}`,
-    };
+    // 2–3. Sign and broadcast
+    return await signAndBroadcast(triggerData.transaction, account);
   } catch (err: any) {
     console.error("[TronTransfer] Unexpected error:", err);
     return { success: false, error: err.message || "Failed to execute Tron transfer" };
   }
+}
+
+/**
+ * Sends TRX, Tron's own coin. The node builds the transaction; it is only
+ * signed if it moves exactly this amount from this wallet to this recipient.
+ */
+export async function executeTronNativeTransfer(options: {
+  mnemonicOrPrivateKey: string;
+  toAddress: string;
+  amount: string;
+}): Promise<TronTransferResult> {
+  const { mnemonicOrPrivateKey, toAddress, amount } = options;
+
+  if (!isTronAddress(toAddress)) {
+    return { success: false, error: "That isn't a valid Tron address." };
+  }
+  const sun = trxToSun(amount);
+  if (sun === null || sun <= BigInt(0) || sun > BigInt(Number.MAX_SAFE_INTEGER)) {
+    return { success: false, error: "Enter a TRX amount with up to 6 decimal places." };
+  }
+
+  try {
+    const account = privateKeyToAccount(deriveTronPrivateKey(mnemonicOrPrivateKey));
+    const owner41Hex = tronAddressTo41Hex(ownerAddressOf(account));
+    const to41Hex = tronAddressTo41Hex(toAddress);
+    if (owner41Hex === to41Hex) {
+      return { success: false, error: "You can't send TRX to your own address." };
+    }
+
+    const createRes = await fetch(`${TRON_API_HOST}/wallet/createtransaction`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        owner_address: owner41Hex,
+        to_address: to41Hex,
+        amount: Number(sun),
+      }),
+    });
+    const transaction = await createRes.json();
+    if (!transaction?.txID) {
+      const reason = String(transaction?.Error ?? JSON.stringify(transaction));
+      console.error("[TronTransfer] Create TRX transfer failed:", reason);
+      return {
+        success: false,
+        error: reason.includes("balance is not sufficient")
+          ? "Not enough TRX for this amount."
+          : "Unable to send transaction to the Tron network. Please try again shortly.",
+      };
+    }
+
+    const contracts = transaction.raw_data?.contract;
+    const value = contracts?.[0]?.parameter?.value;
+    const matches =
+      contracts?.length === 1 &&
+      contracts[0].type === "TransferContract" &&
+      String(value?.owner_address).toLowerCase() === owner41Hex &&
+      String(value?.to_address).toLowerCase() === to41Hex &&
+      String(value?.amount) === sun.toString() &&
+      sha256(`0x${transaction.raw_data_hex}`).slice(2) === transaction.txID;
+    if (!matches) {
+      console.error("[TronTransfer] Node returned a TRX transfer that doesn't match the request; not signing.");
+      return {
+        success: false,
+        error: "Unable to send transaction to the Tron network. Please try again shortly.",
+      };
+    }
+
+    return await signAndBroadcast(transaction, account);
+  } catch (err) {
+    console.error("[TronTransfer] Unexpected error:", err);
+    return {
+      success: false,
+      error: (err instanceof Error && err.message) || "Failed to execute Tron transfer",
+    };
+  }
+}
+
+/** Signs a node-built transaction's id (r + s + v, 65 bytes) and broadcasts it. */
+async function signAndBroadcast(
+  // biome-ignore lint/suspicious/noExplicitAny: TronGrid's transaction JSON, passed back as-is
+  transaction: any,
+  account: TronAccount,
+): Promise<TronTransferResult> {
+  const txId: string = transaction.txID;
+  const signatureHex = await account.sign({ hash: `0x${txId}` as `0x${string}` });
+  transaction.signature = [signatureHex.slice(2)];
+
+  const broadcastRes = await fetch(`${TRON_API_HOST}/wallet/broadcasttransaction`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(transaction),
+  });
+  const broadcastData = await broadcastRes.json();
+
+  if (!broadcastData.result) {
+    const errMsg = broadcastData.message
+      ? Buffer.from(broadcastData.message, "hex").toString()
+      : JSON.stringify(broadcastData);
+    return { success: false, error: `Tron broadcast failed: ${errMsg}` };
+  }
+
+  console.log(`[TronTransfer] ✅ Successfully sent Tron transaction: ${txId}`);
+
+  return {
+    success: true,
+    txHash: txId,
+    explorerUrl: `https://tronscan.org/#/transaction/${txId}`,
+  };
 }

@@ -5,11 +5,11 @@ import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 export const dynamic = "force-dynamic";
 
-const CHAINS = ["base", "eth", "solana"] as const;
+const CHAINS = ["base", "eth", "solana", "tron"] as const;
 type NativeChain = (typeof CHAINS)[number];
 
 /**
- * GET /api/v1/wallet/send/fee?chain=base|eth|solana
+ * GET /api/v1/wallet/send/fee?chain=base|eth|solana|tron
  * Live network fee for sending the chain's own coin, and what MAX leaves behind for it.
  */
 export async function GET(req: NextRequest) {
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const chain = req.nextUrl.searchParams.get("chain") as NativeChain | null;
   if (!chain || !CHAINS.includes(chain)) {
     return NextResponse.json(
-      { success: false, error: "chain must be base, eth or solana" },
+      { success: false, error: "chain must be base, eth, solana or tron" },
       { status: 400 },
     );
   }

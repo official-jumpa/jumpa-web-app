@@ -207,7 +207,7 @@ export const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
     name: "Tron",
     chain: "tron",
     network: "mainnet",
-    assets: ["USDT", "USDC"],
+    assets: ["USDT", "TRX"],
     supportsMemo: false,
     feeLabel: "~13-27 TRX",
     settlementTime: "1-3 seconds",
@@ -239,13 +239,14 @@ export const NATIVE_COIN: Partial<Record<NetworkConfig["chain"], string>> = {
   base: "ETH",
   eth: "ETH",
   solana: "SOL",
+  tron: "TRX",
 };
 
 /** Chains the wallet-address form offers. */
 export const NETWORKS = Object.keys(NETWORK_CONFIGS);
 
 /** Assets that can leave the wallet. */
-export const SEND_ASSETS = ["USDC", "USDT", "XLM", "SOL", "ETH"] as const;
+export const SEND_ASSETS = ["USDC", "USDT", "XLM", "SOL", "ETH", "TRX"] as const;
 
 /** Rules the deposit screen lists under the QR, for the chain in play. */
 export function depositNotes(

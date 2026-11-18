@@ -1591,6 +1591,8 @@ export async function resolveAllPendingTransactions(options?: {
     if (tx.rampDetails?.reference) {
       const reference = tx.rampDetails.reference;
       const handler = getProviderHandler(tx.rampDetails?.provider);
+      // txHash starts as the reference and becomes the on-chain hash once the crypto is sent.
+      const depositSent = Boolean(tx.txHash) && tx.txHash !== reference;
 
       try {
         const syncRes = await handler.checkStatus(reference, tx);
@@ -1610,8 +1612,9 @@ export async function resolveAllPendingTransactions(options?: {
           });
         } else if (
           syncRes.status === "FAILED" ||
-          // Only an order still waiting for its deposit expires; an unreachable provider or a payout in flight stays pending.
-          (isStale && AWAITING_DEPOSIT_STATUSES.includes(syncRes.rawStatus))
+          // Only an order still waiting for its deposit expires; an unreachable provider, a payout in flight
+          // or a deposit we already sent (the provider just hasn't seen it) stays pending.
+          (isStale && !depositSent && AWAITING_DEPOSIT_STATUSES.includes(syncRes.rawStatus))
         ) {
           const reason =
             syncRes.status === "FAILED"

@@ -641,9 +641,13 @@ export interface WithdrawAellaNgnFiatParams {
   narration?: string;
 }
 
+/** Aella didn't answer the payout in time, so it may still go through. */
+export class PayoutUnconfirmedError extends Error {}
+
 /**
  * Executes a verified NGN bank withdrawal via Aella Payout API.
  * Log the error for review if it fails. No auto refund.
+ * Throws `PayoutUnconfirmedError` when Aella times out; the withdrawal then stays PENDING.
  */
 export async function withdrawAellaNgnFiat(params: WithdrawAellaNgnFiatParams): Promise<{
   reference: string;
@@ -788,14 +792,21 @@ export async function withdrawAellaNgnFiat(params: WithdrawAellaNgnFiatParams): 
       status: aellaResult.status,
     };
   } catch (error: any) {
-    console.error(`[Payout Error] Transfer ${reference} failed:`, formatOneLineError(error));
+    // A timeout (ours or Aella's 504) can still pay out, so it stays PENDING for the webhook or status check.
+    const unconfirmed = error?.status === 504;
+    console.error(
+      `[Payout Error] Transfer ${reference} ${unconfirmed ? "unconfirmed" : "failed"}:`,
+      formatOneLineError(error),
+    );
 
-    await Transaction.findByIdAndUpdate(transaction._id, {
-      $set: {
-        status: "FAILED",
-        errorMessage: error?.message || "Bank payout failure",
-      },
-    });
+    if (!unconfirmed) {
+      await Transaction.findByIdAndUpdate(transaction._id, {
+        $set: {
+          status: "FAILED",
+          errorMessage: error?.message || "Bank payout failure",
+        },
+      });
+    }
 
     createNotification({
       userId,
@@ -806,6 +817,7 @@ export async function withdrawAellaNgnFiat(params: WithdrawAellaNgnFiatParams): 
       link: "/transactions",
     }).catch(() => { });
 
+    if (unconfirmed) throw new PayoutUnconfirmedError(error.message);
     throw new Error(
       error?.data?.message || error?.message || "Withdrawal failed with the banking provider. Please contact support.",
     );

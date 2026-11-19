@@ -4,7 +4,7 @@ import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { verifyWalletPin } from "@/lib/execution/verify-pin";
 import { withdrawAellaSchema } from "@/lib/validations/aella.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
-import { withdrawAellaNgnFiat } from "@/lib/functions/aellaFunctions";
+import { PayoutUnconfirmedError, withdrawAellaNgnFiat } from "@/lib/functions/aellaFunctions";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { formatOneLineError, isTimeoutError } from "@/lib/utils/api-best-practices";
@@ -118,6 +118,17 @@ export async function POST(req: NextRequest) {
     console.error(
       `[${PROVIDER}:${ACTION}] Error: ${formatOneLineError(error)}`,
     );
+
+    // The bank may still pay it, so don't tell the user it failed.
+    if (error instanceof PayoutUnconfirmedError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Your transfer is taking longer than usual and is still processing. Check your transactions before trying again.",
+        },
+        { status: PROVIDER_FAILED },
+      );
+    }
 
     if (isLimitError(error)) {
       return NextResponse.json(

@@ -189,7 +189,8 @@ export async function POST(req: NextRequest) {
               status: isSuccess ? "CONFIRMED" : "FAILED",
               "metadata.aellaWebhookEvent": event,
               executedAt: isSuccess ? new Date() : tx.executedAt,
-              errorMessage: isSuccess ? undefined : failureReason,
+              // null clears an old error; Mongoose drops undefined from updates.
+              errorMessage: isSuccess ? null : failureReason,
             },
           });
           invalidateBalanceCache(tx.userId);

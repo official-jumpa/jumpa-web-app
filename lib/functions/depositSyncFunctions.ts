@@ -17,6 +17,8 @@ import { formatUnits, parseAbiItem } from "viem";
 
 export interface DetectedDeposit {
   chain: "stellar" | "solana" | "base" | "ethereum" | "tron";
+  /** The network the deposit was read from; the dashboard treats anything but "mainnet" as test money. */
+  network: "mainnet" | "testnet";
   txHash: string;
   fromAddress: string;
   toAddress: string;
@@ -32,7 +34,10 @@ async function detectStellarInbound(xlmAddress: string): Promise<DetectedDeposit
   if (!xlmAddress) return [];
   const results: DetectedDeposit[] = [];
 
-  const checkServer = async (server: typeof stellarMainnetServer) => {
+  const checkServer = async (
+    server: typeof stellarMainnetServer,
+    network: DetectedDeposit["network"],
+  ) => {
     try {
       const payments = await server
         .payments()
@@ -55,6 +60,7 @@ async function detectStellarInbound(xlmAddress: string): Promise<DetectedDeposit
 
           results.push({
             chain: "stellar",
+            network,
             txHash: rec.transaction_hash,
             fromAddress: rec.from || "unknown",
             toAddress: rec.to,
@@ -73,8 +79,8 @@ async function detectStellarInbound(xlmAddress: string): Promise<DetectedDeposit
   };
 
   await Promise.allSettled([
-    checkServer(stellarMainnetServer),
-    checkServer(stellarTestnetServer),
+    checkServer(stellarMainnetServer, "mainnet"),
+    checkServer(stellarTestnetServer, "testnet"),
   ]);
 
   return results;
@@ -88,7 +94,10 @@ async function detectSolanaInbound(solAddress: string): Promise<DetectedDeposit[
   const results: DetectedDeposit[] = [];
 
   try {
-    const connection = new Connection(getSolanaRpcUrl(), "confirmed");
+    const rpcUrl = getSolanaRpcUrl();
+    // Prod reads mainnet; a devnet RPC (local setups) records its deposits as testnet.
+    const solanaNetwork: DetectedDeposit["network"] = /devnet|testnet/i.test(rpcUrl) ? "testnet" : "mainnet";
+    const connection = new Connection(rpcUrl, "confirmed");
     const pubkey = new PublicKey(solAddress);
     const signatures = await connection.getSignaturesForAddress(pubkey, {
       limit: 10,
@@ -126,6 +135,7 @@ async function detectSolanaInbound(solAddress: string): Promise<DetectedDeposit[
           if (sender !== solAddress) {
             results.push({
               chain: "solana",
+              network: solanaNetwork,
               txHash: sigInfo.signature,
               fromAddress: sender || "unknown",
               toAddress: solAddress,
@@ -194,6 +204,7 @@ async function detectSolanaInbound(solAddress: string): Promise<DetectedDeposit[
 
             results.push({
               chain: "solana",
+              network: solanaNetwork,
               txHash: sigInfo.signature,
               fromAddress: sender,
               toAddress: solAddress,
@@ -285,6 +296,7 @@ async function detectEvmInbound(
           for (const log of logs) {
             results.push({
               chain: target.chain,
+              network: "mainnet",
               txHash: log.transactionHash,
               fromAddress: (log.args as any).from || "unknown",
               toAddress: target.address,
@@ -351,6 +363,7 @@ async function detectTronInbound(trxAddress?: string): Promise<DetectedDeposit[]
                   seenTxHashes.add(item.transaction_id);
                   results.push({
                     chain: "tron",
+                    network: "mainnet",
                     txHash: item.transaction_id,
                     fromAddress: item.from || "unknown",
                     toAddress: item.to,
@@ -399,6 +412,7 @@ async function detectTronInbound(trxAddress?: string): Promise<DetectedDeposit[]
                   seenTxHashes.add(item.transaction_id);
                   results.push({
                     chain: "tron",
+                    network: "mainnet",
                     txHash: item.transaction_id,
                     fromAddress: item.from_address || "unknown",
                     toAddress: item.to_address,
@@ -448,6 +462,7 @@ async function detectTronInbound(trxAddress?: string): Promise<DetectedDeposit[]
               if (Number(amount) >= 0.01) {
                 results.push({
                   chain: "tron",
+                  network: "mainnet",
                   txHash: item.hash,
                   fromAddress: item.ownerAddress || item.contractData?.owner_address || "unknown",
                   toAddress: trxAddress,
@@ -520,6 +535,7 @@ export async function syncWalletInboundDeposits(
       type: "DEPOSIT",
       status: "CONFIRMED",
       chain: dep.chain,
+      network: dep.network,
       fromAddress: dep.fromAddress,
       toAddress: dep.toAddress,
       amount: dep.amount,

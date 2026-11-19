@@ -25,10 +25,9 @@ import {
   resolveChainPrivateKey,
   type TransferResult,
 } from "@/lib/chains/transfer-service";
-import {
-  executeTronNativeTransfer,
-  executeTronTokenTransfer,
-} from "@/lib/chains/tron/transfer";
+import { executeTronNativeTransfer } from "@/lib/chains/tron/transfer";
+import { getTronOwedRaw, sendTronToken } from "@/lib/chains/tron/sponsor";
+import { CONTRACT_ADDRESSES } from "@/lib/blockchain";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
 import {
   assertDailyTransactionLimit, isLimitError,
@@ -128,6 +127,8 @@ export async function POST(req: NextRequest) {
   }
 
   let result: TransferResult;
+  // In-token fee for Tron gas Jumpa sponsored; shown as the receipt's network fee.
+  let sponsoredFee: string | undefined;
 
   try {
     if (config.chain === "stellar") {
@@ -154,6 +155,12 @@ export async function POST(req: NextRequest) {
       if (asset !== "TRX" && asset !== "USDT") {
         throw new Error(`${asset} can't be sent on Tron yet`);
       }
+      // Sponsored TRX stays in the wallet, so it can't leave while its fee is unpaid.
+      if (asset === "TRX" && (await getTronOwedRaw(session.user.id)) > BigInt(0)) {
+        throw new Error(
+          "Your last USDT transfer's network fee is still unpaid. Send USDT once to settle it, then send TRX.",
+        );
+      }
       const tronRes =
         asset === "TRX"
           ? await executeTronNativeTransfer({
@@ -161,14 +168,18 @@ export async function POST(req: NextRequest) {
               toAddress: recipient,
               amount,
             })
-          : await executeTronTokenTransfer({
+          : await sendTronToken({
+              userId: session.user.id,
               mnemonicOrPrivateKey: phrase,
               toAddress: recipient,
               amount,
+              token: CONTRACT_ADDRESSES.tron.mainnet.USDT.address,
+              symbol: asset,
             });
       if (!tronRes.success || !tronRes.txHash) {
         throw new Error(tronRes.error || "Tron transfer failed");
       }
+      sponsoredFee = tronRes.feePaid;
       result = {
         success: true,
         txHash: tronRes.txHash,
@@ -261,6 +272,7 @@ export async function POST(req: NextRequest) {
       memo,
       network: isTestnet ? "testnet" : "mainnet",
       explorerUrl: result.explorerUrl,
+      feePaid: sponsoredFee,
     });
 
     createNotification({

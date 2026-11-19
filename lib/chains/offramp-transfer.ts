@@ -62,7 +62,7 @@ const ERC20_ABI = [
 
 import { CONTRACT_ADDRESSES, getExplorerTxUrl, getRpcUrl, getSolanaRpcUrl } from "@/lib/blockchain";
 
-import { executeTronTokenTransfer } from "@/lib/chains/tron/transfer";
+import { quoteTronTokenSend, sendTronToken } from "@/lib/chains/tron/sponsor";
 
 // Routing thresholds, shared with getOfframpAllowance so its fee matches the transfer.
 /** Below this a Solana cash-out goes through the gas sponsor. */
@@ -149,8 +149,10 @@ export async function executeOfframpTransfer(options: {
   amount: number | string;
   feeRecipient?: string;
   feeAmount?: number | string;
+  /** Needed on Tron, where gas Jumpa sponsors is billed to the user. */
+  userId?: string;
 }): Promise<OfframpExecutionResult> {
-  const { mnemonic, asset, depositAddress, amount, feeRecipient, feeAmount } = options;
+  const { mnemonic, asset, depositAddress, amount, feeRecipient, feeAmount, userId } = options;
   let normalizedAsset = (asset || "").toLowerCase().trim();
   if (normalizedAsset.startsWith("eth:")) {
     normalizedAsset = `ethereum:${normalizedAsset.slice(4)}`;
@@ -584,12 +586,17 @@ export async function executeOfframpTransfer(options: {
 
     // ── 4. Tron TRC-20 Transfer
     if (config.chain === "tron") {
+      if (!userId || !config.address) {
+        return { success: false, error: "Tron cash-outs need the user and token to be known." };
+      }
       console.log(`[OfframpTransfer] Executing Tron transfer of ${amount} to ${depositAddress}`);
-      const tronResult = await executeTronTokenTransfer({
+      const tronResult = await sendTronToken({
+        userId,
         mnemonicOrPrivateKey: mnemonic,
         toAddress: depositAddress,
         amount: numAmount,
-        tokenContractAddress: config.address,
+        token: config.address,
+        symbol: normalizedAsset.split(":")[1].toUpperCase(),
       });
 
       return {
@@ -629,11 +636,12 @@ export function offrampSenderAddress(
   asset: string,
   wallet: {
     address?: string;
-    addresses?: { sol?: string; eth?: string; base?: string };
+    addresses?: { sol?: string; eth?: string; base?: string; trx?: string };
   },
 ): string {
   const chain = asset.toLowerCase().split(":")[0];
   if (chain === "solana") return wallet.addresses?.sol || "";
+  if (chain === "tron") return wallet.addresses?.trx || "";
   return (
     wallet.addresses?.eth || wallet.addresses?.base || wallet.address || ""
   );
@@ -641,12 +649,14 @@ export function offrampSenderAddress(
 
 /**
  * Balance, sponsor fee and max for a cash-out, routed like executeOfframpTransfer.
- * Null where the token carries no fee (Stellar, Tron). Throws when a balance can't
+ * Null where the token carries no fee (Stellar). Throws when a balance can't
  * be read, so an RPC outage is never mistaken for an empty wallet.
  */
 export async function getOfframpAllowance(
   asset: string,
   owner: string,
+  /** Tron bills earlier sponsored gas into the fee, so it needs the user. */
+  userId?: string,
 ): Promise<OfframpAllowance | null> {
   const key = asset.toLowerCase().trim();
   const config = OFFRAMP_ASSETS[key];
@@ -710,6 +720,12 @@ export async function getOfframpAllowance(
     if (sponsored && token === "USDC") {
       fee = isEthereum ? getEthereumFeeAmount() : getBaseFeeAmount();
     }
+  } else if (config.chain === "tron") {
+    if (!config.address || !userId) return null;
+    // Switch deposit addresses are single-use, so the quote assumes a new recipient.
+    const quote = await quoteTronTokenSend({ userId, owner, token: config.address });
+    balanceRaw = quote?.balanceRaw ?? BigInt(0);
+    fee = quote?.sponsored ? Number(quote.feeRaw) / 10 ** config.decimals : 0;
   } else {
     return null;
   }

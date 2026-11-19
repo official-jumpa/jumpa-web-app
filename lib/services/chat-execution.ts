@@ -752,6 +752,7 @@ export async function executeChatOfframp(params: {
     asset: rawAsset,
     depositAddress,
     amount: cryptoAmount,
+    userId,
   });
 
   if (!transferResult.success || !transferResult.txHash) {

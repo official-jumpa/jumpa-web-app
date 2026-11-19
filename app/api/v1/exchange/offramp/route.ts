@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
       allowanceRead = getOfframpAllowance(
         asset,
         offrampSenderAddress(asset, wallet),
+        userId,
       ).catch((allowanceErr) => {
         // The transfer re-checks balances, so a failed read here is not fatal.
         console.warn(
@@ -482,6 +483,7 @@ export async function POST(req: NextRequest) {
         amount: deposit.amount,
         feeRecipient: deposit.feeRecipient,
         feeAmount: deposit.feeAmount,
+        userId,
       });
 
       if (!transferResult.success || !transferResult.txHash) {

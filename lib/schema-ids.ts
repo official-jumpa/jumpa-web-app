@@ -44,6 +44,7 @@ export const SCHEMA_IDS = {
   savtx: { prefix: "savtx", length: 16, description: "Savings transaction history" },
   asave: { prefix: "asave", length: 16, description: "Savings auto-save rules" },
   stmt: { prefix: "stmt", length: 16, description: "Account statement records" },
+  gas: { prefix: "gas", length: 16, description: "Sponsored gas top-ups and the fee owed for each" },
 
   // ── Utility Entities
   cardref: { prefix: "cardref", length: 12, description: "Card references" },

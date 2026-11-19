@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
     const data = await getOfframpAllowance(
       asset,
       offrampSenderAddress(asset, wallet),
+      auth.userId,
     );
     return NextResponse.json({ success: true, data });
   } catch (err) {

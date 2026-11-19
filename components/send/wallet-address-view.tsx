@@ -17,6 +17,7 @@ import { TransferPinSheet } from "@/components/transfer/transfer-pin-sheet";
 import { TransferSuccess } from "@/components/transfer/transfer-success";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { useNativeSendFee } from "@/hooks/use-native-send-fee";
+import { useTokenSendFee } from "@/hooks/use-token-send-fee";
 import { getAssetLogo } from "@/lib/assets";
 import { decimalsFor, usdEquivalent } from "@/lib/token-amount";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
@@ -74,10 +75,14 @@ export function WalletAddressView({
 
   // Sending a chain's own coin pays its gas from the same balance, so MAX leaves the fee behind.
   const nativeFee = useNativeSendFee(currentConfig.chain, form.asset);
+  // A Tron token send whose gas Jumpa covers adds its fee in the token, so MAX leaves that behind.
+  const tokenFee = useTokenSendFee(currentConfig.chain, form.asset, form.address);
+  const sponsoredFee = tokenFee?.sponsored ? Number(tokenFee.fee) : undefined;
+  const holdback = nativeFee?.holdback ?? sponsoredFee;
   const maxSend =
-    nativeFee && tokenBalance !== undefined
+    holdback !== undefined && tokenBalance !== undefined
       ? sanitiseAmount(
-          Math.max(0, tokenBalance - nativeFee.holdback).toFixed(10),
+          Math.max(0, tokenBalance - holdback).toFixed(10),
           decimalsFor(form.asset),
         )
           .replace(/0+$/, "")
@@ -89,7 +94,11 @@ export function WalletAddressView({
     ? `${nativeFee.fee.toLocaleString("en-US", { maximumSignificantDigits: 2 })} ${form.asset}${
         feeUsd ? ` (${feeUsd.replace("≈ ", "~")})` : ""
       }`
-    : currentConfig.feeLabel;
+    : tokenFee
+      ? `${tokenFee.fee} ${tokenFee.feeAsset}${
+          !tokenFee.sponsored && tokenFee.feeUsd ? ` (~$${tokenFee.feeUsd.toFixed(2)})` : ""
+        }`
+      : currentConfig.feeLabel;
 
   // Fetch live balance for current selected asset & chain
   useEffect(() => {
@@ -302,9 +311,11 @@ export function WalletAddressView({
           balance={liveBalance}
           maxAmount={maxSend}
           lowBalanceError={
-            maxSend !== undefined
-              ? `Insufficient balance. Some ${form.asset} stays in your wallet for the network fee, so you can send up to ${maxSend} ${form.asset}.`
-              : undefined
+            maxSend === undefined
+              ? undefined
+              : sponsoredFee !== undefined
+                ? `Insufficient balance. A ${tokenFee?.fee} ${form.asset} network fee is added to this send, so you can send up to ${maxSend} ${form.asset}.`
+                : `Insufficient balance. Some ${form.asset} stays in your wallet for the network fee, so you can send up to ${maxSend} ${form.asset}.`
           }
           chips={CHIPS}
           rate={equivalent ?? ""}

@@ -149,8 +149,15 @@ export const environment = {
     ? Number(process.env.FEE_USD_AMOUNT_SOLANA)
     : 0.05,
 
-  // Tron Configuration & Fee Treasury
+  // Tron Gas Sponsorship & Fee Treasury
+  TRON_API_HOST: process.env.TRON_API_HOST || "https://api.trongrid.io",
+  // Optional; TronGrid rate-limits keyless calls hard.
+  TRONGRID_API_KEY: process.env.TRONGRID_API_KEY || "",
+  SPONSORED_FEE_TRON_KEY: process.env.SPONSORED_FEE_TRON_KEY || "",
   FEE_WALLET_TRON: process.env.FEE_WALLET_TRON || "",
+  FEE_USD_AMOUNT_TRON: process.env.FEE_USD_AMOUNT_TRON
+    ? Number(process.env.FEE_USD_AMOUNT_TRON)
+    : 0.05,
 
   // Switch
   SWITCH_LIVE_KEY: process.env.SWITCH_LIVE_KEY || "",

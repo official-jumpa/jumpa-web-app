@@ -9,13 +9,20 @@ import { SuccessSheet } from "@/components/auth/success-sheet";
 import { useKeypadKeys } from "@/hooks/use-keypad-keys";
 import { usePinInput } from "@/hooks/use-pin-input";
 import {
+  clearPhoneCode,
+  phoneResendWait,
   readSignUpValue,
-  writeSignUpValue,
+  recordPhoneCodeSent,
   SIGN_UP_FLOW,
   SIGN_UP_KEYS,
 } from "@/lib/sign-up";
 
 const CODE_LENGTH = 6;
+
+/** 45 → "0:45". */
+function formatWait(seconds: number) {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
 
 /** Phone code entry. Verifies OTP against Myaza Trust via /api/auth/verify-phone. */
 export function PhoneCodeForm({
@@ -30,12 +37,21 @@ export function PhoneCodeForm({
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState(false);
   const [resending, setResending] = useState(false);
+  const [resendWait, setResendWait] = useState(0);
   const [skipping, setSkipping] = useState(false);
   const [resolvedHref, setResolvedHref] = useState<string>(nextHref);
   const [error, setError] = useState<string | null>(null);
   const attemptedCodeRef = useRef<string | null>(null);
 
   useKeypadKeys({ ...code, enabled: !verifying && !verified && !skipping });
+
+  // Counts from the stored send time, so a reload or a trip back to the number screen keeps the wait.
+  useEffect(() => {
+    const tick = () => setResendWait(phoneResendWait());
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (code.value.length < CODE_LENGTH) {
@@ -97,6 +113,7 @@ export function PhoneCodeForm({
           console.warn("[PhoneCodeForm] Could not fetch nextRoute:", e);
         }
 
+        clearPhoneCode();
         if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
         }
@@ -142,7 +159,7 @@ export function PhoneCodeForm({
 
   const handleResend = async () => {
     const targetPhone = phone || readSignUpValue(SIGN_UP_KEYS.phone);
-    if (!targetPhone || resending) return;
+    if (!targetPhone || resending || resendWait > 0) return;
 
     setResending(true);
     setError(null);
@@ -162,7 +179,8 @@ export function PhoneCodeForm({
       } else {
         const challengeId = data.data?.challengeId || data.challengeId;
         if (challengeId) {
-          writeSignUpValue(SIGN_UP_KEYS.phoneChallengeId, challengeId);
+          recordPhoneCodeSent(targetPhone, challengeId);
+          setResendWait(phoneResendWait());
         }
         setError("New verification code sent!");
       }
@@ -259,10 +277,14 @@ export function PhoneCodeForm({
             <button
               type="button"
               onClick={handleResend}
-              disabled={resending || verifying || skipping}
+              disabled={resending || verifying || skipping || resendWait > 0}
               className="cursor-pointer font-semibold text-jumpa-primary-600 disabled:opacity-50"
             >
-              {resending ? "Sending..." : "Resend Code"}
+              {resending
+                ? "Sending..."
+                : resendWait > 0
+                  ? `Resend in ${formatWait(resendWait)}`
+                  : "Resend Code"}
             </button>
           </InfoNote>
 

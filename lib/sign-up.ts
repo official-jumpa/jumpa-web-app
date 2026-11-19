@@ -18,6 +18,8 @@ export const SIGN_UP_KEYS = {
   email: "onboardingEmail",
   phone: "signupPhone",
   phoneChallengeId: "signupPhoneChallengeId",
+  /** When the last phone code went out (ms epoch); drives the resend countdown. */
+  phoneSentAt: "signupPhoneSentAt",
   /** Held only between the set and confirm screens; cleared the moment they match. */
   password: "signupPassword",
   tag: "signupTag",
@@ -40,6 +42,44 @@ export function writeSignUpValue(key: SignUpKey, value: string) {
 export function clearSignUpValue(key: SignUpKey) {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(key);
+}
+
+/** Seconds before "Resend Code" works again; Toden allows only 5 codes per number an hour. */
+export const PHONE_RESEND_COOLDOWN_SEC = 60;
+
+/** Toden codes live 5 minutes; reuse one for 4, leaving time to type it. */
+const PHONE_CODE_REUSE_MS = 4 * 60_000;
+
+export function recordPhoneCodeSent(phone: string, challengeId: string) {
+  writeSignUpValue(SIGN_UP_KEYS.phone, phone);
+  writeSignUpValue(SIGN_UP_KEYS.phoneChallengeId, challengeId);
+  writeSignUpValue(SIGN_UP_KEYS.phoneSentAt, String(Date.now()));
+}
+
+/** Forget a verified code so it's never reused. */
+export function clearPhoneCode() {
+  clearSignUpValue(SIGN_UP_KEYS.phoneChallengeId);
+  clearSignUpValue(SIGN_UP_KEYS.phoneSentAt);
+}
+
+function msSincePhoneCodeSent() {
+  const sentAt = Number(readSignUpValue(SIGN_UP_KEYS.phoneSentAt));
+  return sentAt > 0 ? Date.now() - sentAt : Number.POSITIVE_INFINITY;
+}
+
+/** Seconds left before another code may be requested; 0 when it may. */
+export function phoneResendWait() {
+  const left = Math.ceil(PHONE_RESEND_COOLDOWN_SEC - msSincePhoneCodeSent() / 1000);
+  return Math.min(PHONE_RESEND_COOLDOWN_SEC, Math.max(0, left));
+}
+
+/** A code sent to this number is still usable, so sending another would only spend the hourly cap. */
+export function hasLivePhoneCode(phone: string) {
+  return (
+    readSignUpValue(SIGN_UP_KEYS.phone) === phone &&
+    Boolean(readSignUpValue(SIGN_UP_KEYS.phoneChallengeId)) &&
+    msSincePhoneCodeSent() < PHONE_CODE_REUSE_MS
+  );
 }
 
 /**

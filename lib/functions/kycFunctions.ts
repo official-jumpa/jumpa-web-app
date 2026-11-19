@@ -377,6 +377,37 @@ export function formatToCanonicalNigerianPhone(input: string): string {
   return `+234${normalized.slice(1)}`;
 }
 
+/** Toden's v1 contact verifications; the legacy /api/kyc/contact/send ignores `maxSends`. */
+function contactVerificationsUrl(): string {
+  const base = process.env.MYAZA_TRUST_BASE_URL || "https://api.toden.co/api/kyc";
+  return `${new URL(base).origin}/api/v1/contact/verifications`;
+}
+
+/** Customer copy for Toden's OTP error codes; the raw code is logged, never shown. */
+const OTP_ERROR_MESSAGES: Record<string, string> = {
+  send_rate_limited:
+    "Too many codes requested. Enter the latest code you received, or try again in an hour.",
+  send_failed: "We couldn't send the SMS. Please try again.",
+  invalid_destination: "This number can't receive SMS. Please check it and try again.",
+  challenge_expired: "This code has expired. Tap Resend Code for a new one.",
+  too_many_attempts: "Too many wrong codes. Tap Resend Code for a new one.",
+  challenge_not_found: "Verification session expired. Please request a new code.",
+};
+
+function otpErrorMessage(
+  data: { error?: string; attemptsRemaining?: number } | null,
+  status: number,
+  fallback: string,
+): string {
+  const code = data?.error ?? "";
+  if (code === "invalid_code") {
+    return `Invalid code.${typeof data?.attemptsRemaining === "number" ? ` ${data.attemptsRemaining} attempt(s) remaining.` : ""}`;
+  }
+  if (OTP_ERROR_MESSAGES[code]) return OTP_ERROR_MESSAGES[code];
+  if (status === 429) return "Phone verification is busy. Please try again in a few minutes.";
+  return fallback;
+}
+
 /**
  * Sends a phone verification SMS OTP via Myaza Trust KYC REST API.
  */
@@ -407,18 +438,15 @@ export async function sendMyazaPhoneOtp(params: {
 
   const apiKey =
     process.env.MYAZA_TRUST_SECRET_KEY || process.env.MYAZA_TRUST_SANDBOX_KEY;
-  const baseUrl =
-    process.env.MYAZA_TRUST_BASE_URL || "https://api.toden.co/api/kyc";
+  const url = contactVerificationsUrl();
 
   if (!apiKey) {
     throw new Error(" API key is not configured");
   }
 
-  console.log(
-    `[Myaza Phone OTP] Sending to ${canonicalPhone} via ${baseUrl}/contact/send`,
-  );
+  console.log(`[Myaza Phone OTP] Sending to ${canonicalPhone} via ${url}`);
 
-  const res = await fetch(`${baseUrl}/contact/send`, {
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -427,30 +455,36 @@ export async function sendMyazaPhoneOtp(params: {
     body: JSON.stringify({
       channel: "phone",
       destination: canonicalPhone,
+      country: "NG",
       codeLength: 6,
       via: "sms",
+      // Toden's ceiling per number per hour (default 3); a slow SMS used to lock people out.
+      maxSends: 5,
     }),
     signal: AbortSignal.timeout(20000),
   });
 
   const data = await res.json().catch(() => null);
+  const verification = data?.contactVerification;
 
-  if (!res.ok || !data?.challengeId) {
-    const errorMsg =
-      data?.error || data?.message || "Failed to dispatch verification code";
-    console.error(`[myaza_otp] send error: ${formatOneLineError(errorMsg)}`);
-    throw new Error(errorMsg);
+  if (!res.ok || !verification?.id) {
+    console.error(
+      `[myaza_otp] send error: ${res.status} ${formatOneLineError(data?.error || data?.message || "no body")}`,
+    );
+    throw new Error(
+      otpErrorMessage(data, res.status, "We couldn't send your code. Please try again later."),
+    );
   }
 
   console.log(
-    `[Myaza Phone OTP] Dispatched challenge ${data.challengeId}, deliveryChannel: ${data.deliveryChannel}`,
+    `[Myaza Phone OTP] Dispatched challenge ${verification.id}, deliveryChannel: ${verification.deliveryChannel}`,
   );
 
   return {
     success: true,
-    challengeId: data.challengeId,
-    expiresAt: data.expiresAt,
-    deliveryChannel: data.deliveryChannel,
+    challengeId: verification.id,
+    expiresAt: verification.expiresAt,
+    deliveryChannel: verification.deliveryChannel,
     phone: canonicalPhone,
   };
 }
@@ -483,8 +517,6 @@ export async function verifyMyazaPhoneOtp(params: {
   const canonicalPhone = formatToCanonicalNigerianPhone(phone);
   const apiKey =
     process.env.MYAZA_TRUST_SECRET_KEY || process.env.MYAZA_TRUST_SANDBOX_KEY;
-  const baseUrl =
-    process.env.MYAZA_TRUST_BASE_URL || "https://api.toden.co/api/kyc";
 
   if (!apiKey) {
     throw new Error("API key is not configured");
@@ -492,29 +524,34 @@ export async function verifyMyazaPhoneOtp(params: {
 
   console.log(`[Myaza Phone OTP] Verifying code for challenge ${challengeId}`);
 
-  const res = await fetch(`${baseUrl}/contact/check`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
+  const res = await fetch(
+    `${contactVerificationsUrl()}/${encodeURIComponent(challengeId.trim())}/check`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ code: code.trim() }),
+      signal: AbortSignal.timeout(20000),
     },
-    body: JSON.stringify({
-      challengeId: challengeId.trim(),
-      code: code.trim(),
-      country: "NG",
-    }),
-    signal: AbortSignal.timeout(20000),
-  });
+  );
 
   const data = await res.json().catch(() => null);
+  const verification = data?.contactVerification;
 
-  if (!res.ok || !data?.verified) {
-    const errorMsg =
-      data?.error === "invalid_code"
-        ? `Invalid code.${typeof data?.attemptsRemaining === "number" ? ` ${data.attemptsRemaining} attempt(s) remaining.` : ""}`
-        : data?.error || data?.message || "Verification code failed";
-    console.error(`[myaza_otp] check error: ${formatOneLineError(errorMsg)}`);
-    throw new Error(errorMsg);
+  if (!res.ok || verification?.status !== "verified") {
+    console.error(
+      `[myaza_otp] check error: ${res.status} ${formatOneLineError(data?.error || data?.message || verification?.status || "no body")}`,
+    );
+    throw new Error(otpErrorMessage(data, res.status, "Verification code failed"));
+  }
+
+  // The code proves the number it was sent to, not whichever number the browser submits.
+  const digits = (value: string) => value.replace(/\D/g, "");
+  if (digits(verification.destination ?? "") !== digits(canonicalPhone)) {
+    console.error(`[myaza_otp] check error: challenge ${challengeId} was sent to another number`);
+    throw new Error("This code was sent to a different number. Please request a new code.");
   }
 
   await connectDB();

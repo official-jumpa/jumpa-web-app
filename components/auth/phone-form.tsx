@@ -7,7 +7,13 @@ import { FieldError } from "@/components/ui/field-error";
 import { PhoneIcon } from "@/components/ui/icons/phone";
 import { TextField } from "@/components/ui/text-field";
 import { InfoNote } from "@/components/auth/info-note";
-import { SIGN_UP_FLOW, SIGN_UP_KEYS, writeSignUpValue } from "@/lib/sign-up";
+import {
+  hasLivePhoneCode,
+  recordPhoneCodeSent,
+  SIGN_UP_FLOW,
+  SIGN_UP_KEYS,
+  writeSignUpValue,
+} from "@/lib/sign-up";
 import {
   isValidNigerianPhone,
   normalizeNigerianPhone,
@@ -112,6 +118,12 @@ export function PhoneForm({ nextHref }: { nextHref: string }) {
     const local11 = normalizeNigerianPhone(cleaned);
     const canonicalPhone = `+234${local11.slice(1)}`;
 
+    // Back on this screen with a code still on its way: reuse it rather than spend another send.
+    if (hasLivePhoneCode(canonicalPhone)) {
+      router.push(nextHref);
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
@@ -130,10 +142,11 @@ export function PhoneForm({ nextHref }: { nextHref: string }) {
         return;
       }
 
-      writeSignUpValue(SIGN_UP_KEYS.phone, canonicalPhone);
       const challengeId = data.data?.challengeId || data.challengeId;
       if (challengeId) {
-        writeSignUpValue(SIGN_UP_KEYS.phoneChallengeId, challengeId);
+        recordPhoneCodeSent(canonicalPhone, challengeId);
+      } else {
+        writeSignUpValue(SIGN_UP_KEYS.phone, canonicalPhone);
       }
       router.push(nextHref);
     } catch (err: any) {

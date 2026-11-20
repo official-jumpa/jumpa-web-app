@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { verifyWalletPinAndLockout } from "@/lib/functions/walletFunctions";
 import {
+  BillNotChargedError,
   getCarrierDataPlans,
   purchaseData,
 } from "@/lib/functions/billsFunctions";
@@ -158,6 +159,7 @@ export async function POST(req: NextRequest) {
     );
 
     const isClientError =
+      err instanceof BillNotChargedError ||
       msg.includes("limit") ||
       msg.includes("naira account") ||
       msg.includes("balance") ||

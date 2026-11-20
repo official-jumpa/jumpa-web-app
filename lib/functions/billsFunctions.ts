@@ -113,7 +113,10 @@ export async function getCarrierDataPlans(phone: string): Promise<{
     const detectedNetwork = detectCarrierFromProductType(json.data?.product_type);
 
     const plans = json.data.products
-      .filter((p: { product_name?: string }) => !DEVICE_ONLY_PLAN.test(p.product_name ?? ""))
+      .filter(
+        (p: { product_name?: string }) =>
+          !DEVICE_ONLY_PLAN.test(p.product_name ?? ""),
+      )
       .map((p: any, idx: number): DataPlan => {
         const rawPrice =
           parseFloat(String(p.value || "").replace(/[^0-9.]/g, "")) || 0;
@@ -141,6 +144,27 @@ export async function getCarrierDataPlans(phone: string): Promise<{
     }
     throw err;
   }
+}
+
+/** A bill stopped before any money moved, so the user can safely try again. */
+export class BillNotChargedError extends Error {}
+
+/** SmartSMS's live price for a plan; the amount the app sends is never trusted. */
+async function liveDataPlanPrice(
+  phone: string,
+  productName: string,
+): Promise<number> {
+  const { plans } = await getCarrierDataPlans(phone).catch((err) => {
+    console.error(
+      `[Data] Could not price ${productName}: ${formatOneLineError(err)}`,
+    );
+    throw new BillNotChargedError("Data provider service unavailable");
+  });
+  const price = plans.find(
+    (plan) => plan.productName === productName,
+  )?.numericPrice;
+  if (!price) throw new BillNotChargedError("Data plan unavailable");
+  return price;
 }
 
 export {
@@ -259,7 +283,10 @@ async function recordBillDebit(debit: BillDebit): Promise<string | null> {
     });
     return tx._id;
   } catch (err) {
-    console.error(`[Bills] Could not record the debit for ${debit.billRef}:`, err);
+    console.error(
+      `[Bills] Could not record the debit for ${debit.billRef}:`,
+      err,
+    );
     return null;
   }
 }
@@ -270,7 +297,10 @@ async function settleBillDebit(
   outcome: { status: "FAILED" } | { status: "CONFIRMED"; txHash: string },
 ): Promise<void> {
   if (!historyId) return;
-  const update = outcome.status === "CONFIRMED" ? { ...outcome, executedAt: new Date() } : outcome;
+  const update =
+    outcome.status === "CONFIRMED"
+      ? { ...outcome, executedAt: new Date() }
+      : outcome;
   try {
     await Transaction.updateOne({ _id: historyId }, { $set: update });
   } catch (err) {
@@ -344,7 +374,11 @@ export async function purchaseAirtime(params: {
     throw err;
   }
 
-  const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
+  const carrier = (
+    params.network ||
+    detectCarrierFromPhone(normalizedPhone) ||
+    ""
+  ).toLowerCase();
   const historyId = await recordBillDebit({
     userId: params.userId,
     type: "AIRTIME",
@@ -422,7 +456,10 @@ export async function purchaseAirtime(params: {
   );
 
   // Post-success steps must never throw: the airtime is already delivered
-  await settleBillDebit(historyId, { status: "CONFIRMED", txHash: data.data?.id || refId });
+  await settleBillDebit(historyId, {
+    status: "CONFIRMED",
+    txHash: data.data?.id || refId,
+  });
   logUserActivity({
     userId: params.userId,
     action: "AIRTIME_PURCHASED",
@@ -472,10 +509,16 @@ export async function purchaseData(params: {
     throw new Error("Please create a Naira account first");
   }
 
+  // Charge the live price; a stale or edited amount stops here, before any debit
+  const amount = await liveDataPlanPrice(normalizedPhone, params.productName);
+  if (Math.abs(amount - params.amount) > 0.005) {
+    throw new BillNotChargedError("Data plan unavailable at that price");
+  }
+
   // 2. Enforce daily transaction limits before debiting user's account
   await assertDailyTransactionLimit({
     userId: params.userId,
-    amount: params.amount,
+    amount,
     tokenOrCurrency: "NGN",
   });
 
@@ -489,7 +532,7 @@ export async function purchaseData(params: {
     kind: "DATA",
     phone: normalizedPhone,
     network: params.network || "unknown",
-    amount: params.amount,
+    amount,
     productName: params.productName,
     packageSize: params.packageSize,
     validity: params.validity,
@@ -498,13 +541,13 @@ export async function purchaseData(params: {
   });
 
   const refId = order._id;
-  console.log(`Pre-flight order created: ${refId} (User: ${params.userId}, Phone: ${normalizedPhone}, Product: ${params.productName}, Amount: ₦${params.amount}, Network: ${params.network})`);
+  console.log(`Pre-flight order created: ${refId} (User: ${params.userId}, Phone: ${normalizedPhone}, Product: ${params.productName}, Amount: ₦${amount}, Network: ${params.network})`);
 
   let transfer: Awaited<ReturnType<typeof transferToOfficialJumpaWallet>>;
   try {
     transfer = await transferToOfficialJumpaWallet({
       userId: params.userId,
-      amount: params.amount,
+      amount,
       narration: `Data: ${params.productName} (${normalizedPhone})`,
       reference: billRef,
     });
@@ -513,14 +556,18 @@ export async function purchaseData(params: {
     throw err;
   }
 
-  const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
+  const carrier = (
+    params.network ||
+    detectCarrierFromPhone(normalizedPhone) ||
+    ""
+  ).toLowerCase();
   const historyId = await recordBillDebit({
     userId: params.userId,
     type: "DATA",
     billRef,
     phone: normalizedPhone,
     carrier,
-    amount: params.amount,
+    amount,
     fromAccount: transfer.fromAccount,
     memo: `Data: ${params.productName}${carrier ? ` (${carrier.toUpperCase()})` : ""}`,
   });
@@ -594,7 +641,10 @@ export async function purchaseData(params: {
   );
 
   // Post-success steps must never throw: the data is already delivered
-  await settleBillDebit(historyId, { status: "CONFIRMED", txHash: data.data?.id || refId });
+  await settleBillDebit(historyId, {
+    status: "CONFIRMED",
+    txHash: data.data?.id || refId,
+  });
   logUserActivity({
     userId: params.userId,
     action: "DATA_PURCHASED",
@@ -604,7 +654,7 @@ export async function purchaseData(params: {
       productName: params.productName,
       packageSize: params.packageSize,
       validity: params.validity,
-      amount: params.amount,
+      amount,
       carrier,
       refId,
     },

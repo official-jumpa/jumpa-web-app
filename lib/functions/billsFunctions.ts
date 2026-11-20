@@ -64,6 +64,9 @@ export function parsePlanPeriod(
   return "monthly";
 }
 
+/** MiFi and router bundles don't work on a phone SIM, so they're never listed. */
+const DEVICE_ONLY_PLAN = /mifi|router/i;
+
 /**
  * Fetches real-time carrier data bundles from SmartSMSSolutions.
  */
@@ -110,6 +113,7 @@ export async function getCarrierDataPlans(phone: string): Promise<{
     const detectedNetwork = detectCarrierFromProductType(json.data?.product_type);
 
     const plans = json.data.products
+      .filter((p: { product_name?: string }) => !DEVICE_ONLY_PLAN.test(p.product_name ?? ""))
       .map((p: any, idx: number): DataPlan => {
         const rawPrice =
           parseFloat(String(p.value || "").replace(/[^0-9.]/g, "")) || 0;
@@ -218,6 +222,62 @@ export async function reconcilePendingBill(billId: string) {
   };
 }
 
+/** A bill's debit as it appears in the user's transaction history. */
+interface BillDebit {
+  userId: string;
+  type: "AIRTIME" | "DATA";
+  billRef: string;
+  phone: string;
+  carrier: string;
+  amount: number;
+  fromAccount: string;
+  memo: string;
+}
+
+/** Logs the debit as Pending the moment money leaves, so refused or unconfirmed orders still show. */
+async function recordBillDebit(debit: BillDebit): Promise<string | null> {
+  try {
+    const tx = await Transaction.create({
+      userId: debit.userId,
+      type: debit.type,
+      status: "PENDING",
+      chain: "fiat",
+      network: "mainnet",
+      carrier: debit.carrier,
+      fromAddress: debit.fromAccount,
+      toAddress: debit.phone,
+      amount: debit.amount.toString(),
+      amountInUsd: await convertToUsd(debit.amount, "NGN"),
+      token: "NGN",
+      bankDetails: {
+        bankName: environment.JUMPA_BANK_NAME,
+        accountNumber: environment.JUMPA_ACCOUNT_NUMBER,
+        accountName: environment.JUMPA_ACCOUNT_NAME,
+        reference: debit.billRef,
+      },
+      memo: debit.memo,
+    });
+    return tx._id;
+  } catch (err) {
+    console.error(`[Bills] Could not record the debit for ${debit.billRef}:`, err);
+    return null;
+  }
+}
+
+/** Moves a bill's history row out of Pending once the provider answers; timeouts stay Pending. */
+async function settleBillDebit(
+  historyId: string | null,
+  outcome: { status: "FAILED" } | { status: "CONFIRMED"; txHash: string },
+): Promise<void> {
+  if (!historyId) return;
+  const update = outcome.status === "CONFIRMED" ? { ...outcome, executedAt: new Date() } : outcome;
+  try {
+    await Transaction.updateOne({ _id: historyId }, { $set: update });
+  } catch (err) {
+    console.error(`[Bills] Could not update history row ${historyId}:`, err);
+  }
+}
+
 /**
  * Executes an airtime purchase.
  * Pre-creates a BillPayment record in PENDING state, passes its _id as ref_id, and updates status upon completion.
@@ -284,6 +344,18 @@ export async function purchaseAirtime(params: {
     throw err;
   }
 
+  const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
+  const historyId = await recordBillDebit({
+    userId: params.userId,
+    type: "AIRTIME",
+    billRef,
+    phone: normalizedPhone,
+    carrier,
+    amount: params.amount,
+    fromAccount: transfer.fromAccount,
+    memo: `Airtime: ${normalizedPhone} (${carrier ? carrier.toUpperCase() : "VTU"})`,
+  });
+
   const formData = new URLSearchParams();
   formData.append("phone", normalizedPhone);
   formData.append("amount", params.amount.toString());
@@ -333,6 +405,7 @@ export async function purchaseAirtime(params: {
     console.error(
       `[Bills:Airtime] Order ${refId} failed at provider: ${formatOneLineError(rawErr)}. Automatic refund disabled - marked FAILED for manual review.`,
     );
+    await settleBillDebit(historyId, { status: "FAILED" });
     throw new Error(rawErr || "Airtime recharge failed");
   }
 
@@ -348,47 +421,19 @@ export async function purchaseAirtime(params: {
     },
   );
 
-  const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
-
-  // Post-success steps: Internal DB persistence (Failure here MUST NEVER trigger a refund)
-  try {
-    await Transaction.create({
-      userId: params.userId,
-      type: "AIRTIME",
-      status: "CONFIRMED",
-      chain: "fiat",
-      network: "mainnet",
+  // Post-success steps must never throw: the airtime is already delivered
+  await settleBillDebit(historyId, { status: "CONFIRMED", txHash: data.data?.id || refId });
+  logUserActivity({
+    userId: params.userId,
+    action: "AIRTIME_PURCHASED",
+    details: {
+      orderId: order._id,
+      phone: normalizedPhone,
+      amount: params.amount,
       carrier,
-      fromAddress: transfer.fromAccount,
-      toAddress: normalizedPhone,
-      amount: params.amount.toString(),
-      amountInUsd: await convertToUsd(params.amount, "NGN"),
-      token: "NGN",
-      bankDetails: {
-        bankName: environment.JUMPA_BANK_NAME,
-        accountNumber: environment.JUMPA_ACCOUNT_NUMBER,
-        accountName: environment.JUMPA_ACCOUNT_NAME,
-        reference: billRef,
-      },
-      memo: `Airtime: ${normalizedPhone} (${carrier ? carrier.toUpperCase() : "VTU"})`,
-      txHash: data.data?.id || refId,
-      executedAt: new Date(),
-    });
-
-    logUserActivity({
-      userId: params.userId,
-      action: "AIRTIME_PURCHASED",
-      details: {
-        orderId: order._id,
-        phone: normalizedPhone,
-        amount: params.amount,
-        carrier,
-        refId,
-      },
-    }).catch(() => {});
-  } catch (postErr) {
-    console.error(`[Airtime] error for ${refId}:`, postErr);
-  }
+      refId,
+    },
+  }).catch(() => {});
 
   // Minimal client-safe return: only success and reference for receipt
   return {
@@ -468,6 +513,18 @@ export async function purchaseData(params: {
     throw err;
   }
 
+  const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
+  const historyId = await recordBillDebit({
+    userId: params.userId,
+    type: "DATA",
+    billRef,
+    phone: normalizedPhone,
+    carrier,
+    amount: params.amount,
+    fromAccount: transfer.fromAccount,
+    memo: `Data: ${params.productName}${carrier ? ` (${carrier.toUpperCase()})` : ""}`,
+  });
+
   const formData = new URLSearchParams();
   formData.append("phone", normalizedPhone);
   formData.append("product_name", params.productName);
@@ -520,6 +577,7 @@ export async function purchaseData(params: {
     console.error(
       `[Bills:Data] Order ${refId} failed at provider: ${formatOneLineError(rawErr)}. Automatic refund disabled - marked FAILED for manual review.`,
     );
+    await settleBillDebit(historyId, { status: "FAILED" });
     throw new Error(rawErr || "Data purchase failed");
   }
 
@@ -535,50 +593,22 @@ export async function purchaseData(params: {
     },
   );
 
-  const carrier = (params.network || detectCarrierFromPhone(normalizedPhone) || "").toLowerCase();
-
-  // Post-success steps: Internal DB persistence (Failure here MUST NEVER trigger a refund)
-  try {
-    await Transaction.create({
-      userId: params.userId,
-      type: "DATA",
-      status: "CONFIRMED",
-      chain: "fiat",
-      network: "mainnet",
+  // Post-success steps must never throw: the data is already delivered
+  await settleBillDebit(historyId, { status: "CONFIRMED", txHash: data.data?.id || refId });
+  logUserActivity({
+    userId: params.userId,
+    action: "DATA_PURCHASED",
+    details: {
+      orderId: order._id,
+      phone: normalizedPhone,
+      productName: params.productName,
+      packageSize: params.packageSize,
+      validity: params.validity,
+      amount: params.amount,
       carrier,
-      fromAddress: transfer.fromAccount,
-      toAddress: normalizedPhone,
-      amount: params.amount.toString(),
-      amountInUsd: await convertToUsd(params.amount, "NGN"),
-      token: "NGN",
-      bankDetails: {
-        bankName: environment.JUMPA_BANK_NAME,
-        accountNumber: environment.JUMPA_ACCOUNT_NUMBER,
-        accountName: environment.JUMPA_ACCOUNT_NAME,
-        reference: billRef,
-      },
-      memo: `Data: ${params.productName}${carrier ? ` (${carrier.toUpperCase()})` : ""}`,
-      txHash: data.data?.id || refId,
-      executedAt: new Date(),
-    });
-
-    logUserActivity({
-      userId: params.userId,
-      action: "DATA_PURCHASED",
-      details: {
-        orderId: order._id,
-        phone: normalizedPhone,
-        productName: params.productName,
-        packageSize: params.packageSize,
-        validity: params.validity,
-        amount: params.amount,
-        carrier,
-        refId,
-      },
-    }).catch(() => {});
-  } catch (postErr) {
-    console.error(`[Data] error for ${refId}:`, postErr);
-  }
+      refId,
+    },
+  }).catch(() => {});
 
   // Minimal client-safe return: only success and reference for receipt
   return {

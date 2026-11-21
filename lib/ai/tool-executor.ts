@@ -23,6 +23,15 @@ import { connectDB } from "@/lib/db";
 import { getSwapQuote } from "@/lib/dex";
 import type { SwapQuote } from "@/lib/dex/types";
 import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
+import {
+  describeOfframpShortfall,
+  getOfframpAllowance,
+  offrampSenderAddress,
+} from "@/lib/chains/offramp-transfer";
+import {
+  describeCashOutInFlight,
+  findCashOutInFlight,
+} from "@/lib/functions/transactionFunctions";
 import { SwitchService } from "@/lib/switch";
 import { resolveBankCode } from "@/lib/switch-banks";
 import {
@@ -1755,6 +1764,17 @@ export async function executeTool(
         })}`,
       );
 
+      // One cash-out at a time: a sent one still being paid out holds up the next
+      const inFlight = await findCashOutInFlight(userId);
+      if (inFlight) {
+        return {
+          toolName: name,
+          summaryForAI: `${describeCashOutInFlight(inFlight)} Tell the user this, keep the amount bold, and do not start a new cash-out.`,
+          cardHint: { type: "none" },
+          requiresConfirmation: false,
+        };
+      }
+
       let effectiveAsset = asset?.trim();
       let effectiveToken = cryptoToken?.trim();
 
@@ -2113,6 +2133,39 @@ export async function executeTool(
           console.warn("[ToolExecutor] Balance pre-check notice:", balErr.message);
         }
 
+        // Leave room for the network fee: a full balance sends what's left after it, a larger amount stops before Switch opens an order
+        let feeNote = "";
+        if (!isStellar) {
+          const sender = await Wallet.findOne({ userId })
+            .select("address addresses")
+            .lean<{ address?: string; addresses?: Record<string, string> }>();
+          const allowance = sender
+            ? await getOfframpAllowance(
+                targetAsset,
+                offrampSenderAddress(targetAsset, sender),
+                userId,
+              ).catch((err) => {
+                console.warn("[ToolExecutor] Allowance check skipped:", err?.message);
+                return null;
+              })
+            : null;
+          if (allowance && amount > allowance.max) {
+            // The balance as formatBalance shows it, so "all of it" still counts after rounding down
+            const shownBalance = Math.floor(allowance.balance * 100) / 100;
+            const wholeBalance = cleanCrypto > 0 && amount >= shownBalance;
+            if (!wholeBalance || allowance.max <= 0) {
+              return {
+                toolName: name,
+                summaryForAI: `${describeOfframpShortfall(allowance)} Keep every figure bold in your reply and offer to cash out that amount instead.`,
+                cardHint: { type: "none" },
+                requiresConfirmation: false,
+              };
+            }
+            amount = allowance.max;
+            feeNote = ` The **${allowance.fee} ${targetToken}** network fee was taken off their full balance, so **${amount} ${targetToken}** is being cashed out. Tell them this.`;
+          }
+        }
+
         // 4. Initiate offramp order using the verified account name
         let deposit: any;
         let reference: string;
@@ -2239,6 +2292,7 @@ export async function executeTool(
             `The user will receive **₦${destinationAmount.toLocaleString()}**. ` +
             `Ask the user to confirm to proceed with the withdrawal. Do NOT use emojis or tell them to click buttons.`;
         }
+        summaryForAI += feeNote;
 
         return {
           toolName: name,

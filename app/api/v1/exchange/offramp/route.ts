@@ -5,6 +5,8 @@ import { resolveBankCode } from "@/lib/switch-banks";
 import { findPaystackBank, validateAccountNumber } from "@/lib/paystack";
 import {
   createTransactionRecord,
+  describeCashOutInFlight,
+  findCashOutInFlight,
   updateTransactionRecord,
 } from "@/lib/functions/transactionFunctions";
 import { switchOfframpSchema } from "@/lib/validations/switch.validation";
@@ -166,6 +168,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: describeOfframpShortfall(allowance) },
         { status: 400 },
+      );
+    }
+
+    // One cash-out at a time: a sent one still being paid out holds up the next
+    const inFlight = await findCashOutInFlight(userId);
+    if (inFlight) {
+      return NextResponse.json(
+        { success: false, error: describeCashOutInFlight(inFlight) },
+        { status: 409 },
       );
     }
 

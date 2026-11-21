@@ -1455,6 +1455,42 @@ export async function findRampTransactionByReference(
   }).lean<ITransaction>();
 }
 
+/** A sent cash-out older than this stops holding up the next one; support follows it up instead. */
+const CASH_OUT_IN_FLIGHT_HOURS = 24;
+
+/** The user's sent cash-out still being paid out, re-checked with the provider; null if none, or if the lookup fails. */
+export async function findCashOutInFlight(userId: string): Promise<ITransaction | null> {
+  try {
+    await connectDB();
+    const pending = await Transaction.find({
+      userId,
+      type: "OFFRAMP",
+      status: "PENDING",
+      "rampDetails.reference": { $exists: true, $ne: null },
+      createdAt: { $gte: new Date(Date.now() - CASH_OUT_IN_FLIGHT_HOURS * 60 * 60 * 1000) },
+    })
+      .sort({ createdAt: -1 })
+      .lean<ITransaction[]>();
+
+    for (const tx of pending) {
+      // txHash holds the reference until the crypto is sent; an unsent order never blocks
+      if (!tx.txHash || tx.txHash === tx.rampDetails?.reference) continue;
+      const synced = await syncPendingRampTransaction(tx);
+      if (synced?.status === "PENDING") return synced;
+    }
+  } catch (err) {
+    console.warn("[CashOut] In-flight check skipped:", (err as Error)?.message || err);
+  }
+  return null;
+}
+
+/** What a user is told when their last cash-out is still on its way. */
+export function describeCashOutInFlight(tx: ITransaction): string {
+  const fiat = Number(tx.rampDetails?.fiatAmount);
+  const what = fiat > 0 ? `₦${fiat.toLocaleString()}` : `${tx.amount} ${tx.token}`;
+  return `Your last cash-out of ${what} is still on its way to your bank. You can start a new one as soon as it lands.`;
+}
+
 export async function findConfirmedTransactionsByReferences(
   userId: string,
   references: string[],

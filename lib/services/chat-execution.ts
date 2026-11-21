@@ -24,10 +24,17 @@ import {
   sendSolana,
   sendStellar,
 } from "@/lib/chains/transfer-service";
-import { executeOfframpTransfer } from "@/lib/chains/offramp-transfer";
+import {
+  describeOfframpShortfall,
+  executeOfframpTransfer,
+  getOfframpAllowance,
+  offrampSenderAddress,
+} from "@/lib/chains/offramp-transfer";
 import { SwitchService } from "@/lib/switch";
 import {
   createTransactionRecord,
+  describeCashOutInFlight,
+  findCashOutInFlight,
   findRampTransactionByReference,
   updateTransactionByReference,
 } from "@/lib/functions/transactionFunctions";
@@ -723,6 +730,12 @@ export async function executeChatOfframp(params: {
     }
   }
 
+  // A draft made before another cash-out went out waits for it; the card stays usable
+  const inFlight = await findCashOutInFlight(userId);
+  if (inFlight) {
+    return { ok: false, error: describeCashOutInFlight(inFlight), status: 409 };
+  }
+
   // Enforce daily transaction limit
   const outboundAmount = Number(cryptoAmount) || Number(fiatAmount) || 0;
   const outboundCurrency = Number(cryptoAmount) > 0 ? cryptoToken : "NGN";
@@ -739,6 +752,25 @@ export async function executeChatOfframp(params: {
       return { ok: false, error: limitErr.message, status: 400 };
     }
     throw limitErr;
+  }
+
+  // Nothing has been sent yet, so an order the fee no longer fits is closed as Failed instead of left Pending
+  const allowance = await getOfframpAllowance(
+    rawAsset,
+    offrampSenderAddress(rawAsset, wallet),
+    userId,
+  ).catch((err) => {
+    console.warn(`[Chat] Offramp allowance check skipped: ${formatOneLineError(err)}`);
+    return null;
+  });
+  if (allowance && Number(cryptoAmount) > allowance.max) {
+    const error = describeOfframpShortfall(allowance);
+    if (reference) {
+      await updateTransactionByReference(reference, { status: "FAILED", errorMessage: error }).catch(
+        (dbErr) => console.warn(`[Chat] Offramp record update notice: ${formatOneLineError(dbErr)}`),
+      );
+    }
+    return { ok: false, consumed: true, error, status: 400 };
   }
 
   const phrase = decryptWalletPhrase(wallet, pin);

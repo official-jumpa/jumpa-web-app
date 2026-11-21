@@ -2,6 +2,7 @@
 
 import { legalHref } from "@/lib/legal";
 import { ONBOARDING_HREF } from "@/lib/onboarding-href";
+import { formatRewardNaira, REFERRAL_REWARD_NGN } from "@/lib/referrals/rules";
 import { supportMailto } from "@/lib/support";
 
 const IMG = "/images/landing";
@@ -221,6 +222,17 @@ export const TESTIMONIALS = {
       },
     },
   ] satisfies Testimonial[],
+} as const;
+
+/** Referral leaderboard. Not in the Figma file yet; the designer has it queued. */
+export const LEADERBOARD = {
+  badge: "Referrals",
+  heading: "Invite friends, earn together",
+  subhead: `Invite a friend to Jumpa. When they verify their identity and make their first $10 trade, you get ${formatRewardNaira(REFERRAL_REWARD_NGN.referrer)} and they get ${formatRewardNaira(REFERRAL_REWARD_NGN.referred)}.`,
+  boardTitle: "Top referrers",
+  empty: "No one has earned yet. Your invite could put you at the top.",
+  stats: { referrals: "Friends rewarded", earned: "Earned so far" },
+  cta: { label: "Start inviting", href: "/sign-up" },
 } as const;
 
 export interface FaqItem {

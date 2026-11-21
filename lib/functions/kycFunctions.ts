@@ -14,7 +14,9 @@ import {
   type KycStatus,
 } from "@/models/KYCSchema";
 import { User } from "@/models/User";
+import { isKycRecordVerified } from "@/lib/kyc";
 import { getCountryNameFromCode } from "@/lib/location";
+import { checkReferralSoon } from "@/lib/referrals/progress";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
 
 // ── In-Memory KYC Cache Registry
@@ -318,6 +320,9 @@ export async function completeKycVerification(
 
   // Invalidate KYC cache so subsequent queries fetch fresh verified data
   invalidateKycCache(userId);
+
+  // KYC is step 2 of a referral; this may complete it.
+  if (params.isCompleted) checkReferralSoon(userId);
 
   return updated ?? null;
 }
@@ -744,12 +749,7 @@ export function getKycExtensionForMime(mime: string): string {
  */
 export async function isUserKycVerified(userId: string): Promise<boolean> {
   const record = await getKycRecordByUserId(userId);
-  if (!record) return false;
-  return Boolean(
-    record.isCompleted ||
-      record.status === "approved" ||
-      record.stage === "completed",
-  );
+  return isKycRecordVerified(record);
 }
 
 /**

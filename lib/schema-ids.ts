@@ -45,6 +45,8 @@ export const SCHEMA_IDS = {
   asave: { prefix: "asave", length: 16, description: "Savings auto-save rules" },
   stmt: { prefix: "stmt", length: 16, description: "Account statement records" },
   gas: { prefix: "gas", length: 16, description: "Sponsored gas top-ups and the fee owed for each" },
+  rrwd: { prefix: "rrwd", length: 16, description: "Referral rewards (one per referral and side)" },
+  rclm: { prefix: "rclm", length: 16, description: "Referral earnings claims into the Naira balance" },
 
   // ── Utility Entities
   cardref: { prefix: "cardref", length: 12, description: "Card references" },

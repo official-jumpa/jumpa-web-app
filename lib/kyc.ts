@@ -1,3 +1,6 @@
+import type { QueryFilter } from "mongoose";
+import type { IKYCSchema } from "@/models/KYCSchema";
+
 /** Copy and step definitions for identity verification. Text is the design's. */
 
 export type KycBenefit = {
@@ -60,3 +63,21 @@ export const KYC_DOCUMENTS: KycDocument[] = [
   { id: "passport", label: "Passport", name: "Passport" },
   { id: "licence", label: "Drivers Licence", name: "Drivers Licence" },
 ];
+
+type KycVerdictFields = Pick<IKYCSchema, "isCompleted" | "status" | "stage">;
+
+/** The one rule for "KYC passed"; `KYC_VERIFIED_FILTER` is the same rule as a Mongo query. */
+export function isKycRecordVerified(
+  record: Partial<KycVerdictFields> | null | undefined,
+): boolean {
+  if (!record) return false;
+  return Boolean(
+    record.isCompleted ||
+      record.status === "approved" ||
+      record.stage === "completed",
+  );
+}
+
+export const KYC_VERIFIED_FILTER = {
+  $or: [{ isCompleted: true }, { status: "approved" }, { stage: "completed" }],
+} satisfies QueryFilter<IKYCSchema>;

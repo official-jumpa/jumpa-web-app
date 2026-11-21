@@ -196,6 +196,9 @@
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --font-display: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
   --font-numeric: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  /* Sizes the default scale lacks. */
+  --text-2xs: 0.625rem; /* 10px: status pills and captions */
+  --text-figure: 1.625rem; /* 26px: amount on the referrals card */
 
   /* Layout. The app is one centred column; this is how wide it is allowed to
      get. Everything that pins to the column edge reads `max-w-app` from here —

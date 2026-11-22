@@ -263,6 +263,9 @@ export const environment = {
   REFERRAL_REWARDS_START: process.env.REFERRAL_REWARDS_START || "",
   /** Optional; no new rewards from this moment. */
   REFERRAL_REWARDS_END: process.env.REFERRAL_REWARDS_END || "",
+  /** Shows the public leaderboard (landing section and page); on only when exactly "true". */
+  REFERRAL_LEADERBOARD_PUBLIC:
+    process.env.REFERRAL_LEADERBOARD_PUBLIC === "true",
 };
 
 export default environment;

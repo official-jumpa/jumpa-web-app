@@ -2,16 +2,21 @@
 
 import { legalHref } from "@/lib/legal";
 import { ONBOARDING_HREF } from "@/lib/onboarding-href";
-import { formatRewardNaira, REFERRAL_REWARD_NGN } from "@/lib/referrals/rules";
+import {
+  formatRewardNaira,
+  QUALIFYING_TRANSACTION,
+  REFERRAL_REWARD_NGN,
+} from "@/lib/referrals/rules";
 import { supportMailto } from "@/lib/support";
 
 const IMG = "/images/landing";
 
+// Rooted at "/" so the same nav works on the referral leaderboard page.
 export const NAV_LINKS = [
-  { label: "How it works", href: "#how-it-works" },
-  { label: "Features", href: "#features" },
-  { label: "Security", href: "#security" },
-  { label: "FAQ", href: "#faq" },
+  { label: "How it works", href: "/#how-it-works" },
+  { label: "Features", href: "/#features" },
+  { label: "Security", href: "/#security" },
+  { label: "FAQ", href: "/#faq" },
 ] as const;
 
 /** The design gives no destination for either CTA; both enter the app's own flow. */
@@ -224,15 +229,105 @@ export const TESTIMONIALS = {
   ] satisfies Testimonial[],
 } as const;
 
-/** Referral leaderboard. Not in the Figma file yet; the designer has it queued. */
-export const LEADERBOARD = {
-  badge: "Referrals",
-  heading: "Invite friends, earn together",
-  subhead: `Invite a friend to Jumpa. When they verify their identity and make their first $10 trade, you get ${formatRewardNaira(REFERRAL_REWARD_NGN.referrer)} and they get ${formatRewardNaira(REFERRAL_REWARD_NGN.referred)}.`,
-  boardTitle: "Top referrers",
-  empty: "No one has earned yet. Your invite could put you at the top.",
-  stats: { referrals: "Friends rewarded", earned: "Earned so far" },
-  cta: { label: "Start inviting", href: "/sign-up" },
+/** Public referral leaderboard page. */
+export const REFERRAL_LEADERBOARD_HREF = "/referral-leaderboard";
+
+const REFERRER_NGN = formatRewardNaira(REFERRAL_REWARD_NGN.referrer);
+const REFERRED_NGN = formatRewardNaira(REFERRAL_REWARD_NGN.referred);
+const TOTAL_NGN = formatRewardNaira(
+  REFERRAL_REWARD_NGN.referrer + REFERRAL_REWARD_NGN.referred,
+);
+const MIN_TRADE = `$${QUALIFYING_TRANSACTION.minAmount}`;
+
+/** The landing's referral section; the full board lives on its own page. */
+export const REFERRAL_TEASER = {
+  badge: "Referral",
+  heading: `Refer friends and earn ${REFERRER_NGN}`,
+  subhead: `Invite a friend to Jumpa. When they verify their identity and make their first ${MIN_TRADE} trade, you get ${REFERRER_NGN} and they get ${REFERRED_NGN}.`,
+  cta: {
+    label: "See the referral leaderboard",
+    href: REFERRAL_LEADERBOARD_HREF,
+  },
+} as const;
+
+/** The referral leaderboard page, built from the design image. TODO: check copy against the Figma frame. */
+export const REFERRAL_CHALLENGE = {
+  title: "Referral leaderboard",
+  description: `Refer friends to Jumpa and earn ${REFERRER_NGN} for each one who verifies and makes a first ${MIN_TRADE} trade. See who is leading.`,
+  hero: { lines: ["Referral", "Challenge is"], highlight: "live" },
+  copyLink: {
+    label: "Copy my referral link",
+    copied: "Link copied",
+    failed: "Couldn't copy, try again",
+    signedOut: "Get your referral link",
+  },
+  howItWorksCta: "See how it works",
+  rewards: [
+    {
+      label: "You earn",
+      amount: REFERRER_NGN,
+      caption: "for every successful referral",
+    },
+    {
+      label: "Your friend earns",
+      amount: REFERRED_NGN,
+      caption: "once they finish the steps",
+    },
+    {
+      label: "Total per referral",
+      amount: TOTAL_NGN,
+      caption: "paid once per referral",
+    },
+  ],
+  steps: {
+    eyebrow: "How it works",
+    heading: "Three steps to your",
+    highlight: REFERRER_NGN,
+    subhead: "Complete all three and both of you get rewarded.",
+    items: [
+      {
+        title: "Sign up with your link",
+        body: "Your friend registers on Jumpa using your referral link.",
+      },
+      {
+        title: "Complete KYC",
+        body: "They finish identity verification successfully.",
+      },
+      {
+        title: "Make a first transaction",
+        body: `An on-ramp or off-ramp of at least ${MIN_TRADE} ${QUALIFYING_TRANSACTION.tokens.join(` or ${MIN_TRADE} `)}.`,
+      },
+    ],
+  },
+  // The design's "Up to 30 referrals per month" is left out: the campaign has no cap.
+  strip: [
+    "Rewards are paid once per referral",
+    `${TOTAL_NGN} total per successful referral`,
+  ],
+  board: {
+    eyebrow: "Leaderboard",
+    heading: "Top referrers",
+    subhead:
+      "See who is leading the pack. Rank, referrals and rewards earned, all in one place.",
+    empty: "No one has earned yet. Your invite could put you at the top.",
+    unavailable: "The leaderboard is updating. Check back in a few minutes.",
+    columns: {
+      rank: "Rank",
+      name: "Name",
+      invited: "Total referrals",
+      referrals: "Qualified referrals",
+      earned: "Amount",
+    },
+    earned: "earned",
+    progress: (qualified: number, invited: number) =>
+      `${qualified} of ${invited} ${invited === 1 ? "referral" : "referrals"}`,
+    showing: (shown: number, total: number) =>
+      shown >= total
+        ? `Showing all ${total} ${total === 1 ? "referrer" : "referrers"}`
+        : `Showing top ${shown} of ${total} referrers`,
+    viewAll: "View full leaderboard",
+    viewTop: (count: number) => `Show top ${count}`,
+  },
 } as const;
 
 export interface FaqItem {

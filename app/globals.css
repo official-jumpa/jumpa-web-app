@@ -188,6 +188,14 @@
   --color-jumpa-primary-25: #f7f4ff; /* review summary card */
   --color-jumpa-primary-30: #f8f0ff; /* foot of the savings pop-up */
   --color-jumpa-primary-975: #1d014a; /* savings pop-up body copy */
+  /* Referral leaderboard. TODO: rename to the Figma style names once the frame is shared. */
+  --color-jumpa-medal-gold: #f5b301; /* 1st place medal */
+  --color-jumpa-medal-silver: #a9adb8; /* 2nd place medal */
+  --color-jumpa-medal-bronze: #c8733a; /* 3rd place medal */
+  --color-jumpa-peach-100: #ffe8d9; /* initials disc */
+  --color-jumpa-peach-700: #b4531a; /* initials on a peach disc */
+  --color-jumpa-sky-100: #dcf1fb; /* initials disc */
+  --color-jumpa-sky-700: #1d6f94; /* initials on a sky disc */
 
   /* Typography. Geist at every size — the face the Figma file specifies.
      `display` and `numeric` still stand in for Gotham Ultra and Neue Montreal,

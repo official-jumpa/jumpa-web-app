@@ -14,6 +14,14 @@ export function firstName(user: NamedUser): string | null {
   return user?.jumpaTag ? `@${user.jumpaTag}` : null;
 }
 
+/** Two letters for an avatar disc: "AO" from "Ada Obi", "AD" from "@ada". */
+export function publicInitials(user: NamedUser): string {
+  const [first, ...rest] = nameParts(user);
+  if (first) return `${first[0]}${rest.at(-1)?.[0] ?? ""}`.toUpperCase();
+  const tag = (user?.jumpaTag ?? "").replace(/[^a-z0-9]/gi, "");
+  return (tag.slice(0, 2) || "J").toUpperCase();
+}
+
 /** For public lists: "Ada O.", or "@ad***" when there is only a tag. */
 export function publicName(user: NamedUser): string {
   const [first, ...rest] = nameParts(user);

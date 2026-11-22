@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { campaignStatus, isInCampaign } from "./campaign";
+import { campaignStatus, isInCampaign, parseCampaignDate } from "./campaign";
 import { firstName, publicName } from "./names";
 import {
   formatRewardNaira,
@@ -50,6 +50,24 @@ describe("campaign window", () => {
     );
     assert.equal(isInCampaign(window, end), false);
     assert.equal(campaignStatus(window, end), "ended");
+  });
+
+  test("reads only ISO dates from the env", () => {
+    assert.equal(
+      parseCampaignDate("T", "2026-12-01T00:00:00+01:00")?.toISOString(),
+      "2026-11-30T23:00:00.000Z",
+    );
+    assert.equal(
+      parseCampaignDate("T", " 2026-12-01 ")?.toISOString(),
+      "2026-12-01T00:00:00.000Z",
+    );
+    assert.equal(parseCampaignDate("T", ""), null);
+    // Loose formats Date would accept, and a time with no zone, are refused.
+    assert.equal(parseCampaignDate("T", "1 Dec"), null);
+    assert.equal(parseCampaignDate("T", "12/01/2026"), null);
+    assert.equal(parseCampaignDate("T", "2026-12-01T00:00:00"), null);
+    assert.equal(parseCampaignDate("T", "2026-02-31"), null);
+    assert.equal(parseCampaignDate("T", "2026-13-01"), null);
   });
 
   test("has no end unless one is set", () => {

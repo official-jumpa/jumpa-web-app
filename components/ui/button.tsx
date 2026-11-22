@@ -43,7 +43,8 @@ const VARIANTS = {
 } as const;
 
 const SIZES = {
-  sm: "h-11 text-base", // referrals
+  sm: "h-11 text-base", // sheet actions
+  compact: "h-11 text-sm", // referrals
   md: "h-[52px] text-base", // onboarding
   lg: "h-14 text-base", // auth screens
   cta: "h-13.5 text-sm tracking-jumpa-snug", // delete account

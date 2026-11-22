@@ -258,6 +258,14 @@ export const environment = {
   AELLA_BASE_URL: process.env.AELLA_BASE_URL || "https://api.aellaapp.com",
   /** Pauses Naira-balance withdrawals while Aella payouts are down; on only when exactly "true". */
   NGN_WITHDRAWALS_PAUSED: process.env.NGN_WITHDRAWALS_PAUSED === "true",
+
+  // REFERRAL CAMPAIGN — rewards stay off until a start date is set (ISO 8601, e.g. 2026-12-01T00:00:00+01:00).
+  REFERRAL_REWARDS_START: process.env.REFERRAL_REWARDS_START || "",
+  /** Optional; no new rewards from this moment. */
+  REFERRAL_REWARDS_END: process.env.REFERRAL_REWARDS_END || "",
+  /** Shows the public leaderboard (landing section and page); on only when exactly "true". */
+  REFERRAL_LEADERBOARD_PUBLIC:
+    process.env.REFERRAL_LEADERBOARD_PUBLIC === "true",
 };
 
 export default environment;

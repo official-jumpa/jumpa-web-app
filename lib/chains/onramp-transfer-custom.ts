@@ -21,6 +21,7 @@ import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { logUserActivity } from "@/lib/functions/userFunctions";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { dispatchTransactionEmail } from "@/lib/functions/transactionEmailFunctions";
+import { checkReferralSoon } from "@/lib/referrals/progress";
 import {
   fetchSoroswapQuote,
   buildSoroswapTransaction,
@@ -273,6 +274,7 @@ export async function settleOnrampTransferCustom(params: {
 
     if (userId) {
       invalidateBalanceCache(userId);
+      checkReferralSoon(userId);
       logUserActivity({
         userId,
         action: "ONRAMP_COMPLETED",

@@ -15,6 +15,7 @@ import {
   isTimeoutError,
 } from "@/lib/utils/api-best-practices";
 import { dispatchTransactionEmail } from "@/lib/functions/transactionEmailFunctions";
+import { checkReferralSoon } from "@/lib/referrals/progress";
 import { ONRAMP_FAILED_MESSAGE } from "@/lib/naira-deposit";
 
 export const dynamic = "force-dynamic";
@@ -193,6 +194,7 @@ export async function GET(req: NextRequest) {
             updatedAt: new Date(),
           });
           invalidateBalanceCache(session.user.id);
+          checkReferralSoon(session.user.id);
 
           if (existingTx) {
             dispatchTransactionEmail(

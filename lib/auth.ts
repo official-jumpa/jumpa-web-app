@@ -15,6 +15,7 @@ import {
 
 import { generateUniqueReferralCode, ensureUserJumpaFields } from "./user-profile";
 import { User } from "@/models/User";
+import { normalizeReferralCode } from "@/lib/referrals/rules";
 import { Referral } from "@/models/Referral";
 import { Wallet } from "@/models/Wallet";
 
@@ -188,14 +189,11 @@ export const auth = betterAuth({
 
           const email = user.email ? normalizeEmail(user.email) : user.email;
 
-          let referredBy = (user as any).referredBy;
-          if (!referredBy || typeof referredBy !== "string" || !referredBy.trim()) {
+          let referredBy = normalizeReferralCode((user as any).referredBy);
+          if (!referredBy) {
             try {
               const cookieStore = await cookies();
-              const refCookie = cookieStore.get("jumpa_ref")?.value;
-              if (refCookie && refCookie.trim()) {
-                referredBy = refCookie.trim().toUpperCase();
-              }
+              referredBy = normalizeReferralCode(cookieStore.get("jumpa_ref")?.value);
             } catch {
               // cookies() may throw in non-request contexts; ignore
             }
@@ -209,28 +207,27 @@ export const auth = betterAuth({
               country: (user as any).country || country,
               ...(tag ? { jumpaTag: tag } : {}),
               referralCode: (user as any).referralCode || referralCode,
-              ...(referredBy ? { referredBy: String(referredBy).trim().toUpperCase() } : {}),
+              ...(referredBy ? { referredBy } : {}),
             },
           };
         },
         after: async (user) => {
-          const referredBy = (user as any).referredBy;
-          if (referredBy && typeof referredBy === "string" && referredBy.trim()) {
-            const cleanReferrerCode = referredBy.trim().toUpperCase();
+          const referrerCode = normalizeReferralCode((user as any).referredBy);
+          if (referrerCode) {
             try {
-              // Match uppercase directly, or fallback to case-insensitive for legacy ref- codes
-              const referrer = await User.findOne({
-                $or: [
-                  { referralCode: cleanReferrerCode },
-                  { referralCode: new RegExp(`^${cleanReferrerCode}$`, "i") },
-                ],
-              });
+              // Codes are stored uppercase; legacy lowercase `ref-` codes need the
+              // case-insensitive pass, which is safe because the code is [A-Z0-9-] only.
+              const referrer =
+                (await User.findOne({ referralCode: referrerCode }, "_id").lean()) ??
+                (await User.findOne(
+                  { referralCode: new RegExp(`^${referrerCode}$`, "i") },
+                  "_id",
+                ).lean());
               if (referrer && referrer._id !== user.id) {
                 await Referral.create({
                   referrerId: referrer._id,
-                  referrerCode: cleanReferrerCode,
+                  referrerCode,
                   referredUserId: user.id,
-                  points: 1,
                   status: "joined",
                 });
               }

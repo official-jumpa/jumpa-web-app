@@ -1,10 +1,13 @@
 "use client";
 
-import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CopyButton } from "@/components/auth/copy-button";
 import { PromotionList } from "@/components/home/promotion-list";
-import { SettingLink, SettingRow } from "@/components/settings/setting-row";
+import { EarningsCard } from "@/components/referrals/earnings-card";
+import { HowItWorks } from "@/components/referrals/how-it-works";
+import { ReferralHistory } from "@/components/referrals/referral-history";
+import { WelcomeRewardCard } from "@/components/referrals/welcome-reward-card";
+import { SettingAction, SettingRow } from "@/components/settings/setting-row";
 import {
   SettingCard,
   SettingRule,
@@ -14,186 +17,167 @@ import { SettingsHeader } from "@/components/settings/settings-header";
 import { Button } from "@/components/ui/button";
 import { PartyBellIcon } from "@/components/ui/icons/party-bell";
 import { UsersIcon } from "@/components/ui/icons/users";
-import { cn } from "@/lib/cn";
+import { toast } from "@/components/ui/toast";
+import { copyText } from "@/lib/clipboard";
+import type { ReferralOverview } from "@/lib/referrals/overview";
+import { formatRewardNaira, REFERRAL_REWARD_NGN } from "@/lib/referrals/rules";
 import { PROMOTIONS } from "@/lib/wallet";
 
-export interface ReferralHistoryItem {
-  id: string;
-  name: string;
-  joinedAt: string;
-  points: number;
-  status?: "joined" | "active";
-}
-
-export interface ReferralData {
-  points: number;
-  invited: number;
-  target: number;
-  referralCode: string;
-  referralLink: string;
-  history: ReferralHistoryItem[];
+async function fetchOverview(): Promise<ReferralOverview | null> {
+  const res = await fetch("/api/v1/referrals", { cache: "no-store" });
+  if (!res.ok) return null;
+  const body = await res.json();
+  return (body?.data as ReferralOverview) ?? null;
 }
 
 export function ReferralsView({
   initialData,
 }: {
-  initialData?: ReferralData | null;
+  initialData: ReferralOverview | null;
 }) {
-  const hasServerData = initialData !== undefined && initialData !== null;
-  const [data, setData] = useState<ReferralData | null>(initialData ?? null);
-  const [loading, setLoading] = useState(!hasServerData);
+  const [data, setData] = useState<ReferralOverview | null>(initialData);
+  const [claiming, setClaiming] = useState(false);
 
+  const refresh = useCallback(async () => {
+    try {
+      const next = await fetchOverview();
+      if (next) setData(next);
+    } catch (err) {
+      console.error("[ReferralsView] Failed to fetch referrals:", err);
+    }
+  }, []);
+
+  // The server render can miss (e.g. a cold DB); fetch once on the client instead.
   useEffect(() => {
-    if (hasServerData) return;
+    if (!initialData) void refresh();
+  }, [initialData, refresh]);
 
-    async function fetchReferrals() {
+  const code = data?.code ?? "";
+  const link = data?.link ?? "";
+  const available = data?.earnings.available ?? 0;
+
+  const share = async () => {
+    const text = `Join me on Jumpa and get ${formatRewardNaira(REFERRAL_REWARD_NGN.referred)} after your first $10 trade. Use my code ${code}.`;
+    if (navigator.share) {
       try {
-        const res = await fetch("/api/v1/referrals");
-        if (res.ok) {
-          const resData = await res.json();
-          setData(resData.data ?? resData);
-        }
-      } catch (err) {
-        console.error("[ReferralsView] Failed to fetch referrals:", err);
-      } finally {
-        setLoading(false);
+        await navigator.share({ title: "Join me on Jumpa", text, url: link });
+        return;
+      } catch {
+        // Dismissed, or no target — fall through to the clipboard.
       }
     }
-    fetchReferrals();
-  }, [hasServerData]);
+    if (await copyText(`${text} ${link}`))
+      toast.success("Invite copied", "Paste it anywhere to share.");
+    else toast.error("Could not copy your invite");
+  };
 
-  const points = data?.points ?? 0;
-  const invited = data?.invited ?? 0;
-  const target = data?.target ?? 40;
-  const referralCode = (data?.referralCode ?? "").toUpperCase();
-  const referralLink = data?.referralLink ?? "";
-  const history = data?.history ?? [];
+  const claim = async () => {
+    setClaiming(true);
+    try {
+      const res = await fetch("/api/v1/referrals/claim", { method: "POST" });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body?.success) {
+        toast.error("Could not claim your earnings", body?.error);
+        return;
+      }
+      toast.success(
+        "Earnings claimed",
+        `${formatRewardNaira(body.data.amount)} was added to your Naira wallet.`,
+      );
+      await refresh();
+    } catch {
+      toast.error(
+        "Could not claim your earnings",
+        "Check your connection and try again.",
+      );
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  const welcome =
+    data?.invitedBy &&
+    (data.invitedBy.status === "joined" ||
+      data.invitedBy.status === "kyc_verified")
+      ? data.invitedBy
+      : null;
 
   return (
     <div className="flex flex-col px-4.5 pt-[calc(env(safe-area-inset-top)+21px)] pb-12">
       <SettingsHeader back="/profile/settings" title="Referrals" />
 
       <section className="mt-6 flex flex-col gap-2">
-        <div className="relative isolate flex h-28.25 flex-col items-center justify-center overflow-hidden rounded-card bg-[image:var(--gradient-jumpa-hero)]">
-          <Image
-            src="/images/home/hero-grid.svg"
-            alt=""
-            width={287}
-            height={264}
-            className="pointer-events-none absolute -z-10 max-w-none opacity-40"
-          />
+        <EarningsCard
+          available={available}
+          total={data?.earnings.total ?? 0}
+          invited={data?.counts.invited ?? 0}
+        />
 
-          <span className="flex h-4.5 items-center rounded-pill bg-jumpa-primary-950 px-2.75 text-[10px] leading-2.5 font-medium text-jumpa-white">
-            Referral Points
-          </span>
-          <p className="mt-2 leading-0 font-bold text-jumpa-white">
-            <span className="text-[26px] leading-6.5">{points}</span>
-            <span className="ml-1 text-sm font-medium text-jumpa-white/80">
-              {points === 1 ? "point" : "points"}
-            </span>
-          </p>
-
-          <span className="absolute top-3 right-2.5 flex h-8.5 items-center rounded-pill bg-jumpa-white/25 px-2.75 text-xs leading-3 font-medium text-jumpa-white">
-            {invited}/{target} Invited
-          </span>
-        </div>
-
-        <Button
-          variant="brand"
-          size="sm"
-          className="text-sm opacity-60 cursor-not-allowed"
-          disabled
-        >
-          Claim Earnings (Coming Soon)
-        </Button>
+        {available > 0 && data && !data.hasNairaAccount ? (
+          <Button href="/ngn-account" variant="brand" size="compact">
+            Create your Naira account to claim
+          </Button>
+        ) : (
+          <Button
+            variant="brand"
+            size="compact"
+            className="disabled:opacity-60"
+            disabled={available <= 0 || claiming}
+            onClick={claim}
+          >
+            {claiming
+              ? "Claiming…"
+              : available > 0
+                ? `Claim ${formatRewardNaira(available)}`
+                : "Claim Earnings"}
+          </Button>
+        )}
       </section>
 
-      <div className="mt-4.25 flex flex-col">
+      <div className="mt-4.25 flex flex-col gap-4.75">
+        {welcome ? (
+          <WelcomeRewardCard
+            verified={welcome.status === "kyc_verified"}
+            reward={welcome.reward}
+          />
+        ) : null}
+
         <SettingSection label="Referral Methods">
           <SettingCard>
             <SettingRow
               icon={UsersIcon}
               label="Your Referral Code"
-              value={referralCode}
-              action={<CopyButton value={referralCode} />}
+              value={code}
+              action={<CopyButton value={code} />}
             />
             <SettingRule />
             <SettingRow
               icon={UsersIcon}
               label="Your Referral Link"
-              value={referralLink}
-              action={<CopyButton value={referralLink} />}
+              value={link}
+              action={<CopyButton value={link} />}
             />
             <SettingRule />
-            <SettingLink
-              href="/referrals"
+            <SettingAction
               icon={PartyBellIcon}
               label="Invite friends to Jumpa and earn rewards"
+              onClick={share}
               brand
             />
           </SettingCard>
         </SettingSection>
 
-        <div className="mt-3.75">
-          <PromotionList promotions={PROMOTIONS} />
-        </div>
+        <HowItWorks
+          status={data?.campaign.status ?? "off"}
+          endsAt={data?.campaign.endsAt ?? null}
+        />
 
-        <section className="mt-4.75 flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm leading-4 font-medium text-jumpa-black">
-              Referral History
-            </h2>
-            <span className="text-xs leading-3.5 text-jumpa-neutral-350">
-              {invited} Invited
-            </span>
-          </div>
+        <PromotionList promotions={PROMOTIONS} />
 
-          {history.length === 0 ? (
-            <div className="flex h-25 flex-col items-center justify-center rounded-card bg-jumpa-neutral-50 px-4 text-center">
-              <p className="text-xs font-medium text-jumpa-neutral-350">
-                No referrals yet. Share your referral link with friends to earn
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {history.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between rounded-surface border border-jumpa-neutral-60 bg-jumpa-neutral-50 px-3.5 py-3"
-                >
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-semibold text-jumpa-black">
-                      {item.name}
-                    </span>
-                    <span className="text-[10px] text-jumpa-neutral-350">
-                      Joined{" "}
-                      {new Date(item.joinedAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        "rounded-pill px-2 py-0.5 text-[10px] font-semibold capitalize",
-                        item.status === "active"
-                          ? "bg-emerald-50 text-emerald-600"
-                          : "bg-jumpa-neutral-100 text-jumpa-neutral-500",
-                      )}
-                    >
-                      {item.status === "active" ? "Active" : "Joined"}
-                    </span>
-                    <span className="rounded-pill bg-jumpa-primary-100 px-2 py-0.5 text-xs font-bold text-jumpa-primary-600">
-                      +{item.points} pt
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+        <ReferralHistory
+          items={data?.history ?? []}
+          invited={data?.counts.invited ?? 0}
+        />
       </div>
     </div>
   );

@@ -12,6 +12,8 @@ import { getHorizonServer } from "@/lib/chains/stellar/client";
 import { Connection } from "@solana/web3.js";
 import { convertToUsd } from "@/lib/functions/transactionLimitFunctions";
 import { dispatchTransactionEmail } from "@/lib/functions/transactionEmailFunctions";
+import { checkReferralSoon } from "@/lib/referrals/progress";
+import { isReferralClaimReference } from "@/lib/referrals/rules";
 
 // Types & Provider Interfaces 
 
@@ -284,6 +286,7 @@ async function _applySyncResult(
   tx.updatedAt = updateData.updatedAt;
 
   if (newStatus === "CONFIRMED" && statusChanged) {
+    if (tx.type === "ONRAMP" || tx.type === "OFFRAMP") checkReferralSoon(tx.userId);
     if (tx.userId) invalidateBalanceCache(tx.userId);
     if (tx.toAddress) invalidateBalanceCache(tx.toAddress);
     if (tx.fromAddress) invalidateBalanceCache(tx.fromAddress);
@@ -786,6 +789,7 @@ const TX_DESCRIPTORS: Record<string, TxTypeDescriptor> = {
     isIncoming: () => true,
     getTitle: (tx) => {
       if (isNgnRefund(tx)) return "Transfer refund";
+      if (isReferralClaimReference(tx.txHash)) return "Referral earnings";
       const sender = tx.bankDetails?.senderName;
       if (sender) return `Transfer from ${sender}`;
       return `Deposit ${tx.token}`;

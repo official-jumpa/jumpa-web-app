@@ -9,6 +9,7 @@ import { HowItWorksSection } from "@/components/landing/how-it-works-section";
 import { InstallPrompt } from "@/components/landing/install-prompt";
 import { LandingFooter } from "@/components/landing/landing-footer";
 import { LandingNav } from "@/components/landing/landing-nav";
+import { ReferralSection } from "@/components/landing/referral-section";
 import { RevealObserver } from "@/components/landing/reveal-observer";
 import { SecuritySection } from "@/components/landing/security-section";
 import { TestimonialsSection } from "@/components/landing/testimonials-section";
@@ -55,6 +56,7 @@ export default async function LandingPage() {
         <FeaturesSection />
         <SecuritySection />
         <TestimonialsSection />
+        <ReferralSection />
         <FaqSection />
         <CtaSection />
         <LandingFooter />

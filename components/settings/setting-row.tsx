@@ -93,6 +93,7 @@ export function SettingAction({
   value,
   onClick,
   danger,
+  brand,
 }: {
   icon: SettingIconType;
   label: string;
@@ -100,6 +101,8 @@ export function SettingAction({
   value?: string;
   onClick: () => void;
   danger?: boolean;
+  /** Purple label, as on `SettingLink`. */
+  brand?: boolean;
 }) {
   return (
     <button
@@ -107,7 +110,13 @@ export function SettingAction({
       onClick={onClick}
       className="flex items-center justify-between gap-3 tap active:scale-[0.99]"
     >
-      <Body icon={icon} label={label} value={value} danger={danger} />
+      <Body
+        icon={icon}
+        label={label}
+        value={value}
+        danger={danger}
+        brand={brand}
+      />
       <ChevronRightIcon
         className={`size-5 shrink-0 ${danger ? "text-jumpa-danger" : "text-jumpa-black"}`}
       />

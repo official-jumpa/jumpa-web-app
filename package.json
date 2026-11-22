@@ -17,6 +17,7 @@
     "auto-save": "node --import tsx script/auto-save.ts",
     "referral-rewards": "node --import tsx script/referral-rewards.ts",
     "move-fossapay-balances": "node --import tsx script/move-fossapay-balances.ts",
+    "move-fossapay-balances:apply": "node --import tsx script/move-fossapay-balances.ts --apply",
     "test:nimiq": "node --import tsx --test --test-concurrency=1 lib/nimiq/*.test.ts",
     "test:auto-save": "node --import tsx --test lib/auto-save-schedule.test.ts lib/savings-auto-save.test.ts",
     "test:tron": "node --import tsx --test lib/chains/tron/*.test.ts",

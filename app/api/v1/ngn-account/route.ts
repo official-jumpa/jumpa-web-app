@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
           provider: result.account.provider || "aella",
         },
         balance: result.balance,
-        canCreateAccount: false,
+        canCreateAccount: Boolean(result.canCreateAccount),
       },
       { status: 200 },
     );

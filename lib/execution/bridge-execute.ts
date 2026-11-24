@@ -127,29 +127,42 @@ async function submitSorobanTx({
     );
   }
 
-  const hash = sendRes.hash;
-  let attempts = 0;
-
-  while (attempts < 30) {
-    await new Promise((r) => setTimeout(r, 1500));
-    try {
-      const txRes: any = await rpc.getTransaction(hash);
-      if (txRes.status === "SUCCESS") {
-        return hash;
-      }
-      if (txRes.status === "FAILED") {
-        throw new Error(
-          `Transaction failed on Stellar Soroban: ${JSON.stringify(txRes.resultMetaXdr || txRes)}`,
-        );
-      }
-    } catch (pollErr: any) {
-      if (pollErr?.message?.includes("Transaction failed")) {
-        throw pollErr;
-      }
-    }
-    attempts++;
+  if (sendRes.status === "TRY_AGAIN_LATER") {
+    throw new Error(
+      "The Stellar network is busy right now. Nothing was sent. Please try again in a minute.",
+    );
   }
 
+  const hash = sendRes.hash;
+  const { GetTransactionStatus } = StellarSdk.rpc.Api;
+  // No ledger closing after maxTime can include the tx, so NOT_FOUND past it means it never landed.
+  const maxTime = Number(preparedTx.timeBounds?.maxTime ?? 0);
+  const giveUpAt = maxTime > 0 ? (maxTime + 30) * 1000 : Date.now() + 45_000;
+
+  while (Date.now() < giveUpAt) {
+    await new Promise((r) => setTimeout(r, 1500));
+    let txRes: StellarSdk.rpc.Api.GetTransactionResponse;
+    try {
+      txRes = await rpc.getTransaction(hash);
+    } catch {
+      continue;
+    }
+    if (txRes.status === GetTransactionStatus.SUCCESS) {
+      return hash;
+    }
+    if (txRes.status === GetTransactionStatus.FAILED) {
+      throw new Error(
+        `Transaction failed on Stellar Soroban: ${JSON.stringify(txRes.resultMetaXdr || txRes)}`,
+      );
+    }
+    if (maxTime > 0 && Number(txRes.latestLedgerCloseTime) > maxTime) {
+      throw new Error(
+        "Stellar didn't accept this transfer in time. Nothing was sent. Please try again.",
+      );
+    }
+  }
+
+  // Status unreadable: return the hash so it is saved as pending for the resolve job.
   return hash;
 }
 

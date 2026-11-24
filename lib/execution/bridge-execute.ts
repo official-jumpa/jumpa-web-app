@@ -18,14 +18,11 @@ import {
   parseUnits,
   parseEther,
   erc20Abi,
-  getAddress,
   maxUint256,
 } from "viem";
-import { mnemonicToAccount, privateKeyToAccount } from "viem/accounts";
+import { mnemonicToAccount } from "viem/accounts";
 import { base, mainnet } from "viem/chains";
 import { decryptMnemonic } from "@/lib/crypto";
-import { createNotification } from "@/lib/functions/notificationFunctions";
-import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import {
   deriveStellarKeypairFromMnemonic,
   getHorizonServer,
@@ -35,7 +32,6 @@ import { deriveAddresses } from "@/lib/derive-addresses";
 import {
   CONTRACT_ADDRESSES,
   CCTP_DOMAINS,
-  CIRCLE_IRIS_API,
   evmAddressToBytes32,
   stellarAddressToBytes32,
   buildStellarForwarderHookData,
@@ -48,6 +44,7 @@ import {
 } from "@/lib/blockchain";
 import { relayToSolana, submitSolanaDepositForBurn } from "@/lib/chains/solana/cctp-bridge";
 import { relayToStellar } from "@/lib/chains/stellar/cctp-bridge";
+import { relayCctpTransferToEvm } from "@/lib/chains/evm/cctp-relay";
 import { getSolanaSponsorKeypair } from "@/lib/chains/solana/sponsor";
 import { ensureStellarAccountActiveAndTrustlined } from "@/lib/chains/stellar/sponsor";
 import { Connection, PublicKey, Keypair as SolanaKeypair } from "@solana/web3.js";
@@ -926,22 +923,17 @@ export async function executeBridge(
       },
     });
 
-    // 3. Automated Instant Relayer: automatically submit receiveMessage on destination chain
-    if (fromChain === "stellar" && (toChain === "ethereum" || toChain === "base")) {
-      relayStellarToEvm({
-        txHash,
-        toChain,
+    // 3. Mint on the destination chain once Circle attests the burn
+    const sourceDomain = CCTP_DOMAINS[fromChain];
+    if (toChain === "ethereum" || toChain === "base") {
+      relayCctpTransferToEvm({
+        burnTxHash: txHash,
+        sourceDomain,
+        destination: toChain,
         userId,
         amount: toAmount,
       });
     } else if (toChain === "solana") {
-      const sourceDomain =
-        fromChain === "stellar"
-          ? CONTRACT_ADDRESSES.cctp.mainnet.stellar.domain
-          : fromChain === "ethereum"
-            ? CONTRACT_ADDRESSES.cctp.mainnet.ethereum.domain
-            : CONTRACT_ADDRESSES.cctp.mainnet.base.domain;
-
       relayToSolana({
         txHash,
         userId,
@@ -950,13 +942,6 @@ export async function executeBridge(
         recipientWallet: recipientAddress,
       });
     } else if (toChain === "stellar") {
-      const sourceDomain =
-        fromChain === "solana"
-          ? CONTRACT_ADDRESSES.cctp.mainnet.solana.domain
-          : fromChain === "ethereum"
-            ? CONTRACT_ADDRESSES.cctp.mainnet.ethereum.domain
-            : CONTRACT_ADDRESSES.cctp.mainnet.base.domain;
-
       relayToStellar({
         txHash,
         userId,
@@ -984,123 +969,4 @@ export async function executeBridge(
       status: 500,
     };
   }
-}
-
-/**
- * Automated Background Relayer for CCTP v2 transfers from Stellar to EVM (Ethereum / Base).
- * Polls Circle Iris Production for attestation and broadcasts receiveMessage automatically.
- */
-function relayStellarToEvm({
-  txHash,
-  toChain,
-  userId,
-  amount,
-}: {
-  txHash: string;
-  toChain: "ethereum" | "base";
-  userId: string;
-  amount: string;
-}) {
-  (async () => {
-    try {
-      const isEth = toChain === "ethereum";
-      const targetChain = isEth ? mainnet : base;
-      const rpcUrl = getRpcUrl(isEth ? "ethereum" : "base");
-      const messageTransmitter = isEth
-        ? CONTRACT_ADDRESSES.cctp.mainnet.ethereum.messageTransmitter
-        : CONTRACT_ADDRESSES.cctp.mainnet.base.messageTransmitter;
-
-      const sponsoredKey = process.env.SPONSORED_FEE_EVM_KEY;
-      if (!sponsoredKey) {
-        console.warn("[Relayer] No SPONSORED_FEE_EVM_KEY found in env; skipping auto-mint.");
-        return;
-      }
-
-      const account = privateKeyToAccount(sponsoredKey as `0x${string}`);
-      const publicClient = createPublicClient({ chain: targetChain, transport: http(rpcUrl) });
-      const walletClient = createWalletClient({ account, chain: targetChain, transport: http(rpcUrl) });
-
-      let attempts = 0;
-      let msgObj: any = null;
-
-      // Poll Iris production API for up to ~3 minutes
-      while (attempts < 60) {
-        await new Promise((r) => setTimeout(r, 3000));
-        try {
-          const res = await fetch(
-            `${CIRCLE_IRIS_API.mainnet}/v2/messages/27?transactionHash=${txHash}`,
-            { headers: { Accept: "application/json" }, cache: "no-store" },
-          );
-          if (res.ok) {
-            const data = await res.json();
-            if (data.messages?.[0]?.status === "complete") {
-              msgObj = data.messages[0];
-              break;
-            }
-          }
-        } catch {}
-        attempts++;
-      }
-
-      if (!msgObj || !msgObj.message || !msgObj.attestation) {
-        console.warn("[Relayer] Iris attestation timeout for:", txHash);
-        return;
-      }
-
-      if (msgObj.destinationMintTxHash) {
-        console.log("[Relayer] Already minted on destination:", msgObj.destinationMintTxHash);
-        return;
-      }
-
-      console.log(`[Relayer] Attestation ready! Minting on ${isEth ? "Ethereum" : "Base"}...`);
-
-      const messageTransmitterAbi = [
-        {
-          type: "function",
-          name: "receiveMessage",
-          inputs: [
-            { name: "message", type: "bytes" },
-            { name: "attestation", type: "bytes" },
-          ],
-          outputs: [{ name: "success", type: "bool" }],
-          stateMutability: "nonpayable",
-        },
-      ] as const;
-
-      const mintHash = await walletClient.writeContract({
-        address: getAddress(messageTransmitter),
-        abi: messageTransmitterAbi,
-        functionName: "receiveMessage",
-        args: [msgObj.message as `0x${string}`, msgObj.attestation as `0x${string}`],
-      });
-
-      console.log("[Relayer] receiveMessage broadcasted! Hash:", mintHash);
-      await publicClient.waitForTransactionReceipt({ hash: mintHash });
-      console.log("[Relayer] Mint confirmed on-chain!");
-
-      await connectDB();
-      await Transaction.findOneAndUpdate(
-        { txHash },
-        {
-          $set: {
-            status: "CONFIRMED",
-            "bridgeDetails.mintTxHash": mintHash,
-            "bridgeDetails.mintExplorerUrl": getExplorerTxUrl(toChain, mintHash, false),
-          },
-        },
-      );
-
-      invalidateBalanceCache(userId);
-
-      await createNotification({
-        userId,
-        tab: "transactions",
-        title: "Bridge Completed",
-        body: `${amount} USDC has arrived on ${isEth ? "Ethereum" : "Base"}!`,
-        type: "BRIDGE_COMPLETED",
-      }).catch(() => null);
-    } catch (err) {
-      console.error("[Relayer Execution Error]", err);
-    }
-  })();
 }

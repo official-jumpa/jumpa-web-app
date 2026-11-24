@@ -9,6 +9,11 @@ import type { TransactionDetailRow, TransactionKind } from "@/lib/wallet";
 import { detectCarrierFromPhone } from "@/lib/bills";
 import { getExplorerTxUrl, getSolanaRpcUrl } from "@/lib/blockchain";
 import { getHorizonServer } from "@/lib/chains/stellar/client";
+import {
+  ATTESTATION_WAIT_MS,
+  completeCctpTransferToEvm,
+  evmToEvmBridgeTransfer,
+} from "@/lib/chains/evm/cctp-relay";
 import { Connection } from "@solana/web3.js";
 import { convertToUsd } from "@/lib/functions/transactionLimitFunctions";
 import { dispatchTransactionEmail } from "@/lib/functions/transactionEmailFunctions";
@@ -1713,6 +1718,7 @@ export async function resolveAllPendingTransactions(options?: {
         tx.chain === "stellar" ||
         (!tx.chain && (tx.network === "mainnet" || tx.network === "testnet"));
       const isSolana = tx.chain === "solana";
+      const evmBridge = evmToEvmBridgeTransfer(tx);
 
       try {
         if (isStellar) {
@@ -1846,6 +1852,24 @@ export async function resolveAllPendingTransactions(options?: {
               reason: "Awaiting confirmation",
             });
           }
+        } else if (evmBridge) {
+          // Leave fresh rows to the in-process relay; a burned transfer can always still be minted.
+          const relayWindowPassed =
+            Date.now() - new Date(tx.createdAt).getTime() > ATTESTATION_WAIT_MS;
+          const minted = relayWindowPassed && (await completeCctpTransferToEvm(evmBridge));
+          if (minted) result.confirmed++;
+          else result.stillPending++;
+          result.details.push({
+            id: tx._id,
+            reference: txHash,
+            type: tx.type,
+            amount: tx.amount,
+            token: tx.token,
+            previousStatus: "PENDING",
+            newStatus: minted ? "CONFIRMED" : "PENDING",
+            providerStatus: minted ? "CCTP_MINTED" : "CCTP_AWAITING_MINT",
+            reason: minted ? undefined : "Waiting to mint on the destination chain",
+          });
         }
       } catch (err: any) {
         console.error(`[ResolveTx] ⚠️ Error resolving on-chain tx ${txHash}:`, err?.message || err);

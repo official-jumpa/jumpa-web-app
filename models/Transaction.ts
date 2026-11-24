@@ -101,6 +101,9 @@ export interface ITransaction {
     toAmount: string;
     fee: string;
     relayerFee?: string;
+    /** The destination-chain mint that delivered the funds. */
+    mintTxHash?: string;
+    mintExplorerUrl?: string;
   };
 
   // On-Chain Execution & Accounting
@@ -247,6 +250,8 @@ const TransactionSchema = new Schema<ITransaction>(
       toAmount: { type: String },
       fee: { type: String },
       relayerFee: { type: String },
+      mintTxHash: { type: String },
+      mintExplorerUrl: { type: String },
     },
 
     txHash: { type: String, default: null },

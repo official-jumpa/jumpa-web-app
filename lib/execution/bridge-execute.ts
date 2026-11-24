@@ -22,6 +22,7 @@ import {
 } from "viem";
 import { mnemonicToAccount } from "viem/accounts";
 import { base, mainnet } from "viem/chains";
+import { BRIDGE_MINIMUM_MESSAGE, isBelowBridgeMinimum } from "@/lib/bridge";
 import { decryptMnemonic } from "@/lib/crypto";
 import {
   deriveStellarKeypairFromMnemonic,
@@ -179,6 +180,10 @@ export async function executeBridge(
     networkFee,
     userId,
   } = params;
+
+  if (isBelowBridgeMinimum(Number(amount))) {
+    return { ok: false, error: BRIDGE_MINIMUM_MESSAGE, status: 400 };
+  }
 
   // 1. Decrypt mnemonic
   let phrase: string;

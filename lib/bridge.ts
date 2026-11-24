@@ -21,6 +21,14 @@ export type BridgeQuote = {
 const trim = (value: number, places = 6) =>
   Number(value.toFixed(places)).toString();
 
+/** Jumpa pays the destination mint gas, which outweighs very small transfers. */
+export const MIN_BRIDGE_USDC = 5;
+export const BRIDGE_MINIMUM_MESSAGE = `The minimum you can bridge is ${MIN_BRIDGE_USDC} USDC.`;
+
+export function isBelowBridgeMinimum(amount: number): boolean {
+  return amount < MIN_BRIDGE_USDC;
+}
+
 /** Resolve a chain the user named, falling back to where the asset lives. */
 export function resolveChain(symbol: string, chain?: string): string {
   const named = chain?.toLowerCase().trim() || "";
@@ -78,6 +86,9 @@ export function getBridgeQuote({
   const input = Number.parseFloat(amount);
   if (!Number.isFinite(input) || input <= 0) {
     throw new Error("Enter an amount greater than zero to bridge.");
+  }
+  if (isBelowBridgeMinimum(input)) {
+    throw new Error(BRIDGE_MINIMUM_MESSAGE);
   }
 
   if (!fromChain?.trim()) {

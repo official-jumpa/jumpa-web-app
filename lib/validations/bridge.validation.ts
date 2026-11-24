@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BRIDGE_MINIMUM_MESSAGE, isBelowBridgeMinimum } from "@/lib/bridge";
 import { pinSchema } from "./user.validation";
 
 export const bridgeChains = ["stellar", "base", "ethereum", "solana"] as const;
@@ -22,6 +23,9 @@ export const bridgeQuoteSchema = z
       .transform((val) => String(val).trim())
       .refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
         message: "Please enter a valid amount greater than 0",
+      })
+      .refine((val) => !isBelowBridgeMinimum(Number(val)), {
+        message: BRIDGE_MINIMUM_MESSAGE,
       }),
     transferType: z.enum(["fast", "standard"]).default("fast"),
   })

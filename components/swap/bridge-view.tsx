@@ -15,6 +15,7 @@ import { CaretDownIcon } from "@/components/ui/icons/caret-down";
 import { CheckIcon } from "@/components/ui/icons/check";
 import { ResultSheet } from "@/components/ui/result-sheet";
 import { usePopoverBoundary } from "@/hooks/use-popover-boundary";
+import { BRIDGE_MINIMUM_MESSAGE, isBelowBridgeMinimum } from "@/lib/bridge";
 import { errorMessage, type FriendlyError, friendlyError } from "@/lib/errors";
 import { invalidateClientBalances } from "@/lib/client-events";
 import { sanitiseAmount } from "@/lib/transfer";
@@ -648,6 +649,8 @@ export function BridgeView({
 
             if (!num) {
               setError("Enter an amount to bridge");
+            } else if (isBelowBridgeMinimum(num)) {
+              setError(BRIDGE_MINIMUM_MESSAGE);
             } else if (!quote) {
               setError("Waiting for bridge quote. Please try again.");
             } else if (!targetRecipient) {

@@ -41,6 +41,9 @@ import { isAellaBank } from "@/lib/functions/aellaFunctions";
 
 export const dynamic = "force-dynamic";
 
+/** Vercy replaces 502/504 replies with its own HTML page, so a failed provider answers 424. */
+const PROVIDER_FAILED = 424;
+
 /**
  * POST /api/v1/exchange/offramp
  * Initiates offramp, and if PIN is provided, executes the automated on-chain transfer
@@ -295,6 +298,17 @@ export async function POST(req: NextRequest) {
         console.error(
           `[Offramp] Centiiv Error: ${formatOneLineError(err)}`,
         );
+        // Centiiv was too slow to create the order; no USDC has been sent yet
+        if (/timed out/i.test(err?.message ?? "")) {
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "Cash-out is slow right now. Nothing left your wallet. Please try again in a few minutes.",
+            },
+            { status: PROVIDER_FAILED },
+          );
+        }
         const isOffline =
           err.isProviderOffline ||
           err.provider === "centiiv" ||

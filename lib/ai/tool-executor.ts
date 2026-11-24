@@ -7,6 +7,7 @@
  */
 
 import { getBridgeQuote } from "@/lib/bridge";
+import { quoteEthereumDeliveryFeeUsdc } from "@/lib/chains/evm/ethereum-delivery-fee";
 import {
   canReceiveStellarUsdc,
   fetchStellarBalances,
@@ -770,6 +771,9 @@ export async function executeTool(
       const evmAddr =
         wallet?.addresses?.base || wallet?.addresses?.eth || "";
 
+      const ethereumDeliveryFeeUsdc =
+        parsedToChain === "ethereum" ? await quoteEthereumDeliveryFeeUsdc() : 0;
+
       let quote: ReturnType<typeof getBridgeQuote>;
       try {
         quote = getBridgeQuote({
@@ -778,6 +782,7 @@ export async function executeTool(
           amount: cleanAmount,
           fromChain: parsedFromChain,
           toChain: parsedToChain,
+          ethereumDeliveryFeeUsdc,
         });
       } catch (err: any) {
         return {

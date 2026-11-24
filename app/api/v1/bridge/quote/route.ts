@@ -3,6 +3,7 @@ import { requireActiveUser } from "@/lib/functions/permissionFunctions";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import { CCTP_DOMAINS, getRpcUrl, getSolanaRpcUrl } from "@/lib/blockchain";
+import { quoteEthereumDeliveryFeeUsdc } from "@/lib/chains/evm/ethereum-delivery-fee";
 import { getLiveRates } from "@/lib/rates";
 import { createPublicClient, http } from "viem";
 import { mainnet, base } from "viem/chains";
@@ -46,23 +47,8 @@ export async function POST(req: NextRequest) {
     let requiresGasAbstraction = false;
 
     if (toChain === "ethereum") {
-      // Destination Ethereum L1 has higher gas minting costs (~175,000 gas units for receiveMessage)
-      try {
-        const publicClient = createPublicClient({
-          chain: mainnet,
-          transport: http(getRpcUrl("ethereum"), { timeout: 8000 }),
-        });
-        const gasPrice = await publicClient.getGasPrice();
-        const rates = await getLiveRates();
-        const ethPriceUsd = rates.tokens.find((t) => t.symbol === "ETH")?.usd || 2600;
-        const mintGasUnits = BigInt(175000);
-        const mintFeeWei = (gasPrice * mintGasUnits * BigInt(12)) / BigInt(10);
-        const mintFeeUsd = (Number(mintFeeWei) / 1e18) * ethPriceUsd;
-        feeAmount = Math.max(0.5, Math.round(mintFeeUsd * 100) / 100);
-      } catch (ethGasErr: any) {
-        console.warn(`[Bridge] Eth gas quote fallback: ${formatOneLineError(ethGasErr)}`);
-        feeAmount = 3.5;
-      }
+      // Jumpa pays the Ethereum mint gas and takes it back out of the amount sent
+      feeAmount = await quoteEthereumDeliveryFeeUsdc();
       protocolFeeBps = 0;
       estimatedTime = "~1–3 minutes";
       effectiveTransferType = "fast";

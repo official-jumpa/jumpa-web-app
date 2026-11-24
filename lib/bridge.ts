@@ -45,8 +45,8 @@ export function resolveChain(symbol: string, chain?: string): string {
 /**
  * Circle CCTP v2 Cross-Chain Quoting (Stellar Mainnet, Base Mainnet, Ethereum Mainnet).
  * Cross-chain transfers for USDC settle 1:1 natively across Soroban and EVM TokenMessenger contracts.
- * Jumpa sponsors destination gas fees for Stellar -> Base transfers.
- * Stellar -> Ethereum Mainnet incurs a flat estimated L1 destination gas fee.
+ * Jumpa sponsors destination gas on every route except Ethereum, where the user pays the
+ * delivery fee out of the amount sent.
  */
 
 export function chainName(id: string): string {
@@ -67,12 +67,15 @@ export function getBridgeQuote({
   fromChain,
   toChain,
   amount,
+  ethereumDeliveryFeeUsdc = 0,
 }: {
   fromToken?: string;
   toToken?: string;
   fromChain?: string;
   toChain?: string;
   amount: string;
+  /** From quoteEthereumDeliveryFeeUsdc; only charged when the destination is Ethereum. */
+  ethereumDeliveryFeeUsdc?: number;
 }): BridgeQuote {
   const from = (fromToken || "USDC").toUpperCase().trim();
   const to = (toToken || "USDC").toUpperCase().trim();
@@ -107,11 +110,8 @@ export function getBridgeQuote({
     );
   }
 
-  const isStellarSource = fromId === "stellar";
   const isEthereumDest = toId === "ethereum";
-  
-  // Base is sponsored; Ethereum L1 incurs an estimated 3.50 USDC relayer gas fee
-  const feeNumber = (isStellarSource && isEthereumDest) ? 3.50 : 0.00;
+  const feeNumber = isEthereumDest ? ethereumDeliveryFeeUsdc : 0;
   const feeText = feeNumber > 0 ? `${feeNumber.toFixed(2)} USDC` : "Sponsored";
   const relayerText = feeNumber > 0 ? `${feeNumber.toFixed(2)} USDC` : "Sponsored";
   const estTime = isEthereumDest ? "~1–3 mins" : "~15–30s";

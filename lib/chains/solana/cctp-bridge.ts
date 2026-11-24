@@ -25,6 +25,7 @@ import { Transaction } from "@/models/Transaction";
 import { invalidateBalanceCache } from "@/lib/wallet-balances";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import { sendAndConfirmVersionedTransactionPolling } from "./send-and-confirm";
+import { getSolanaFeeCollectorPubkey } from "./sponsor";
 import bs58 from "bs58";
 
 /** Circle CCTP official Address Lookup Table on Solana Mainnet */
@@ -199,11 +200,12 @@ export async function submitSolanaDepositForBurn({
     });
     instructions.push(modifyComputeUnits, addPriorityFee);
 
-    // If gas abstraction is active and feeSubunits > 0, add atomic reimbursement from user to Jumpa fee collector
-    if (sponsorKeypair && feeSubunits && feeSubunits > BigInt(0)) {
-      const feeCollector = new PublicKey(
-        process.env.FEE_WALLET_SOLANA || sponsorKeypair.publicKey.toBase58(),
-      );
+    // Jumpa's fees (gas abstraction, Ethereum delivery) move in the same transaction as the burn
+    if (feeSubunits && feeSubunits > BigInt(0)) {
+      const feeCollector = await getSolanaFeeCollectorPubkey();
+      if (!feeCollector) {
+        throw new Error("Solana fee collector is not configured.");
+      }
       const [feeCollectorAta] = await PublicKey.findProgramAddress(
         [feeCollector.toBytes(), TOKEN_PROGRAM_ID.toBytes(), USDC_MINT.toBytes()],
         ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -214,7 +216,7 @@ export async function submitSolanaDepositForBurn({
       if (!feeAtaInfo) {
         instructions.push(
           createAssociatedTokenAccountInstruction(
-            sponsorKeypair.publicKey,
+            feePayerPubkey,
             feeCollectorAta,
             feeCollector,
             USDC_MINT,

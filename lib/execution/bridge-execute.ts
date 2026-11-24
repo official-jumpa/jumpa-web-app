@@ -46,8 +46,15 @@ import {
 import { relayToSolana, submitSolanaDepositForBurn } from "@/lib/chains/solana/cctp-bridge";
 import { relayToStellar } from "@/lib/chains/stellar/cctp-bridge";
 import { relayCctpTransferToEvm } from "@/lib/chains/evm/cctp-relay";
+import { confirmEthereumDeliveryFee } from "@/lib/chains/evm/ethereum-delivery-fee";
+import { getEvmFeeCollectorAddress } from "@/lib/chains/evm/sponsor";
 import { getSolanaSponsorKeypair } from "@/lib/chains/solana/sponsor";
-import { ensureStellarAccountActiveAndTrustlined } from "@/lib/chains/stellar/sponsor";
+import {
+  collectStellarGasFeeUsdc,
+  ensureStellarAccountActiveAndTrustlined,
+  getStellarFeeCollectorPubkey,
+} from "@/lib/chains/stellar/sponsor";
+import { formatOneLineError } from "@/lib/utils/api-best-practices";
 import { Connection, PublicKey, Keypair as SolanaKeypair } from "@solana/web3.js";
 import * as bip39 from "bip39";
 import { derivePath } from "ed25519-hd-key";
@@ -89,6 +96,39 @@ export type BridgeExecuteResult =
     }
   | { ok: false; error: string; status: number };
 
+/** Circle's fast-transfer fee ceiling where the quote doesn't set one. */
+const CIRCLE_FAST_FEE_FLOOR_USDC = 0.15;
+/** 13 bps sits well above Circle's published fast fee into Ethereum; Circle only deducts its fee, never the cap. */
+const CIRCLE_FAST_FEE_CAP_RATE = 0.0013;
+/** Gas for the ERC-20 transfer that pays the Ethereum delivery fee. */
+const USDC_TRANSFER_GAS_UNITS = BigInt(65000);
+const ETHEREUM_DELIVERY_MEMO = "Jumpa: Ethereum delivery";
+
+function usdcToSubunits(usdc: number, decimals: number): bigint {
+  return BigInt(Math.round(usdc * 10 ** decimals));
+}
+
+/**
+ * The maxFee Circle may deduct from the burn, in USDC. Into Ethereum the quoted fee is Jumpa's
+ * delivery fee, so Circle gets its own ceiling; every other route keeps the quoted fee.
+ */
+function circleMaxFeeUsdc(params: {
+  quotedFee: string;
+  toChain: BridgeChain;
+  burnUsdc: number;
+  fastTransfer: boolean;
+}): number {
+  const { quotedFee, toChain, burnUsdc, fastTransfer } = params;
+  if (toChain === "ethereum") {
+    return fastTransfer
+      ? Math.max(CIRCLE_FAST_FEE_FLOOR_USDC, burnUsdc * CIRCLE_FAST_FEE_CAP_RATE)
+      : 0;
+  }
+  const quoted = Number.parseFloat(quotedFee || "0");
+  if (quoted > 0) return quoted;
+  return fastTransfer ? CIRCLE_FAST_FEE_FLOOR_USDC : 0;
+}
+
 async function submitSorobanTx({
   rpc,
   sourceAccount,
@@ -101,7 +141,7 @@ async function submitSorobanTx({
   keypair: StellarSdk.Keypair;
   operation: any;
   networkPassphrase: string;
-}): Promise<string> {
+}): Promise<{ hash: string; confirmed: boolean }> {
   const rawTx = new StellarSdk.TransactionBuilder(sourceAccount, {
     fee: "100000",
     networkPassphrase,
@@ -146,7 +186,7 @@ async function submitSorobanTx({
       continue;
     }
     if (txRes.status === GetTransactionStatus.SUCCESS) {
-      return hash;
+      return { hash, confirmed: true };
     }
     if (txRes.status === GetTransactionStatus.FAILED) {
       throw new Error(
@@ -161,7 +201,7 @@ async function submitSorobanTx({
   }
 
   // Status unreadable: return the hash so it is saved as pending for the resolve job.
-  return hash;
+  return { hash, confirmed: false };
 }
 
 export async function executeBridge(
@@ -219,6 +259,26 @@ export async function executeBridge(
     }
     throw limitErr;
   }
+
+  // Into Ethereum the quoted fee is Jumpa's delivery fee: it comes out of the amount burned
+  let ethereumDeliveryFeeUsdc = 0;
+  if (toChain === "ethereum") {
+    const deliveryFee = await confirmEthereumDeliveryFee({
+      quotedFee: fee,
+      amountUsdc: Number(amount),
+    });
+    if (!deliveryFee.ok) {
+      return { ok: false, error: deliveryFee.error, status: 400 };
+    }
+    ethereumDeliveryFeeUsdc = deliveryFee.feeUsdc;
+  }
+  const burnUsdc = Number(amount) - ethereumDeliveryFeeUsdc;
+  const maxFeeUsdc = circleMaxFeeUsdc({
+    quotedFee: fee,
+    toChain,
+    burnUsdc,
+    fastTransfer: transferType === "fast",
+  });
 
   const derived = await deriveAddresses(phrase);
   let txHash = "";
@@ -293,8 +353,17 @@ export async function executeBridge(
       const stellarUsdcContract = stellarCctp.usdc;
       const tokenMessengerContract = stellarCctp.tokenMessenger;
 
+      if (ethereumDeliveryFeeUsdc > 0 && !getStellarFeeCollectorPubkey()) {
+        return {
+          ok: false,
+          error: "Bridging to Ethereum is unavailable right now. Please try again later.",
+          status: 503,
+        };
+      }
+
       // Stellar USDC uses 7 decimals
-      const amountInSubunits = BigInt(Math.round(sendAmount * 10_000_000));
+      const amountInSubunits =
+        usdcToSubunits(sendAmount, 7) - usdcToSubunits(ethereumDeliveryFeeUsdc, 7);
 
       // 1. Check current allowance for TokenMessengerMinter on Soroban USDC
       const usdcContract = new StellarSdk.Contract(stellarUsdcContract);
@@ -371,13 +440,7 @@ export async function executeBridge(
       const destBytesBuffer = Buffer.from(destBytes32.replace(/^0x/, ""), "hex");
 
       const fastTransfer = transferType === "fast";
-      const feeNum = parseFloat(fee || "0");
-      const maxFeeSubunits =
-        feeNum > 0
-          ? BigInt(Math.round(feeNum * 10_000_000))
-          : fastTransfer
-            ? BigInt(1500000)
-            : BigInt(0);
+      const maxFeeSubunits = usdcToSubunits(maxFeeUsdc, 7);
       const finalityThreshold = fastTransfer ? 1000 : 2000;
 
       const burnOp = messengerContract.call(
@@ -392,13 +455,31 @@ export async function executeBridge(
         StellarSdk.nativeToScVal(finalityThreshold, { type: "u32" }),
       );
 
-      txHash = await submitSorobanTx({
+      const burn = await submitSorobanTx({
         rpc,
         sourceAccount: accForBurn,
         keypair: sourceKeypair,
         operation: burnOp,
         networkPassphrase: StellarSdk.Networks.PUBLIC,
       });
+      txHash = burn.hash;
+
+      // Soroban can't pay and burn in one transaction, so the fee follows a confirmed burn
+      if (ethereumDeliveryFeeUsdc > 0) {
+        const feeTxHash = burn.confirmed
+          ? await collectStellarGasFeeUsdc({
+              userKeypair: sourceKeypair,
+              amountUsdc: ethereumDeliveryFeeUsdc,
+              network: "mainnet",
+              memo: ETHEREUM_DELIVERY_MEMO,
+            })
+          : null;
+        if (feeTxHash) {
+          console.log(`[Bridge] Collected ${ethereumDeliveryFeeUsdc} USDC Ethereum delivery fee: ${feeTxHash}`);
+        } else {
+          console.error(`[Bridge] Ethereum delivery fee not collected for Stellar burn ${txHash}`);
+        }
+      }
 
       explorerUrl = getExplorerTxUrl("stellar", txHash, false);
     } else if (fromChain === "ethereum" || fromChain === "base") {
@@ -424,15 +505,19 @@ export async function executeBridge(
         transport: evmTransport,
       });
 
-      let sendAmount = parseUnits(amount, evmCctp.decimals);
+      const ethereumDeliveryFeeSubunits = usdcToSubunits(ethereumDeliveryFeeUsdc, evmCctp.decimals);
+      const evmFeeCollector = ethereumDeliveryFeeUsdc > 0 ? getEvmFeeCollectorAddress() : null;
+      if (ethereumDeliveryFeeUsdc > 0 && !evmFeeCollector) {
+        return {
+          ok: false,
+          error: "Bridging to Ethereum is unavailable right now. Please try again later.",
+          status: 503,
+        };
+      }
+
+      let sendAmount = parseUnits(amount, evmCctp.decimals) - ethereumDeliveryFeeSubunits;
       const fastTransfer = transferType === "fast";
-      const feeNum = parseFloat(fee || "0");
-      const maxFeeSubunits =
-        feeNum > 0
-          ? BigInt(Math.round(feeNum * 10 ** evmCctp.decimals))
-          : fastTransfer
-            ? BigInt(150000) // 0.15 USDC default buffer for fast attestation
-            : BigInt(0);
+      const maxFeeSubunits = usdcToSubunits(maxFeeUsdc, evmCctp.decimals);
       const finalityThreshold = fastTransfer ? 1000 : 2000;
 
       // ── Destination Stellar Pre-flight Check & Auto-Activation ──
@@ -506,7 +591,8 @@ export async function executeBridge(
         args: [evmAccount.address],
       });
 
-      const requiredExtraSubunits = needsStellarActivation ? activationFeeSubunits : BigInt(0);
+      const requiredExtraSubunits =
+        (needsStellarActivation ? activationFeeSubunits : BigInt(0)) + ethereumDeliveryFeeSubunits;
       const minBridgeSubunits = parseUnits("1.0", evmCctp.decimals);
 
       if (usdcBalance < sendAmount + maxFeeSubunits + requiredExtraSubunits) {
@@ -547,9 +633,10 @@ export async function executeBridge(
 
       const needsApprove = currentAllowance < totalRequiredUsdc;
       // depositForBurn on TokenMessengerV2 uses ~110,000 gas; approve uses ~46,000 gas.
-      const estimatedGasUnits = isEth
+      const burnGasUnits = isEth
         ? (needsApprove ? BigInt(200000) : BigInt(150000))
         : (needsApprove ? BigInt(150000) : BigInt(100000));
+      const estimatedGasUnits = evmFeeCollector ? burnGasUnits + USDC_TRANSFER_GAS_UNITS : burnGasUnits;
       const gasPrice = await publicClient.getGasPrice();
       const estimatedFeeWei = (gasPrice * estimatedGasUnits * BigInt(12)) / BigInt(10); // 20% safety margin
       const minThresholdWei = isEth ? parseEther("0.0003") : parseEther("0.00001");
@@ -706,6 +793,30 @@ export async function executeBridge(
         });
       }
 
+      // Paid only once the burn lands, so a reverted burn never costs the user the fee
+      if (evmFeeCollector) {
+        try {
+          const burnReceipt = await publicClient.waitForTransactionReceipt({
+            hash: txHash as `0x${string}`,
+          });
+          if (burnReceipt.status === "success") {
+            const feeTxHash = await walletClient.writeContract({
+              address: evmCctp.usdc,
+              abi: erc20Abi,
+              functionName: "transfer",
+              args: [evmFeeCollector, ethereumDeliveryFeeSubunits],
+            });
+            console.log(`[Bridge] Collected ${ethereumDeliveryFeeUsdc} USDC Ethereum delivery fee: ${feeTxHash}`);
+          } else {
+            console.error(`[Bridge] Burn ${txHash} reverted; Ethereum delivery fee not collected`);
+          }
+        } catch (feeErr) {
+          console.error(
+            `[Bridge] Ethereum delivery fee not collected for burn ${txHash}: ${formatOneLineError(feeErr)}`,
+          );
+        }
+      }
+
       explorerUrl = getExplorerTxUrl(isEth ? "ethereum" : "base", txHash, false);
     } else {
       // ── Solana Mainnet Source ──
@@ -714,7 +825,9 @@ export async function executeBridge(
       const ownerKeypair = await SolanaKeypair.fromSeed(solDerived);
 
       const solanaCctp = CONTRACT_ADDRESSES.cctp.mainnet.solana;
-      let sendAmountSubunits = BigInt(Math.round(parseFloat(amount) * 10 ** solanaCctp.decimals));
+      const ethereumDeliveryFeeSubunits = usdcToSubunits(ethereumDeliveryFeeUsdc, solanaCctp.decimals);
+      let sendAmountSubunits =
+        usdcToSubunits(parseFloat(amount), solanaCctp.decimals) - ethereumDeliveryFeeSubunits;
 
       // ── Destination Stellar Pre-flight Check & Auto-Activation ──
       let needsStellarActivation = false;
@@ -780,7 +893,8 @@ export async function executeBridge(
       const MIN_REQUIRED_LAMPORTS = BigInt(2850000); // ~0.00285 SOL for CCTP event rent + gas
 
       let sponsorKeypair: SolanaKeypair | undefined = undefined;
-      let feeSubunits: bigint | undefined = undefined;
+      // Paid to Jumpa in the same transaction as the burn
+      let feeSubunits = ethereumDeliveryFeeSubunits;
 
       const userAta = await getSolanaUsdcAta(ownerKeypair.publicKey.toBase58());
       const ataBalanceRes = await solConnection
@@ -803,7 +917,7 @@ export async function executeBridge(
         const numNetworkFee = parseFloat(networkFee || "0.32");
         const extraActivationFee = needsStellarActivation ? activationFeeUsdc : 0;
         const totalExtraFee = numNetworkFee + extraActivationFee;
-        feeSubunits = BigInt(Math.round(totalExtraFee * 10 ** solanaCctp.decimals));
+        feeSubunits += usdcToSubunits(totalExtraFee, solanaCctp.decimals);
 
         const minBridgeSubunits = BigInt(1_000_000); // 1.0 USDC
         const requiredSubunits = sendAmountSubunits + feeSubunits;

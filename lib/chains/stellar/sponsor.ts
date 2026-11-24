@@ -606,8 +606,10 @@ export async function collectStellarGasFeeUsdc(params: {
   userKeypair: StellarSdk.Keypair;
   amountUsdc: number;
   network?: "mainnet" | "testnet";
+  /** Stellar memos hold at most 28 bytes. */
+  memo?: string;
 }): Promise<string | null> {
-  const { userKeypair, amountUsdc, network = "mainnet" } = params;
+  const { userKeypair, amountUsdc, network = "mainnet", memo = "Jumpa: Gas Abstraction" } = params;
   const feeCollector = getStellarFeeCollectorPubkey();
   if (!feeCollector || amountUsdc <= 0) return null;
 
@@ -632,7 +634,7 @@ export async function collectStellarGasFeeUsdc(params: {
           amount: amountUsdc.toFixed(7),
         }),
       )
-      .addMemo(StellarSdk.Memo.text("Jumpa: Gas Abstraction"))
+      .addMemo(StellarSdk.Memo.text(memo))
       .setTimeout(60)
       .build();
 

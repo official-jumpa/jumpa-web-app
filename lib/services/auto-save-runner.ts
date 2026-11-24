@@ -268,6 +268,7 @@ const USDC_REASONS: Record<
   string
 > = {
   insufficient: "Not enough USDC in your wallet",
+  unavailable: "We couldn't check your USDC balance",
   build: "Our savings partner didn't respond",
   rejected: "The Stellar network didn't accept the deposit",
 };

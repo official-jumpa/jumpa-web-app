@@ -47,8 +47,12 @@ import {
 } from "@/lib/functions/transactionLimitFunctions";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
 import {
+  checkUsdcForSavings,
+  MIN_GAS_XLM,
   moveUsdcIntoPlan,
+  TARGET_GAS_XLM,
   UsdcDepositError,
+  type UsdcDepositFailure,
   unlockStellarKeypair,
 } from "@/lib/services/savings-usdc";
 
@@ -57,6 +61,12 @@ const defindexClient = new DefindexClient(
   environment.DEFINDEX_BASE_URL,
   "mainnet",
 );
+
+/** HTTP status for a failed USDC deposit; anything unlisted is the user's to fix. */
+const USDC_FAILURE_STATUS: Partial<Record<UsdcDepositFailure, number>> = {
+  unavailable: 503,
+  build: 502,
+};
 
 export interface CreateSavingsExecutionParams {
   userId: string;
@@ -292,23 +302,15 @@ export async function createSavingsPlanExecution(
   }
 
   if (numDeposit > 0) {
-    const balances = await fetchStellarBalances(stellarAddress);
-    const availableUsdc = Number(balances.mainnet.usdc) || 0;
-    const nativeXlm = Number(balances.mainnet.xlm) || 0;
-    const needsGasAbstraction = nativeXlm < 2.0;
-    const gasFeeUsdc = needsGasAbstraction ? getStellarFeeAmount() : 0;
-    const totalRequiredUsdc = numDeposit + gasFeeUsdc;
-
-    // Strict Pre-condition: Check total USDC before ANY wallet activation or sponsorship
-    if (availableUsdc < totalRequiredUsdc) {
-      const errorMsg = needsGasAbstraction
-        ? `Insufficient USDC balance: you have $${availableUsdc.toFixed(2)} USDC, but this deposit requires $${numDeposit.toFixed(2)} USDC plus $${gasFeeUsdc.toFixed(2)} USDC network fee.`
-        : `Insufficient balance: you have $${availableUsdc.toFixed(2)} USDC and this deposit needs $${numDeposit.toFixed(2)}.`;
-      return {
-        ok: false,
-        error: errorMsg,
-        status: 400,
-      };
+    // Checked before any wallet activation or gas sponsorship
+    const funds = await checkUsdcForSavings({
+      stellarAddress,
+      amount: numDeposit,
+      action: "deposit",
+      chargeGasFee: true,
+    });
+    if (!funds.ok) {
+      return { ok: false, error: funds.error, status: USDC_FAILURE_STATUS[funds.kind] ?? 400 };
     }
 
     let secret: string;
@@ -342,12 +344,12 @@ export async function createSavingsPlanExecution(
     );
 
     // All pre-conditions passed: sponsor gas if needed
-    if (needsGasAbstraction) {
-      const gasRes = await ensureSufficientStellarGas(stellarAddress, 2.0, 2.5, "mainnet");
-      if (gasRes.sponsored && gasFeeUsdc > 0) {
+    if (funds.needsGasTopUp) {
+      const gasRes = await ensureSufficientStellarGas(stellarAddress, MIN_GAS_XLM, TARGET_GAS_XLM, "mainnet");
+      if (gasRes.sponsored && funds.gasFeeUsdc > 0) {
         await collectStellarGasFeeUsdc({
           userKeypair,
-          amountUsdc: gasFeeUsdc,
+          amountUsdc: funds.gasFeeUsdc,
           network: "mainnet",
         }).catch((feeErr) => {
           console.warn("[Savings] Fee collection notice:", feeErr?.message || feeErr);
@@ -637,7 +639,7 @@ export async function depositSavingsExecution(
     return {
       ok: false,
       error: err.message,
-      status: err.kind === "build" ? 502 : 400,
+      status: USDC_FAILURE_STATUS[err.kind] ?? 400,
     };
   }
 }
@@ -875,12 +877,12 @@ export async function withdrawSavingsExecution(
 
   // Gas abstraction check for on-chain withdrawal
   const balances = await fetchStellarBalances(stellarAddress);
-  const nativeXlm = Number(balances.mainnet.xlm) || 0;
-  const needsGasAbstraction = nativeXlm < 2.0;
+  const nativeXlm = Number(balances.mainnet.native) || 0;
+  const needsGasAbstraction = nativeXlm < MIN_GAS_XLM;
   const gasFeeUsdc = needsGasAbstraction ? getStellarFeeAmount() : 0;
 
   if (needsGasAbstraction) {
-    const gasRes = await ensureSufficientStellarGas(stellarAddress, 2.0, 2.5, "mainnet");
+    const gasRes = await ensureSufficientStellarGas(stellarAddress, MIN_GAS_XLM, TARGET_GAS_XLM, "mainnet");
     if (gasRes.sponsored && gasFeeUsdc > 0) {
       await collectStellarGasFeeUsdc({
         userKeypair,
@@ -1236,23 +1238,15 @@ export async function joinCircleExecution(
     }
 
     const stellarAddress = wallet.addresses?.xlm || wallet.address || "";
-    const balances = await fetchStellarBalances(stellarAddress);
-    const availableUsdc = Number(balances.mainnet.usdc) || 0;
-    const nativeXlm = Number(balances.mainnet.xlm) || 0;
-    const needsGasAbstraction = nativeXlm < 2.0;
-    const gasFeeUsdc = needsGasAbstraction ? getStellarFeeAmount() : 0;
-    const totalRequiredUsdc = numDeposit + gasFeeUsdc;
-
-    // Strict Pre-condition: Check total USDC before ANY wallet activation or sponsorship
-    if (availableUsdc < totalRequiredUsdc) {
-      const errorMsg = needsGasAbstraction
-        ? `Insufficient USDC balance: you have $${availableUsdc.toFixed(2)} USDC, but joining this circle requires $${numDeposit.toFixed(2)} USDC plus $${gasFeeUsdc.toFixed(2)} USDC network fee.`
-        : `Insufficient USDC balance: you have $${availableUsdc.toFixed(2)} and need $${numDeposit.toFixed(2)}.`;
-      return {
-        ok: false,
-        error: errorMsg,
-        status: 400,
-      };
+    // Checked before any wallet activation or gas sponsorship
+    const funds = await checkUsdcForSavings({
+      stellarAddress,
+      amount: numDeposit,
+      action: "circle-join",
+      chargeGasFee: true,
+    });
+    if (!funds.ok) {
+      return { ok: false, error: funds.error, status: USDC_FAILURE_STATUS[funds.kind] ?? 400 };
     }
 
     // Atomically reserve a spot in the circle BEFORE executing the on-chain deposit
@@ -1318,12 +1312,12 @@ export async function joinCircleExecution(
     );
 
     // All pre-conditions passed: sponsor gas if needed
-    if (needsGasAbstraction) {
-      const gasRes = await ensureSufficientStellarGas(stellarAddress, 2.0, 2.5, "mainnet");
-      if (gasRes.sponsored && gasFeeUsdc > 0) {
+    if (funds.needsGasTopUp) {
+      const gasRes = await ensureSufficientStellarGas(stellarAddress, MIN_GAS_XLM, TARGET_GAS_XLM, "mainnet");
+      if (gasRes.sponsored && funds.gasFeeUsdc > 0) {
         await collectStellarGasFeeUsdc({
           userKeypair,
-          amountUsdc: gasFeeUsdc,
+          amountUsdc: funds.gasFeeUsdc,
           network: "mainnet",
         }).catch((feeErr) => {
           console.warn("[Savings] Gas fee collection:", feeErr?.message || feeErr);

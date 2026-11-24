@@ -136,6 +136,29 @@ export async function fetchStellarBalances(
   };
 }
 
+/** Mainnet balances for checks that must not read an outage as zero: null when Horizon can't be reached. */
+export async function readStellarMainnetBalances(
+  publicKey: string,
+): Promise<StellarAssetBalances | null> {
+  const unfunded: StellarAssetBalances = {
+    native: "0.00",
+    usdc: "0.00",
+    usdt: "0.00",
+  };
+  if (!publicKey?.startsWith("G")) return unfunded;
+
+  return safeHorizonCall<StellarAssetBalances | null>(
+    async () => {
+      const data = await loadHorizonAccount(STELLAR_MAINNET_HORIZON, publicKey);
+      return data
+        ? parseBalancesFromHorizonAccount(data.balances, false)
+        : unfunded;
+    },
+    null,
+    12000,
+  );
+}
+
 /**
  * Fetches full Horizon account state (sequence number, signers, subentries) on a specific network.
  */

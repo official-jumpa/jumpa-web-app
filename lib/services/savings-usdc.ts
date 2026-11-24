@@ -7,7 +7,7 @@ import {
   ensureSufficientStellarGas,
   getStellarFeeAmount,
 } from "@/lib/chains/stellar";
-import { fetchStellarBalances } from "@/lib/chains/stellar/account";
+import { readStellarMainnetBalances } from "@/lib/chains/stellar/account";
 import { DefindexClient } from "@/lib/chains/stellar/defindex-client";
 import { decryptMnemonic, encryptMnemonic } from "@/lib/crypto";
 import { connectDB } from "@/lib/db";
@@ -22,8 +22,8 @@ import { type IWallet, Wallet } from "@/models/Wallet";
 /** Moving a saver's Stellar USDC into their DeFindex savings position. Manual top-ups and auto-save share it. */
 
 /** Below this much XLM the account is topped up from Jumpa's sponsor before a deposit. */
-const MIN_GAS_XLM = 2.0;
-const TARGET_GAS_XLM = 2.5;
+export const MIN_GAS_XLM = 2.0;
+export const TARGET_GAS_XLM = 2.5;
 const STROOPS_PER_USDC = 10_000_000;
 
 const defindex = new DefindexClient(
@@ -35,6 +35,7 @@ const defindex = new DefindexClient(
 /** `unconfirmed` may still land: its Transaction stays PENDING and the resolver books it. */
 export type UsdcDepositFailure =
   | "insufficient"
+  | "unavailable"
   | "build"
   | "rejected"
   | "unconfirmed";
@@ -103,6 +104,56 @@ export async function enablePinlessSigning(
   return true;
 }
 
+/** How the funds error names the deposit being checked. */
+export type UsdcSavingsAction = "deposit" | "topup" | "circle-join";
+
+const ACTION_LABELS: Record<UsdcSavingsAction, string> = {
+  deposit: "this deposit",
+  topup: "this top-up",
+  "circle-join": "joining this circle",
+};
+
+export type UsdcFundsCheck =
+  | { ok: true; needsGasTopUp: boolean; gasFeeUsdc: number }
+  | { ok: false; kind: "insufficient" | "unavailable"; error: string };
+
+/**
+ * Savings spend USDC on Stellar only. Checks the wallet holds `amount` plus, when
+ * `chargeGasFee`, the fee Jumpa takes for topping up an account under MIN_GAS_XLM.
+ */
+export async function checkUsdcForSavings(params: {
+  stellarAddress: string;
+  amount: number;
+  action: UsdcSavingsAction;
+  chargeGasFee: boolean;
+}): Promise<UsdcFundsCheck> {
+  const { stellarAddress, amount, action, chargeGasFee } = params;
+  const balances = await readStellarMainnetBalances(stellarAddress);
+  if (!balances) {
+    return {
+      ok: false,
+      kind: "unavailable",
+      error:
+        "We couldn't check your USDC balance on Stellar right now. Please try again in a moment.",
+    };
+  }
+
+  const availableUsdc = Number(balances.usdc) || 0;
+  const needsGasTopUp = (Number(balances.native) || 0) < MIN_GAS_XLM;
+  const gasFeeUsdc = chargeGasFee && needsGasTopUp ? getStellarFeeAmount() : 0;
+  if (availableUsdc < amount + gasFeeUsdc) {
+    const feeNote =
+      gasFeeUsdc > 0 ? ` plus a $${gasFeeUsdc.toFixed(2)} network fee` : "";
+    return {
+      ok: false,
+      kind: "insufficient",
+      error: `You have $${availableUsdc.toFixed(2)} in USDC on Stellar, and ${ACTION_LABELS[action]} needs $${amount.toFixed(2)}${feeNote}. Savings only use USDC on Stellar, so swap some of your balance into it first.`,
+    };
+  }
+
+  return { ok: true, needsGasTopUp, gasFeeUsdc };
+}
+
 let sponsorQueue: Promise<unknown> = Promise.resolve();
 
 /** Gas top-ups share one sponsor account and its sequence number, so they go one at a time. */
@@ -141,20 +192,16 @@ export async function moveUsdcIntoPlan(params: {
   await connectDB();
   const vault = environment.DEFINDEX_INDIVIDUAL_VAULT_ADDRESS;
 
-  const balances = await fetchStellarBalances(stellarAddress);
-  const available = Number(balances.mainnet.usdc) || 0;
-  const needsGas = (Number(balances.mainnet.xlm) || 0) < MIN_GAS_XLM;
-  const fee = chargeGasFee && needsGas ? getStellarFeeAmount() : 0;
-  if (available < amount + fee) {
-    throw new UsdcDepositError(
-      fee > 0
-        ? `Insufficient USDC balance: you have $${available.toFixed(2)} USDC, but this top-up requires $${amount.toFixed(2)} USDC plus $${fee.toFixed(2)} USDC network fee.`
-        : `Insufficient balance: you have $${available.toFixed(2)} USDC and this top-up needs $${amount.toFixed(2)}.`,
-      "insufficient",
-    );
-  }
+  const funds = await checkUsdcForSavings({
+    stellarAddress,
+    amount,
+    action: "topup",
+    chargeGasFee,
+  });
+  if (!funds.ok) throw new UsdcDepositError(funds.error, funds.kind);
+  const fee = funds.gasFeeUsdc;
 
-  if (needsGas) {
+  if (funds.needsGasTopUp) {
     const gas = await oneAtATime(() =>
       ensureSufficientStellarGas(
         stellarAddress,

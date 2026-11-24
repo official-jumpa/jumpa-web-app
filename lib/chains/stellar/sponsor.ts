@@ -109,13 +109,69 @@ export function wrapWithFeeBump(
  *  surge-pricing queuing on a busy network. Stellar does NOT refund excess fees. */
 const OFFRAMP_FEE_MULTIPLIER = 10;
 
+/** Horizon lookups after a submit whose answer was lost. */
+const LANDED_CHECKS = 3;
+const LANDED_CHECK_GAP_MS = 2_500;
+const LANDED_CHECK_TIMEOUT_MS = 4_000;
+
+/** The parts of a Horizon submit error that say whether the network answered. */
+type SubmitError = {
+  isAxiosError?: boolean;
+  status?: number;
+  response?: {
+    status?: number;
+    data?: { extras?: { result_codes?: unknown } };
+  };
+};
+
+/** True when a submit error leaves it unknown whether the tx reached the ledger. */
+function mayHaveLanded(err: SubmitError | undefined): boolean {
+  const status = err?.response?.status ?? err?.status;
+  if (typeof status === "number") {
+    // Result codes mean the network answered: rejected, or applied and failed
+    if (err?.response?.data?.extras?.result_codes) return false;
+    return status === 408 || status >= 500;
+  }
+  // No HTTP answer (dropped connection or timeout): the request may still have reached Horizon
+  return err?.isAxiosError === true;
+}
+
+/** The tx's Horizon record if it shows up within a few checks, else null. */
+async function findLandedTx(
+  server: StellarSdk.Horizon.Server,
+  hash: string,
+): Promise<StellarSdk.Horizon.ServerApi.TransactionRecord | null> {
+  for (let check = 0; check < LANDED_CHECKS; check++) {
+    if (check > 0) {
+      await new Promise((resolve) => setTimeout(resolve, LANDED_CHECK_GAP_MS));
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        server.transactions().transaction(hash).call(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error("Horizon lookup timed out")),
+            LANDED_CHECK_TIMEOUT_MS,
+          );
+        }),
+      ]);
+    } catch {
+      // 404 until Horizon ingests it, or Horizon is still unreachable
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return null;
+}
+
 /**
  * Convenience: wraps a signed tx in a fee bump, then submits to Horizon.
  * Returns the Horizon response plus whether the fee was sponsored.
  *
- * On a 504 Gateway Timeout (Horizon timed out waiting for ledger inclusion),
- * instead of throwing, returns { status: "pending", txHash } so callers can
- * treat the transaction as in-flight rather than failed.
+ * When the submit errors without a verdict (5xx, 408, dropped connection or timeout),
+ * the tx may still have landed, so Horizon is checked by hash: a landed tx returns
+ * "confirmed", a failed one throws, and one not seen yet returns { status: "pending", txHash }.
  */
 export async function sponsoredSubmit(
   signedTx: StellarSdk.Transaction,
@@ -147,22 +203,32 @@ export async function sponsoredSubmit(
     const response = await server.submitTransaction(tx);
     return { status: "confirmed", response, sponsored };
   } catch (err: any) {
-    // Horizon timed out — the tx may still land. Extract the hash from extras.
-    const httpStatus = err?.response?.status ?? err?.status;
+    if (!mayHaveLanded(err)) throw err;
+
     const finalHash =
       err?.response?.data?.extras?.hash ??
       err?.extras?.hash ??
       hash;
+    const reason = err?.message || String(err);
 
-    if (httpStatus === 504 || httpStatus === 408) {
+    const landed = await findLandedTx(server, finalHash);
+    if (landed?.successful === true) {
       console.warn(
-        `[Stellar Sponsor] Horizon 504 timeout on tx ${finalHash}. Returning PENDING — transaction may still land on-chain.`,
+        `[Stellar Sponsor] Submit of tx ${finalHash} errored (${reason}) but it landed on-chain.`,
       );
-      return { status: "pending", txHash: finalHash, sponsored };
+      return { status: "confirmed", response: landed, sponsored };
+    }
+    if (landed) {
+      console.warn(
+        `[Stellar Sponsor] Submit of tx ${finalHash} errored (${reason}); it landed and failed on-chain.`,
+      );
+      throw new Error("Transaction failed on the Stellar network");
     }
 
-    // Any other error — rethrow
-    throw err;
+    console.warn(
+      `[Stellar Sponsor] Submit of tx ${finalHash} errored (${reason}) and it isn't on-chain yet. Returning PENDING — transaction may still land.`,
+    );
+    return { status: "pending", txHash: finalHash, sponsored };
   }
 }
 

@@ -1573,12 +1573,45 @@ export async function executeTool(
           finalCryptoAmount = receivableXlm.toFixed(4);
         } else if (rawCrypto > 0) {
           finalCryptoAmount = rawCrypto.toFixed(4);
-          expectedUsdcAmount = rawCrypto * xlmUsdPrice;
-          // Query Centiiv USDC -> NGN
-          const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: expectedUsdcAmount });
-          cleanFiat = Math.round(Number(quote.estimatedReceivableAmount || "0"));
-          if (isNaN(cleanFiat) || cleanFiat <= 0) {
-            throw new Error("Unable to calculate NGN deposit amount from Centiiv");
+          const neededUsdc = rawCrypto * xlmUsdPrice;
+          // USDC -> NGN is Centiiv's sell rate (~3% cheaper), so it only seeds the guess; the buy quote sets the price.
+          const sellQuote = await getCentiivQuote({
+            fromAsset: "USDC",
+            toAsset: "NGN",
+            amount: neededUsdc,
+          });
+          cleanFiat = Math.ceil(
+            Number(sellQuote.estimatedReceivableAmount || "0"),
+          );
+          if (!(cleanFiat > 0)) {
+            throw new Error(
+              "Unable to calculate NGN deposit amount from Centiiv",
+            );
+          }
+          expectedUsdcAmount = 0;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            const buyQuote = await getCentiivQuote({
+              fromAsset: "NGN",
+              toAsset: "USDC",
+              amount: cleanFiat,
+            });
+            expectedUsdcAmount = Number(
+              buyQuote.estimatedReceivableAmount || "0",
+            );
+            if (!(expectedUsdcAmount > 0)) {
+              throw new Error(
+                "Unable to calculate USDC conversion from Centiiv",
+              );
+            }
+            if (expectedUsdcAmount >= neededUsdc) break;
+            cleanFiat = Math.ceil(
+              (cleanFiat * neededUsdc) / expectedUsdcAmount,
+            );
+          }
+          if (expectedUsdcAmount < neededUsdc) {
+            throw new Error(
+              "Unable to price this XLM amount right now. Please try again.",
+            );
           }
         } else {
           throw new Error("Please specify the deposit amount in Naira (fiatAmount) or XLM (cryptoAmount).");

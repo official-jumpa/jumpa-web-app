@@ -64,6 +64,7 @@ import {
 import { findCentiivBank } from "@/lib/constants/centiiv-banks";
 import { getLiveRates } from "@/lib/rates";
 import { getSponsorKeypair } from "@/lib/chains/stellar/sponsor";
+import { getTreasuryXlmForNewOrders } from "@/lib/chains/onramp-transfer-custom";
 import { environment } from "@/lib/environment";
 
 export type CardHint =
@@ -1593,6 +1594,43 @@ export async function executeTool(
           throw new Error("Jumpa Treasury key is not configured.");
         }
         const treasuryAddress = sponsorKey.publicKey();
+
+        // Never take an order the treasury's XLM stock can't deliver.
+        const availableXlm = await getTreasuryXlmForNewOrders();
+        if (availableXlm === null) {
+          return {
+            toolName: name,
+            summaryForAI:
+              "Couldn't check Jumpa's XLM stock, so no order was created. Ask the user to try again in a minute.",
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
+        if (Number(finalCryptoAmount) > availableXlm) {
+          const maxXlm = Math.floor(availableXlm);
+          if (maxXlm < ONRAMP_MIN_USD / xlmUsdPrice) {
+            return {
+              toolName: name,
+              summaryForAI:
+                "Buying XLM is unavailable right now because Jumpa's XLM stock is low. No order was created. Tell the user to try again later.",
+              cardHint: { type: "none" },
+              requiresConfirmation: false,
+            };
+          }
+          // Scaled from this quote and rounded down, so asking for it stays under the cap.
+          const maxNaira =
+            Math.floor((cleanFiat * maxXlm) / Number(finalCryptoAmount) / 100) *
+            100;
+          return {
+            toolName: name,
+            summaryForAI:
+              `Jumpa's XLM stock is limited right now: the most this user can buy is ${maxXlm} XLM ` +
+              `(about ₦${maxNaira.toLocaleString("en-NG")}), and they asked for ${finalCryptoAmount} XLM. ` +
+              `No order was created. Tell them and offer to buy ${maxXlm} XLM instead.`,
+            cardHint: { type: "none" },
+            requiresConfirmation: false,
+          };
+        }
 
         // 4. Create Centiiv Onramp Order directed to Treasury
         const res = await createCentiivOnramp({

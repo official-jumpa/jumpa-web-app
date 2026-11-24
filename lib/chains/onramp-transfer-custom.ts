@@ -413,3 +413,73 @@ export async function replenishTreasuryViaSoroswap(params: {
     return { success: false, error: err?.message || String(err) };
   }
 }
+
+/** Stellar's base reserve per account entry, in XLM. */
+const BASE_RESERVE_XLM = 0.5;
+/** Kept back for the gas top-ups, fee bumps and activations this key also pays for. */
+const TREASURY_XLM_BUFFER = 20;
+/** Centiiv's 30-minute payment window plus time for a late bank transfer to confirm. */
+const OPEN_ORDER_HOLD_MS = 45 * 60_000;
+/** A delivery times out after 60s, so an older SETTLING row has already landed or failed. */
+const SETTLING_HOLD_MS = 2 * 60_000;
+
+/** 4. XLM free for a new order: spendable balance minus the buffer and XLM held for other orders; null if unreadable. */
+export async function getTreasuryXlmForNewOrders(): Promise<number | null> {
+  const sponsorKey = getSponsorKeypair();
+  if (!sponsorKey) return null;
+
+  try {
+    const account = await getHorizonServer("mainnet").loadAccount(
+      sponsorKey.publicKey(),
+    );
+    const native = account.balances.find(
+      (b): b is StellarSdk.Horizon.HorizonApi.BalanceLineNative =>
+        b.asset_type === "native",
+    );
+    if (!native) return null;
+
+    const minBalance =
+      (2 +
+        account.subentry_count +
+        account.num_sponsoring -
+        account.num_sponsored) *
+      BASE_RESERVE_XLM;
+    const spendable =
+      Number(native.balance) - Number(native.selling_liabilities) - minBalance;
+
+    await connectDB();
+    const now = Date.now();
+    const heldRows = await Transaction.find({
+      status: "PENDING",
+      "rampDetails.fulfillmentAction": "CUSTOM_ONRAMP",
+      $or: [
+        { "rampDetails.settlementStatus": "RETRY_PENDING" },
+        {
+          "rampDetails.settlementStatus": "SETTLING",
+          "rampDetails.settlementStartedAt": {
+            $gte: new Date(now - SETTLING_HOLD_MS),
+          },
+        },
+        {
+          "rampDetails.settlementStatus": "PENDING",
+          createdAt: { $gte: new Date(now - OPEN_ORDER_HOLD_MS) },
+        },
+      ],
+    })
+      .select("amount")
+      .lean();
+    const held = heldRows.reduce(
+      (sum, tx) => sum + (Number(tx.amount) || 0),
+      0,
+    );
+
+    if (!Number.isFinite(spendable) || !Number.isFinite(held)) return null;
+    return Math.max(0, spendable - held - TREASURY_XLM_BUFFER);
+  } catch (err) {
+    console.warn(
+      "[OnrampCustom] Could not read the treasury's XLM stock:",
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
+}

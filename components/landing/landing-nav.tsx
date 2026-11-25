@@ -2,16 +2,17 @@ import Image from "next/image";
 import Link from "next/link";
 import { LandingButton } from "@/components/landing/landing-button";
 import { MobileMenu } from "@/components/landing/mobile-menu";
+import { ReferralSign } from "@/components/landing/referral-sign";
 import { CTA, NAV_LINKS } from "@/lib/landing";
 
 // The design's fixed tab widths, in `NAV_LINKS` order.
 const TAB_WIDTH = ["w-105", "w-90", "w-80", "w-62"];
 
-/** Frosted bar over the hero. Phones fold the links into `MobileMenu`; `cta` swaps the "Join Beta" button. */
+/** Frosted bar over the hero. Phones fold the links into `MobileMenu`; `referralSign` swaps "Join Beta" for the hanging sign. */
 export function LandingNav({
-  cta = CTA.join,
+  referralSign = false,
 }: {
-  cta?: { label: string; href: string };
+  referralSign?: boolean;
 }) {
   return (
     <header className="sticky top-0 z-40 h-65 md:h-95">
@@ -52,23 +53,29 @@ export function LandingNav({
           ))}
         </nav>
 
-        {/* Right-anchored so a longer label grows left; "Join Beta" still sits at x 1236. */}
-        <div className="absolute top-25 right-107.75 hidden md:block">
-          <LandingButton
-            href={cta.href}
-            className="px-20 py-11 text-u-14/21.75 -tracking-u-0.5"
-          >
-            {cta.label}
-          </LandingButton>
-        </div>
+        {referralSign ? (
+          // Hangs from the top edge; the board's right edge sits where "Join Beta" ends.
+          <ReferralSign className="absolute top-0 right-51 w-180 md:right-97.75 md:w-301" />
+        ) : (
+          <div className="absolute top-25 left-1236 hidden md:block">
+            <LandingButton
+              href={CTA.join.href}
+              className="px-20 py-11 text-u-14/21.75 -tracking-u-0.5"
+            >
+              {CTA.join.label}
+            </LandingButton>
+          </div>
+        )}
 
         <div className="absolute top-17.5 right-24 flex items-start gap-9 md:hidden">
-          <LandingButton
-            href={cta.href}
-            className="h-30 px-13.5 text-u-10/15.5 -tracking-u-0.25"
-          >
-            {cta.label}
-          </LandingButton>
+          {!referralSign && (
+            <LandingButton
+              href={CTA.join.href}
+              className="h-30 w-68 text-u-10/15.5 -tracking-u-0.25"
+            >
+              {CTA.join.label}
+            </LandingButton>
+          )}
           <MobileMenu />
         </div>
       </div>

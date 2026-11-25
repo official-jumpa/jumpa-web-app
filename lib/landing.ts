@@ -232,9 +232,10 @@ export const TESTIMONIALS = {
 /** Public referral leaderboard page. */
 export const REFERRAL_LEADERBOARD_HREF = "/referral-leaderboard";
 
-/** Takes the nav's "Join Beta" slot on the landing while the leaderboard is public. */
-export const REFER_CTA = {
-  label: "Refer & Earn",
+/** The hanging sign in the nav's "Join Beta" slot on the landing while the leaderboard is public. */
+export const REFERRAL_SIGN = {
+  lead: "Jumpa",
+  highlight: "Referral Challenge is live",
   href: REFERRAL_LEADERBOARD_HREF,
 } as const;
 

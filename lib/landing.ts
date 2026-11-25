@@ -232,6 +232,12 @@ export const TESTIMONIALS = {
 /** Public referral leaderboard page. */
 export const REFERRAL_LEADERBOARD_HREF = "/referral-leaderboard";
 
+/** Takes the nav's "Join Beta" slot on the landing while the leaderboard is public. */
+export const REFER_CTA = {
+  label: "Refer & Earn",
+  href: REFERRAL_LEADERBOARD_HREF,
+} as const;
+
 const REFERRER_NGN = formatRewardNaira(REFERRAL_REWARD_NGN.referrer);
 const REFERRED_NGN = formatRewardNaira(REFERRAL_REWARD_NGN.referred);
 const TOTAL_NGN = formatRewardNaira(

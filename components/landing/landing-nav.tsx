@@ -7,8 +7,12 @@ import { CTA, NAV_LINKS } from "@/lib/landing";
 // The design's fixed tab widths, in `NAV_LINKS` order.
 const TAB_WIDTH = ["w-105", "w-90", "w-80", "w-62"];
 
-/** Frosted bar over the hero. Phones fold the links into `MobileMenu`. */
-export function LandingNav() {
+/** Frosted bar over the hero. Phones fold the links into `MobileMenu`; `cta` swaps the "Join Beta" button. */
+export function LandingNav({
+  cta = CTA.join,
+}: {
+  cta?: { label: string; href: string };
+}) {
   return (
     <header className="sticky top-0 z-40 h-65 md:h-95">
       {/* The frost sits on its own layer: a `backdrop-filter` on the header
@@ -48,21 +52,22 @@ export function LandingNav() {
           ))}
         </nav>
 
-        <div className="absolute top-25 left-1236 hidden md:block">
+        {/* Right-anchored so a longer label grows left; "Join Beta" still sits at x 1236. */}
+        <div className="absolute top-25 right-107.75 hidden md:block">
           <LandingButton
-            href={CTA.join.href}
+            href={cta.href}
             className="px-20 py-11 text-u-14/21.75 -tracking-u-0.5"
           >
-            {CTA.join.label}
+            {cta.label}
           </LandingButton>
         </div>
 
         <div className="absolute top-17.5 right-24 flex items-start gap-9 md:hidden">
           <LandingButton
-            href={CTA.join.href}
-            className="h-30 w-68 text-u-10/15.5 -tracking-u-0.25"
+            href={cta.href}
+            className="h-30 px-13.5 text-u-10/15.5 -tracking-u-0.25"
           >
-            {CTA.join.label}
+            {cta.label}
           </LandingButton>
           <MobileMenu />
         </div>

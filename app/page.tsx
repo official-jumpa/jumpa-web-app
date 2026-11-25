@@ -15,6 +15,8 @@ import { SecuritySection } from "@/components/landing/security-section";
 import { TestimonialsSection } from "@/components/landing/testimonials-section";
 import { JsonLd } from "@/components/seo/json-ld";
 import { getCachedAuthSession } from "@/lib/functions/permissionFunctions";
+import { REFER_CTA } from "@/lib/landing";
+import { isLeaderboardPublic } from "@/lib/referrals/leaderboard";
 import { siteGraph } from "@/lib/structured-data";
 
 /**
@@ -50,7 +52,7 @@ export default async function LandingPage() {
       >
         <AuthRedirect />
         <RevealObserver />
-        <LandingNav />
+        <LandingNav cta={isLeaderboardPublic() ? REFER_CTA : undefined} />
         <HeroSection />
         <HowItWorksSection />
         <FeaturesSection />

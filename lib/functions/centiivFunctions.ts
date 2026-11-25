@@ -18,7 +18,13 @@ const SECRET_KEY = environment.CENTIIV_SECRET_KEY || environment.CENTIIV_API_KEY
 const BASE_URL = environment.CENTIIV_BASE_URL || "https://api.centiiv.io";
 const ENV = "live";
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+/** Creating a cash-out order gets longer: no USDC has been sent yet, and Centiiv can be slow. */
+const CASH_OUT_ORDER_TIMEOUT_MS = 20_000;
+
+async function request<T>(
+  endpoint: string,
+  { timeoutMs = 15_000, ...options }: RequestInit & { timeoutMs?: number } = {},
+): Promise<T> {
   const url = `${BASE_URL}${endpoint}`;
   const headers = {
     "x-api-key": PUBLIC_KEY,
@@ -31,7 +37,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     const res = await fetch(url, {
       ...options,
       headers,
-      signal: options.signal || AbortSignal.timeout(15000),
+      signal: options.signal || AbortSignal.timeout(timeoutMs),
     });
     const data = await res.json().catch(() => null);
 
@@ -82,7 +88,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     return data as T;
   } catch (err: any) {
     if (isTimeoutError(err)) {
-      console.error(`[Centiiv] Request timed out after 15s: ${formatOneLineError(err)}`);
+      console.error(
+        `[Centiiv] Request timed out after ${timeoutMs / 1000}s: ${formatOneLineError(err)}`,
+      );
       throw new Error("The transfer service request timed out. Please try again.");
     }
     throw err;
@@ -134,6 +142,7 @@ export async function createCentiivOfframp(params: {
     };
   }>("/requests", {
     method: "POST",
+    timeoutMs: CASH_OUT_ORDER_TIMEOUT_MS,
     headers: {
       "Idempotency-Key": idemKey,
     },

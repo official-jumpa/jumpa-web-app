@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChainIcon } from "@/components/ui/icons/chain";
+import { LinkIcon } from "@/components/ui/icons/link";
 import { copyText } from "@/lib/clipboard";
 import { REFERRAL_CHALLENGE } from "@/lib/landing";
 
@@ -36,7 +36,7 @@ export function CopyLinkButton({
 
   return (
     <button type="button" onClick={copy} className={className}>
-      <ChainIcon className="size-16 shrink-0 md:size-18" />
+      <LinkIcon className="size-20 shrink-0" />
       <span aria-live="polite">{label}</span>
     </button>
   );

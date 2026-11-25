@@ -1,9 +1,9 @@
 import { cn } from "@/lib/cn";
 
-/** Table discs cycle through these by rank. */
+/** Table discs cycle through these by rank, so 4th is violet, 5th lime and so on. */
 const TONES = [
-  "bg-jumpa-primary-100 text-jumpa-primary-600",
-  "bg-jumpa-alt-100 text-jumpa-alt-900",
+  "bg-jumpa-secondary-150 text-jumpa-primary-950",
+  "bg-jumpa-alt-150 text-jumpa-alt-925",
   "bg-jumpa-peach-100 text-jumpa-peach-700",
   "bg-jumpa-sky-100 text-jumpa-sky-700",
 ] as const;
@@ -26,7 +26,7 @@ export function InitialsAvatar({
     <span
       aria-hidden="true"
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-full font-bold",
+        "flex shrink-0 items-center justify-center rounded-full",
         tone,
         className,
       )}

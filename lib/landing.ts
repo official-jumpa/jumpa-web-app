@@ -250,11 +250,16 @@ export const REFERRAL_TEASER = {
   },
 } as const;
 
-/** The referral leaderboard page, built from the design image. TODO: check copy against the Figma frame. */
+/** The referral leaderboard page. "this month" and the 30-a-month cap are left out of the design's copy: the campaign has neither. */
 export const REFERRAL_CHALLENGE = {
   title: "Referral leaderboard",
   description: `Refer friends to Jumpa and earn ${REFERRER_NGN} for each one who verifies and makes a first ${MIN_TRADE} trade. See who is leading.`,
-  hero: { lines: ["Referral", "Challenge is"], highlight: "live" },
+  hero: {
+    lines: ["Referral", "Challenge is"],
+    highlight: "live",
+    subhead:
+      "Share your link. When your friend signs up, verifies and makes a first transaction, you both get paid.",
+  },
   copyLink: {
     label: "Copy my referral link",
     copied: "Link copied",
@@ -262,21 +267,28 @@ export const REFERRAL_CHALLENGE = {
     signedOut: "Get your referral link",
   },
   howItWorksCta: "See how it works",
+  // Phones fit all three in one card, so they get the `short` wording.
   rewards: [
     {
       label: "You earn",
+      shortLabel: "You earn",
       amount: REFERRER_NGN,
       caption: "for every successful referral",
+      shortCaption: "per successful referral",
     },
     {
       label: "Your friend earns",
+      shortLabel: "Friend earns",
       amount: REFERRED_NGN,
       caption: "once they finish the steps",
+      shortCaption: "after the steps are done",
     },
     {
       label: "Total per referral",
+      shortLabel: "Total",
       amount: TOTAL_NGN,
       caption: "paid once per referral",
+      shortCaption: "paid once per referral",
     },
   ],
   steps: {
@@ -299,7 +311,6 @@ export const REFERRAL_CHALLENGE = {
       },
     ],
   },
-  // The design's "Up to 30 referrals per month" is left out: the campaign has no cap.
   strip: [
     "Rewards are paid once per referral",
     `${TOTAL_NGN} total per successful referral`,
@@ -319,8 +330,11 @@ export const REFERRAL_CHALLENGE = {
       earned: "Amount",
     },
     earned: "earned",
+    // Phones only, under the name on a podium card.
     progress: (qualified: number, invited: number) =>
-      `${qualified} of ${invited} ${invited === 1 ? "referral" : "referrals"}`,
+      `${qualified} / ${invited}`,
+    progressLabel: (qualified: number, invited: number) =>
+      `${qualified} of ${invited} ${invited === 1 ? "referral" : "referrals"} qualified`,
     showing: (shown: number, total: number) =>
       shown >= total
         ? `Showing all ${total} ${total === 1 ? "referrer" : "referrers"}`

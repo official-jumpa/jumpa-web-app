@@ -188,14 +188,23 @@
   --color-jumpa-primary-25: #f7f4ff; /* review summary card */
   --color-jumpa-primary-30: #f8f0ff; /* foot of the savings pop-up */
   --color-jumpa-primary-975: #1d014a; /* savings pop-up body copy */
-  /* Referral leaderboard. TODO: rename to the Figma style names once the frame is shared. */
-  --color-jumpa-medal-gold: #f5b301; /* 1st place medal */
-  --color-jumpa-medal-silver: #a9adb8; /* 2nd place medal */
-  --color-jumpa-medal-bronze: #c8733a; /* 3rd place medal */
-  --color-jumpa-peach-100: #ffe8d9; /* initials disc */
-  --color-jumpa-peach-700: #b4531a; /* initials on a peach disc */
-  --color-jumpa-sky-100: #dcf1fb; /* initials disc */
-  --color-jumpa-sky-700: #1d6f94; /* initials on a sky disc */
+  /* Referral leaderboard page. The frame uses raw hexes, so these are named by scale. */
+  --color-jumpa-primary-90: #f0e8ff; /* podium and table rules */
+  --color-jumpa-primary-175: #e3ccff; /* step numbers */
+  --color-jumpa-primary-450: #a04bff; /* start of the referral buttons and cards */
+  --color-jumpa-primary-800: #7a0be0; /* foot of the 1st place card on phones */
+  --color-jumpa-medal-gold-light: #ffe066; /* 1st place medal, top */
+  --color-jumpa-medal-gold: #f59e0b; /* 1st place medal, bottom */
+  --color-jumpa-medal-silver-light: #f3f4f6; /* 2nd place medal, top */
+  --color-jumpa-medal-bronze-light: #f9c48f; /* 3rd place medal, top */
+  --color-jumpa-medal-bronze: #b45309; /* 3rd place medal, bottom */
+  --color-jumpa-medal-ink: #5a3300; /* number on the gold and bronze medals */
+  --color-jumpa-alt-150: #f1ffb8; /* lime initials disc */
+  --color-jumpa-alt-925: #3b4a00; /* initials on a lime disc */
+  --color-jumpa-peach-100: #ffe7d1; /* peach initials disc */
+  --color-jumpa-peach-700: #7a3300; /* initials on a peach disc */
+  --color-jumpa-sky-100: #ddf4ff; /* sky initials disc */
+  --color-jumpa-sky-700: #0b4f6c; /* initials on a sky disc */
 
   /* Typography. Geist at every size — the face the Figma file specifies.
      `display` and `numeric` still stand in for Gotham Ultra and Neue Montreal,
@@ -765,7 +774,8 @@
   font-size: calc(--value(number) * var(--spacing));
   line-height: calc(--modifier(number) * var(--spacing));
 }
-/* Figma tracks in px, so it scales with the frame too: `-tracking-u-0.48`. */
+/* Figma tracks in px, so it scales with the frame too: `-tracking-u-0.5`.
+   Like every `--value(number)` here, only multiples of 0.25 generate CSS. */
 @utility tracking-u-* {
   letter-spacing: calc(--value(number) * var(--spacing));
 }
@@ -827,6 +837,18 @@
   line-height: 1.125em;
   padding: 1em;
   box-shadow: inset 0 0 0.5125em var(--color-jumpa-white);
+}
+/* Drop shadow in frame units, tinted by Tailwind's shadow colour:
+   `shadow-lift-u-12/16 shadow-jumpa-primary-600/7` is y 12, blur 16. */
+@utility shadow-lift-u-* {
+  --tw-shadow: 0 calc(--value(number) * var(--spacing))
+    calc(--modifier(number) * var(--spacing))
+    var(--tw-shadow-color, transparent);
+  /* Composed like Tailwind's own shadow, so `inset-ring` still shows. */
+  box-shadow:
+    var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000),
+    var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000),
+    var(--tw-shadow);
 }
 /* One-off shadows the design draws once each. */
 @utility shadow-landing-form {

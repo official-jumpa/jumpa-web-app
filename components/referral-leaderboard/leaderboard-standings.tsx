@@ -27,19 +27,19 @@ export function LeaderboardStandings({
   return (
     <section
       id="leaderboard"
-      className="scroll-mt-65 bg-jumpa-primary-50 md:scroll-mt-95"
+      className="scroll-mt-65 bg-jumpa-surface md:scroll-mt-95"
     >
-      <div className="mx-auto flex w-402 flex-col items-center py-56 text-center md:w-1440 md:pt-66 md:pb-61">
+      <div className="mx-auto flex w-402 flex-col items-center pt-52 pb-34 text-center md:w-1440 md:pt-57 md:pb-60">
         <Eyebrow>{copy.eyebrow}</Eyebrow>
-        <h2 className="mt-10 font-bold text-jumpa-ink text-u-28/34 -tracking-u-1 md:mt-14 md:text-u-46/54 md:-tracking-u-1.5">
+        <h2 className="mt-8 font-extrabold text-jumpa-ink text-u-34/40 -tracking-u-0.75 md:mt-10 md:text-u-46/54 md:-tracking-u-1">
           {copy.heading}
         </h2>
-        <p className="mt-8 w-362 text-jumpa-ink-muted text-u-15/22 md:mt-12 md:w-auto md:text-u-18/26">
+        <p className="mt-8 w-330 text-jumpa-ink-muted text-u-15/22 -tracking-u-0.25 md:mt-12 md:w-760 md:text-u-18/28 md:-tracking-u-0.25">
           {copy.subhead}
         </p>
 
         {entries.length === 0 ? (
-          <p className="mt-28 w-362 rounded-u-18 bg-jumpa-white px-24 py-32 text-jumpa-ink-muted text-u-15/22 md:mt-50 md:w-1200 md:rounded-u-22 md:py-48 md:text-u-18/26">
+          <p className="mt-42 w-354 rounded-u-20 bg-jumpa-white px-24 py-32 text-jumpa-ink-muted text-u-15/22 shadow-lift-u-10/30 shadow-jumpa-primary-600/8 md:mt-72 md:w-1200 md:rounded-u-32 md:py-48 md:text-u-18/28 md:shadow-lift-u-12/40">
             {board ? copy.empty : copy.unavailable}
           </p>
         ) : (

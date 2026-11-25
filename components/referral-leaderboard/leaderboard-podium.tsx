@@ -11,19 +11,22 @@ const PLACES: Record<
 > = {
   1: {
     slot: "order-2",
-    medal: "bg-jumpa-medal-gold",
+    medal:
+      "from-jumpa-medal-gold-light to-jumpa-medal-gold text-jumpa-medal-ink",
     avatar: "bg-jumpa-white/20 text-jumpa-white",
     featured: true,
   },
   2: {
-    slot: "order-1 mt-16 md:mt-61",
-    medal: "bg-jumpa-medal-silver",
-    avatar: "bg-jumpa-alt-200 text-jumpa-ink",
+    slot: "order-1 mt-60",
+    medal:
+      "from-jumpa-medal-silver-light to-jumpa-grey-400 text-jumpa-grey-600",
+    avatar: "bg-jumpa-alt-150 text-jumpa-alt-925",
     featured: false,
   },
   3: {
-    slot: "order-3 mt-26 md:mt-100",
-    medal: "bg-jumpa-medal-bronze",
+    slot: "order-3 mt-90 md:mt-100",
+    medal:
+      "from-jumpa-medal-bronze-light to-jumpa-medal-bronze text-jumpa-medal-ink",
     avatar: "bg-jumpa-peach-100 text-jumpa-peach-700",
     featured: false,
   },
@@ -37,23 +40,23 @@ export function LeaderboardPodium({
 }) {
   const { board } = REFERRAL_CHALLENGE;
   return (
-    <ol className="mt-28 flex w-362 items-start justify-center gap-8 md:mt-50 md:w-1126 md:gap-26">
+    <ol className="mt-42 flex items-start justify-center gap-9 md:mt-72 md:gap-24">
       {entries.slice(0, 3).map((entry) => {
         const place = PLACES[entry.rank];
         return (
           <li
             key={entry.rank}
             className={cn(
-              "flex min-w-0 flex-1 flex-col items-center rounded-u-16 px-8 pt-14 pb-14 text-center md:rounded-u-22 md:px-40 md:pt-26 md:pb-26",
+              "flex h-236 w-112 flex-col items-center rounded-u-24 px-8 pt-14 text-center shadow-lift-u-10/13 md:h-340 md:w-360 md:rounded-u-32 md:px-28 md:pt-22 md:shadow-lift-u-14/18",
               place.slot,
               place.featured
-                ? "bg-linear-to-b from-jumpa-primary-600 to-jumpa-primary-400 text-jumpa-white"
-                : "bg-jumpa-white text-jumpa-ink",
+                ? "bg-linear-to-b from-jumpa-primary-450 to-jumpa-primary-800 text-jumpa-white shadow-jumpa-primary-600/30 md:to-jumpa-primary-600"
+                : "bg-jumpa-white text-jumpa-ink inset-ring inset-ring-jumpa-secondary-150 shadow-jumpa-primary-600/8",
             )}
           >
             <span
               className={cn(
-                "flex size-26 items-center justify-center rounded-full font-bold text-jumpa-white text-u-12/16 md:size-43 md:text-u-17/22",
+                "flex size-32 shrink-0 items-center justify-center rounded-full bg-linear-to-b font-extrabold text-u-14/22 md:size-44 md:text-u-18/26",
                 place.medal,
               )}
             >
@@ -62,40 +65,51 @@ export function LeaderboardPodium({
             <InitialsAvatar
               initials={entry.initials}
               tone={place.avatar}
-              className="mt-8 size-48 text-u-16/20 md:mt-11 md:size-76 md:text-u-26/32"
+              className="mt-10 size-52 font-extrabold text-u-18/24 md:mt-14 md:size-76 md:text-u-26/32"
             />
-            <span className="mt-10 w-full truncate font-semibold text-u-13/18 md:mt-14 md:text-u-22/28">
+            <span className="mt-12 w-full truncate font-bold text-u-14/20 md:mt-20 md:text-u-24/28">
               {entry.name}
             </span>
             <span
               className={cn(
-                "mt-2 text-u-10/14 md:mt-4 md:text-u-15/20",
-                place.featured ? "text-jumpa-white/80" : "text-jumpa-ink-muted",
+                "mt-2 font-medium text-u-12/18 md:hidden",
+                place.featured
+                  ? "text-jumpa-secondary-150"
+                  : "text-jumpa-ink-muted",
               )}
             >
-              {board.progress(entry.referrals, entry.invited)}
+              <span aria-hidden="true">
+                {board.progress(entry.referrals, entry.invited)}
+              </span>
+              <span className="sr-only">
+                {board.progressLabel(entry.referrals, entry.invited)}
+              </span>
             </span>
             <span
               aria-hidden="true"
               className={cn(
-                "mt-10 h-px w-full md:mt-20",
-                place.featured ? "bg-jumpa-white/25" : "bg-jumpa-lavender-200",
+                "mt-12 h-px w-80 shrink-0 md:mt-15",
+                place.featured
+                  ? "bg-jumpa-white/25 md:w-304"
+                  : "bg-jumpa-primary-90 md:w-280",
               )}
             />
             <span
               className={cn(
-                "mt-10 font-bold text-u-17/22 -tracking-u-0.5 md:mt-20 md:text-u-38/44 md:-tracking-u-1",
+                "mt-11 font-extrabold text-u-18/24 md:mt-12",
                 place.featured
-                  ? "text-jumpa-alt-400"
-                  : "text-jumpa-primary-600",
+                  ? "text-jumpa-alt-400 md:text-u-44.5/46.75 md:-tracking-u-1.75"
+                  : "text-jumpa-primary-600 md:text-u-40/46.75 md:-tracking-u-1.5",
               )}
             >
               {formatRewardNaira(entry.earned)}
             </span>
             <span
               className={cn(
-                "text-u-10/14 md:text-u-13/16",
-                place.featured ? "text-jumpa-white/80" : "text-jumpa-ink-muted",
+                "mt-2 font-medium text-u-11/16 md:mt-12 md:text-u-16/18 md:-tracking-u-0.25",
+                place.featured
+                  ? "text-jumpa-secondary-150"
+                  : "text-jumpa-ink-muted",
               )}
             >
               {board.earned}

@@ -15,6 +15,7 @@ import {
   getUserActiveNgnSavings,
 } from "@/lib/functions/savingsFunctions";
 import { ACCOUNT, ASSETS, type Asset, type Transaction } from "@/lib/wallet";
+import { getHomePromos, type HomePromo } from "@/lib/home-promos";
 
 export const metadata: Metadata = {
   title: "Home",
@@ -33,6 +34,7 @@ export default async function HomePage() {
   let initialHasNgnAccount = false;
   let initialNgnBalance: string | null = null;
   let initialHasUnread = false;
+  let promos: HomePromo[] = ["savings"];
 
   if (userId) {
     try {
@@ -44,6 +46,7 @@ export default async function HomePage() {
       kycResult,
       ngnResult,
       notificationsResult,
+      promosResult,
     ] = await Promise.allSettled([
       getCachedWalletBalances(userId),
       getUserActiveUsdcSavings(userId),
@@ -52,6 +55,7 @@ export default async function HomePage() {
       getKycRecordByUserId(userId),
       getUserNgnAccount(userId),
       getUserNotifications(userId, { unreadOnly: true, limit: 1 }),
+      getHomePromos(userId),
     ]);
 
     if (balancesResult.status === "fulfilled" && balancesResult.value) {
@@ -108,6 +112,10 @@ export default async function HomePage() {
         (notifData.tabCounts?.activities || 0);
       initialHasUnread = unreadCount > 0 || (notifData.notifications?.length ?? 0) > 0;
     }
+
+    if (promosResult.status === "fulfilled") {
+      promos = promosResult.value;
+    }
     } catch (err) {
       console.warn("[HomePage SSR] Prefetch fallback:", err);
     }
@@ -124,6 +132,7 @@ export default async function HomePage() {
       initialHasNgnAccount={initialHasNgnAccount}
       initialNgnBalance={initialNgnBalance}
       initialHasUnread={initialHasUnread}
+      promos={promos}
     />
   );
 }

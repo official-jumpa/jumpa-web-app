@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AppOpenPromo } from "@/components/home/app-open-promo/app-open-promo";
 import { BalancePanel } from "@/components/home/balance-panel";
 import { FiatAccounts } from "@/components/home/fiat-accounts";
 import { PromoBanner } from "@/components/home/promo-banner";
 import { QuickActions } from "@/components/home/quick-actions";
-import { SavingsPromoModal } from "@/components/home/savings-promo-modal";
 import { TransactionHistory } from "@/components/home/transaction-history";
 import { WalletHeader } from "@/components/home/wallet-header";
 import { RiseIn } from "@/components/ui/rise-in";
 import { unifyTokens } from "@/lib/assets";
 import { onBalanceRefresh } from "@/lib/client-events";
+import type { HomePromo } from "@/lib/home-promos";
 import { ACCOUNT, type Asset, type Transaction } from "@/lib/wallet";
 
 // In-memory cache for instant zero-flicker tab returns
@@ -23,6 +24,9 @@ const homeMemoryCache: {
   kycComplete?: boolean;
 } = {};
 
+/** Module-level so the default keeps one identity across renders. */
+const SAVINGS_ONLY: HomePromo[] = ["savings"];
+
 export interface HomeViewProps {
   initialBalance?: string;
   initialSavingsBalance?: string;
@@ -33,6 +37,8 @@ export interface HomeViewProps {
   initialHasNgnAccount?: boolean;
   initialNgnBalance?: string | null;
   initialHasUnread?: boolean;
+  /** Pop-ups this user qualifies for on app open. */
+  promos?: HomePromo[];
 }
 
 export function HomeView({
@@ -45,6 +51,7 @@ export function HomeView({
   initialHasNgnAccount,
   initialNgnBalance,
   initialHasUnread = false,
+  promos = SAVINGS_ONLY,
 }: HomeViewProps) {
   const [totalBalance, setTotalBalance] = useState<string>(
     () => initialBalance ?? homeMemoryCache.balance ?? ACCOUNT.balance,
@@ -331,7 +338,7 @@ export function HomeView({
           loading={loadingTransactions}
         />
       </RiseIn>
-      <SavingsPromoModal />
+      <AppOpenPromo promos={promos} />
     </div>
   );
 }

@@ -57,6 +57,14 @@ import { analyzeImageWithGemini } from "./vision";
 import { getCentiivQuote, createCentiivOnramp, createCentiivOfframp } from "@/lib/functions/centiivFunctions";
 import { getOnrampNairaPerToken } from "@/lib/functions/onrampFunctions";
 import {
+  getCentiivBuyRate,
+  getCentiivSellRate,
+  getSwitchBuyRate,
+  getSwitchSellRate,
+  jumpaSwitchFeeAside,
+  switchFeeNoteForAI,
+} from "@/lib/functions/rampRateFunctions";
+import {
   formatNaira,
   ONRAMP_MIN_USD,
   onrampMinMessage,
@@ -1470,7 +1478,8 @@ export async function executeTool(
           `Onramp initiated via ${isStellar ? "Centiiv" : "Switch"}. User should transfer ₦${amount.toLocaleString()} to ${deposit.bank_name} ` +
           `account ${deposit.account_number} (${deposit.account_name}). ` +
           `They will receive ${destinationAmount} ${cryptoToken} on ${asset.split(":")[0]}. ` +
-          `Reference: ${reference}.`;
+          `Reference: ${reference}.` +
+          (isStellar ? "" : switchFeeNoteForAI());
 
         return {
           toolName: name,
@@ -2369,6 +2378,7 @@ export async function executeTool(
             `Ask the user to confirm to proceed with the withdrawal. Do NOT use emojis or tell them to click buttons.`;
         }
         summaryForAI += feeNote;
+        if (!isStellar) summaryForAI += switchFeeNoteForAI();
 
         return {
           toolName: name,
@@ -2477,54 +2487,36 @@ export async function executeTool(
       const isStellar = targetAsset.toLowerCase().includes("stellar");
 
       try {
-        let onrampRate: number | undefined;
-        let offrampRate: number | undefined;
-
-        const effectiveFee = environment.SWITCH_JUMPA_FEE;
-        const feePct = effectiveFee / 100;
-
+        // Fee-inclusive rates, priced like the cards, so "rate × amount" matches what the card shows.
+        let onrampRate: number | null = null;
+        let offrampRate: number | null = null;
         let stellarRateOffline = false;
 
         if (direction === "onramp" || direction === "both") {
           if (isStellar) {
             try {
-              const quote = await getCentiivQuote({ fromAsset: "NGN", toAsset: "USDC", amount: 50000 });
-              const rawRate = Number(quote.rate);
-              onrampRate = rawRate > 0 && rawRate < 1 ? Math.round((1 / rawRate) * 100) / 100 : rawRate;
+              onrampRate = await getCentiivBuyRate();
             } catch (centiivErr: any) {
               console.warn(`[ToolExecutor] Stellar onramp rate lookup failed, using benchmark:`, centiivErr.message);
               stellarRateOffline = true;
-              const res = await SwitchService.getOnrampRate("base:usdc").catch(() => null);
-              if (res?.success && res.rate) {
-                onrampRate = res.rate;
-              }
+              onrampRate = await getSwitchBuyRate("base:usdc").catch(() => null);
             }
           } else {
-            const res = await SwitchService.getOnrampRate(targetAsset);
-            if (res.success && res.rate) {
-              onrampRate = res.rate;
-            }
+            onrampRate = await getSwitchBuyRate(targetAsset);
           }
         }
 
         if (direction === "offramp" || direction === "both") {
           if (isStellar) {
             try {
-              const quote = await getCentiivQuote({ fromAsset: "USDC", toAsset: "NGN", amount: 1 });
-              offrampRate = Number(quote.rate);
+              offrampRate = await getCentiivSellRate();
             } catch (centiivErr: any) {
               console.warn(`[ToolExecutor] Stellar offramp rate lookup failed, using benchmark:`, centiivErr.message);
               stellarRateOffline = true;
-              const res = await SwitchService.getOfframpRate("base:usdc").catch(() => null);
-              if (res?.success && res.rate) {
-                offrampRate = res.rate;
-              }
+              offrampRate = await getSwitchSellRate("base:usdc").catch(() => null);
             }
           } else {
-            const res = await SwitchService.getOfframpRate(targetAsset);
-            if (res.success && res.rate) {
-              offrampRate = res.rate;
-            }
+            offrampRate = await getSwitchSellRate(targetAsset);
           }
         }
 
@@ -2543,7 +2535,11 @@ export async function executeTool(
         let summaryForAI =
           `Current exchange rates for **${tokenSymbol}**:\n` +
           lines.join("\n") +
-          `\nTell the user these exact live rates clearly and concisely. Ask if they would like to proceed with a deposit or withdrawal.`;
+          `\nAll fees are already included in these rates${isStellar ? "" : jumpaSwitchFeeAside()}. ` +
+          `Tell the user these exact rates clearly and concisely, and that fees are included. ` +
+          `If they mention an amount, work it out from these rates and call it approximate: the card shows the exact figure. ` +
+          `Never quote a rate without fees, and never suggest cancelling or recreating a card to get a better rate. ` +
+          `Ask if they would like to proceed with a deposit or withdrawal.`;
 
         if (isStellar && stellarRateOffline) {
           summaryForAI +=

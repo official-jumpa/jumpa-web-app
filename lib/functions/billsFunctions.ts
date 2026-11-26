@@ -68,6 +68,41 @@ export function parsePlanPeriod(
 const DEVICE_ONLY_PLAN = /mifi|router/i;
 
 /**
+ * Plans we never list, by carrier and SmartSMS's exact product name (any case). Hiding a plan also
+ * refuses its purchase before any money moves. To hide another, add its name here.
+ */
+const HIDDEN_DATA_PLANS: Record<string, readonly string[]> = {
+  airtel: [
+    // SmartSMS answers HTTP 500 every time.
+    "AIRTEL DATA - 1GB - 2 DAYS",
+    "1GB - AIRTEL DATA - 1 DAY",
+    "300MB - AIRTEL DATA - 2 DAYS",
+    // Reported not working.
+    "AIRTEL DATA - 75MB (1 DAY)",
+    "300MB DAILY PLAN (1 DAY)",
+    "AIRTEL DATA - 1GB (7 DAYS)",
+    // Same size, validity and price as a plan we keep.
+    "AIRTEL DATA - 100 NAIRA - 100MB - 1 DAY",
+    "3GB WEEKLY PLAN + YOUTUBE & SOCIAL PLATFORM (7 DAYS)",
+    "1.5GB SOCIAL PLAN - 500 NAIRA",
+  ],
+};
+
+const planKey = (name: string) => name.trim().toUpperCase();
+const hiddenPlanKeys = new Map(
+  Object.entries(HIDDEN_DATA_PLANS).map(([carrier, names]) => [
+    carrier,
+    new Set(names.map(planKey)),
+  ]),
+);
+
+function isListedPlan(carrier: string | null, productName = ""): boolean {
+  if (DEVICE_ONLY_PLAN.test(productName)) return false;
+  const hidden = carrier ? hiddenPlanKeys.get(carrier) : undefined;
+  return !hidden?.has(planKey(productName));
+}
+
+/**
  * Fetches real-time carrier data bundles from SmartSMSSolutions.
  */
 export async function getCarrierDataPlans(phone: string): Promise<{
@@ -113,9 +148,8 @@ export async function getCarrierDataPlans(phone: string): Promise<{
     const detectedNetwork = detectCarrierFromProductType(json.data?.product_type);
 
     const plans = json.data.products
-      .filter(
-        (p: { product_name?: string }) =>
-          !DEVICE_ONLY_PLAN.test(p.product_name ?? ""),
+      .filter((p: { product_name?: string }) =>
+        isListedPlan(detectedNetwork, p.product_name),
       )
       .map((p: any, idx: number): DataPlan => {
         const rawPrice =

@@ -53,7 +53,7 @@ Every mainnet metric was met:
 | Deliverable | Status | Where to find it |
 | :--- | :--- | :--- |
 | Soroswap swaps on mainnet | Live | Chat, and the Swap tab at `/swap` |
-| DeFindex yield savings on mainnet | Live | `/savings`, including scheduled auto-save |
+| DeFindex yield savings on mainnet | Live | `/savings` |
 | Cross-chain bridging (planned on Allbridge) | Live on Circle CCTP v2 | Chat, and the Bridge tab at `/swap` |
 | Public user and developer guide | Published | [usejumpa.com/docs/stellar-integrations](https://usejumpa.com/docs/stellar-integrations) |
 | Public audit trail on Stellar Expert | Live | Receipts in the app, and the transaction hashes in sections 2 to 4 |
@@ -62,7 +62,7 @@ Every mainnet metric was met:
 
 ## 1. Milestones & Architecture Overview
 
-The shape is the same as in Tranche 2. What changed for mainnet: Circle CCTP replaced the Allbridge simulation, a fee account now pays network fees on swaps, auto-save runs deposits on a schedule, and every transaction settles on Stellar mainnet with its hash saved to the ledger.
+The shape is the same as in Tranche 2. What changed for mainnet: Circle CCTP replaced the Allbridge simulation, a fee account now pays network fees on swaps, and every transaction settles on Stellar mainnet with its hash saved to the ledger.
 
 ```mermaid
 flowchart TD
@@ -76,7 +76,6 @@ flowchart TD
 
     subgraph Server ["2. Jumpa server"]
         Pin -->|"PIN check"| Exec["Execution layer"]
-        Cron["Auto-save runner, every 5 min"] -->|"Plans approved with PIN"| Exec
         Exec -->|"Save tx hash"| Ledger[("Transaction ledger")]
     end
 
@@ -109,7 +108,7 @@ flowchart TD
     class Mainnet chain;
 ```
 
-Three rules hold across every flow. The AI assistant only prepares a card and never touches keys. Nothing is signed until the user enters their PIN, or for auto-save, until they've approved the plan with it. Every transaction's hash goes into the ledger and onto the user's receipt.
+Three rules hold across every flow. The AI assistant only prepares a card and never touches keys. Every transaction the user starts needs their 4-digit PIN. Every transaction's hash goes into the ledger and onto the user's receipt.
 
 ---
 
@@ -158,7 +157,7 @@ These 20 swaps come to $4,845.11 of the $6,119.34 swapped in the period. Each on
 
 ## 3. Milestone 2: DeFi Savings Yield via DeFindex
 
-USDC savings goals deposit into a DeFindex vault on mainnet. Money goes in two ways: a manual top-up, or auto-save, which moves a fixed amount on a schedule the user picks (daily, weekly, monthly or a custom gap). Auto-save on USDC starts at $0.10. Both paths share one deposit routine:
+USDC savings goals deposit into a DeFindex vault on mainnet. The user tops up a goal and confirms it with their PIN, and every top-up goes through one deposit routine:
 
 1. The DeFindex API builds the deposit transaction for the vault.
 2. We sign it with the user's key, write a pending record, then send it through DeFindex.
@@ -269,7 +268,6 @@ The figures come from the production transaction ledger: records with status `CO
 | **Fee Bumps & Fee Account** | [`lib/chains/stellar/sponsor.ts`](../lib/chains/stellar/sponsor.ts) | `wrapWithFeeBump`, `sponsoredSubmit`, `ensureSufficientStellarGas`, `collectStellarGasFeeUsdc` |
 | **DeFindex Client** | [`lib/chains/stellar/defindex-client.ts`](../lib/chains/stellar/defindex-client.ts) | `DefindexClient` (`deposit`, `withdraw`, `getBalance`, `getApy`, `send`) |
 | **USDC Savings Deposits** | [`lib/services/savings-usdc.ts`](../lib/services/savings-usdc.ts)<br/>[`lib/services/savings-execution.ts`](../lib/services/savings-execution.ts) | `moveUsdcIntoPlan`<br/>`depositSavingsExecution`, `withdrawSavingsExecution` |
-| **Auto-Save Runner** | [`lib/services/auto-save-runner.ts`](../lib/services/auto-save-runner.ts)<br/>[`script/auto-save.ts`](../script/auto-save.ts) | `runDueAutoSaves` |
 | **CCTP Bridging** | [`lib/execution/bridge-execute.ts`](../lib/execution/bridge-execute.ts)<br/>[`lib/chains/stellar/cctp-bridge.ts`](../lib/chains/stellar/cctp-bridge.ts)<br/>[`lib/chains/solana/cctp-bridge.ts`](../lib/chains/solana/cctp-bridge.ts) | `executeBridge`<br/>`relayToStellar`<br/>`relayToSolana` |
 | **PIN Verification** | [`lib/execution/verify-pin.ts`](../lib/execution/verify-pin.ts) | `verifyWalletPin` |
 | **Contract Addresses** | [`lib/blockchain.ts`](../lib/blockchain.ts) | `CONTRACT_ADDRESSES` |

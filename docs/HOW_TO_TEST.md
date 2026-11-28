@@ -147,7 +147,6 @@ A new Stellar address doesn't exist on the network until it holds at least 1 XLM
 
 1. Go to `/savings` and create a USDC goal.
 2. Top it up with 1 USDC and enter your PIN. The transaction calls `deposit` on the DeFindex vault, and the goal balance updates from the vault.
-3. Optional: turn on auto-save at $0.10 a day. Runs are picked up every five minutes, so the first one lands shortly after its scheduled time.
 
 ### Bridge with Circle CCTP
 

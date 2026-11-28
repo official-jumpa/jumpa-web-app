@@ -408,7 +408,7 @@ export const DOCS_PAGES: Record<string, DocPage> = {
       {
         id: "how-it-works",
         title: "How a Request Flows",
-        content: `Every swap, savings deposit and bridge takes the same path:\n\n1. You ask in chat or use one of the screens. The AI assistant reads your request and prepares a card with the quote. It can't sign or send anything.\n2. You confirm with your 4-digit PIN.\n3. The server decrypts your key in memory, builds the transaction with the right service (Soroswap, DeFindex or Circle) and signs it.\n4. The transaction goes to Stellar mainnet. On swaps, Jumpa's fee account wraps it in a fee bump and pays the network fee.\n5. The transaction hash is saved to your history, and your receipt links to it on Stellar Expert.\n\nAuto-save follows the same path from step 3, on the schedule you approved with your PIN.`,
+        content: `Every swap, savings deposit and bridge takes the same path:\n\n1. You ask in chat or use one of the screens. The AI assistant reads your request and prepares a card with the quote. It can't sign or send anything.\n2. You confirm with your 4-digit PIN.\n3. The server decrypts your key in memory, builds the transaction with the right service (Soroswap, DeFindex or Circle) and signs it.\n4. The transaction goes to Stellar mainnet. On swaps, Jumpa's fee account wraps it in a fee bump and pays the network fee.\n5. The transaction hash is saved to your history, and your receipt links to it on Stellar Expert.`,
       },
       {
         id: "swaps",
@@ -418,7 +418,7 @@ export const DOCS_PAGES: Record<string, DocPage> = {
       {
         id: "savings",
         title: "Savings on DeFindex",
-        content: `Savings goals hold USDC in a DeFindex vault on Stellar. Your goal balance and the APY on the Savings screen are read from the vault itself, so the yield moves with the vault's returns. It isn't a fixed rate.\n\n- You can top up a goal at any time from the Savings screen.\n- Auto-save deposits for you on a daily, weekly, monthly or custom schedule, from $0.10 a run. You approve the plan once with your PIN.\n- Locked goals can still be withdrawn early. You lose the interest earned, but your principal comes back in full.`,
+        content: `Savings goals hold USDC in a DeFindex vault on Stellar. Your goal balance and the APY on the Savings screen are read from the vault itself, so the yield moves with the vault's returns. It isn't a fixed rate.\n\n- You can top up a goal at any time from the Savings screen.\n- Locked goals can still be withdrawn early. You lose the interest earned, but your principal comes back in full.`,
       },
       {
         id: "bridging",
@@ -428,7 +428,7 @@ export const DOCS_PAGES: Record<string, DocPage> = {
       {
         id: "fees",
         title: "Network Fees",
-        content: `Every Stellar transaction pays a small network fee in XLM. On swaps, Jumpa pays it for you by wrapping your signed transaction in a fee bump from its own fee account. On Stellar Expert you'll see that account, [GAB72B74…KRSQF4IB](https://stellar.expert/explorer/public/account/GAB72B74GG24KKJMASIYPFFDCHPZ7GJK4TZBTG7HFPN4K5GUKRSQF4IB), as the fee payer. For savings deposits, Jumpa sends your wallet a little XLM first if you're short.\n\nSwaps into or out of USDC carry a flat service fee of $0.05 in USDC. A manual savings top-up pays the same fee only when Jumpa had to send you XLM for it. Auto-save runs never do.`,
+        content: `Every Stellar transaction pays a small network fee in XLM. On swaps, Jumpa pays it for you by wrapping your signed transaction in a fee bump from its own fee account. On Stellar Expert you'll see that account, [GAB72B74…KRSQF4IB](https://stellar.expert/explorer/public/account/GAB72B74GG24KKJMASIYPFFDCHPZ7GJK4TZBTG7HFPN4K5GUKRSQF4IB), as the fee payer. For savings deposits, Jumpa sends your wallet a little XLM first if you're short.\n\nSwaps into or out of USDC carry a flat service fee of $0.05 in USDC. A manual savings top-up pays the same fee only when Jumpa had to send you XLM for it.`,
       },
       {
         id: "keys",
@@ -438,7 +438,7 @@ export const DOCS_PAGES: Record<string, DocPage> = {
       {
         id: "data-protection",
         title: "How We Protect Your Keys and Data",
-        content: `Your recovery phrase is never stored in plain text. It's encrypted before it's stored, and it's only decrypted in memory for these three things, then dropped straight after:\n\n- signing a transaction you confirmed with your PIN\n- running an auto-save plan you set up and approved with your PIN\n- showing you your phrase when you ask for it in Settings\n\nThe AI assistant never sees your keys. It can only prepare a confirmation card, and your PIN is what releases the transaction. Your PIN is never stored in readable form, and repeated wrong attempts lock your wallet for a while.\n\nStellar transactions are public, which is why you can check every one of them. Your name, email address, phone number and ID documents are not. They stay off chain in Jumpa's database and never go into a Stellar transaction. See [Security & Privacy Safeguards](/docs/security-features) for more.`,
+        content: `Your recovery phrase is never stored in plain text. It's encrypted before it's stored, and it's only decrypted in memory for these two things, then dropped straight after:\n\n- signing a transaction you confirmed with your PIN\n- showing you your phrase when you ask for it in Settings\n\nThe AI assistant never sees your keys. It can only prepare a confirmation card, and your PIN is what releases the transaction. Your PIN is never stored in readable form, and repeated wrong attempts lock your wallet for a while.\n\nStellar transactions are public, which is why you can check every one of them. Your name, email address, phone number and ID documents are not. They stay off chain in Jumpa's database and never go into a Stellar transaction. See [Security & Privacy Safeguards](/docs/security-features) for more.`,
       },
       {
         id: "verify",

@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  AUTO_SAVE_CURRENCIES,
   amountRuleError,
   formatAutoSaveAmount,
+  sourcesFor,
   toCurrencyPrecision,
 } from "./savings-auto-save";
 
@@ -44,5 +46,19 @@ describe("formatAutoSaveAmount", () => {
     assert.equal(formatAutoSaveAmount(2000, "NGN"), "₦2,000");
     assert.equal(formatAutoSaveAmount(5, "USDC"), "$5");
     assert.equal(formatAutoSaveAmount(0.1, "USDC"), "$0.10");
+  });
+});
+
+describe("USDC auto-save", () => {
+  // The runner only runs Naira, so a live USDC would accept rules that never run.
+  it("stays off and shows as coming soon", () => {
+    assert.equal(AUTO_SAVE_CURRENCIES.USDC.live, false);
+    assert.deepEqual(
+      sourcesFor("NGN").map(({ value, soon }) => ({ value, soon })),
+      [
+        { value: "ngn", soon: false },
+        { value: "usdc", soon: true },
+      ],
+    );
   });
 });

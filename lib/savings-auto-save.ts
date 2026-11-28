@@ -136,7 +136,8 @@ export const AUTO_SAVE_CURRENCIES: Record<SavingsCurrency, CurrencyRules> = {
     },
   },
   USDC: {
-    live: true,
+    // TODO: not live. A scheduled USDC run would sign without the saver's PIN.
+    live: false,
     label: "Dollar",
     cap: 1_000,
     min: 0.1,

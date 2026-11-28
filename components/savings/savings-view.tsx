@@ -157,10 +157,10 @@ export function SavingsView() {
     return () => window.clearTimeout(celebrateTimer.current);
   }, [fetchPlans]);
 
-  // A scheduled save moved money while the page was open: re-read the plans and the wallet balances.
+  // A scheduled save moved money while the page was open: re-read the plans and the Naira balance.
   const refreshAfterRun = useCallback(() => {
     fetchPlans();
-    invalidateClientBalances();
+    invalidateClientBalances({ ngnOnly: true });
   }, [fetchPlans]);
   const autoSave = useAutoSaveRules({ onRun: refreshAfterRun });
   useRefreshSignal(fetchPlans);

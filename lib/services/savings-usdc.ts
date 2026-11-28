@@ -9,7 +9,7 @@ import {
 } from "@/lib/chains/stellar";
 import { readStellarMainnetBalances } from "@/lib/chains/stellar/account";
 import { DefindexClient } from "@/lib/chains/stellar/defindex-client";
-import { decryptMnemonic, encryptMnemonic } from "@/lib/crypto";
+import { decryptMnemonic } from "@/lib/crypto";
 import { connectDB } from "@/lib/db";
 import { environment } from "@/lib/environment";
 import { creditPlanForUsdcDeposit } from "@/lib/functions/savingsFunctions";
@@ -17,9 +17,9 @@ import { generateId } from "@/lib/schema-ids";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
 import { type ISavingsPlan, SavingsPlan } from "@/models/SavingsPlan";
 import { Transaction } from "@/models/Transaction";
-import { type IWallet, Wallet } from "@/models/Wallet";
+import type { IWallet } from "@/models/Wallet";
 
-/** Moving a saver's Stellar USDC into their DeFindex savings position. Manual top-ups and auto-save share it. */
+/** Moving a saver's Stellar USDC into their DeFindex savings position. */
 
 /** Below this much XLM the account is topped up from Jumpa's sponsor before a deposit. */
 export const MIN_GAS_XLM = 2.0;
@@ -50,13 +50,10 @@ export class UsdcDepositError extends Error {
   }
 }
 
-/**
- * The saver's Stellar keys, or null when they will not open. Without a PIN only
- * a v3-sealed wallet opens; `pinVersion` alone is not trusted, as it defaults to v3.
- */
+/** The saver's Stellar keys, opened with the PIN they just entered, or null when they will not open. */
 export function unlockStellarKeypair(
   wallet: IWallet,
-  pin?: string,
+  pin: string,
 ): StellarSdk.Keypair | null {
   try {
     const secret = decryptMnemonic(
@@ -74,34 +71,6 @@ export function unlockStellarKeypair(
   } catch {
     return null;
   }
-}
-
-/**
- * Auto-save signs with no PIN, so at setup a wallet only its PIN opens is
- * re-sealed as v3, as the background migration does. False if the PIN cannot open it.
- */
-export async function enablePinlessSigning(
-  wallet: IWallet,
-  pin: string,
-): Promise<boolean> {
-  if (unlockStellarKeypair(wallet)) return true;
-  let secret: string;
-  try {
-    secret = decryptMnemonic(
-      wallet.encryptedMnemonic,
-      wallet.iv,
-      wallet.salt,
-      pin,
-      wallet,
-    );
-  } catch {
-    return false;
-  }
-  await Wallet.updateOne(
-    { _id: wallet._id },
-    { $set: { ...encryptMnemonic(secret), pinVersion: "v3" } },
-  );
-  return true;
 }
 
 /** How the funds error names the deposit being checked. */
@@ -176,7 +145,7 @@ export async function moveUsdcIntoPlan(params: {
   planId: string;
   amount: number;
   via: "topup" | "autosave";
-  /** Manual top-ups pay a small USDC fee when their gas is topped up; auto-save runs never do. */
+  /** Manual top-ups pay a small USDC fee when their gas is topped up. */
   chargeGasFee: boolean;
 }): Promise<{ plan: ISavingsPlan; txHash: string; explorerUrl: string }> {
   const {

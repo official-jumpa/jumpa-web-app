@@ -9,7 +9,6 @@ import {
   formatAutoSaveAmount,
   sourceCopy,
 } from "@/lib/savings-auto-save";
-import { enablePinlessSigning } from "@/lib/services/savings-usdc";
 import type { SaveAutoSaveInput } from "@/lib/validations/auto-save.validation";
 import { AutoSaveRule, type IAutoSaveRule } from "@/models/AutoSaveRule";
 import { type ISavingsPlan, SavingsPlan } from "@/models/SavingsPlan";
@@ -70,7 +69,10 @@ export async function listAutoSaveRules(
 ): Promise<AutoSaveRuleView[]> {
   await connectDB();
   const rules = await AutoSaveRule.find({ userId }).lean<IAutoSaveRule[]>();
-  return rules.map(toAutoSaveRuleView);
+  // A rule in a currency that isn't live never runs, so the screens don't get it.
+  return rules
+    .filter((rule) => AUTO_SAVE_CURRENCIES[rule.currency].live)
+    .map(toAutoSaveRuleView);
 }
 
 /** Starts a plan's rule or replaces it. The PIN is the saver's consent; saving always leaves it running. */
@@ -107,14 +109,6 @@ export async function saveAutoSaveRule(
         ? `That is more than the ${formatAutoSaveAmount(room, plan.currency)} left on this plan`
         : "This plan has already reached its target",
     );
-  }
-
-  // Each USDC run signs on-chain without the PIN, so make sure that will work now.
-  if (
-    plan.currency === "USDC" &&
-    !(await enablePinlessSigning(wallet, input.pin))
-  ) {
-    return fail("We couldn't unlock your wallet. Please try again.", 500);
   }
 
   const { pin: _pin, planId, ...schedule } = input;

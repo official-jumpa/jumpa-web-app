@@ -1,10 +1,8 @@
 import { type ReactNode, useState } from "react";
 import { useNgnAccount } from "@/hooks/use-ngn-account";
-import { findHolding, useWalletTokens } from "@/hooks/use-wallet-tokens";
 import {
   type AutoSaveDraft,
   type AutoSaveRule,
-  formatAutoSaveAmount,
   type SourceBalances,
   startDraft,
 } from "@/lib/savings-auto-save";
@@ -41,13 +39,7 @@ export function AutoSaveFlow({
     () => rule ?? startDraft(goal),
   );
   const { ngnBalance } = useNgnAccount();
-  // Savings USDC moves on Stellar, so that is the balance that counts.
-  const { tokens } = useWalletTokens({ enabled: goal.currency === "USDC" });
-  const usdc = findHolding(tokens, "USDC", "stellar");
-  const balances: SourceBalances = {
-    ngn: ngnBalance ?? undefined,
-    usdc: usdc ? formatAutoSaveAmount(usdc.balance, "USDC") : undefined,
-  };
+  const balances: SourceBalances = { ngn: ngnBalance ?? undefined };
 
   const patch = (changes: Partial<AutoSaveDraft>) =>
     setDraft((current) => ({ ...current, ...changes }));

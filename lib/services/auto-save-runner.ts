@@ -3,67 +3,35 @@ import { connectDB } from "@/lib/db";
 import { createNotification } from "@/lib/functions/notificationFunctions";
 import {
   getUserActiveNgnSavings,
-  getUserActiveUsdcSavings,
   moveNgnIntoPlan,
 } from "@/lib/functions/savingsFunctions";
 import {
   assertDailyTransactionLimit,
   isLimitError,
 } from "@/lib/functions/transactionLimitFunctions";
-import { findWalletForUser } from "@/lib/functions/walletFunctions";
 import {
   AUTO_SAVE_CURRENCIES,
   formatAutoSaveAmount,
   toCurrencyPrecision,
 } from "@/lib/savings-auto-save";
-import type { SavingsCurrency } from "@/lib/savings-hub";
 import { autoSaveBlocker, roomToTarget } from "@/lib/services/auto-save";
-import {
-  moveUsdcIntoPlan,
-  UsdcDepositError,
-  unlockStellarKeypair,
-} from "@/lib/services/savings-usdc";
 import { formatOneLineError } from "@/lib/utils/api-best-practices";
 import { AutoSaveRule, type IAutoSaveRule } from "@/models/AutoSaveRule";
 import { type ISavingsPlan, SavingsPlan } from "@/models/SavingsPlan";
 import { User } from "@/models/User";
 
-/** Runs every auto-save rule that is due. Called by `npm run auto-save`, never from a request. */
+/** Runs every Naira auto-save rule that is due. Called by `npm run auto-save`, never from a request. */
 
 const BATCH_SIZE = 50;
-/** Naira runs are a few DB writes; USDC runs wait on the Stellar network, so fewer go at once. */
-const CONCURRENCY: Record<SavingsCurrency, number> = { NGN: 5, USDC: 4 };
-/** Naira first: it takes milliseconds and should never queue behind on-chain runs. */
-const CURRENCY_ORDER: readonly SavingsCurrency[] = ["NGN", "USDC"];
+/** Rules run side by side; each is a few small DB writes. */
+const CONCURRENCY = 5;
 /** Failed runs in a row before a rule pauses itself instead of retrying forever. */
 const MAX_FAILED_RUNS = 3;
 
-const WALLET_NAME: Record<SavingsCurrency, string> = {
-  NGN: "Naira wallet",
-  USDC: "USDC wallet",
-};
-
-const ACTIVE_SAVINGS: Record<
-  SavingsCurrency,
-  (userId: string) => Promise<number>
-> = {
-  NGN: getUserActiveNgnSavings,
-  USDC: getUserActiveUsdcSavings,
-};
-
-type RunOutcome = "saved" | "failed" | "ended" | "skipped" | "unconfirmed";
+type RunOutcome = "saved" | "failed" | "ended" | "skipped";
 export type AutoSaveRunSummary = Record<RunOutcome, number>;
 
-/** `unconfirmed`: sent but not confirmed, so it may still land and must not be retried as a miss. */
-type Moved =
-  | { ok: true; plan: ISavingsPlan }
-  | { ok: false; reason: string; unconfirmed?: boolean };
-
-type Mover = (
-  rule: IAutoSaveRule,
-  plan: ISavingsPlan,
-  amount: number,
-) => Promise<Moved>;
+type Moved = { ok: true; plan: ISavingsPlan } | { ok: false; reason: string };
 
 export async function runDueAutoSaves(
   now = new Date(),
@@ -74,42 +42,27 @@ export async function runDueAutoSaves(
     failed: 0,
     ended: 0,
     skipped: 0,
-    unconfirmed: 0,
   };
-  for (const currency of CURRENCY_ORDER) {
-    await runDueInCurrency(currency, now, summary);
-  }
-  return summary;
-}
-
-async function runDueInCurrency(
-  currency: SavingsCurrency,
-  now: Date,
-  summary: AutoSaveRunSummary,
-) {
   // Every rule handled here moves its nextRunAt past `now`, so each page is new work.
   for (;;) {
+    // Naira only: USDC rules are never read, so they stay exactly as they are.
     const due = await AutoSaveRule.find({
       paused: false,
-      currency,
+      currency: "NGN",
       nextRunAt: { $lte: now },
     })
       .sort({ nextRunAt: 1 })
       .limit(BATCH_SIZE)
       .lean<IAutoSaveRule[]>();
 
-    await eachWithLimit(
-      queuesByUser(due),
-      CONCURRENCY[currency],
-      async (queue) => {
-        for (const rule of queue) summary[await claimAndRun(rule, now)] += 1;
-      },
-    );
-    if (due.length < BATCH_SIZE) return;
+    await eachWithLimit(queuesByUser(due), CONCURRENCY, async (queue) => {
+      for (const rule of queue) summary[await claimAndRun(rule, now)] += 1;
+    });
+    if (due.length < BATCH_SIZE) return summary;
   }
 }
 
-/** One saver's rules run one after another: a Stellar account cannot send two at once. */
+/** One saver's rules run one after another, so the limit checks see each other's saves. */
 function queuesByUser(rules: IAutoSaveRule[]): IAutoSaveRule[][] {
   const queues = new Map<string, IAutoSaveRule[]>();
   for (const rule of rules) {
@@ -190,7 +143,7 @@ async function runRule(rule: IAutoSaveRule, now: Date): Promise<RunOutcome> {
   if (amount <= 0) return endAtTarget(rule, plan);
 
   const { cap } = AUTO_SAVE_CURRENCIES[currency];
-  if (amount > cap - (await ACTIVE_SAVINGS[currency](rule.userId))) {
+  if (amount > cap - (await getUserActiveNgnSavings(rule.userId))) {
     return recordFailure(
       rule,
       `You've reached the ${formatAutoSaveAmount(cap, currency)} savings limit`,
@@ -212,12 +165,8 @@ async function runRule(rule: IAutoSaveRule, now: Date): Promise<RunOutcome> {
     return recordFailure(rule, reason, now, plan);
   }
 
-  const moved = await MOVERS[currency](rule, plan, amount);
-  if (!moved.ok) {
-    return moved.unconfirmed
-      ? recordUnconfirmed(rule, now)
-      : recordFailure(rule, moved.reason, now, plan);
-  }
+  const moved = await moveNaira(rule, plan, amount);
+  if (!moved.ok) return recordFailure(rule, moved.reason, now, plan);
 
   await AutoSaveRule.updateOne(
     { _id: rule._id },
@@ -233,7 +182,7 @@ async function runRule(rule: IAutoSaveRule, now: Date): Promise<RunOutcome> {
   await notify(rule, plan, {
     tab: "transactions",
     title: "Auto-save complete",
-    body: `${formatAutoSaveAmount(amount, currency)} moved from your ${WALLET_NAME[currency]} to ${plan.name}.`,
+    body: `${formatAutoSaveAmount(amount, currency)} moved from your Naira wallet to ${plan.name}.`,
   });
 
   if (toCurrencyPrecision(roomToTarget(moved.plan), currency) <= 0) {
@@ -242,7 +191,11 @@ async function runRule(rule: IAutoSaveRule, now: Date): Promise<RunOutcome> {
   return "saved";
 }
 
-const moveNaira: Mover = async (rule, plan, amount) => {
+async function moveNaira(
+  rule: IAutoSaveRule,
+  plan: ISavingsPlan,
+  amount: number,
+): Promise<Moved> {
   try {
     const updated = await moveNgnIntoPlan({
       userId: rule.userId,
@@ -261,55 +214,7 @@ const moveNaira: Mover = async (rule, plan, amount) => {
         : message,
     };
   }
-};
-
-const USDC_REASONS: Record<
-  Exclude<UsdcDepositError["kind"], "unconfirmed">,
-  string
-> = {
-  insufficient: "Not enough USDC in your wallet",
-  unavailable: "We couldn't check your USDC balance",
-  build: "Our savings partner didn't respond",
-  rejected: "The Stellar network didn't accept the deposit",
-};
-
-/** Signs with the saver's own keys, unlocked without a PIN; Jumpa covers the gas. */
-const moveUsdc: Mover = async (rule, plan, amount) => {
-  const wallet = await findWalletForUser(rule.userId);
-  if (!wallet) return { ok: false, reason: "Wallet not found" };
-  const keypair = unlockStellarKeypair(wallet);
-  if (!keypair) {
-    return {
-      ok: false,
-      reason: "Confirm this auto-save with your PIN again",
-    };
-  }
-
-  try {
-    const deposit = await moveUsdcIntoPlan({
-      userId: rule.userId,
-      walletId: wallet._id,
-      stellarAddress: wallet.addresses?.xlm || wallet.address,
-      keypair,
-      planId: plan._id,
-      amount,
-      via: "autosave",
-      chargeGasFee: false,
-    });
-    return { ok: true, plan: deposit.plan };
-  } catch (err) {
-    if (!(err instanceof UsdcDepositError)) throw err;
-    if (err.kind === "unconfirmed") {
-      return { ok: false, reason: err.message, unconfirmed: true };
-    }
-    return { ok: false, reason: USDC_REASONS[err.kind] };
-  }
-};
-
-const MOVERS: Record<SavingsCurrency, Mover> = {
-  NGN: moveNaira,
-  USDC: moveUsdc,
-};
+}
 
 /** A plan that hits its target ends its rule. */
 async function endAtTarget(
@@ -323,18 +228,6 @@ async function endAtTarget(
     body: `${plan.name} has reached its target, so auto-save is now off.`,
   });
   return "ended";
-}
-
-/** Sent but not confirmed: no notice and no strike. If it lands, the resolver credits the plan. */
-async function recordUnconfirmed(
-  rule: IAutoSaveRule,
-  now: Date,
-): Promise<RunOutcome> {
-  await AutoSaveRule.updateOne(
-    { _id: rule._id },
-    { $set: { lastRunAt: now, lastError: null } },
-  );
-  return "unconfirmed";
 }
 
 /** Tells the saver on the first miss and pauses the rule once misses pile up. */

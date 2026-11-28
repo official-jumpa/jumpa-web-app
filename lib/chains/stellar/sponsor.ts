@@ -1,70 +1,8 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { environment } from "@/lib/environment";
 import { CONTRACT_ADDRESSES } from "@/lib/blockchain";
-import { checkRateLimit } from "@/lib/functions/rateLimitFunctions";
-import { getRedisClient } from "@/lib/redis";
 import { getHorizonServer } from "./client";
 import type { StellarDerivedKeys } from "./keypair";
-
-/** Global hourly cap on sponsored Stellar account/trustline activations (40/hr = max 60 XLM locked/hr). */
-export const STELLAR_ACTIVATION_HOURLY_LIMIT = 40;
-export const STELLAR_ACTIVATION_WINDOW_SEC = 3600;
-
-declare global {
-  var __stellarActivationTimestamps: number[] | undefined;
-}
-
-/**
- * Consumes 1 slot from the global hourly Stellar activation quota.
- * Uses Redis across instances when configured, with an in-memory sliding window fallback.
- */
-export async function consumeStellarActivationQuota(
-  limit = STELLAR_ACTIVATION_HOURLY_LIMIT,
-  windowSec = STELLAR_ACTIVATION_WINDOW_SEC,
-): Promise<{ allowed: boolean; remaining: number; resetInSeconds: number }> {
-  const redis = getRedisClient();
-  if (redis) {
-    const res = await checkRateLimit({
-      identifier: "global",
-      tier: "critical",
-      action: "stellar_sponsored_activation",
-      customLimit: limit,
-      customWindowSec: windowSec,
-    });
-    return {
-      allowed: res.allowed,
-      remaining: res.remaining,
-      resetInSeconds: res.resetInSeconds,
-    };
-  }
-
-  const now = Date.now();
-  const windowMs = windowSec * 1000;
-  const cutoff = now - windowMs;
-  const timestamps = (globalThis.__stellarActivationTimestamps ?? []).filter(
-    (ts) => ts > cutoff,
-  );
-
-  if (timestamps.length >= limit) {
-    globalThis.__stellarActivationTimestamps = timestamps;
-    const oldest = timestamps[0] ?? now;
-    const resetInSeconds = Math.max(1, Math.ceil((oldest + windowMs - now) / 1000));
-    return { allowed: false, remaining: 0, resetInSeconds };
-  }
-
-  timestamps.push(now);
-  globalThis.__stellarActivationTimestamps = timestamps;
-  return {
-    allowed: true,
-    remaining: Math.max(0, limit - timestamps.length),
-    resetInSeconds: windowSec,
-  };
-}
-
-/** Resets the in-memory fallback activation quota (intended for tests). */
-export function resetLocalStellarActivationQuota(): void {
-  globalThis.__stellarActivationTimestamps = [];
-}
 
 export type StellarKeyInput = StellarSdk.Keypair | StellarDerivedKeys | string;
 
@@ -435,17 +373,28 @@ export interface EnsureStellarAccountResult {
   error?: string;
 }
 
+export interface EnsureStellarAccountOptions {
+  /** Optional server-side quota guard (e.g. `consumeStellarActivationQuota`), called only when activation is needed. */
+  checkQuota?: () => Promise<{
+    allowed: boolean;
+    remaining: number;
+    resetInSeconds: number;
+    limit?: number;
+  }>;
+}
+
 /**
  * Ensures a Stellar account is both activated and has the Circle USDC trustline
  * using CAP-33 Sponsored Reserves (`beginSponsoringFutureReserves` / `endSponsoringFutureReserves`).
  *
  * - Creates new accounts with 0 XLM starting balance + USDC trustline in a single atomic transaction
  *   (locks 1.5 XLM reserve on the sponsor without transferring XLM to the user).
- * - Enforces a global 40 activations/hour cap only when an on-chain activation/trustline is actually needed.
+ * - When `options.checkQuota` is provided, consumes a slot only when on-chain sponsorship is actually needed.
  */
 export async function ensureStellarAccountActiveAndTrustlined(
   userKey: StellarKeyInput,
   network: "mainnet" | "testnet" = "mainnet",
+  options?: EnsureStellarAccountOptions,
 ): Promise<EnsureStellarAccountResult> {
   try {
     const userKeypair = toKeypair(userKey);
@@ -488,22 +437,27 @@ export async function ensureStellarAccountActiveAndTrustlined(
     }
 
     // Only consume an hourly activation slot when on-chain sponsorship is actually needed.
-    const quota = await consumeStellarActivationQuota();
-    if (!quota.allowed) {
-      console.warn(
-        `[Stellar] Hourly activation limit (${STELLAR_ACTIVATION_HOURLY_LIMIT}/hr) reached for ${userAddress}. Retry in ${quota.resetInSeconds}s.`,
-      );
-      return {
-        ok: false,
-        rateLimited: true,
-        retryAfter: quota.resetInSeconds,
-        error:
-          "Stellar activation is temporarily at capacity. Please try again in a few minutes.",
-      };
+    let quotaLabel = "unbounded";
+    if (options?.checkQuota) {
+      const quota = await options.checkQuota();
+      const cap = quota.limit ?? 40;
+      if (!quota.allowed) {
+        console.warn(
+          `[Stellar] Hourly activation limit (${cap}/hr) reached for ${userAddress}. Retry in ${quota.resetInSeconds}s.`,
+        );
+        return {
+          ok: false,
+          rateLimited: true,
+          retryAfter: quota.resetInSeconds,
+          error:
+            "Stellar activation is temporarily at capacity. Please try again in a few minutes.",
+        };
+      }
+      quotaLabel = `${quota.remaining}/${cap}`;
     }
 
     console.log(
-      `[Stellar] Triggering sponsored activation for ${userAddress} (newAccount=${!accountExists}, addUsdcTrustline=${!hasTrustline}, quotaRemaining=${quota.remaining}/${STELLAR_ACTIVATION_HOURLY_LIMIT})`,
+      `[Stellar] Triggering sponsored activation for ${userAddress} (newAccount=${!accountExists}, addUsdcTrustline=${!hasTrustline}, quotaRemaining=${quotaLabel})`,
     );
 
     const passphrase =

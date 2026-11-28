@@ -26,6 +26,7 @@ import {
   deriveStellarKeypairFromMnemonic,
   ensureStellarAccountActiveAndTrustlined,
 } from "@/lib/chains/stellar";
+import { consumeStellarActivationQuota } from "@/lib/chains/stellar/activation-quota";
 import { environment } from "@/lib/environment";
 import { walletSetupSchema } from "@/lib/validations/user.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
@@ -225,6 +226,7 @@ export async function POST(req: NextRequest) {
         const res = await ensureStellarAccountActiveAndTrustlined(
           stellarKeys,
           "mainnet",
+          { checkQuota: consumeStellarActivationQuota },
         );
         if (!res.ok) {
           console.warn(

@@ -22,9 +22,13 @@ export interface StellarMultiNetBalances {
   spendableXlm?: string;
 }
 
-/** What Stellar holds back: two base reserves plus one per subentry, 0.5 XLM each. */
-export function stellarMinReserve(subentryCount = 0): number {
-  return (2 + subentryCount) * 0.5;
+/** What Stellar holds back: two base reserves plus one per subentry, adjusted for CAP-33 sponsorships, 0.5 XLM each. */
+export function stellarMinReserve(
+  subentryCount = 0,
+  numSponsoring = 0,
+  numSponsored = 0,
+): number {
+  return Math.max(0, (2 + subentryCount + numSponsoring - numSponsored) * 0.5);
 }
 
 async function safeHorizonCall<T>(
@@ -121,7 +125,12 @@ export async function fetchStellarBalances(
         if (!data) return { balances: fallback };
         const balances = parseBalancesFromHorizonAccount(data.balances, false);
         const spendable =
-          Number(balances.native) - stellarMinReserve(data.subentry_count);
+          Number(balances.native) -
+          stellarMinReserve(
+            data.subentry_count,
+            data.num_sponsoring ?? 0,
+            data.num_sponsored ?? 0,
+          );
         return { balances, spendableXlm: Math.max(0, spendable).toFixed(7) };
       },
       { balances: fallback },

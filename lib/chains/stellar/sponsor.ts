@@ -1,8 +1,70 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { environment } from "@/lib/environment";
 import { CONTRACT_ADDRESSES } from "@/lib/blockchain";
+import { checkRateLimit } from "@/lib/functions/rateLimitFunctions";
+import { getRedisClient } from "@/lib/redis";
 import { getHorizonServer } from "./client";
 import type { StellarDerivedKeys } from "./keypair";
+
+/** Global hourly cap on sponsored Stellar account/trustline activations (40/hr = max 60 XLM locked/hr). */
+export const STELLAR_ACTIVATION_HOURLY_LIMIT = 40;
+export const STELLAR_ACTIVATION_WINDOW_SEC = 3600;
+
+declare global {
+  var __stellarActivationTimestamps: number[] | undefined;
+}
+
+/**
+ * Consumes 1 slot from the global hourly Stellar activation quota.
+ * Uses Redis across instances when configured, with an in-memory sliding window fallback.
+ */
+export async function consumeStellarActivationQuota(
+  limit = STELLAR_ACTIVATION_HOURLY_LIMIT,
+  windowSec = STELLAR_ACTIVATION_WINDOW_SEC,
+): Promise<{ allowed: boolean; remaining: number; resetInSeconds: number }> {
+  const redis = getRedisClient();
+  if (redis) {
+    const res = await checkRateLimit({
+      identifier: "global",
+      tier: "critical",
+      action: "stellar_sponsored_activation",
+      customLimit: limit,
+      customWindowSec: windowSec,
+    });
+    return {
+      allowed: res.allowed,
+      remaining: res.remaining,
+      resetInSeconds: res.resetInSeconds,
+    };
+  }
+
+  const now = Date.now();
+  const windowMs = windowSec * 1000;
+  const cutoff = now - windowMs;
+  const timestamps = (globalThis.__stellarActivationTimestamps ?? []).filter(
+    (ts) => ts > cutoff,
+  );
+
+  if (timestamps.length >= limit) {
+    globalThis.__stellarActivationTimestamps = timestamps;
+    const oldest = timestamps[0] ?? now;
+    const resetInSeconds = Math.max(1, Math.ceil((oldest + windowMs - now) / 1000));
+    return { allowed: false, remaining: 0, resetInSeconds };
+  }
+
+  timestamps.push(now);
+  globalThis.__stellarActivationTimestamps = timestamps;
+  return {
+    allowed: true,
+    remaining: Math.max(0, limit - timestamps.length),
+    resetInSeconds: windowSec,
+  };
+}
+
+/** Resets the in-memory fallback activation quota (intended for tests). */
+export function resetLocalStellarActivationQuota(): void {
+  globalThis.__stellarActivationTimestamps = [];
+}
 
 export type StellarKeyInput = StellarSdk.Keypair | StellarDerivedKeys | string;
 
@@ -364,15 +426,27 @@ export async function activateStellarAccount(
   // }
 }
 
+export interface EnsureStellarAccountResult {
+  ok: boolean;
+  alreadyActive?: boolean;
+  txHash?: string | null;
+  rateLimited?: boolean;
+  retryAfter?: number;
+  error?: string;
+}
+
 /**
- * Ensures a Stellar account is both activated (funded with 1.6 XLM) and has the Circle USDC trustline.
- * Uses the platform sponsor to fund the starting reserve and sponsor fees.
- * Signed by the user's keypair for the changeTrust operation.
+ * Ensures a Stellar account is both activated and has the Circle USDC trustline
+ * using CAP-33 Sponsored Reserves (`beginSponsoringFutureReserves` / `endSponsoringFutureReserves`).
+ *
+ * - Creates new accounts with 0 XLM starting balance + USDC trustline in a single atomic transaction
+ *   (locks 1.5 XLM reserve on the sponsor without transferring XLM to the user).
+ * - Enforces a global 40 activations/hour cap only when an on-chain activation/trustline is actually needed.
  */
 export async function ensureStellarAccountActiveAndTrustlined(
   userKey: StellarKeyInput,
   network: "mainnet" | "testnet" = "mainnet",
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<EnsureStellarAccountResult> {
   try {
     const userKeypair = toKeypair(userKey);
     const server = getHorizonServer(network);
@@ -386,6 +460,10 @@ export async function ensureStellarAccountActiveAndTrustlined(
       network === "mainnet"
         ? CONTRACT_ADDRESSES.stellar.mainnet.USDC
         : CONTRACT_ADDRESSES.stellar.testnet.USDC;
+
+    console.log(
+      `[Stellar] Checking activation status for ${userAddress} (${network})`,
+    );
 
     let accountExists = false;
     let hasTrustline = false;
@@ -403,56 +481,84 @@ export async function ensureStellarAccountActiveAndTrustlined(
     }
 
     if (accountExists && hasTrustline) {
-      return { ok: true };
+      console.log(
+        `[Stellar] ${userAddress} is already active with USDC trustline — skipping sponsorship`,
+      );
+      return { ok: true, alreadyActive: true, txHash: null };
     }
+
+    // Only consume an hourly activation slot when on-chain sponsorship is actually needed.
+    const quota = await consumeStellarActivationQuota();
+    if (!quota.allowed) {
+      console.warn(
+        `[Stellar] Hourly activation limit (${STELLAR_ACTIVATION_HOURLY_LIMIT}/hr) reached for ${userAddress}. Retry in ${quota.resetInSeconds}s.`,
+      );
+      return {
+        ok: false,
+        rateLimited: true,
+        retryAfter: quota.resetInSeconds,
+        error:
+          "Stellar activation is temporarily at capacity. Please try again in a few minutes.",
+      };
+    }
+
+    console.log(
+      `[Stellar] Triggering sponsored activation for ${userAddress} (newAccount=${!accountExists}, addUsdcTrustline=${!hasTrustline}, quotaRemaining=${quota.remaining}/${STELLAR_ACTIVATION_HOURLY_LIMIT})`,
+    );
 
     const passphrase =
       network === "mainnet"
         ? StellarSdk.Networks.PUBLIC
         : StellarSdk.Networks.TESTNET;
 
-    // 1. If account does not exist, activate it with 1.6 XLM from sponsor
+    const sponsorAccount = await server.loadAccount(sponsorKey.publicKey());
+    const usdcAsset = new StellarSdk.Asset("USDC", usdcIssuer);
+
+    // Single atomic CAP-33 sponsored-reserve sandwich:
+    // Sponsor covers the 1.0 XLM account reserve (if new) + 0.5 XLM USDC trustline reserve (if missing)
+    // and pays the tx fee, while transferring 0 XLM to the user.
+    const builder = new StellarSdk.TransactionBuilder(sponsorAccount, {
+      fee: "400",
+      networkPassphrase: passphrase,
+    }).addOperation(
+      StellarSdk.Operation.beginSponsoringFutureReserves({
+        sponsoredId: userAddress,
+      }),
+    );
+
     if (!accountExists) {
-      const sponsorAccount = await server.loadAccount(sponsorKey.publicKey());
-      const tx = new StellarSdk.TransactionBuilder(sponsorAccount, {
-        fee: "200",
-        networkPassphrase: passphrase,
-      })
-        .addOperation(
-          StellarSdk.Operation.createAccount({
-            destination: userAddress,
-            startingBalance: "1.6",
-          }),
-        )
-        .setTimeout(60)
-        .build();
-
-      tx.sign(sponsorKey);
-      await server.submitTransaction(tx);
+      builder.addOperation(
+        StellarSdk.Operation.createAccount({
+          destination: userAddress,
+          startingBalance: "0",
+        }),
+      );
     }
 
-    // 2. Establish USDC trustline if missing
     if (!hasTrustline) {
-      const userAcc = await server.loadAccount(userAddress);
-      const usdcAsset = new StellarSdk.Asset("USDC", usdcIssuer);
-      const trustTx = new StellarSdk.TransactionBuilder(userAcc, {
-        fee: "200",
-        networkPassphrase: passphrase,
-      })
-        .addOperation(
-          StellarSdk.Operation.changeTrust({
-            asset: usdcAsset,
-          }),
-        )
-        .setTimeout(60)
-        .build();
-
-      trustTx.sign(userKeypair);
-      const { tx: finalTx } = wrapWithFeeBump(trustTx, network);
-      await server.submitTransaction(finalTx);
+      builder.addOperation(
+        StellarSdk.Operation.changeTrust({
+          asset: usdcAsset,
+          source: userAddress,
+        }),
+      );
     }
 
-    return { ok: true };
+    builder.addOperation(
+      StellarSdk.Operation.endSponsoringFutureReserves({
+        source: userAddress,
+      }),
+    );
+
+    const tx = builder.setTimeout(60).build();
+    tx.sign(sponsorKey, userKeypair);
+    const res = await server.submitTransaction(tx);
+
+    console.log(
+      `[Stellar] Sponsored activation+trustline for ${userAddress} (new=${!accountExists}, trustline=${!hasTrustline}). TxHash: ${res.hash}`,
+    );
+
+    return { ok: true, alreadyActive: false, txHash: res.hash };
   } catch (err: any) {
     const detail =
       err?.response?.data?.extras?.result_codes || err?.message || String(err);
@@ -539,11 +645,12 @@ export async function establishUsdcTrustline(
 }
 
 /**
- * End-to-end activation helper: Activates account via sponsor, then establishes Circle USDC trustline.
+ * End-to-end activation helper: Activates account and establishes Circle USDC trustline
+ * in a single atomic CAP-33 sponsored-reserve transaction (0 XLM sent to user).
  */
 export async function activateAndTrustlineWallet(
   userKey: StellarKeyInput,
-  startingBalance = "1.6",
+  _startingBalance = "0",
   network: "mainnet" | "testnet" = "mainnet",
 ): Promise<{
   activated: boolean;
@@ -552,36 +659,23 @@ export async function activateAndTrustlineWallet(
   trustlineTx: string | null;
   error?: string;
 }> {
-  const userKeypair = toKeypair(userKey);
-  const activation = await activateStellarAccount(
-    userKeypair.publicKey(),
-    startingBalance,
-    network,
-  );
+  const res = await ensureStellarAccountActiveAndTrustlined(userKey, network);
 
-  if (!activation.success) {
+  if (!res.ok) {
     return {
       activated: false,
       trustlined: false,
       activationTx: null,
       trustlineTx: null,
-      error: activation.error,
+      error: res.error,
     };
   }
 
-  // Small pause for ledger sync if newly created
-  if (!activation.alreadyActive) {
-    await new Promise((r) => setTimeout(r, 2000));
-  }
-
-  const trustline = await establishUsdcTrustline(userKeypair, network);
-
   return {
     activated: true,
-    trustlined: trustline.success,
-    activationTx: activation.txHash,
-    trustlineTx: trustline.txHash,
-    error: trustline.error,
+    trustlined: true,
+    activationTx: res.txHash ?? null,
+    trustlineTx: res.txHash ?? null,
   };
 }
 

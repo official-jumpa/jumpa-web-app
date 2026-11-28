@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { generateMnemonic } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english.js";
 import bcrypt from "bcryptjs";
@@ -22,6 +22,10 @@ import { createNotification } from "@/lib/functions/notificationFunctions";
 import { getCachedWalletBalances } from "@/lib/wallet-balances";
 import { encryptMnemonic } from "@/lib/crypto";
 import { deriveAddresses } from "@/lib/derive-addresses";
+import {
+  deriveStellarKeypairFromMnemonic,
+  ensureStellarAccountActiveAndTrustlined,
+} from "@/lib/chains/stellar";
 import { environment } from "@/lib/environment";
 import { walletSetupSchema } from "@/lib/validations/user.validation";
 import { formatZodError } from "@/lib/validations/validation-helper";
@@ -209,6 +213,30 @@ export async function POST(req: NextRequest) {
 
     // Link active wallet to user
     await setUserActiveWallet(session.user.id, wallet._id);
+
+    // Instantly activate Stellar account + USDC trustline in the background via CAP-33 sponsored reserves
+    // (0 XLM sent to user, 40/hr global sponsor cap, non-blocking for the wallet creation response).
+    const stellarKeys = deriveStellarKeypairFromMnemonic(newPhrase);
+    after(async () => {
+      console.log(
+        `[Stellar] Triggered on wallet creation for user=${session.user.id} address=${stellarKeys.publicKey}`,
+      );
+      try {
+        const res = await ensureStellarAccountActiveAndTrustlined(
+          stellarKeys,
+          "mainnet",
+        );
+        if (!res.ok) {
+          console.warn(
+            `[Stellar] Background activation did not complete for ${stellarKeys.publicKey}: ${res.error}`,
+          );
+        }
+      } catch (err) {
+        console.error(
+          `[Stellar] Unexpected error during wallet creation for ${stellarKeys.publicKey}: ${formatOneLineError(err)}`,
+        );
+      }
+    });
 
     // Log user activity
     logUserActivity({
